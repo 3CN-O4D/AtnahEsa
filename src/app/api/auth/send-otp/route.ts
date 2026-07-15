@@ -19,13 +19,17 @@ export async function POST(req: Request) {
       .insert({ email, otp, type, expires_at: expiresAt })
 
     if (dbError) {
-      return NextResponse.json({ error: 'Failed to store OTP' }, { status: 500 })
+      return NextResponse.json({ error: `DB error: ${dbError.message}` }, { status: 500 })
     }
 
-    await sendOtpEmail(email, otp, type)
+    try {
+      await sendOtpEmail(email, otp, type)
+    } catch (emailErr) {
+      console.error('Failed to send OTP email:', emailErr)
+    }
 
     return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+  } catch (err) {
+    return NextResponse.json({ error: `Server error: ${err instanceof Error ? err.message : 'unknown'}` }, { status: 500 })
   }
 }

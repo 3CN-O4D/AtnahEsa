@@ -18,6 +18,7 @@ export default function SignUpPage() {
   const [role, setRole] = useState('hunter')
   const [otp, setOtp] = useState('')
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
 
   const handleSignUp = async (e: React.FormEvent) => {
@@ -32,7 +33,7 @@ export default function SignUpPage() {
         body: JSON.stringify({ email, password, username, full_name: name, phone, role }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); return }
+      if (!res.ok) { setError(data.error); setLoading(false); return }
 
       await fetch('/api/auth/send-otp', {
         method: 'POST',
@@ -60,13 +61,31 @@ export default function SignUpPage() {
         body: JSON.stringify({ email, otp, type: 'signup' }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); return }
+      if (!res.ok) { setError(data.error); setLoading(false); return }
 
       router.push('/auth/signin')
     } catch {
       setError('Something went wrong')
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setResending(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'signup' }),
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data.error)
+    } catch {
+      setError('Failed to resend')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -101,6 +120,16 @@ export default function SignUpPage() {
             Verify Email
           </Button>
         </form>
+
+        <p className="text-center mt-4">
+          <button
+            onClick={handleResend}
+            disabled={resending}
+            className="text-sm text-blue-600 hover:underline disabled:opacity-50"
+          >
+            {resending ? 'Sending...' : 'Resend code'}
+          </button>
+        </p>
       </div>
     )
   }

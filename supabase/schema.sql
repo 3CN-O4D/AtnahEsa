@@ -1,0 +1,372 @@
+-- ============================================================
+-- AseHanta - Full Database Schema
+-- Run this in Supabase SQL Editor to set up the database
+-- ============================================================
+
+-- 1. USERS (extends Supabase auth.users)
+CREATE TABLE IF NOT EXISTS public.profiles (
+  id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  username TEXT UNIQUE NOT NULL,
+  full_name TEXT NOT NULL,
+  phone TEXT,
+  role TEXT NOT NULL DEFAULT 'hunter' CHECK (role IN ('hunter', 'lister', 'admin')),
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+
+-- Users can read their own profile
+CREATE POLICY "Users can view own profile"
+  ON public.profiles FOR SELECT
+  USING (auth.uid() = id);
+
+-- Users can update own profile
+CREATE POLICY "Users can update own profile"
+  ON public.profiles FOR UPDATE
+  USING (auth.uid() = id);
+
+-- Admins can view all profiles
+CREATE POLICY "Admins can view all profiles"
+  ON public.profiles FOR SELECT
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 2. LISTINGS
+CREATE TABLE IF NOT EXISTS public.listings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  price INTEGER NOT NULL CHECK (price >= 300),
+  rent INTEGER NOT NULL DEFAULT 0,
+  location TEXT NOT NULL,
+  images TEXT[] DEFAULT '{}',
+  youtube_url TEXT,
+  issues TEXT[] DEFAULT '{}',
+  issues_count INTEGER DEFAULT 0,
+  deposit INTEGER DEFAULT 0,
+  electricity TEXT DEFAULT '',
+  water TEXT DEFAULT '',
+  why_vacant TEXT DEFAULT '',
+  descriptive_location TEXT DEFAULT '',
+  payment_method TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'booked', 'taken', 'rejected')),
+  uploader_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  uploader_name TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY;
+
+-- Everyone can read published listings
+CREATE POLICY "Anyone can view published listings"
+  ON public.listings FOR SELECT
+  USING (status = 'published');
+
+-- Uploaders can view own listings
+CREATE POLICY "Uploaders can view own listings"
+  ON public.listings FOR SELECT
+  USING (auth.uid() = uploader_id);
+
+-- Admins can view all listings
+CREATE POLICY "Admins can view all listings"
+  ON public.listings FOR SELECT
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- Uploaders can insert
+CREATE POLICY "Authenticated users can insert listings"
+  ON public.listings FOR INSERT
+  WITH CHECK (auth.uid() = uploader_id);
+
+-- Admins can update any listing
+CREATE POLICY "Admins can update any listing"
+  ON public.listings FOR UPDATE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- Admins can delete listings
+CREATE POLICY "Admins can delete listings"
+  ON public.listings FOR DELETE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 3. BOOKINGS
+CREATE TABLE IF NOT EXISTS public.bookings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  amount INTEGER NOT NULL,
+  phone TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'refunded')),
+  visit_status TEXT NOT NULL DEFAULT 'pending' CHECK (visit_status IN ('pending', 'visited', 'completed', 'refunded')),
+  mpesa_receipt TEXT DEFAULT '',
+  mpesa_metadata JSONB DEFAULT '{}',
+  refund_amount INTEGER DEFAULT 0,
+  refunded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.bookings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own bookings"
+  ON public.bookings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own bookings"
+  ON public.bookings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all bookings"
+  ON public.bookings FOR SELECT
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can update bookings"
+  ON public.bookings FOR UPDATE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 4. MOVERS
+CREATE TABLE IF NOT EXISTS public.movers (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  location TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  image TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.movers ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read movers"
+  ON public.movers FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can insert movers"
+  ON public.movers FOR INSERT
+  WITH CHECK (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can update movers"
+  ON public.movers FOR UPDATE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete movers"
+  ON public.movers FOR DELETE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 5. WIFI CATEGORIES
+CREATE TABLE IF NOT EXISTS public.wifi_categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  color TEXT DEFAULT '#3B82F6',
+  icon TEXT DEFAULT 'Wifi',
+  display_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wifi_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read wifi categories"
+  ON public.wifi_categories FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can insert wifi categories"
+  ON public.wifi_categories FOR INSERT
+  WITH CHECK (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can update wifi categories"
+  ON public.wifi_categories FOR UPDATE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete wifi categories"
+  ON public.wifi_categories FOR DELETE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- Seed default categories
+INSERT INTO public.wifi_categories (name, description, color, display_order) VALUES
+  ('Home Packages', 'High-speed internet for your home', '#2563EB', 1),
+  ('Device Plans', 'Perfect for individual devices', '#059669', 2)
+ON CONFLICT DO NOTHING;
+
+-- 6. WIFI PACKAGE ↔ CATEGORY (many-to-many)
+CREATE TABLE IF NOT EXISTS public.wifi_package_categories (
+  package_id UUID REFERENCES public.wifi_packages(id) ON DELETE CASCADE,
+  category_id UUID REFERENCES public.wifi_categories(id) ON DELETE CASCADE,
+  PRIMARY KEY (package_id, category_id)
+);
+
+ALTER TABLE public.wifi_package_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read package categories"
+  ON public.wifi_package_categories FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can manage package categories"
+  ON public.wifi_package_categories FOR INSERT
+  WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+CREATE POLICY "Admins can delete package categories"
+  ON public.wifi_package_categories FOR DELETE
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- 7. WIFI PACKAGES
+CREATE TABLE IF NOT EXISTS public.wifi_packages (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  speed TEXT NOT NULL,
+  price INTEGER NOT NULL,
+  description TEXT NOT NULL,
+  features TEXT[] DEFAULT '{}',
+  original_price INTEGER DEFAULT 0,
+  category TEXT DEFAULT 'home',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wifi_packages ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read wifi packages"
+  ON public.wifi_packages FOR SELECT
+  USING (true);
+
+CREATE POLICY "Admins can insert wifi packages"
+  ON public.wifi_packages FOR INSERT
+  WITH CHECK (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can update wifi packages"
+  ON public.wifi_packages FOR UPDATE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can delete wifi packages"
+  ON public.wifi_packages FOR DELETE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 8. CONTACT SUBMISSIONS
+CREATE TABLE IF NOT EXISTS public.contact_submissions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT NOT NULL,
+  id_number TEXT NOT NULL,
+  location TEXT NOT NULL,
+  message TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.contact_submissions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can insert contact submissions"
+  ON public.contact_submissions FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Admins can read contact submissions"
+  ON public.contact_submissions FOR SELECT
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 9. ADMIN ROLE FUNCTION & TRIGGER
+-- Auto-create profile on user signup
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS TRIGGER AS $$
+BEGIN
+  INSERT INTO public.profiles (id, username, full_name, phone, role)
+  VALUES (
+    NEW.id,
+    COALESCE(NEW.raw_user_meta_data->>'username', SPLIT_PART(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
+    NEW.raw_user_meta_data->>'phone',
+    COALESCE(NEW.raw_user_meta_data->>'role', 'hunter')
+  );
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW
+  EXECUTE FUNCTION public.handle_new_user();
+
+-- 10. TRANSACTIONS LOG
+CREATE TABLE IF NOT EXISTS public.transactions (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  phone TEXT NOT NULL,
+  amount INTEGER NOT NULL,
+  mpesa_receipt TEXT DEFAULT '',
+  mpesa_message TEXT DEFAULT '',
+  checkout_request_id TEXT DEFAULT '',
+  result_code INTEGER,
+  result_desc TEXT,
+  raw_callback JSONB DEFAULT '{}',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'success', 'failed')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Admins can view all transactions"
+  ON public.transactions FOR SELECT
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can insert transactions"
+  ON public.transactions FOR INSERT
+  WITH CHECK (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 11. OTPS (custom OTP verification)
+CREATE TABLE IF NOT EXISTS public.otps (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  email TEXT NOT NULL,
+  otp TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('signup', 'password_reset')),
+  expires_at TIMESTAMPTZ NOT NULL,
+  used BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_otps_email_type ON public.otps (email, type);
+
+ALTER TABLE public.otps ENABLE ROW LEVEL SECURITY;
+
+-- Only the server (service_role) can manage OTPs
+CREATE POLICY "Service role only"
+  ON public.otps
+  USING (false);
+
+-- 12. HELPER FUNCTION: Create first admin (run manually after setting up)
+-- Run this in Supabase SQL Editor AFTER creating your own account:
+-- UPDATE public.profiles SET role = 'admin' WHERE id = '<your-user-uuid>';

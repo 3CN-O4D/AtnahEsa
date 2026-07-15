@@ -1,0 +1,150 @@
+'use client'
+
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+import Link from 'next/link'
+import { ArrowLeft, KeyRound } from 'lucide-react'
+import Input from '@/components/ui/Input'
+import Button from '@/components/ui/Button'
+
+export default function SignUpPage() {
+  const router = useRouter()
+  const [step, setStep] = useState<'form' | 'otp'>('form')
+  const [name, setName] = useState('')
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
+  const [password, setPassword] = useState('')
+  const [role, setRole] = useState('hunter')
+  const [otp, setOtp] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleSignUp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/auth/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, username, full_name: name, phone, role }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); return }
+
+      await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'signup' }),
+      })
+
+      setStep('otp')
+    } catch {
+      setError('Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, otp, type: 'signup' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); return }
+
+      router.push('/auth/signin')
+    } catch {
+      setError('Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (step === 'otp') {
+    return (
+      <div className="max-w-sm mx-auto px-4 py-16">
+        <button onClick={() => setStep('form')} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-6">
+          <ArrowLeft className="w-4 h-4" /> Back
+        </button>
+        <div className="text-center mb-8">
+          <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <KeyRound className="w-7 h-7 text-blue-600" />
+          </div>
+          <h1 className="text-2xl font-bold mb-2">Check Your Email</h1>
+          <p className="text-gray-600 text-sm">
+            Enter the 6-digit code sent to <strong>{email}</strong>
+          </p>
+        </div>
+
+        <form onSubmit={handleVerifyOtp} className="space-y-4">
+          <Input
+            label="Verification Code"
+            id="otp"
+            type="text"
+            placeholder="000000"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            required
+          />
+          {error && <p className="text-sm text-red-600">{error}</p>}
+          <Button type="submit" loading={loading} className="w-full">
+            Verify Email
+          </Button>
+        </form>
+      </div>
+    )
+  }
+
+  return (
+    <div className="max-w-sm mx-auto px-4 py-16">
+      <h1 className="text-2xl font-bold text-center mb-8">Create Account</h1>
+
+      <form onSubmit={handleSignUp} className="space-y-4">
+        <Input label="Full Name" id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+        <Input label="Username" id="username" value={username} onChange={(e) => setUsername(e.target.value)} required />
+        <Input label="Email" id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <Input label="Phone Number" id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+
+        <div className="space-y-2">
+          <label className="block text-sm font-medium text-gray-700">I want to...</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" onClick={() => setRole('hunter')} className={`p-3 rounded-xl border text-left transition-colors ${role === 'hunter' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-300 hover:border-gray-400'}`}>
+              <span className="font-medium text-sm">Browse & Book</span>
+              <p className="text-xs text-gray-500 mt-0.5">Find houses and book viewings</p>
+            </button>
+            <button type="button" onClick={() => setRole('lister')} className={`p-3 rounded-xl border text-left transition-colors ${role === 'lister' ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-gray-300 hover:border-gray-400'}`}>
+              <span className="font-medium text-sm">List Houses</span>
+              <p className="text-xs text-gray-500 mt-0.5">Upload and earn from listings</p>
+            </button>
+          </div>
+        </div>
+
+        <Input label="Password" id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+        <p className="text-xs text-gray-500">Min 6 characters</p>
+
+        {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <Button type="submit" loading={loading} className="w-full">
+          Create Account
+        </Button>
+      </form>
+
+      <p className="text-sm text-center text-gray-500 mt-6">
+        Already have an account?{' '}
+        <Link href="/auth/signin" className="text-blue-600 hover:underline">
+          Sign in
+        </Link>
+      </p>
+    </div>
+  )
+}

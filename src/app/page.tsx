@@ -27,7 +27,7 @@ export default function HomePage() {
 
       // Search by location or title
       if (query) {
-        const conditions = [`location.ilike.%${query}%`, `title.ilike.%${query}%`]
+        const conditions = [`location.ilike.*${query}*`, `title.ilike.*${query}*`]
         const num = parseInt(query)
         if (!isNaN(num)) {
           conditions.push(`price.eq.${num}`, `rent.eq.${num}`)

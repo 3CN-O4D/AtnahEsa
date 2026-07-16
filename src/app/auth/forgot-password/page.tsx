@@ -1,22 +1,25 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Mail, KeyRound } from 'lucide-react'
+import { ArrowLeft, Mail, KeyRound, Eye, EyeOff } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-
 
 export default function ForgotPasswordPage() {
   const router = useRouter()
   const [step, setStep] = useState<'email' | 'otp' | 'password'>('email')
   const [email, setEmail] = useState('')
-  const [otp, setOtp] = useState('')
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirm, setShowConfirm] = useState(false)
   const [loading, setLoading] = useState(false)
+  const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -41,6 +44,9 @@ export default function ForgotPasswordPage() {
 
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault()
+    const code = otp.join('')
+    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+
     setLoading(true)
     setError('')
 
@@ -48,7 +54,7 @@ export default function ForgotPasswordPage() {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp, type: 'password_reset' }),
+        body: JSON.stringify({ email, otp: code, type: 'password_reset' }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }
@@ -84,6 +90,48 @@ export default function ForgotPasswordPage() {
     }
   }
 
+  const handleResend = async () => {
+    setResending(true)
+    setError('')
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'password_reset' }),
+      })
+      const data = await res.json()
+      if (!res.ok) setError(data.error)
+    } catch {
+      setError('Failed to resend')
+    } finally {
+      setResending(false)
+    }
+  }
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return
+    const next = [...otp]
+    next[index] = value
+    setOtp(next)
+    if (value && index < 5) otpRefs.current[index + 1]?.focus()
+  }
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!text) return
+    const next = [...otp]
+    for (let i = 0; i < text.length; i++) next[i] = text[i]
+    setOtp(next)
+    const nextFocus = Math.min(text.length, 5)
+    otpRefs.current[nextFocus]?.focus()
+  }
+
   if (step === 'otp') {
     return (
       <div className="max-w-sm mx-auto px-4 py-16">
@@ -100,21 +148,34 @@ export default function ForgotPasswordPage() {
           </p>
         </div>
 
-        <form onSubmit={handleVerifyOtp} className="space-y-4">
-          <Input
-            label="Verification Code"
-            id="otp"
-            type="text"
-            placeholder="000000"
-            value={otp}
-            onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-            required
-          />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+        <form onSubmit={handleVerifyOtp} className="space-y-6">
+          <div className="flex justify-center gap-2" onPaste={handleOtpPaste}>
+            {otp.map((digit, i) => (
+              <input
+                key={i}
+                ref={(el) => { otpRefs.current[i] = el }}
+                type="text"
+                inputMode="numeric"
+                maxLength={1}
+                value={digit}
+                onChange={(e) => handleOtpChange(i, e.target.value)}
+                onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                className="w-11 h-12 text-center text-lg font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                autoFocus={i === 0}
+              />
+            ))}
+          </div>
+          {error && <p className="text-sm text-red-600 text-center">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Verify Code
           </Button>
         </form>
+
+        <p className="text-center mt-4">
+          <button onClick={handleResend} disabled={resending} className="text-sm text-blue-600 hover:underline disabled:opacity-50">
+            {resending ? 'Sending...' : 'Resend code'}
+          </button>
+        </p>
       </div>
     )
   }
@@ -133,24 +194,40 @@ export default function ForgotPasswordPage() {
         </div>
 
         <form onSubmit={handleResetPassword} className="space-y-4">
-          <Input
-            label="New Password"
-            id="password"
-            type="password"
-            placeholder="Min 6 characters"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-          />
-          <Input
-            label="Confirm Password"
-            id="confirm"
-            type="password"
-            placeholder="Repeat your password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            required
-          />
+          <div className="space-y-1">
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">New Password</label>
+            <div className="relative">
+              <input
+                id="password"
+                type={showPassword ? 'text' : 'password'}
+                placeholder="Min 6 characters"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
+          <div className="space-y-1">
+            <label htmlFor="confirm" className="block text-sm font-medium text-gray-700">Confirm Password</label>
+            <div className="relative">
+              <input
+                id="confirm"
+                type={showConfirm ? 'text' : 'password'}
+                placeholder="Repeat your password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+              <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+            </div>
+          </div>
           {error && <p className="text-sm text-red-600">{error}</p>}
           <Button type="submit" loading={loading} className="w-full">
             Update Password

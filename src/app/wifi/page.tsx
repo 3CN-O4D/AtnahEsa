@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Zap, Check, Phone, Mail, Clock, Layers, MessageCircle } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import WifiBookingModal from '@/components/wifi/WifiBookingModal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { WHATSAPP_NUMBER, CONTACT_EMAIL, CONTACT_PHONE } from '@/lib/constants'
@@ -15,8 +16,8 @@ export default function WifiPage() {
   const [packages, setPackages] = useState<WifiPackage[]>([])
   const [categories, setCategories] = useState<WifiCategory[]>([])
   const [pkgCats, setPkgCats] = useState<Record<string, string[]>>({})
-  const [userInfo, setUserInfo] = useState<{ name?: string; email?: string; phone?: string }>({})
   const [loading, setLoading] = useState(true)
+  const [bookingPkg, setBookingPkg] = useState<WifiPackage | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -24,15 +25,9 @@ export default function WifiPage() {
       supabase.from('wifi_packages').select('*').order('price'),
       supabase.from('wifi_categories').select('*').order('display_order'),
       supabase.from('wifi_package_categories').select('*'),
-      supabase.auth.getUser().then(async ({ data }) => {
-        if (!data.user) return {}
-        const { data: profile } = await supabase.from('profiles').select('full_name, email, phone').eq('id', data.user.id).single()
-        return profile ?? {}
-      }),
-    ]).then(([pkgRes, catRes, pcRes, profile]) => {
+    ]).then(([pkgRes, catRes, pcRes]) => {
       setPackages((pkgRes.data ?? []) as WifiPackage[])
       setCategories((catRes.data ?? []) as WifiCategory[])
-      setUserInfo(profile as { name?: string; email?: string; phone?: string })
 
       const grouped: Record<string, string[]> = {}
       for (const row of pcRes.data ?? []) {
@@ -43,15 +38,6 @@ export default function WifiPage() {
       setLoading(false)
     })
   }, [])
-
-  const waMsg = (pkg: WifiPackage) => {
-    const parts = [`Hi AseHanta! I'm interested in the ${pkg.name} (${pkg.speed}) at ${formatPrice(pkg.price)}/month.`]
-    if (userInfo.name) parts.push(`\nName: ${userInfo.name}`)
-    if (userInfo.email) parts.push(`Email: ${userInfo.email}`)
-    if (userInfo.phone) parts.push(`Phone: ${userInfo.phone}`)
-    if (!userInfo.name) parts.push(`\nPlease share more details.`)
-    return `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(parts.join('\n'))}`
-  }
 
   const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c]))
   const catIdsForPkg = (pkgId: string) => pkgCats[pkgId] ?? []
@@ -139,9 +125,9 @@ export default function WifiPage() {
                               </li>
                             ))}
                           </ul>
-                          <a href={waMsg(pkg)} target="_blank" rel="noopener noreferrer">
-                            <Button className="w-full" size="sm">Get Package</Button>
-                          </a>
+                          <button onClick={() => setBookingPkg(pkg)} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 transition-colors">
+                            Get Package
+                          </button>
                         </div>
                       </div>
                     ))}
@@ -180,9 +166,9 @@ export default function WifiPage() {
                           </li>
                         ))}
                       </ul>
-                      <a href={waMsg(pkg)} target="_blank" rel="noopener noreferrer">
-                        <Button className="w-full" size="sm">Get Package</Button>
-                      </a>
+                      <button onClick={() => setBookingPkg(pkg)} className="w-full bg-blue-600 text-white rounded-lg py-2 text-sm font-medium hover:bg-blue-700 transition-colors">
+                        Get Package
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -235,6 +221,8 @@ export default function WifiPage() {
           </section>
         </>
       )}
+
+      {bookingPkg && <WifiBookingModal pkg={bookingPkg} onClose={() => setBookingPkg(null)} />}
     </div>
   )
 }

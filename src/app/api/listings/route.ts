@@ -24,7 +24,7 @@ export async function GET(req: Request) {
       .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
 
     if (query) {
-      q = q.or(`location.ilike.%${query}%,title.ilike.%${query}%`)
+      q = q.or(`location.ilike.*${query}*,title.ilike.*${query}*`)
     }
     if (location) q = q.ilike('location', `%${location}%`)
     if (minRent) q = q.gte('rent', parseInt(minRent))

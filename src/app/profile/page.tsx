@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Lock, Mail, Phone, ArrowLeft } from 'lucide-react'
+import { User, Lock, Mail, Phone, ArrowLeft, Eye, EyeOff } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
@@ -15,11 +15,15 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'form' | 'otp' | 'done'>('form')
   const [oldPassword, setOldPassword] = useState('')
+  const [showOld, setShowOld] = useState(false)
   const [newPassword, setNewPassword] = useState('')
+  const [showNew, setShowNew] = useState(false)
   const [confirmPassword, setConfirmPassword] = useState('')
-  const [otp, setOtp] = useState('')
+  const [showConfirm, setShowConfirm] = useState(false)
+  const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   useEffect(() => {
     const supabase = createClient()
@@ -54,7 +58,6 @@ export default function ProfilePage() {
     try {
       const supabase = createClient()
 
-      // 1. Verify old password by trying to sign in
       const { error: signInErr } = await supabase.auth.signInWithPassword({
         email: userEmail,
         password: oldPassword,
@@ -65,7 +68,6 @@ export default function ProfilePage() {
         return
       }
 
-      // 2. Send OTP for reauthentication
       const { error: reauthErr } = await supabase.auth.reauthenticate()
       if (reauthErr) {
         setError(reauthErr.message)
@@ -85,7 +87,9 @@ export default function ProfilePage() {
     e.preventDefault()
     setError('')
     setSuccess('')
-    if (!otp) { setError('Enter the OTP sent to your email'); return }
+
+    const code = otp.join('')
+    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
 
     setLoading(true)
 
@@ -94,7 +98,7 @@ export default function ProfilePage() {
 
       const { error: verifyErr } = await supabase.auth.verifyOtp({
         email: userEmail,
-        token: otp,
+        token: code,
         type: 'email',
       })
       if (verifyErr) {
@@ -115,12 +119,36 @@ export default function ProfilePage() {
       setOldPassword('')
       setNewPassword('')
       setConfirmPassword('')
-      setOtp('')
+      setOtp(['', '', '', '', '', ''])
     } catch {
       setError('Something went wrong')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleOtpChange = (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return
+    const next = [...otp]
+    next[index] = value
+    setOtp(next)
+    if (value && index < 5) otpRefs.current[index + 1]?.focus()
+  }
+
+  const handleOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !otp[index] && index > 0) {
+      otpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleOtpPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!text) return
+    const next = [...otp]
+    for (let i = 0; i < text.length; i++) next[i] = text[i]
+    setOtp(next)
+    const nextFocus = Math.min(text.length, 5)
+    otpRefs.current[nextFocus]?.focus()
   }
 
   if (!profile) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
@@ -161,37 +189,35 @@ export default function ProfilePage() {
             <Lock className="w-5 h-5" /> Change Password
           </h2>
           <form onSubmit={handleChangePassword} className="space-y-4">
-            <Input
-              label="Current Password"
-              id="old-password"
-              type="password"
-              placeholder="Enter current password"
-              value={oldPassword}
-              onChange={(e) => setOldPassword(e.target.value)}
-              required
-            />
-            <Input
-              label="New Password"
-              id="new-password"
-              type="password"
-              placeholder="Min 6 characters"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-              required
-            />
-            <Input
-              label="Confirm New Password"
-              id="confirm-password"
-              type="password"
-              placeholder="Repeat new password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-            />
+            <div className="space-y-1">
+              <label htmlFor="old-password" className="block text-sm font-medium text-gray-700">Current Password</label>
+              <div className="relative">
+                <input id="old-password" type={showOld ? 'text' : 'password'} placeholder="Enter current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <button type="button" onClick={() => setShowOld(!showOld)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {showOld ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
+              <div className="relative">
+                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">Confirm New Password</label>
+              <div className="relative">
+                <input id="confirm-password" type={showConfirm ? 'text' : 'password'} placeholder="Repeat new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
             {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" loading={loading} className="w-full">
-              Send OTP
-            </Button>
+            <Button type="submit" loading={loading} className="w-full">Send OTP</Button>
           </form>
         </div>
       )}
@@ -202,22 +228,27 @@ export default function ProfilePage() {
             <Lock className="w-5 h-5" /> Verify OTP
           </h2>
           <p className="text-sm text-gray-600 mb-4">
-            A one-time password has been sent to <strong>{userEmail}</strong>. Enter it below to confirm the change.
+            A code has been sent to <strong>{userEmail}</strong>.
           </p>
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <Input
-              label="OTP"
-              id="otp"
-              type="text"
-              placeholder="6-digit code"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              required
-            />
-            {error && <p className="text-sm text-red-600">{error}</p>}
-            <Button type="submit" loading={loading} className="w-full">
-              Verify & Change Password
-            </Button>
+          <form onSubmit={handleVerifyOtp} className="space-y-6">
+            <div className="flex justify-center gap-2" onPaste={handleOtpPaste}>
+              {otp.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { otpRefs.current[i] = el }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleOtpKeyDown(i, e)}
+                  className="w-11 h-12 text-center text-lg font-semibold border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+            {error && <p className="text-sm text-red-600 text-center">{error}</p>}
+            <Button type="submit" loading={loading} className="w-full">Verify & Change Password</Button>
           </form>
         </div>
       )}

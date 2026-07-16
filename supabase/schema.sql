@@ -347,7 +347,40 @@ CREATE POLICY "Admins can insert transactions"
     auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
   );
 
--- 11. OTPS (custom OTP verification)
+-- 11. WIFI BOOKINGS
+CREATE TABLE IF NOT EXISTS public.wifi_bookings (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  package_id UUID REFERENCES public.wifi_packages(id) ON DELETE SET NULL,
+  package_name TEXT NOT NULL,
+  package_speed TEXT NOT NULL DEFAULT '',
+  package_price INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  area TEXT NOT NULL,
+  id_number TEXT DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'completed', 'cancelled')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wifi_bookings ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can insert wifi bookings"
+  ON public.wifi_bookings FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Admins can view all wifi bookings"
+  ON public.wifi_bookings FOR SELECT
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+CREATE POLICY "Admins can update wifi bookings"
+  ON public.wifi_bookings FOR UPDATE
+  USING (
+    auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
+  );
+
+-- 12. OTPS (custom OTP verification)
 CREATE TABLE IF NOT EXISTS public.otps (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email TEXT NOT NULL,

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Wifi, Truck, FolderKanban, Plus, Trash2, Check } from 'lucide-react'
+import { Wifi, Truck, FolderKanban, Phone, MessageCircle, Plus, Trash2, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { createClient } from '@/lib/supabase/client'
@@ -11,11 +11,15 @@ import type { WifiPackage, WifiCategory, Mover } from '@/types'
 
 export default function AdminServicesPage() {
   const router = useRouter()
-  const [tab, setTab] = useState<'wifi' | 'movers' | 'categories'>('wifi')
+  type Tab = 'wifi' | 'movers' | 'categories' | 'bookings'
+  type WifiBooking = { id: string; package_name: string; package_speed: string; package_price: number; name: string; phone: string; area: string; id_number: string; status: string; created_at: string }
+
+  const [tab, setTab] = useState<Tab>('wifi')
   const [wifiPkgs, setWifiPkgs] = useState<WifiPackage[]>([])
   const [categories, setCategories] = useState<WifiCategory[]>([])
   const [pkgCats, setPkgCats] = useState<Record<string, string[]>>({})
   const [movers, setMovers] = useState<Mover[]>([])
+  const [wifiBookings, setWifiBookings] = useState<WifiBooking[]>([])
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
   const showToast = (type: 'success' | 'error', message: string) => {
@@ -55,15 +59,17 @@ export default function AdminServicesPage() {
 
   const loadData = async () => {
     const supabase = createClient()
-    const [wRes, cRes, pcRes, mRes] = await Promise.all([
+    const [wRes, cRes, pcRes, mRes, bRes] = await Promise.all([
       supabase.from('wifi_packages').select('*').order('price'),
       supabase.from('wifi_categories').select('*').order('display_order'),
       supabase.from('wifi_package_categories').select('*'),
       supabase.from('movers').select('*').order('created_at', { ascending: false }),
+      supabase.from('wifi_bookings').select('*').order('created_at', { ascending: false }),
     ])
     setWifiPkgs((wRes.data ?? []) as WifiPackage[])
     setCategories((cRes.data ?? []) as WifiCategory[])
     setMovers((mRes.data ?? []) as Mover[])
+    setWifiBookings((bRes.data ?? []) as WifiBooking[])
 
     const grouped: Record<string, string[]> = {}
     for (const row of pcRes.data ?? []) {
@@ -238,6 +244,9 @@ export default function AdminServicesPage() {
         <Button variant={tab === 'movers' ? 'primary' : 'outline'} size="sm" onClick={() => setTab('movers')}>
           <Truck className="w-4 h-4 mr-1" /> Movers ({movers.length})
         </Button>
+        <Button variant={tab === 'bookings' ? 'primary' : 'outline'} size="sm" onClick={() => setTab('bookings')}>
+          <Phone className="w-4 h-4 mr-1" /> Bookings ({wifiBookings.length})
+        </Button>
       </div>
 
       {tab === 'wifi' && (
@@ -377,6 +386,40 @@ export default function AdminServicesPage() {
                 <div className="flex gap-1">
                   <Button size="sm" variant="outline" onClick={() => editCategory(c)}>Edit</Button>
                   <Button size="sm" variant="danger" onClick={() => handleDeleteCategory(c.id)}>Delete</Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'bookings' && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold">WiFi Bookings</h2>
+          {wifiBookings.length === 0 && <p className="text-gray-500 text-sm">No bookings yet.</p>}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {wifiBookings.map((b) => (
+              <div key={b.id} className="bg-white border rounded-xl p-4 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-semibold">{b.name}</p>
+                    <p className="text-sm text-gray-500">{b.phone}</p>
+                  </div>
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : b.status === 'contacted' ? 'bg-blue-100 text-blue-800' : b.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
+                    {b.status}
+                  </span>
+                </div>
+                <p className="text-sm"><strong>Package:</strong> {b.package_name} ({b.package_speed})</p>
+                <p className="text-sm"><strong>Area:</strong> {b.area}</p>
+                {b.id_number && <p className="text-sm"><strong>ID:</strong> {b.id_number}</p>}
+                <p className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString()}</p>
+                <div className="flex gap-2 pt-1">
+                  <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
+                    <Phone className="w-3 h-3" /> Call
+                  </a>
+                  <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
+                    <MessageCircle className="w-3 h-3" /> WhatsApp
+                  </a>
                 </div>
               </div>
             ))}

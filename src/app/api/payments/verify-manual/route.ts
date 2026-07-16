@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyAdmins } from '@/lib/notify'
 
 const TILL_NUMBER = process.env.DARAJA_TILL_NUMBER || ''
 
@@ -44,7 +45,7 @@ export async function POST(req: Request) {
 
     const { data: listing } = await supabase
       .from('listings')
-      .select('id, price, status')
+      .select('id, title, price, status')
       .eq('id', listing_id)
       .single()
 
@@ -83,6 +84,12 @@ export async function POST(req: Request) {
       mpesa_message,
       status: 'success',
     })
+
+    notifyAdmins(
+      'Manual Payment Verified',
+      'Manual M-Pesa Payment',
+      { User: user.email || 'N/A', Phone: phone, Listing: listing.title || 'N/A', Amount: `KES ${paidAmount}`, Receipt: receipt }
+    )
 
     return NextResponse.json({ success: true, booking })
   } catch (err) {

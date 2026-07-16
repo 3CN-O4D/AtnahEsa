@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
@@ -21,6 +22,12 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
+
+    notifyAdmins(
+      'New User Registration',
+      'New User Signed Up',
+      { Name: full_name, Username: username, Email: email, Phone: phone || 'N/A', Role: role || 'hunter' }
+    )
 
     return NextResponse.json({ user: { id: data.user.id, email: data.user.email } })
   } catch {

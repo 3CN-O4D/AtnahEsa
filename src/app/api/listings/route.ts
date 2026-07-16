@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
+import { notifyAdmins } from '@/lib/notify'
 
 export async function GET(req: Request) {
   try {
@@ -81,6 +82,12 @@ export async function POST(req: Request) {
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
+
+    notifyAdmins(
+      'New Listing Uploaded',
+      'New House Listing',
+      { Title: body.title || 'N/A', Location: body.location || 'N/A', Price: body.price ? `KES ${body.price}` : 'N/A', Rent: body.rent ? `KES ${body.rent}` : 'N/A', Uploader: user.email || 'N/A' }
+    )
 
     return NextResponse.json({ success: true })
   } catch {

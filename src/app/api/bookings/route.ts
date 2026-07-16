@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
@@ -13,10 +14,9 @@ export async function POST(req: Request) {
 
     const { listing_id } = await req.json()
 
-    // Get listing to verify price
     const { data: listing, error: listingError } = await supabase
       .from('listings')
-      .select('price')
+      .select('title, price, location')
       .eq('id', listing_id)
       .single()
 
@@ -31,19 +31,22 @@ export async function POST(req: Request) {
       )
     }
 
-    // TODO: Process payment with payment gateway (M-Pesa, Stripe, etc.)
-    // const paymentResult = await processPayment(user.id, listing.price)
-
     const { error } = await supabase.from('bookings').insert({
       listing_id,
       user_id: user.id,
       amount: listing.price,
-      status: 'pending', // TODO: set to 'confirmed' after payment success
+      status: 'pending',
     })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
+
+    notifyAdmins(
+      'New House Booking',
+      'Booking Request',
+      { User: user.email || 'N/A', Listing: listing.title || 'N/A', Location: listing.location || 'N/A', Amount: `KES ${listing.price}` }
+    )
 
     return NextResponse.json({ success: true })
   } catch {

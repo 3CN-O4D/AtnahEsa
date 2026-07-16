@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stkPush } from '@/lib/daraja'
+import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
@@ -62,6 +63,12 @@ export async function POST(req: Request) {
     if (txError) {
       console.error('Failed to log transaction:', txError)
     }
+
+    notifyAdmins(
+      'STK Push Initiated',
+      'M-Pesa Payment Request',
+      { User: user.email || 'N/A', Phone: phone, Listing: listing.title, Amount: `KES ${listing.price}`, 'Checkout ID': result.CheckoutRequestID || 'N/A' }
+    )
 
     return NextResponse.json({
       success: true,

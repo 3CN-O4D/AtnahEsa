@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
@@ -24,8 +25,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    // TODO: Send notification email to admin
-    // await sendEmail({ ... })
+    notifyAdmins(
+      'New Contact Submission',
+      'Contact Form Submission',
+      { Name: name, Phone: phone, Email: email, 'ID Number': id_number, Location: location, Message: message || 'N/A' }
+    )
 
     return NextResponse.json({ success: true })
   } catch {

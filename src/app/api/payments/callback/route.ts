@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
@@ -64,6 +65,18 @@ export async function POST(req: Request) {
 
         await supabase.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)
       }
+
+      notifyAdmins(
+        'Payment Successful',
+        'M-Pesa Payment Received',
+        { Phone: String(phone), Amount: `KES ${amount}`, Receipt: receipt, 'Checkout ID': CheckoutRequestID }
+      )
+    } else {
+      notifyAdmins(
+        'Payment Failed',
+        'M-Pesa Payment Failed',
+        { 'Checkout ID': CheckoutRequestID, 'Result Code': String(ResultCode), Description: ResultDesc }
+      )
     }
 
     return NextResponse.json({ success: true })

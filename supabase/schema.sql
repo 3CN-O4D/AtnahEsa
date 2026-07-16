@@ -43,6 +43,7 @@ CREATE TABLE IF NOT EXISTS public.listings (
   location TEXT NOT NULL,
   images TEXT[] DEFAULT '{}',
   youtube_url TEXT,
+  video_url TEXT DEFAULT '',
   issues TEXT[] DEFAULT '{}',
   issues_count INTEGER DEFAULT 0,
   deposit INTEGER DEFAULT 0,

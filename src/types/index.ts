@@ -9,6 +9,7 @@ export interface Listing {
   location: string
   images: string[]
   youtube_url: string | null
+  video_url: string | null
   issues: string[]
   issues_count: number
   deposit: number

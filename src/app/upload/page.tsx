@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import ImageUploader from '@/components/upload/ImageUploader'
+import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE, PLATFORM_COMMISSION, OWNER_SHARE, APP_NAME } from '@/lib/constants'
 import type { User } from '@supabase/supabase-js'
@@ -23,6 +24,7 @@ export default function UploadPage() {
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [videoUrl, setVideoUrl] = useState('')
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
@@ -78,6 +80,7 @@ export default function UploadPage() {
         location,
         images,
         youtube_url: youtubeUrl || null,
+        video_url: videoUrl || null,
         issues,
         issues_count: issues.length,
         payment_method: paymentMethod,
@@ -220,6 +223,8 @@ export default function UploadPage() {
           value={youtubeUrl}
           onChange={(e) => setYoutubeUrl(e.target.value)}
         />
+
+        <VideoUploader videoUrl={videoUrl} onChange={setVideoUrl} />
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">House Issues</label>

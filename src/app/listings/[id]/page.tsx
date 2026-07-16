@@ -154,20 +154,24 @@ export default function ListingDetailPage() {
             </div>
           )}
 
-          {youtubeId && (
+          {(listing.video_url || youtubeId) && (
             <div>
               <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
                 <Video className="w-5 h-5 text-red-500" />
                 Video Tour
               </h2>
               <div className="aspect-video rounded-xl overflow-hidden">
-                <iframe
-                  src={`https://www.youtube.com/embed/${youtubeId}`}
-                  title="House Video Tour"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                  className="w-full h-full"
-                />
+                {listing.video_url ? (
+                  <video src={listing.video_url} controls className="w-full h-full" />
+                ) : (
+                  <iframe
+                    src={`https://www.youtube.com/embed/${youtubeId}`}
+                    title="House Video Tour"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                    className="w-full h-full"
+                  />
+                )}
               </div>
             </div>
           )}

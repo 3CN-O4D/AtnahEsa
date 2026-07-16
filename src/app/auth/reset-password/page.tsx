@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { Suspense, useState, useRef } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { KeyRound, Eye, EyeOff } from 'lucide-react'
 import Button from '@/components/ui/Button'
 
-export default function ResetPasswordPage() {
+function ResetPasswordForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const email = searchParams.get('email') || ''
@@ -26,7 +26,6 @@ export default function ResetPasswordPage() {
     const code = otp.join('')
     if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
     setLoading(true); setError('')
-
     try {
       const res = await fetch('/api/auth/verify-otp', {
         method: 'POST',
@@ -36,9 +35,7 @@ export default function ResetPasswordPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error); setLoading(false); return }
       setStep('password')
-    } catch {
-      setError('Something went wrong')
-    } finally { setLoading(false) }
+    } catch { setError('Something went wrong') } finally { setLoading(false) }
   }
 
   const handleResetPassword = async (e: React.FormEvent) => {
@@ -46,7 +43,6 @@ export default function ResetPasswordPage() {
     if (password !== confirm) { setError('Passwords do not match'); return }
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true); setError('')
-
     try {
       const res = await fetch('/api/auth/update-password', {
         method: 'POST',
@@ -56,9 +52,7 @@ export default function ResetPasswordPage() {
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }
       router.push('/auth/signin')
-    } catch {
-      setError('Something went wrong')
-    } finally { setLoading(false) }
+    } catch { setError('Something went wrong') } finally { setLoading(false) }
   }
 
   const handleOtpChange = (index: number, value: string) => {
@@ -151,5 +145,13 @@ export default function ResetPasswordPage() {
       </form>
       <p className="text-sm text-center mt-6"><Link href="/auth/signin" className="text-blue-600 hover:underline">Back to Sign In</Link></p>
     </div>
+  )
+}
+
+export default function ResetPasswordPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>}>
+      <ResetPasswordForm />
+    </Suspense>
   )
 }

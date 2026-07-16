@@ -12,6 +12,7 @@ export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
   const [userEmail, setUserEmail] = useState('')
+  const [isGoogleUser, setIsGoogleUser] = useState(false)
   const [loading, setLoading] = useState(false)
   const [step, setStep] = useState<'form' | 'otp' | 'done'>('form')
   const [oldPassword, setOldPassword] = useState('')
@@ -30,10 +31,43 @@ export default function ProfilePage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/auth/signin'); return }
       setUserEmail(user.email ?? '')
+      setIsGoogleUser(user.app_metadata?.provider === 'google')
       const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
       setProfile(data as Profile)
     })
   }, [router])
+
+  const handleCreatePassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match')
+      return
+    }
+    if (newPassword.length < 6) {
+      setError('Password must be at least 6 characters')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      const supabase = createClient()
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
+      if (updateErr) { setError(updateErr.message); setLoading(false); return }
+
+      setStep('done')
+      setSuccess('Password created successfully! You can now sign in with email and password.')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch {
+      setError('Something went wrong')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -183,7 +217,40 @@ export default function ProfilePage() {
         </div>
       </div>
 
-      {step === 'form' && (
+      {step === 'form' && isGoogleUser && (
+        <div className="bg-white border rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Lock className="w-5 h-5" /> Create Password
+          </h2>
+          <p className="text-sm text-gray-500 mb-4">
+            You signed in with Google. Set a password to also sign in with email and password.
+          </p>
+          <form onSubmit={handleCreatePassword} className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
+              <div className="relative">
+                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            <div className="space-y-1">
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">Confirm Password</label>
+              <div className="relative">
+                <input id="confirm-password" type={showConfirm ? 'text' : 'password'} placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500">
+                  {showConfirm ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+            <Button type="submit" loading={loading} className="w-full">Create Password</Button>
+          </form>
+        </div>
+      )}
+
+      {step === 'form' && !isGoogleUser && (
         <div className="bg-white border rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
             <Lock className="w-5 h-5" /> Change Password

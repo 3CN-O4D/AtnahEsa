@@ -405,9 +405,16 @@ export default function AdminServicesPage() {
                     <p className="font-semibold">{b.name}</p>
                     <p className="text-sm text-gray-500">{b.phone}</p>
                   </div>
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${b.status === 'pending' ? 'bg-yellow-100 text-yellow-800' : b.status === 'contacted' ? 'bg-blue-100 text-blue-800' : b.status === 'completed' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'}`}>
-                    {b.status}
-                  </span>
+                  <select value={b.status} onChange={async (e) => {
+                    const supabase = createClient()
+                    await supabase.from('wifi_bookings').update({ status: e.target.value }).eq('id', b.id)
+                    loadData()
+                  }} className="text-xs border rounded px-1 py-0.5">
+                    <option value="pending">Pending</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="completed">Completed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
                 </div>
                 <p className="text-sm"><strong>Package:</strong> {b.package_name} ({b.package_speed})</p>
                 <p className="text-sm"><strong>Area:</strong> {b.area}</p>

@@ -102,6 +102,20 @@ export interface Profile {
   updated_at: string
 }
 
+export interface WifiBooking {
+  id: string
+  package_id: string
+  package_name: string
+  package_speed: string
+  package_price: number
+  name: string
+  phone: string
+  area: string
+  id_number: string
+  status: 'pending' | 'contacted' | 'completed' | 'cancelled'
+  created_at: string
+}
+
 export interface ContactSubmission {
   id: string
   name: string

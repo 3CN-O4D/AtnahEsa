@@ -110,7 +110,45 @@ CREATE TABLE IF NOT EXISTS public.wifi_packages (
 
 ALTER TABLE public.wifi_packages ENABLE ROW LEVEL SECURITY;
 
--- 6. WIFI BOOKINGS
+-- 6. WIFI CATEGORIES
+CREATE TABLE IF NOT EXISTS public.wifi_categories (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  description TEXT DEFAULT '',
+  color TEXT DEFAULT '#3B82F6',
+  icon TEXT DEFAULT 'Wifi',
+  display_order INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.wifi_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read wifi categories"
+  ON public.wifi_categories FOR SELECT USING (true);
+CREATE POLICY "Admins can insert wifi categories"
+  ON public.wifi_categories FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update wifi categories"
+  ON public.wifi_categories FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can delete wifi categories"
+  ON public.wifi_categories FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- 7. WIFI PACKAGE ↔ CATEGORY (many-to-many)
+CREATE TABLE IF NOT EXISTS public.wifi_package_categories (
+  package_id UUID REFERENCES public.wifi_packages(id) ON DELETE CASCADE,
+  category_id UUID REFERENCES public.wifi_categories(id) ON DELETE CASCADE,
+  PRIMARY KEY (package_id, category_id)
+);
+
+ALTER TABLE public.wifi_package_categories ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read package categories"
+  ON public.wifi_package_categories FOR SELECT USING (true);
+CREATE POLICY "Admins can manage package categories"
+  ON public.wifi_package_categories FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can delete package categories"
+  ON public.wifi_package_categories FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- 8. WIFI BOOKINGS
 CREATE TABLE IF NOT EXISTS public.wifi_bookings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   package_id UUID REFERENCES public.wifi_packages(id) ON DELETE SET NULL,
@@ -127,7 +165,7 @@ CREATE TABLE IF NOT EXISTS public.wifi_bookings (
 
 ALTER TABLE public.wifi_bookings ENABLE ROW LEVEL SECURITY;
 
--- 7. CONTACT SUBMISSIONS
+-- 9. CONTACT SUBMISSIONS
 CREATE TABLE IF NOT EXISTS public.contact_submissions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
@@ -141,7 +179,7 @@ CREATE TABLE IF NOT EXISTS public.contact_submissions (
 
 ALTER TABLE public.contact_submissions ENABLE ROW LEVEL SECURITY;
 
--- 8. TRANSACTIONS
+-- 10. TRANSACTIONS
 CREATE TABLE IF NOT EXISTS public.transactions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
@@ -160,7 +198,7 @@ CREATE TABLE IF NOT EXISTS public.transactions (
 
 ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
 
--- 9. OTPS
+-- 11. OTPS
 CREATE TABLE IF NOT EXISTS public.otps (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email TEXT NOT NULL,
@@ -174,7 +212,7 @@ CREATE TABLE IF NOT EXISTS public.otps (
 CREATE INDEX IF NOT EXISTS idx_otps_email_type ON public.otps (email, type);
 ALTER TABLE public.otps ENABLE ROW LEVEL SECURITY;
 
--- 10. REVIEWS (listing reviews)
+-- 12. REVIEWS (listing reviews)
 CREATE TABLE IF NOT EXISTS public.reviews (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
@@ -186,7 +224,7 @@ CREATE TABLE IF NOT EXISTS public.reviews (
 
 ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
 
--- 11. ESCROW HOLDS
+-- 13. ESCROW HOLDS
 CREATE TABLE IF NOT EXISTS public.escrow_holds (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE NOT NULL,
@@ -202,7 +240,7 @@ CREATE TABLE IF NOT EXISTS public.escrow_holds (
 
 ALTER TABLE public.escrow_holds ENABLE ROW LEVEL SECURITY;
 
--- 12. BOOKING REFUND REPORTS
+-- 14. BOOKING REFUND REPORTS
 CREATE TABLE IF NOT EXISTS public.reports (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE NOT NULL,
@@ -215,7 +253,7 @@ CREATE TABLE IF NOT EXISTS public.reports (
 
 ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
 
--- 13. FLAGGED REPORTS (general listing/mover/user reports)
+-- 15. FLAGGED REPORTS (general listing/mover/user reports)
 CREATE TABLE IF NOT EXISTS public.flagged_reports (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
@@ -231,7 +269,7 @@ CREATE TABLE IF NOT EXISTS public.flagged_reports (
 
 ALTER TABLE public.flagged_reports ENABLE ROW LEVEL SECURITY;
 
--- 14. MOVER REVIEWS
+-- 16. MOVER REVIEWS
 CREATE TABLE IF NOT EXISTS public.mover_reviews (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   mover_id UUID REFERENCES public.movers(id) ON DELETE CASCADE NOT NULL,

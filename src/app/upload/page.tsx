@@ -25,6 +25,7 @@ export default function UploadPage() {
   const [electricBill, setElectricBill] = useState('')
   const [water, setWater] = useState('')
   const [vacancy, setVacancy] = useState('vacant')
+  const [whyVacant, setWhyVacant] = useState('')
   const [houseType, setHouseType] = useState('')
   const [customHouseType, setCustomHouseType] = useState('')
   const [bedroomCount, setBedroomCount] = useState('')
@@ -88,6 +89,7 @@ export default function UploadPage() {
           electric_bill: electricBill,
           water,
           vacancy,
+          why_vacant: whyVacant,
           house_type: houseType === '3+ Bedroom' ? `3+ Bedroom (${bedroomCount})` : houseType === 'Other' ? customHouseType : houseType,
           building_type: buildingType,
           floor_number: floorNumber,
@@ -273,6 +275,11 @@ export default function UploadPage() {
             <option value="vacant">Vacant</option>
             <option value="pending">Pending</option>
           </select>
+          {vacancy === 'vacant' && (
+            <input type="text" value={whyVacant} onChange={(e) => setWhyVacant(e.target.value)}
+              placeholder="Why is it vacant? (e.g. Previous tenant moved out)"
+              className="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          )}
         </div>
 
         <div className="space-y-1">

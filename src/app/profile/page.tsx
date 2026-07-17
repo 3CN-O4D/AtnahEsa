@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { User, Lock, Mail, Phone, ArrowLeft, Eye, EyeOff } from 'lucide-react'
+import { User, Lock, Mail, Phone, ArrowLeft, Eye, EyeOff, List } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
@@ -216,6 +216,9 @@ export default function ProfilePage() {
             Joined: {new Date(profile.created_at).toLocaleDateString()}
           </div>
         </div>
+        <Link href="/my-listings" className="flex items-center justify-center gap-2 w-full px-4 py-2.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-xl hover:bg-blue-100 transition-colors">
+          <List className="w-4 h-4" /> My Listings
+        </Link>
       </div>
 
       {step === 'form' && isGoogleUser && (

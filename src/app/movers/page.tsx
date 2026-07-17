@@ -114,7 +114,7 @@ export default function MoversPage() {
             <div className="p-4 space-y-3">
               <div className="flex items-start justify-between">
                 <h3 className="font-semibold text-lg">{mover.name}</h3>
-                <button onClick={() => setReportTarget({ id: mover.id, name: mover.name })} className="text-gray-300 hover:text-red-500 transition-colors" title="Report this mover">
+                <button onClick={() => setReportTarget({ id: mover.id, name: mover.name })} className="text-red-400 hover:text-red-600 hover:bg-red-50 p-1.5 rounded-lg transition-colors" title="Report this mover">
                   <Flag className="w-4 h-4" />
                 </button>
               </div>

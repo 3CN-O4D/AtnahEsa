@@ -430,9 +430,41 @@ CREATE POLICY "Anyone can read reviews"
   ON public.reviews FOR SELECT
   USING (true);
 
-CREATE POLICY "Authenticated users can insert reviews"
+DROP POLICY IF EXISTS "Authenticated users can insert reviews" ON public.reviews;
+CREATE POLICY "Only booked users can insert reviews"
   ON public.reviews FOR INSERT
-  WITH CHECK (auth.uid() = user_id);
+  WITH CHECK (
+    auth.uid() = user_id
+    AND EXISTS (
+      SELECT 1 FROM public.bookings
+      WHERE listing_id = NEW.listing_id
+      AND user_id = auth.uid()
+      AND release_status = 'released'
+    )
+  );
+
+-- Auto-update lister average_rating and total_reviews on profile when a review is inserted
+CREATE OR REPLACE FUNCTION public.update_lister_rating()
+RETURNS TRIGGER AS $$
+DECLARE
+  lister_id UUID;
+BEGIN
+  SELECT uploader_id INTO lister_id FROM public.listings WHERE id = NEW.listing_id;
+
+  UPDATE public.profiles
+  SET
+    average_rating = (SELECT ROUND(AVG(rating)::numeric, 2) FROM public.reviews r JOIN public.listings l ON l.id = r.listing_id WHERE l.uploader_id = lister_id),
+    total_reviews = (SELECT COUNT(*) FROM public.reviews r JOIN public.listings l ON l.id = r.listing_id WHERE l.uploader_id = lister_id)
+  WHERE id = lister_id;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_review_inserted
+  AFTER INSERT ON public.reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_lister_rating();
 
 -- Lister can update/delete own listings + view their own
 CREATE POLICY "Uploaders can update own listings"
@@ -475,12 +507,13 @@ CREATE POLICY "Admins can view all escrow holds"
   USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
 
 -- 16. REPORTS (for rejecting a house)
+ALTER TABLE public.reports DROP CONSTRAINT IF EXISTS reports_reason_check;
 CREATE TABLE IF NOT EXISTS public.reports (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
-  reason TEXT NOT NULL CHECK (reason IN ('scam', 'not_as_advertised', 'hidden_issues', 'other')),
+  reason TEXT NOT NULL,
   custom_reason TEXT DEFAULT '',
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -509,32 +542,6 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAU
 -- 17. Storey/Flat columns for listings
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS building_type TEXT DEFAULT '' CHECK (building_type IN ('', 'storey', 'flat'));
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS floor_number TEXT DEFAULT '';
-
--- 18. GENERAL REPORTS (listings, movers, etc)
-CREATE TABLE IF NOT EXISTS public.reports (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
-  target_type TEXT NOT NULL CHECK (target_type IN ('listing', 'mover', 'user')),
-  target_id TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  description TEXT NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'dismissed', 'action_taken')),
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
-
-ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Anyone can insert reports"
-  ON public.reports FOR INSERT
-  WITH CHECK (true);
-
-CREATE POLICY "Admins can view all reports"
-  ON public.reports FOR SELECT
-  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
-
-CREATE POLICY "Admins can update reports"
-  ON public.reports FOR UPDATE
-  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
 
 -- 19. FLAGGED REPORTS (general reports for listings, movers, etc)
 CREATE TABLE IF NOT EXISTS public.flagged_reports (
@@ -587,3 +594,21 @@ CREATE POLICY "Authenticated users can insert mover_reviews"
 -- Add rating columns to movers
 ALTER TABLE public.movers ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3,2) DEFAULT 0;
 ALTER TABLE public.movers ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAULT 0;
+
+-- Auto-update mover average_rating and total_reviews when a mover review is inserted
+CREATE OR REPLACE FUNCTION public.update_mover_rating()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.movers
+  SET
+    average_rating = (SELECT ROUND(AVG(rating)::numeric, 2) FROM public.mover_reviews WHERE mover_id = NEW.mover_id),
+    total_reviews = (SELECT COUNT(*) FROM public.mover_reviews WHERE mover_id = NEW.mover_id)
+  WHERE id = NEW.mover_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+CREATE OR REPLACE TRIGGER on_mover_review_inserted
+  AFTER INSERT ON public.mover_reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_mover_rating();

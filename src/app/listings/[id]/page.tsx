@@ -44,6 +44,7 @@ export default function ListingDetailPage() {
   const [myComment, setMyComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [showReport, setShowReport] = useState(false)
+  const [canReview, setCanReview] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -78,6 +79,18 @@ export default function ListingDetailPage() {
           .eq('listing_id', id)
           .order('created_at', { ascending: false })
         setReviews((revs ?? []) as Review[])
+
+        const { data: userData } = await supabase.auth.getUser()
+        if (userData.user) {
+          const { count: bookingCount } = await supabase
+            .from('bookings')
+            .select('*', { count: 'exact', head: true })
+            .eq('listing_id', id)
+            .eq('user_id', userData.user.id)
+            .eq('release_status', 'released')
+          setCanReview((bookingCount ?? 0) > 0)
+        }
+
         setLoading(false)
       })
   }, [id, router])
@@ -253,7 +266,7 @@ export default function ListingDetailPage() {
               {avgRating > 0 && <span className="text-sm font-normal text-gray-500">({avgRating} avg)</span>}
             </h3>
 
-            {user && !alreadyReviewed && (
+            {user && canReview && !alreadyReviewed && (
               <div className="space-y-3 p-4 bg-gray-50 rounded-xl">
                 <p className="text-sm font-medium">Rate this property</p>
                 <Stars rating={myRating} interactive onChange={setMyRating} />
@@ -262,6 +275,9 @@ export default function ListingDetailPage() {
                   className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
                 <Button size="sm" onClick={handleSubmitReview} loading={submitting} disabled={myRating === 0}>Submit Review</Button>
               </div>
+            )}
+            {user && !canReview && (
+              <p className="text-xs text-gray-400 italic">Only users who booked and released funds can review this property.</p>
             )}
 
             {reviews.length === 0 && <p className="text-sm text-gray-400">No reviews yet.</p>}
@@ -323,10 +339,18 @@ export default function ListingDetailPage() {
               </div>
             )}
 
+            <button onClick={() => setShowReport(true)} className="w-full flex items-center justify-center gap-1.5 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors py-2 border border-red-200">
+              <Flag className="w-4 h-4" /> Report this listing
+            </button>
+
             <p className="text-xs text-gray-400 text-center">By booking, you agree to {APP_NAME}&apos;s terms. 85% refund if you don&apos;t take the house.</p>
           </div>
         </div>
       </div>
+
+      {showReport && (
+        <ReportModal targetType="listing" targetId={listing.id} targetTitle={listing.title} onClose={() => setShowReport(false)} />
+      )}
     </div>
   )
 }

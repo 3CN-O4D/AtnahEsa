@@ -41,7 +41,7 @@ CREATE TABLE IF NOT EXISTS public.listings (
   electricity TEXT DEFAULT '',
   electric_bill TEXT DEFAULT '',
   water TEXT DEFAULT '',
-  vacancy TEXT DEFAULT 'available' CHECK (vacancy IN ('pending', 'available')),
+  vacancy TEXT DEFAULT 'vacant' CHECK (vacancy IN ('pending', 'vacant')),
   vacancy_type TEXT DEFAULT '',
   why_vacant TEXT DEFAULT '',
   payment_method TEXT NOT NULL DEFAULT '',

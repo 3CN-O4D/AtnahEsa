@@ -411,7 +411,7 @@ CREATE POLICY "Service role only"
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS house_type TEXT DEFAULT '';
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS deposit_refundable BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS electric_bill TEXT DEFAULT '';
-ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS vacancy TEXT DEFAULT 'available' CHECK (vacancy IN ('pending', 'available'));
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS vacancy TEXT DEFAULT 'vacant' CHECK (vacancy IN ('pending', 'vacant'));
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS vacancy_type TEXT DEFAULT '';
 
 -- 14. RATINGS & REVIEWS

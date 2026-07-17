@@ -7,8 +7,12 @@ import Button from '@/components/ui/Button'
 import ImageUploader from '@/components/upload/ImageUploader'
 import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
-import { MIN_BOOKING_FEE, PLATFORM_COMMISSION, OWNER_SHARE, APP_NAME } from '@/lib/constants'
+import { MIN_BOOKING_FEE } from '@/lib/constants'
 import type { User } from '@supabase/supabase-js'
+
+const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
+const ELECTRIC_BILL_OPTS = ['Tokens', 'Self Provided', 'Inclusive in Rent']
+const VACANCY_TYPES = ['Newly Constructed', 'Previous Tenant Moved Out']
 
 export default function UploadPage() {
   const router = useRouter()
@@ -18,8 +22,16 @@ export default function UploadPage() {
   const [price, setPrice] = useState('')
   const [rent, setRent] = useState('')
   const [deposit, setDeposit] = useState('')
-  const [electricity, setElectricity] = useState('')
+  const [depositRefundable, setDepositRefundable] = useState(true)
+  const [electricBill, setElectricBill] = useState('')
   const [water, setWater] = useState('')
+  const [vacancy, setVacancy] = useState('available')
+  const [vacancyType, setVacancyType] = useState('')
+  const [houseType, setHouseType] = useState('')
+  const [customHouseType, setCustomHouseType] = useState('')
+  const [bedroomCount, setBedroomCount] = useState('')
+  const [buildingType, setBuildingType] = useState('')
+  const [floorNumber, setFloorNumber] = useState('')
   const [whyVacant, setWhyVacant] = useState('')
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
@@ -28,6 +40,7 @@ export default function UploadPage() {
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
+  const [listerPhone, setListerPhone] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -35,7 +48,7 @@ export default function UploadPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push('/auth/signin')
+      if (!data.user) router.push('/auth/signup?role=lister')
       else setUser(data.user)
     })
   }, [router])
@@ -73,8 +86,14 @@ export default function UploadPage() {
         price: fee,
         rent: parseInt(rent) || 0,
         deposit: parseInt(deposit) || 0,
-        electricity,
+        deposit_refundable: depositRefundable,
+        electric_bill: electricBill,
         water,
+        vacancy,
+        vacancy_type: vacancyType,
+        house_type: houseType === '3+ Bedroom' ? `3+ Bedroom (${bedroomCount})` : houseType === 'Other' ? customHouseType : houseType,
+        building_type: buildingType,
+        floor_number: floorNumber,
         why_vacant: whyVacant,
         descriptive_location: descriptiveLocation,
         location,
@@ -84,6 +103,7 @@ export default function UploadPage() {
         issues,
         issues_count: issues.length,
         payment_method: paymentMethod,
+        lister_phone: listerPhone,
         status: 'pending',
         uploader_id: user.id,
         uploader_name: user.email,
@@ -92,7 +112,7 @@ export default function UploadPage() {
       if (err) {
         setError(err.message)
       } else {
-        router.push('/')
+        router.push('/my-listings')
       }
     } catch {
       setError('Failed to submit listing')
@@ -135,9 +155,50 @@ export default function UploadPage() {
           />
         </div>
 
+        {/* House Type */}
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">House Type</label>
+          <div className="flex flex-wrap gap-2">
+            {HOUSE_TYPES.map((t) => (
+              <button key={t} type="button" onClick={() => setHouseType(t)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${houseType === t ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+          {houseType === 'Other' && (
+            <input type="text" value={customHouseType} onChange={(e) => setCustomHouseType(e.target.value)}
+              placeholder="Enter house type"
+              className="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          )}
+          {houseType === '3+ Bedroom' && (
+            <input type="text" value={bedroomCount} onChange={(e) => setBedroomCount(e.target.value)}
+              placeholder="How many bedrooms? (e.g. 4)"
+              className="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+          )}
+        </div>
+
+        {/* Building Type */}
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">Building Type</label>
+          <div className="flex gap-2">
+            {['flat', 'storey'].map((bt) => (
+              <button key={bt} type="button" onClick={() => setBuildingType(bt === buildingType ? '' : bt)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${buildingType === bt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                {bt === 'flat' ? 'Flat / Ground Floor' : 'Storey / Upstairs'}
+              </button>
+            ))}
+          </div>
+          {buildingType === 'storey' && (
+            <input type="text" value={floorNumber} onChange={(e) => setFloorNumber(e.target.value)}
+              placeholder="Which floor? (e.g. 2nd Floor)"
+              className="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          )}
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label={`Viewing Fee (min. ${MIN_BOOKING_FEE})`}
+            label={`Hunting Fee (min. ${MIN_BOOKING_FEE})`}
             id="price"
             type="number"
             placeholder={String(MIN_BOOKING_FEE)}
@@ -157,22 +218,38 @@ export default function UploadPage() {
           />
         </div>
 
+        {/* Deposit */}
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label="Deposit (Refundable)"
+            label="Deposit Amount"
             id="deposit"
             type="number"
             placeholder="e.g. 6500"
             value={deposit}
             onChange={(e) => setDeposit(e.target.value)}
           />
-          <Input
-            label="Electricity"
-            id="electricity"
-            placeholder="e.g. Self-Tokens"
-            value={electricity}
-            onChange={(e) => setElectricity(e.target.value)}
-          />
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Deposit Type</label>
+            <select value={depositRefundable ? 'refundable' : 'non-refundable'}
+              onChange={(e) => setDepositRefundable(e.target.value === 'refundable')}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="refundable">Refundable</option>
+              <option value="non-refundable">Non-Refundable</option>
+            </select>
+          </div>
+        </div>
+
+        {/* Electric Bill */}
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">Electric Bill</label>
+          <div className="flex flex-wrap gap-2">
+            {ELECTRIC_BILL_OPTS.map((opt) => (
+              <button key={opt} type="button" onClick={() => setElectricBill(opt)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${electricBill === opt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -183,6 +260,42 @@ export default function UploadPage() {
             value={water}
             onChange={(e) => setWater(e.target.value)}
           />
+          <Input
+            label="Lister Phone (visible to admin)"
+            id="listerPhone"
+            type="tel"
+            placeholder="e.g. 0712345678"
+            value={listerPhone}
+            onChange={(e) => setListerPhone(e.target.value)}
+          />
+        </div>
+
+        {/* Vacancy */}
+        <div className="grid grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Vacancy Status</label>
+            <select value={vacancy} onChange={(e) => setVacancy(e.target.value)}
+              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+              <option value="available">Available</option>
+              <option value="pending">Pending</option>
+            </select>
+          </div>
+          {vacancy === 'available' && (
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Vacancy Reason</label>
+              <div className="flex flex-wrap gap-2">
+                {VACANCY_TYPES.map((vt) => (
+                  <button key={vt} type="button" onClick={() => setVacancyType(vt)}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${vacancyType === vt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                    {vt}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="grid grid-cols-2 gap-4">
           <Input
             label="Why Vacant"
             id="whyVacant"

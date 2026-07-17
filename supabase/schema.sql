@@ -404,3 +404,184 @@ CREATE POLICY "Service role only"
 -- 12. HELPER FUNCTION: Create first admin (run manually after setting up)
 -- Run this in Supabase SQL Editor AFTER creating your own account:
 -- UPDATE public.profiles SET role = 'admin' WHERE id = '<your-user-uuid>';
+
+-- 13. NEW COLUMNS for listings (house_type, deposit_refundable, electric_bill, vacancy, vacancy_type)
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS house_type TEXT DEFAULT '';
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS deposit_refundable BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS electric_bill TEXT DEFAULT '';
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS vacancy TEXT DEFAULT 'available' CHECK (vacancy IN ('pending', 'available'));
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS vacancy_type TEXT DEFAULT '';
+
+-- 14. RATINGS & REVIEWS
+CREATE TABLE IF NOT EXISTS public.reviews (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read reviews"
+  ON public.reviews FOR SELECT
+  USING (true);
+
+CREATE POLICY "Authenticated users can insert reviews"
+  ON public.reviews FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Lister can update/delete own listings + view their own
+CREATE POLICY "Uploaders can update own listings"
+  ON public.listings FOR UPDATE
+  USING (auth.uid() = uploader_id);
+
+CREATE POLICY "Uploaders can delete own listings"
+  ON public.listings FOR DELETE
+  USING (auth.uid() = uploader_id);
+
+-- Add lister phone to listings
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS lister_phone TEXT DEFAULT '';
+
+-- 15. ESCROW HOLDS
+CREATE TABLE IF NOT EXISTS public.escrow_holds (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  amount INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'held' CHECK (status IN ('held', 'released', 'refunded')),
+  held_until TIMESTAMPTZ NOT NULL,
+  released_at TIMESTAMPTZ,
+  refunded_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.escrow_holds ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own escrow holds"
+  ON public.escrow_holds FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own escrow holds"
+  ON public.escrow_holds FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all escrow holds"
+  ON public.escrow_holds FOR SELECT
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- 16. REPORTS (for rejecting a house)
+CREATE TABLE IF NOT EXISTS public.reports (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  booking_id UUID REFERENCES public.bookings(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  listing_id UUID REFERENCES public.listings(id) ON DELETE CASCADE NOT NULL,
+  reason TEXT NOT NULL CHECK (reason IN ('scam', 'not_as_advertised', 'hidden_issues', 'other')),
+  custom_reason TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can insert own reports"
+  ON public.reports FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Admins can view all reports"
+  ON public.reports FOR SELECT
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- Add release_status and refund columns to bookings
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS release_status TEXT DEFAULT 'pending' CHECK (release_status IN ('pending', 'released', 'refund_requested', 'refunded', 'rejected'));
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS refund_percentage INTEGER DEFAULT 0;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS refund_reason TEXT DEFAULT '';
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS escrow_hold_id UUID REFERENCES public.escrow_holds(id) ON DELETE SET NULL;
+ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS report_id UUID REFERENCES public.reports(id) ON DELETE SET NULL;
+
+-- Add average_rating to profiles for lister ratings
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3,2) DEFAULT 0;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAULT 0;
+
+-- 17. Storey/Flat columns for listings
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS building_type TEXT DEFAULT '' CHECK (building_type IN ('', 'storey', 'flat'));
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS floor_number TEXT DEFAULT '';
+
+-- 18. GENERAL REPORTS (listings, movers, etc)
+CREATE TABLE IF NOT EXISTS public.reports (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  target_type TEXT NOT NULL CHECK (target_type IN ('listing', 'mover', 'user')),
+  target_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'dismissed', 'action_taken')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can insert reports"
+  ON public.reports FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Admins can view all reports"
+  ON public.reports FOR SELECT
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+CREATE POLICY "Admins can update reports"
+  ON public.reports FOR UPDATE
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- 19. FLAGGED REPORTS (general reports for listings, movers, etc)
+CREATE TABLE IF NOT EXISTS public.flagged_reports (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  reporter_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  reporter_email TEXT DEFAULT '',
+  target_type TEXT NOT NULL CHECK (target_type IN ('listing', 'mover', 'user')),
+  target_id TEXT NOT NULL,
+  target_title TEXT DEFAULT '',
+  reason TEXT NOT NULL,
+  description TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'reviewed', 'dismissed', 'action_taken')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.flagged_reports ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can insert flagged_reports"
+  ON public.flagged_reports FOR INSERT
+  WITH CHECK (true);
+
+CREATE POLICY "Admins can view all flagged_reports"
+  ON public.flagged_reports FOR SELECT
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+CREATE POLICY "Admins can update flagged_reports"
+  ON public.flagged_reports FOR UPDATE
+  USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+
+-- 20. MOVER REVIEWS
+CREATE TABLE IF NOT EXISTS public.mover_reviews (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  mover_id UUID REFERENCES public.movers(id) ON DELETE CASCADE NOT NULL,
+  user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT DEFAULT '',
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.mover_reviews ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Anyone can read mover_reviews"
+  ON public.mover_reviews FOR SELECT
+  USING (true);
+
+CREATE POLICY "Authenticated users can insert mover_reviews"
+  ON public.mover_reviews FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+-- Add rating columns to movers
+ALTER TABLE public.movers ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3,2) DEFAULT 0;
+ALTER TABLE public.movers ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAULT 0;

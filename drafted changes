@@ -1,0 +1,56 @@
+
+[LISTING]
+dropdown- house type drop down+custom
+        -deposit refundable non refundable 
+        -electric bill - tokens,self provided
+         -vacancy(pending,available) 
+lister can manage their houses under their account
+vacancy -newly constructed, previous tenant moved out
+
+[LISTERS PAGE]
+manage ,edit,delete their houses
+listing button all viewers . but non logged in get prompted to login first and redirected to signup page
+
+listed by
+data of houses listed so far 
+rating 5 star,comments.
+
+
+[ HUNTER ]
+terms &Cs
+payment, view the held money ,control the money(refund the money button an reason why)
+the money is held in users account untill they verify they like the house then they press release to release the funds. or money auto release or refund after 24 hrs . but refund wont be 100% because their booking took down a house from listing and denied other users chance plus transactional costs so it comes doen to around 85%. but well change the percentages later les start wit h 85%. 
+money gets held  24hrs
+reject/report (if theres an issue with the house a user has to fill on a report of why they turned down a house , scam, not what was adevertised, some issues hidden etc, then they get a custom field that must have atleast  4 words to submit.) first before the popup exists and there able to click reject/cancel or report . then listers should have a rating system where they can be rated by users.5 stars and we should have stats page showing houses weve handled so far,  it should not hav very revealing data .this is for marketing and trust purposes.i dont know if we should allow comments
+
+
+airbnb escrow system
+
+Airbnb functions as an intermediary between guests and hosts, effectively operating as an escrow service to manage payments and mitigate risk for both parties.
+
+Here is how the system works:
+
+* **Payment Collection:** Airbnb charges the guest for the full amount (or follows "Reserve Now, Pay Later" terms where applicable) at the time of booking.
+* **The "Escrow" Hold:** Rather than transferring funds directly to the host, Airbnb retains the money. This ensures the funds are secure and available to be returned to the guest if there is a valid cancellation or issue.
+* **Payout Release:** Airbnb releases the payout to the host approximately 24 hours after the guest's scheduled check-in time. This delay allows for a window of resolution if there are immediate problems with the accommodation (e.g., the property is not as described or the host fails to provide access).
+* **Long-Term Stays:** For reservations of 28 nights or longer, the payment is typically released in monthly installments rather than as a single lump sum, with the first installment released 24 hours after check-in.
+
+While this mechanism is often referred to as an "escrow account" in industry guides and by users, it is technically an internal payment holding system managed by Airbnb’s payment processing infrastructure.
+
+
+we plan to adopt this escrow system
+
+
+
+[WIFI]
+green
+for contact us or the popup that "get package" button opens should be the form shown in the url below once one clics get package. then ours site will submit the data of the package plus the data submitted on the form to db and forward to the email asehanta@gmail.com woth a header WIFI NEEDED
+https://www.jambonetkenya.co.ke/contact.html
+
+
+
+its hunting fee not viewing fee as seeon in some pages
+
+ms clarity for stats
+a footer should have our collaborators so far we only have chshub.co.ke and jambonetkenya.co.ke
+

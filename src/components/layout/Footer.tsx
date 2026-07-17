@@ -28,26 +28,9 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-3">Contact</h4>
             <ul className="space-y-2 text-sm">
-              <li>
-                <a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition-colors">
-                  {CONTACT_EMAIL}
-                </a>
-              </li>
-              <li>
-                <a href={`tel:${CONTACT_PHONE}`} className="hover:text-white transition-colors">
-                  {CONTACT_PHONE_DISPLAY}
-                </a>
-              </li>
-              <li>
-                <a
-                  href={`https://wa.me/${WHATSAPP_NUMBER}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="hover:text-green-400 transition-colors"
-                >
-                  WhatsApp
-                </a>
-              </li>
+              <li><a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition-colors">{CONTACT_EMAIL}</a></li>
+              <li><a href={`tel:${CONTACT_PHONE}`} className="hover:text-white transition-colors">{CONTACT_PHONE_DISPLAY}</a></li>
+              <li><a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="hover:text-green-400 transition-colors">WhatsApp</a></li>
               <li>{CONTACT_LOCATION}</li>
             </ul>
           </div>
@@ -63,7 +46,17 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-gray-800 mt-8 pt-8 text-center text-sm space-y-1">
+        {/* Collaborators */}
+        <div className="border-t border-gray-800 mt-8 pt-6">
+          <p className="text-center text-sm text-gray-500 mb-3">Our Collaborators</p>
+          <div className="flex justify-center items-center gap-6">
+            <a href="https://chshub.co.ke" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-sm transition-colors">chshub.co.ke</a>
+            <span className="text-gray-600">|</span>
+            <a href="https://jambonetkenya.co.ke" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-sm transition-colors">jambonetkenya.co.ke</a>
+          </div>
+        </div>
+
+        <div className="mt-6 pt-6 text-center text-sm space-y-1">
           <p>&copy; {new Date().getFullYear()} {APP_NAME}. All rights reserved.</p>
           <p className="text-gray-500">{CONTACT_LOCATION}</p>
         </div>

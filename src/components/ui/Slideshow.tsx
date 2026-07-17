@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -13,6 +13,8 @@ interface SlideshowProps {
 
 export default function Slideshow({ images, interval = 5000, className, onImageClick }: SlideshowProps) {
   const [current, setCurrent] = useState(0)
+  const touchX = useRef(0)
+  const touchY = useRef(0)
 
   const next = useCallback(() => setCurrent((c) => (c + 1) % images.length), [images.length])
   const prev = useCallback(() => setCurrent((c) => (c - 1 + images.length) % images.length), [images.length])
@@ -23,11 +25,27 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
     return () => clearInterval(timer)
   }, [next, interval, images.length])
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchX.current = e.touches[0].clientX
+    touchY.current = e.touches[0].clientY
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const dx = e.changedTouches[0].clientX - touchX.current
+    const dy = e.changedTouches[0].clientY - touchY.current
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 50) {
+      if (dx > 0) prev()
+      else next()
+    }
+  }
+
   if (!images.length) return null
 
   return (
     <div
-      className={cn('relative group overflow-hidden rounded-xl bg-gray-100 cursor-pointer', className)}
+      className={cn('relative group overflow-hidden rounded-xl bg-gray-100 cursor-pointer select-none', className)}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       onClick={() => onImageClick?.(current)}
     >
       <img
@@ -39,13 +57,13 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
         <>
           <button
             onClick={(e) => { e.stopPropagation(); prev() }}
-            className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/50 text-white rounded-full transition-opacity hover:bg-black/70 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            className="absolute left-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/50 text-white rounded-full transition-opacity hover:bg-black/70 opacity-100"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); next() }}
-            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/50 text-white rounded-full transition-opacity hover:bg-black/70 opacity-100 md:opacity-0 md:group-hover:opacity-100"
+            className="absolute right-2 top-1/2 -translate-y-1/2 p-1.5 bg-black/50 text-white rounded-full transition-opacity hover:bg-black/70 opacity-100"
           >
             <ChevronRight className="w-5 h-5" />
           </button>

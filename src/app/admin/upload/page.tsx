@@ -163,7 +163,7 @@ export default function AdminUploadPage() {
 
         <div className="grid grid-cols-2 gap-4">
           <Input
-            label={`Viewing Fee (min. ${MIN_BOOKING_FEE})`}
+            label={`Hunting Fee (min. ${MIN_BOOKING_FEE})`}
             id="price"
             type="number"
             placeholder={String(MIN_BOOKING_FEE)}

@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
+import Link from 'next/link'
 import ListingGrid from '@/components/listings/ListingGrid'
 import SearchBar from '@/components/listings/SearchBar'
 import SortDropdown from '@/components/listings/SortDropdown'
@@ -10,10 +11,16 @@ import { ITEMS_PER_PAGE } from '@/lib/constants'
 import type { Listing } from '@/types'
 
 export default function HomePage() {
+  const [user, setUser] = useState<{ id: string } | null>(null)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [showFilters, setShowFilters] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase.auth.getUser().then(({ data }) => setUser(data.user ? { id: data.user.id } : null))
+  }, [])
 
   const fetchListings = useCallback(
     async (page: number): Promise<Listing[]> => {
@@ -78,16 +85,23 @@ export default function HomePage() {
     [query, sort, filters]
   )
 
+  const listAHouseLink = user ? '/upload' : '/auth/signup?role=lister'
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Hero section */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          Find Your Perfect Home
-        </h1>
-        <p className="text-gray-600">
-          Browse verified listings, book viewings, and move in with ease.
-        </p>
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+            Find Your Perfect Home
+          </h1>
+          <p className="text-gray-600">
+            Browse verified listings, book viewings, and move in with ease.
+          </p>
+        </div>
+        <Link href={listAHouseLink} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0">
+          + List a House
+        </Link>
       </div>
 
       {/* Search + Sort + Filters */}

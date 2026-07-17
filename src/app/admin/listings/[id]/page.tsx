@@ -159,7 +159,7 @@ export default function AdminEditListingPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <Input label={`Viewing Fee (min. ${MIN_BOOKING_FEE})`} id="price" type="number" placeholder={String(MIN_BOOKING_FEE)} min={MIN_BOOKING_FEE} value={price} onChange={(e) => setPrice(e.target.value)} required />
+          <Input label={`Hunting Fee (min. ${MIN_BOOKING_FEE})`} id="price" type="number" placeholder={String(MIN_BOOKING_FEE)} min={MIN_BOOKING_FEE} value={price} onChange={(e) => setPrice(e.target.value)} required />
           <Input label="Monthly Rent" id="rent" type="number" placeholder="e.g. 15000" value={rent} onChange={(e) => setRent(e.target.value)} required />
         </div>
 

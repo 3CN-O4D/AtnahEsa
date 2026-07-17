@@ -12,6 +12,7 @@ import type { Profile } from '@/types'
 export default function ProfilePage() {
   const router = useRouter()
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [profileLoaded, setProfileLoaded] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [isGoogleUser, setIsGoogleUser] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -36,6 +37,7 @@ export default function ProfilePage() {
       const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
       if (error) { console.error('Profile fetch error:', error); router.push('/'); return }
       setProfile(data as Profile)
+      setProfileLoaded(true)
     })
   }, [router])
 
@@ -187,7 +189,23 @@ export default function ProfilePage() {
     otpRefs.current[nextFocus]?.focus()
   }
 
-  if (!profile) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+  if (!profileLoaded) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center">
+        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
+        <p className="text-gray-500 text-sm">Loading profile...</p>
+      </div>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-20 text-center">
+        <p className="text-gray-500 text-sm mb-4">Profile not found. Try signing out and back in.</p>
+        <button onClick={() => { const s = createClient(); s.auth.signOut() }} className="text-sm text-blue-600 hover:underline">Sign Out</button>
+      </div>
+    )
+  }
 
   return (
     <div className="max-w-md mx-auto px-4 py-8">

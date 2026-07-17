@@ -18,18 +18,20 @@ export default function WifiPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    Promise.all([
+    Promise.allSettled([
       supabase.from('wifi_packages').select('*').order('price'),
       supabase.from('wifi_categories').select('*').order('display_order'),
       supabase.from('wifi_package_categories').select('*'),
     ]).then(([pkgRes, catRes, pcRes]) => {
-      setPackages((pkgRes.data ?? []) as WifiPackage[])
-      setCategories((catRes.data ?? []) as WifiCategory[])
+      if (pkgRes.status === 'fulfilled') setPackages((pkgRes.value.data ?? []) as WifiPackage[])
+      if (catRes.status === 'fulfilled') setCategories((catRes.value.data ?? []) as WifiCategory[])
 
       const grouped: Record<string, string[]> = {}
-      for (const row of pcRes.data ?? []) {
-        if (!grouped[row.package_id]) grouped[row.package_id] = []
-        grouped[row.package_id].push(row.category_id)
+      if (pcRes.status === 'fulfilled') {
+        for (const row of pcRes.value.data ?? []) {
+          if (!grouped[row.package_id]) grouped[row.package_id] = []
+          grouped[row.package_id].push(row.category_id)
+        }
       }
       setPkgCats(grouped)
       setLoading(false)

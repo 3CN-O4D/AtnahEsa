@@ -19,7 +19,7 @@ export default function Header() {
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user)
       if (data.user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
       }
     })
@@ -27,7 +27,7 @@ export default function Header() {
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).single()
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
       } else {
         setIsAdmin(false)

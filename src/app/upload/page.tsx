@@ -11,8 +11,7 @@ import { MIN_BOOKING_FEE } from '@/lib/constants'
 import type { User } from '@supabase/supabase-js'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
-const ELECTRIC_BILL_OPTS = ['Tokens', 'Self Provided', 'Inclusive in Rent']
-const VACANCY_TYPES = ['Newly Constructed', 'Previous Tenant Moved Out']
+const ELECTRIC_BILL_OPTS = ['Self Provided', 'Inclusive in Rent']
 
 export default function UploadPage() {
   const router = useRouter()
@@ -25,14 +24,12 @@ export default function UploadPage() {
   const [depositRefundable, setDepositRefundable] = useState(true)
   const [electricBill, setElectricBill] = useState('')
   const [water, setWater] = useState('')
-  const [vacancy, setVacancy] = useState('available')
-  const [vacancyType, setVacancyType] = useState('')
+  const [vacancy, setVacancy] = useState('vacant')
   const [houseType, setHouseType] = useState('')
   const [customHouseType, setCustomHouseType] = useState('')
   const [bedroomCount, setBedroomCount] = useState('')
   const [buildingType, setBuildingType] = useState('')
   const [floorNumber, setFloorNumber] = useState('')
-  const [whyVacant, setWhyVacant] = useState('')
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
@@ -78,39 +75,37 @@ export default function UploadPage() {
     setError('')
 
     try {
-      const supabase = createClient()
-
-      const { error: err } = await supabase.from('listings').insert({
-        title,
-        description,
-        price: fee,
-        rent: parseInt(rent) || 0,
-        deposit: parseInt(deposit) || 0,
-        deposit_refundable: depositRefundable,
-        electric_bill: electricBill,
-        water,
-        vacancy,
-        vacancy_type: vacancyType,
-        house_type: houseType === '3+ Bedroom' ? `3+ Bedroom (${bedroomCount})` : houseType === 'Other' ? customHouseType : houseType,
-        building_type: buildingType,
-        floor_number: floorNumber,
-        why_vacant: whyVacant,
-        descriptive_location: descriptiveLocation,
-        location,
-        images,
-        youtube_url: youtubeUrl || null,
-        video_url: videoUrl || null,
-        issues,
-        issues_count: issues.length,
-        payment_method: paymentMethod,
-        lister_phone: listerPhone,
-        status: 'pending',
-        uploader_id: user.id,
-        uploader_name: user.email,
+      const res = await fetch('/api/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          price: fee,
+          rent: parseInt(rent) || 0,
+          deposit: parseInt(deposit) || 0,
+          deposit_refundable: depositRefundable,
+          electric_bill: electricBill,
+          water,
+          vacancy,
+          house_type: houseType === '3+ Bedroom' ? `3+ Bedroom (${bedroomCount})` : houseType === 'Other' ? customHouseType : houseType,
+          building_type: buildingType,
+          floor_number: floorNumber,
+          descriptive_location: descriptiveLocation,
+          location,
+          images,
+          youtube_url: youtubeUrl || null,
+          video_url: videoUrl || null,
+          issues,
+          issues_count: issues.length,
+          payment_method: paymentMethod,
+          lister_phone: listerPhone,
+        }),
       })
 
-      if (err) {
-        setError(err.message)
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Failed to submit listing')
       } else {
         router.push('/my-listings')
       }
@@ -271,38 +266,13 @@ export default function UploadPage() {
         </div>
 
         {/* Vacancy */}
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-1">
-            <label className="block text-sm font-medium text-gray-700">Vacancy Status</label>
-            <select value={vacancy} onChange={(e) => setVacancy(e.target.value)}
-              className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-              <option value="available">Available</option>
-              <option value="pending">Pending</option>
-            </select>
-          </div>
-          {vacancy === 'available' && (
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Vacancy Reason</label>
-              <div className="flex flex-wrap gap-2">
-                {VACANCY_TYPES.map((vt) => (
-                  <button key={vt} type="button" onClick={() => setVacancyType(vt)}
-                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${vacancyType === vt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
-                    {vt}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Why Vacant"
-            id="whyVacant"
-            placeholder="e.g. Previous tenant moved"
-            value={whyVacant}
-            onChange={(e) => setWhyVacant(e.target.value)}
-          />
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">Vacancy Status</label>
+          <select value={vacancy} onChange={(e) => setVacancy(e.target.value)}
+            className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+            <option value="vacant">Vacant</option>
+            <option value="pending">Pending</option>
+          </select>
         </div>
 
         <div className="space-y-1">

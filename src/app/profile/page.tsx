@@ -32,7 +32,8 @@ export default function ProfilePage() {
       if (!user) { router.push('/auth/signin'); return }
       setUserEmail(user.email ?? '')
       setIsGoogleUser(user.app_metadata?.provider === 'google')
-      const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single()
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+      if (error) { console.error('Profile fetch error:', error); router.push('/'); return }
       setProfile(data as Profile)
     })
   }, [router])

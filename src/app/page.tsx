@@ -99,7 +99,7 @@ export default function HomePage() {
             Browse verified listings, book viewings, and move in with ease.
           </p>
         </div>
-        <Link href={listAHouseLink} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0">
+        <Link href={listAHouseLink} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
           + List a House
         </Link>
       </div>

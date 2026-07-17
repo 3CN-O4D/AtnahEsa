@@ -4,14 +4,16 @@ import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
-    const { target_type, target_id, target_title, reason, description } = await req.json()
+    const { target_type, target_id, target_title, reasons, description } = await req.json()
 
-    if (!target_type || !target_id || !reason || !description) {
+    if (!target_type || !target_id || !reasons || !Array.isArray(reasons) || reasons.length === 0) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
+
+    const reasonStr = reasons.join(', ')
 
     const { error } = await supabase.from('flagged_reports').insert({
       reporter_id: user?.id || null,
@@ -19,8 +21,8 @@ export async function POST(req: Request) {
       target_type,
       target_id,
       target_title: target_title || '',
-      reason,
-      description,
+      reason: reasonStr,
+      description: description || '',
       status: 'pending',
     })
 
@@ -29,9 +31,9 @@ export async function POST(req: Request) {
     }
 
     notifyAdmins(
-      `Reported: ${target_type} - ${reason}`,
+      `Reported: ${target_type} - ${reasonStr}`,
       'New Report Submitted',
-      { 'Target Type': target_type, 'Target': target_title || target_id, Reason: reason, Description: description, Reporter: user?.email || 'Anonymous' }
+      { 'Target Type': target_type, 'Target': target_title || target_id, Reasons: reasonStr, Description: description || 'N/A', Reporter: user?.email || 'Anonymous' }
     )
 
     return NextResponse.json({ success: true })

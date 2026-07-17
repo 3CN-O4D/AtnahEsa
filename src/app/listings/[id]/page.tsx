@@ -10,6 +10,7 @@ import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
+import ReportModal from '@/components/reports/ReportModal'
 import type { Listing, Review, Profile } from '@/types'
 
 function Stars({ rating, interactive, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {
@@ -42,6 +43,7 @@ export default function ListingDetailPage() {
   const [myRating, setMyRating] = useState(0)
   const [myComment, setMyComment] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [showReport, setShowReport] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()

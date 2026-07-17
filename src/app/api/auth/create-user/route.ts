@@ -4,7 +4,7 @@ import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
-    const { email, password, username, full_name, phone, role } = await req.json()
+    const { email, password, username, full_name, phone, role, terms_accepted } = await req.json()
 
     if (!email || !password || !username || !full_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       email,
       password,
       email_confirm: false,
-      user_metadata: { username, full_name, phone, role },
+      user_metadata: { username, full_name, phone, role, terms_accepted: !!terms_accepted },
     })
 
     if (error) {

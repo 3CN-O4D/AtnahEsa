@@ -22,10 +22,12 @@ function SignUpForm() {
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
+  const [agreeTerms, setAgreeTerms] = useState(false)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!agreeTerms) { setError('You must agree to the Terms & Conditions'); return }
     setLoading(true)
     setError('')
 
@@ -33,7 +35,7 @@ function SignUpForm() {
       const res = await fetch('/api/auth/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, username, full_name: name, phone, role }),
+        body: JSON.stringify({ email, password, username, full_name: name, phone, role, terms_accepted: true }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); setLoading(false); return }
@@ -210,6 +212,16 @@ function SignUpForm() {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
+
+        <label className="flex items-start gap-2 cursor-pointer">
+          <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)}
+            className="mt-0.5 w-4 h-4 accent-blue-600 rounded" />
+          <span className="text-xs text-gray-600">
+            I agree to the{' '}
+            <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms &amp; Conditions</Link>
+            {' '}and consent to cookies being saved on my device for authentication purposes.
+          </span>
+        </label>
 
         <Button type="submit" loading={loading} className="w-full">
           Create Account

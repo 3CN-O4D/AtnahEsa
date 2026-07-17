@@ -4,44 +4,48 @@ import { useState } from 'react'
 import { X, Flag } from 'lucide-react'
 import Button from '@/components/ui/Button'
 
+const REPORT_REASONS = [
+  { id: 'inaccurate', label: "It's inaccurate or incorrect" },
+  { id: 'not_real', label: "It's not a real place to stay" },
+  { id: 'scam', label: "It's a scam" },
+  { id: 'offensive', label: "It's offensive" },
+  { id: 'other', label: "It's something else" },
+]
+
 interface ReportModalProps {
   targetType: 'listing' | 'mover' | 'user'
   targetId: string
   targetTitle?: string
   onClose: () => void
+  showHeader?: boolean
 }
 
-const REPORT_REASONS = [
-  'Fake or misleading',
-  'Scam',
-  'Wrong information',
-  'Duplicate listing',
-  'Already taken/not available',
-  'Inappropriate content',
-  'Harassment',
-  'Other',
-]
-
-export default function ReportModal({ targetType, targetId, targetTitle, onClose }: ReportModalProps) {
-  const [reason, setReason] = useState('')
+export default function ReportModal({ targetType, targetId, targetTitle, onClose, showHeader = true }: ReportModalProps) {
+  const [reasons, setReasons] = useState<string[]>([])
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [done, setDone] = useState(false)
 
+  const toggleReason = (id: string) => {
+    setReasons((prev) => prev.includes(id) ? prev.filter((r) => r !== id) : [...prev, id])
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!reason) { setError('Please select a reason'); return }
-    if (!description || description.trim().split(/\s+/).filter(Boolean).length < 4) {
-      setError('Please provide at least 4 words describing the issue')
-      return
-    }
+    if (reasons.length === 0) { setError('Please select at least one reason'); return }
     setLoading(true); setError('')
     try {
       const res = await fetch('/api/reports', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ target_type: targetType, target_id: targetId, target_title: targetTitle, reason, description }),
+        body: JSON.stringify({
+          target_type: targetType,
+          target_id: targetId,
+          target_title: targetTitle,
+          reasons,
+          description,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); setLoading(false); return }
@@ -64,27 +68,35 @@ export default function ReportModal({ targetType, targetId, targetTitle, onClose
           </div>
         ) : (
           <>
-            <div className="flex items-center gap-2 mb-4">
-              <Flag className="w-5 h-5 text-red-500" />
-              <h2 className="text-lg font-bold">Report {targetType}</h2>
-            </div>
+            {showHeader && (
+              <div className="mb-4">
+                <h2 className="text-lg font-bold">Why are you reporting this listing?</h2>
+                <p className="text-sm text-gray-500 mt-0.5">This won&apos;t be shared with the Host.</p>
+              </div>
+            )}
+            {!showHeader && (
+              <div className="flex items-center gap-2 mb-4">
+                <Flag className="w-5 h-5 text-red-500" />
+                <h2 className="text-lg font-bold">Report {targetType}</h2>
+              </div>
+            )}
             {targetTitle && <p className="text-sm text-gray-500 mb-4">&quot;{targetTitle}&quot;</p>}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Reason <span className="text-red-500">*</span></label>
-                <select value={reason} onChange={(e) => setReason(e.target.value)}
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500">
-                  <option value="">Select a reason...</option>
-                  {REPORT_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
-                </select>
+              <div className="space-y-2">
+                {REPORT_REASONS.map((r) => (
+                  <label key={r.id} className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 cursor-pointer transition-colors has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                    <input type="checkbox" checked={reasons.includes(r.id)} onChange={() => toggleReason(r.id)}
+                      className="mt-0.5 w-4 h-4 accent-red-500 rounded" />
+                    <span className="text-sm text-gray-800">{r.label}</span>
+                  </label>
+                ))}
               </div>
 
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Description <span className="text-red-500">*</span></label>
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Describe what's wrong (at least 4 words)..."
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" rows={4} required />
+                  placeholder="Tell us more about what happened (optional)..."
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" rows={3} />
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}

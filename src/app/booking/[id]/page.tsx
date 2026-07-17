@@ -12,11 +12,12 @@ import type { Listing, Booking, EscrowHold } from '@/types'
 
 type PaymentMethod = 'stk' | 'manual'
 
-const REPORT_REASONS = [
-  { value: 'scam', label: 'Scam/Fake Listing' },
-  { value: 'not_as_advertised', label: 'Not What Was Advertised' },
-  { value: 'hidden_issues', label: 'Hidden Issues Were Not Disclosed' },
-  { value: 'other', label: 'Other' },
+const REFUND_REASONS = [
+  { id: 'inaccurate', label: "It's inaccurate or incorrect" },
+  { id: 'not_real', label: "It's not a real place to stay" },
+  { id: 'scam', label: "It's a scam" },
+  { id: 'offensive', label: "It's offensive" },
+  { id: 'other', label: "It's something else" },
 ]
 
 export default function BookingPage() {
@@ -37,8 +38,8 @@ export default function BookingPage() {
   const [step, setStep] = useState<'payment' | 'dashboard'>('payment')
 
   const [showRefundModal, setShowRefundModal] = useState(false)
-  const [reportReason, setReportReason] = useState('')
-  const [customReason, setCustomReason] = useState('')
+  const [reportReasons, setReportReasons] = useState<string[]>([])
+  const [reportDescription, setReportDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
   const [releasing, setReleasing] = useState(false)
   const [countdown, setCountdown] = useState('')
@@ -151,17 +152,14 @@ export default function BookingPage() {
 
   const handleSubmitReport = async () => {
     if (!booking || !user || !listing || !escrowHold) return
-    if (!reportReason) { setError('Please select a reason'); return }
-    if (reportReason === 'other' && customReason.trim().split(/\s+/).filter(Boolean).length < 4) {
-      setError('Please provide at least 4 words'); return
-    }
+    if (reportReasons.length === 0) { setError('Please select at least one reason'); return }
     setSubmitting(true); setError('')
     try {
       const supabase = createClient()
       const refundAmount = Math.round(listing.price * 0.85)
       const { data: report } = await supabase.from('reports').insert({
         booking_id: booking.id, user_id: user.id, listing_id: listing.id,
-        reason: reportReason, custom_reason: reportReason === 'other' ? customReason : '',
+        reason: reportReasons.join(', '), custom_reason: reportDescription,
       }).select().single()
       if (report) {
         await supabase.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrowHold.id)
@@ -234,26 +232,26 @@ export default function BookingPage() {
           <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
             <div className="bg-white w-full max-w-md rounded-2xl p-6 relative">
               <button onClick={() => setShowRefundModal(false)} className="absolute right-4 top-4 text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
-              <h2 className="text-lg font-bold mb-4">Before We Process Your Refund</h2>
-              <p className="text-sm text-gray-500 mb-4">Help us improve by telling us why you're returning the house.</p>
+              <h2 className="text-lg font-bold mb-1">Before We Process Your Refund</h2>
+              <p className="text-sm text-gray-500 mb-4">Why are you returning this house? This won&apos;t be shared with the lister.</p>
 
               <div className="space-y-3">
-                <div className="space-y-1">
-                  <label className="block text-sm font-medium text-gray-700">Reason</label>
-                  <select value={reportReason} onChange={(e) => setReportReason(e.target.value)}
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
-                    <option value="">Select a reason...</option>
-                    {REPORT_REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-                  </select>
+                <div className="space-y-2">
+                  {REFUND_REASONS.map((r) => (
+                    <label key={r.id} className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 cursor-pointer transition-colors has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
+                      <input type="checkbox" checked={reportReasons.includes(r.id)} onChange={() => setReportReasons((prev) => prev.includes(r.id) ? prev.filter((x) => x !== r.id) : [...prev, r.id])}
+                        className="mt-0.5 w-4 h-4 accent-red-500 rounded" />
+                      <span className="text-sm text-gray-800">{r.label}</span>
+                    </label>
+                  ))}
                 </div>
-                {reportReason === 'other' && (
-                  <div className="space-y-1">
-                    <label className="block text-sm font-medium text-gray-700">Describe the issue <span className="text-red-500">*</span></label>
-                    <textarea value={customReason} onChange={(e) => setCustomReason(e.target.value)}
-                      placeholder="At least 4 words..."
-                      className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} />
-                  </div>
-                )}
+
+                <div className="space-y-1">
+                  <textarea value={reportDescription} onChange={(e) => setReportDescription(e.target.value)}
+                    placeholder="Tell us more about what happened (optional)..."
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} />
+                </div>
+
                 {error && <p className="text-sm text-red-600">{error}</p>}
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
                   <p><strong>Refund Amount:</strong> {formatPrice(Math.round(listing.price * 0.85))} (85%)</p>

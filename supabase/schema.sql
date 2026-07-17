@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   full_name TEXT NOT NULL,
   phone TEXT,
   role TEXT NOT NULL DEFAULT 'hunter' CHECK (role IN ('hunter', 'lister', 'admin')),
+  terms_accepted BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -300,13 +301,14 @@ CREATE POLICY "Admins can read contact submissions"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, username, full_name, phone, role)
+  INSERT INTO public.profiles (id, username, full_name, phone, role, terms_accepted)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'username', SPLIT_PART(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
     NEW.raw_user_meta_data->>'phone',
-    COALESCE(NEW.raw_user_meta_data->>'role', 'hunter')
+    COALESCE(NEW.raw_user_meta_data->>'role', 'hunter'),
+    COALESCE((NEW.raw_user_meta_data->>'terms_accepted')::boolean, false)
   );
   RETURN NEW;
 END;

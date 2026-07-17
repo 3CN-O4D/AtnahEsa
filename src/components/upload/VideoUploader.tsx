@@ -18,11 +18,14 @@ export default function VideoUploader({ videoUrl, onChange }: VideoUploaderProps
 
     setUploading(true)
     try {
-      const formData = new FormData()
-      formData.append('file', file)
-      const res = await fetch('/api/upload-video', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (data.url) onChange(data.url)
+      const presignRes = await fetch(`/api/upload-video/presign?name=${encodeURIComponent(file.name)}&type=${encodeURIComponent(file.type)}`)
+      const { url, publicUrl, error } = await presignRes.json()
+      if (error || !url) throw new Error(error || 'Failed to get upload URL')
+
+      const uploadRes = await fetch(url, { method: 'PUT', body: file, headers: { 'Content-Type': file.type } })
+      if (!uploadRes.ok) throw new Error('Direct upload failed')
+
+      if (publicUrl) onChange(publicUrl)
     } catch {
       console.error('Video upload failed')
     } finally {

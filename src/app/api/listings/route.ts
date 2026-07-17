@@ -72,15 +72,15 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { error } = await supabase.from('listings').insert({
+    const { error: insertError } = await supabase.from('listings').insert({
       ...body,
       uploader_id: user.id,
       uploader_name: user.email,
       status: 'pending',
     })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
+    if (insertError) {
+      return NextResponse.json({ error: insertError.message, details: insertError.details, code: insertError.code }, { status: 400 })
     }
 
     notifyAdmins(

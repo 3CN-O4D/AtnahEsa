@@ -49,3 +49,12 @@ SELECT id, 'asehanta', 'AseHanta Admin', '', 'admin', true
 FROM auth.users
 WHERE email = 'asehanta@gmail.com'
   AND NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.users.id);
+
+-- 6. Restore schema-level grants (lost after DROP SCHEMA public CASCADE)
+GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;

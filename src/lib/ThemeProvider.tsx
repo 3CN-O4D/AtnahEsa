@@ -13,6 +13,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false)
   const [mounted, setMounted] = useState(false)
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const stored = localStorage.getItem('asehanta-theme')
     const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
@@ -20,6 +21,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     setDark(isDark)
     setMounted(true)
   }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     if (!mounted) return

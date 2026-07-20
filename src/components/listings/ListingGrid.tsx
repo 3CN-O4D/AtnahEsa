@@ -43,18 +43,22 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
     }
   }, [page, hasMore, fetchListings])
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     setListings([])
     setPage(1)
     setHasMore(true)
     loadingRef.current = false
   }, [sort, filters, query])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
+  /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     if (page === 1 && hasMore) {
       loadMore()
     }
   }, [page, hasMore, loadMore])
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     const el = loaderRef.current

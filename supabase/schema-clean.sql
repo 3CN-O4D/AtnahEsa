@@ -173,6 +173,26 @@ CREATE TABLE IF NOT EXISTS public.wifi_bookings (
 
 ALTER TABLE public.wifi_bookings ENABLE ROW LEVEL SECURITY;
 
+-- 8b. HOUSE REQUESTS
+CREATE TABLE IF NOT EXISTS public.house_requests (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  location TEXT NOT NULL,
+  min_rent INTEGER,
+  max_rent INTEGER,
+  token_options TEXT[] DEFAULT '{}',
+  water_options TEXT[] DEFAULT '{}',
+  house_designs TEXT[] DEFAULT '{}',
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'fulfilled', 'closed')),
+  admin_notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE public.house_requests ENABLE ROW LEVEL SECURITY;
+
 -- 9. CONTACT SUBMISSIONS
 CREATE TABLE IF NOT EXISTS public.contact_submissions (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -227,6 +247,7 @@ CREATE TABLE IF NOT EXISTS public.reviews (
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT DEFAULT '',
+  is_anonymous BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -277,13 +298,29 @@ CREATE TABLE IF NOT EXISTS public.flagged_reports (
 
 ALTER TABLE public.flagged_reports ENABLE ROW LEVEL SECURITY;
 
--- 16. MOVER REVIEWS
+-- 16b. LISTER REVIEWS (direct rating of the lister as a person/service provider)
+CREATE TABLE IF NOT EXISTS public.lister_reviews (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  lister_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  reviewer_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT DEFAULT '',
+  is_anonymous BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(reviewer_id, lister_id)
+);
+
+ALTER TABLE public.lister_reviews ENABLE ROW LEVEL SECURITY;
+
+-- 17. MOVER REVIEWS
 CREATE TABLE IF NOT EXISTS public.mover_reviews (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   mover_id UUID REFERENCES public.movers(id) ON DELETE CASCADE NOT NULL,
   user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT DEFAULT '',
+  is_anonymous BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -366,6 +403,27 @@ CREATE TRIGGER on_mover_review_inserted
   AFTER INSERT ON public.mover_reviews
   FOR EACH ROW
   EXECUTE FUNCTION public.update_mover_rating();
+
+-- ============================================================
+-- AUTO-UPDATE LISTER RATINGS FROM DIRECT LISTER REVIEWS
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.update_lister_rating_from_reviews()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.profiles
+  SET
+    average_rating = (SELECT ROUND(AVG(rating)::numeric, 2) FROM public.lister_reviews WHERE lister_id = NEW.lister_id),
+    total_reviews = (SELECT COUNT(*) FROM public.lister_reviews WHERE lister_id = NEW.lister_id)
+  WHERE id = NEW.lister_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_lister_review_inserted ON public.lister_reviews;
+CREATE TRIGGER on_lister_review_inserted
+  AFTER INSERT ON public.lister_reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_lister_rating_from_reviews();
 
 -- ============================================================
 -- RLS POLICIES
@@ -488,11 +546,25 @@ CREATE POLICY "Admins can view all flagged_reports" ON public.flagged_reports FO
 DROP POLICY IF EXISTS "Admins can update flagged_reports" ON public.flagged_reports;
 CREATE POLICY "Admins can update flagged_reports" ON public.flagged_reports FOR UPDATE USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
 
+-- HOUSE REQUESTS
+DROP POLICY IF EXISTS "Anyone can insert house requests" ON public.house_requests;
+CREATE POLICY "Anyone can insert house requests" ON public.house_requests FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Admins can view house requests" ON public.house_requests;
+CREATE POLICY "Admins can view house requests" ON public.house_requests FOR SELECT USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
+DROP POLICY IF EXISTS "Admins can update house requests" ON public.house_requests;
+CREATE POLICY "Admins can update house requests" ON public.house_requests FOR UPDATE USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
+
 -- MOVER REVIEWS
 DROP POLICY IF EXISTS "Anyone can read mover_reviews" ON public.mover_reviews;
 CREATE POLICY "Anyone can read mover_reviews" ON public.mover_reviews FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Authenticated users can insert mover_reviews" ON public.mover_reviews;
 CREATE POLICY "Authenticated users can insert mover_reviews" ON public.mover_reviews FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- LISTER REVIEWS
+DROP POLICY IF EXISTS "Anyone can read lister_reviews" ON public.lister_reviews;
+CREATE POLICY "Anyone can read lister_reviews" ON public.lister_reviews FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can insert lister_reviews" ON public.lister_reviews;
+CREATE POLICY "Authenticated users can insert lister_reviews" ON public.lister_reviews FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
 
 -- ============================================================
 -- SCHEMA-LEVEL GRANTS (required after DROP SCHEMA public CASCADE)

@@ -40,6 +40,7 @@ export interface Review {
   user_id: string
   rating: number
   comment: string
+  is_anonymous: boolean
   created_at: string
 }
 
@@ -114,6 +115,7 @@ export interface MoverReview {
   user_id: string
   rating: number
   comment: string
+  is_anonymous: boolean
   created_at: string
 }
 
@@ -156,6 +158,17 @@ export interface Transaction {
   created_at: string
 }
 
+export interface ListerReview {
+  id: string
+  lister_id: string
+  reviewer_id: string
+  booking_id: string | null
+  rating: number
+  comment: string
+  is_anonymous: boolean
+  created_at: string
+}
+
 export interface Profile {
   id: string
   username: string
@@ -180,6 +193,23 @@ export interface WifiBooking {
   area: string
   id_number: string
   status: 'pending' | 'contacted' | 'completed' | 'cancelled'
+  created_at: string
+}
+
+export interface HouseRequest {
+  id: string
+  name: string
+  email: string
+  phone: string
+  location: string
+  min_rent: number | null
+  max_rent: number | null
+  token_options: string[]
+  water_options: string[]
+  house_designs: string[]
+  description: string
+  status: 'pending' | 'contacted' | 'fulfilled' | 'closed'
+  admin_notes: string | null
   created_at: string
 }
 

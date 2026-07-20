@@ -44,7 +44,8 @@ export default function ProfilePage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/auth/signin'); return }
       setUserEmail(user.email ?? '')
-      setIsGoogleUser(user.app_metadata?.provider === 'google')
+      const hasEmailIdentity = user.identities?.some((i) => i.provider === 'email')
+      setIsGoogleUser(user.app_metadata?.provider === 'google' && !hasEmailIdentity)
       const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
       if (error) { console.error('Profile fetch error:', error); setError('Failed to load profile: ' + error.message); setProfileLoaded(true); return }
       const p = data as Profile

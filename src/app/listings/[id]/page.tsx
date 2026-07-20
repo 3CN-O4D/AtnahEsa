@@ -13,7 +13,7 @@ import { formatPrice } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
 import ReportModal from '@/components/reports/ReportModal'
 import ListingCard from '@/components/listings/ListingCard'
-import type { Listing, Review, Profile } from '@/types'
+import type { Listing, Review, Profile, ListerReview } from '@/types'
 
 function Stars({ rating, interactive, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {
   return (
@@ -38,16 +38,24 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<Listing | null>(null)
   const [lister, setLister] = useState<(Profile & { listing_count: number }) | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
+  const [reviewProfiles, setReviewProfiles] = useState<Record<string, Profile>>({})
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [showViewer, setShowViewer] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
   const [myRating, setMyRating] = useState(0)
   const [myComment, setMyComment] = useState('')
+  const [myAnonymous, setMyAnonymous] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const [canReview, setCanReview] = useState(false)
   const [similar, setSimilar] = useState<Listing[]>([])
+  const [listerReviews, setListerReviews] = useState<ListerReview[]>([])
+  const [listerReviewProfiles, setListerReviewProfiles] = useState<Record<string, Profile>>({})
+  const [listerRating, setListerRating] = useState(0)
+  const [listerComment, setListerComment] = useState('')
+  const [listerAnonymous, setListerAnonymous] = useState(false)
+  const [submittingLister, setSubmittingLister] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -84,6 +92,32 @@ export default function ListingDetailPage() {
           .order('created_at', { ascending: false })
         setReviews((revs ?? []) as Review[])
 
+        const userIds = [...new Set((revs ?? []).map((r) => r.user_id))]
+        if (userIds.length > 0) {
+          const { data: rp } = await supabase.from('profiles').select('*').in('id', userIds)
+          const profileMap: Record<string, Profile> = {}
+          for (const p of rp ?? []) profileMap[p.id] = p as Profile
+          setReviewProfiles(profileMap)
+        }
+
+        // Fetch lister reviews + profiles
+        if (l.uploader_id) {
+          const { data: lr } = await supabase
+            .from('lister_reviews')
+            .select('*')
+            .eq('lister_id', l.uploader_id)
+            .order('created_at', { ascending: false })
+          setListerReviews((lr ?? []) as ListerReview[])
+
+          const lrUserIds = [...new Set((lr ?? []).map((r) => r.reviewer_id))]
+          if (lrUserIds.length > 0) {
+            const { data: lrp } = await supabase.from('profiles').select('*').in('id', lrUserIds)
+            const lrProfileMap: Record<string, Profile> = {}
+            for (const p of lrp ?? []) lrProfileMap[p.id] = p as Profile
+            setListerReviewProfiles(lrProfileMap)
+          }
+        }
+
         const { data: userData } = await supabase.auth.getUser()
         if (userData.user) {
           const { count: bookingCount } = await supabase
@@ -118,13 +152,32 @@ export default function ListingDetailPage() {
       user_id: user.id,
       rating: myRating,
       comment: myComment,
+      is_anonymous: myAnonymous,
     })
     if (!error) {
-      setReviews([{ id: '', listing_id: listing.id, user_id: user.id, rating: myRating, comment: myComment, created_at: new Date().toISOString() }, ...reviews])
-      setMyRating(0)
-      setMyComment('')
+      setReviews([{ id: '', listing_id: listing.id, user_id: user.id, rating: myRating, comment: myComment, is_anonymous: myAnonymous, created_at: new Date().toISOString() }, ...reviews])
+      setMyRating(0); setMyComment(''); setMyAnonymous(false)
     }
     setSubmitting(false)
+  }
+
+  const handleSubmitListerReview = async () => {
+    if (!user || !listing || listerRating === 0) return
+    setSubmittingLister(true)
+    const supabase = createClient()
+    const { error } = await supabase.from('lister_reviews').insert({
+      lister_id: listing.uploader_id,
+      reviewer_id: user.id,
+      booking_id: null,
+      rating: listerRating,
+      comment: listerComment,
+      is_anonymous: listerAnonymous,
+    })
+    if (!error) {
+      setListerReviews([{ id: '', lister_id: listing.uploader_id, reviewer_id: user.id, booking_id: null, rating: listerRating, comment: listerComment, is_anonymous: listerAnonymous, created_at: new Date().toISOString() }, ...listerReviews])
+      setListerRating(0); setListerComment(''); setListerAnonymous(false)
+    }
+    setSubmittingLister(false)
   }
 
   const alreadyReviewed = user && reviews.some((r) => r.user_id === user.id)
@@ -245,8 +298,12 @@ export default function ListingDetailPage() {
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5 space-y-4">
               <h3 className="font-semibold flex items-center gap-2 text-blue-800"><User className="w-4 h-4" /> Listed by</h3>
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0">
-                  {lister.full_name?.charAt(0)?.toUpperCase() || 'L'}
+                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
+                  {lister.avatar_url ? (
+                    <img src={lister.avatar_url} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    lister.full_name?.charAt(0)?.toUpperCase() || 'L'
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-gray-900 text-lg">{lister.full_name || 'Anonymous'}</p>
@@ -301,23 +358,86 @@ export default function ListingDetailPage() {
                 <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
                   placeholder="Your comments (optional)..."
                   className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+                  <input type="checkbox" checked={myAnonymous} onChange={(e) => setMyAnonymous(e.target.checked)} className="rounded accent-gray-600" />
+                  Post anonymously
+                </label>
                 <Button size="sm" onClick={handleSubmitReview} loading={submitting} disabled={myRating === 0}>Submit Review</Button>
               </div>
             )}
+            {user && canReview && !alreadyReviewed && lister && (
+              <div className="space-y-3 p-4 bg-indigo-50 rounded-xl">
+                <p className="text-sm font-medium">Rate {lister.full_name || 'the lister'}</p>
+                <Stars rating={listerRating} interactive onChange={setListerRating} />
+                <textarea value={listerComment} onChange={(e) => setListerComment(e.target.value)}
+                  placeholder="Share your experience with this lister (optional)..."
+                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+                  <input type="checkbox" checked={listerAnonymous} onChange={(e) => setListerAnonymous(e.target.checked)} className="rounded accent-gray-600" />
+                  Post anonymously
+                </label>
+                <Button size="sm" onClick={handleSubmitListerReview} loading={submittingLister} disabled={listerRating === 0}>Submit</Button>
+              </div>
+            )}
             {user && !canReview && (
-              <p className="text-xs text-gray-400 italic">Only users who booked and released funds can review this property.</p>
+              <p className="text-xs text-gray-400 italic">Only users who booked and released funds can review.</p>
             )}
 
             {reviews.length === 0 && <p className="text-sm text-gray-400">No reviews yet.</p>}
-            {reviews.map((r, i) => (
-              <div key={r.id || i} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <Stars rating={r.rating} />
-                  <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+            {reviews.map((r, i) => {
+              const rp = reviewProfiles[r.user_id]
+              const isAnonymous = r.is_anonymous
+              return (
+                <div key={r.id || i} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600 shrink-0 overflow-hidden">
+                      {!isAnonymous && rp?.avatar_url ? (
+                        <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
+                      ) : (
+                        !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
+                      )}
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                    <div className="flex items-center gap-2 ml-auto">
+                      <Stars rating={r.rating} />
+                      <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  {r.comment && <p className="text-sm text-gray-600 ml-8">{r.comment}</p>}
                 </div>
-                {r.comment && <p className="text-sm text-gray-600">{r.comment}</p>}
-              </div>
-            ))}
+              )
+            })}
+            {listerReviews.length > 0 && (
+              <>
+                <hr className="border-gray-200" />
+                <h4 className="text-sm font-semibold text-gray-500 flex items-center gap-1.5">
+                  <Star className="w-3.5 h-3.5 text-yellow-500" /> Lister Reviews
+                </h4>
+                {listerReviews.map((r, i) => {
+                  const rp = listerReviewProfiles[r.reviewer_id]
+                  const isAnonymous = r.is_anonymous
+                  return (
+                    <div key={r.id || i} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600 shrink-0 overflow-hidden">
+                          {!isAnonymous && rp?.avatar_url ? (
+                            <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
+                          ) : (
+                            !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
+                          )}
+                        </div>
+                        <span className="text-sm font-medium text-gray-700">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                        <div className="flex items-center gap-2 ml-auto">
+                          <Stars rating={r.rating} />
+                          <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                        </div>
+                      </div>
+                      {r.comment && <p className="text-sm text-gray-600 ml-8">{r.comment}</p>}
+                    </div>
+                  )
+                })}
+              </>
+            )}
           </div>
         </div>
 

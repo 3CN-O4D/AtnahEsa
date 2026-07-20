@@ -65,7 +65,7 @@ export default function AdminServicesPage() {
     })
   }, [])
 
-  const loadData = async () => {
+  async function loadData() {
     const supabase = createClient()
     const [wRes, cRes, pcRes, mRes, bRes] = await Promise.all([
       supabase.from('wifi_packages').select('*').order('price'),

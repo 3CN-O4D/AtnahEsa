@@ -67,6 +67,30 @@ export async function stkPush(phone: string, amount: number, accountRef: string,
   return data
 }
 
+export async function accountBalance() {
+  const token = await getAccessToken()
+  const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)
+  const password = Buffer.from(`${SHORTCODE}${PASSKEY}${timestamp}`).toString('base64')
+
+  const res = await fetch(`${BASE_URL}/mpesa/accountbalance/v1/query`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      CommandID: 'AccountBalance',
+      PartyA: SHORTCODE,
+      IdentifierType: '4',
+      Remarks: 'Balance query',
+      QueueTimeOutURL: `${CALLBACK_URL}/api/daraja/timeout`,
+      ResultURL: `${CALLBACK_URL}/api/daraja/balance-callback`,
+    }),
+  })
+
+  return res.json()
+}
+
 export async function queryStatus(checkoutRequestId: string) {
   const token = await getAccessToken()
   const timestamp = new Date().toISOString().replace(/[^0-9]/g, '').slice(0, 14)

@@ -1,21 +1,27 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import type { Listing, Booking, Transaction, Profile } from '@/types'
-
-type Tab = 'stats' | 'houses' | 'transactions' | 'users'
+import type { Listing, Booking, Transaction, Profile, HouseRequest } from '@/types'
 
 export default function AdminDashboard() {
+  return (
+    <Suspense fallback={<div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>}>
+      <AdminDashboardInner />
+    </Suspense>
+  )
+}
+
+function AdminDashboardInner() {
   const router = useRouter()
-  const [checking, setChecking] = useState(true)
-  const [tab, setTab] = useState<Tab>('stats')
+  const searchParams = useSearchParams()
+  const tab = searchParams.get('tab') || 'stats'
   const [loaded, setLoaded] = useState(false)
   const [allListings, setAllListings] = useState<Listing[]>([])
   const [listingsFilter, setListingsFilter] = useState('all')
@@ -23,6 +29,7 @@ export default function AdminDashboard() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [users, setUsers] = useState<Profile[]>([])
   const [houseSearch, setHouseSearch] = useState('')
+  const [requests, setRequests] = useState<HouseRequest[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [stats, setStats] = useState({
     total: 0, published: 0, booked: 0, taken: 0, pending: 0,
@@ -36,23 +43,14 @@ export default function AdminDashboard() {
     setTimeout(() => setToast(null), 3000)
   }, [])
 
-  useEffect(() => {
-    const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push('/auth/signin'); return }
-      const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-      if (error || profile?.role !== 'admin') { router.push('/'); return }
-      setChecking(false)
-      loadAll()
-    })
-  }, [])
+  useEffect(() => { loadAll() }, [])
 
-  const loadAll = async () => {
+  async function loadAll() {
     const supabase = createClient()
 
     const c = async (table: string, field?: string, value?: string | number) => {
-      let q = supabase.from(table as any).select('*', { count: 'exact', head: true })
-      if (field && value !== undefined) q = (q as any).eq(field, value)
+      let q = supabase.from(table as 'listings' | 'bookings' | 'profiles').select('*', { count: 'exact', head: true })
+      if (field && value !== undefined) q = (q as typeof q).eq(field, value)
       return (await q).count ?? 0
     }
 
@@ -108,6 +106,20 @@ export default function AdminDashboard() {
     setTransactions((data ?? []) as Transaction[])
   }
 
+  const loadRequests = async () => {
+    const supabase = createClient()
+    const { data } = await supabase.from('house_requests').select('*').order('created_at', { ascending: false })
+    setRequests((data ?? []) as HouseRequest[])
+  }
+
+  const handleUpdateRequestStatus = async (id: string, status: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from('house_requests').update({ status }).eq('id', id)
+    if (error) { showToast('error', error.message); return }
+    showToast('success', `Request marked as ${status}`)
+    loadRequests()
+  }
+
   const loadUsers = async () => {
     const supabase = createClient()
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
@@ -159,8 +171,8 @@ export default function AdminDashboard() {
 
   const verifyUpdate = async (table: string, id: string, field: string, expected: string) => {
     const supabase = createClient()
-    const { data } = await supabase.from(table as any).select(field).eq('id', id).maybeSingle()
-    if ((data as any)?.[field] !== expected) {
+    const { data } = await supabase.from(table as 'listings' | 'bookings').select(field).eq('id', id).maybeSingle()
+    if ((data as unknown as Record<string, string>)?.[field] !== expected) {
       showToast('error', 'Update failed — RLS may be blocking. Run fix-rls-recursion.sql in Supabase.')
       return false
     }
@@ -227,7 +239,7 @@ export default function AdminDashboard() {
 
   const statCard = (label: string, value: number | string, color: string, filter?: string) => (
     <button
-      onClick={() => { setTab('houses'); setListingsFilter(filter || 'all') }}
+      onClick={() => { if (filter) { setListingsFilter(filter); router.push('/admin?tab=houses') } }}
       className={`bg-white border rounded-xl p-4 text-left hover:shadow-md transition-shadow ${filter ? 'cursor-pointer' : ''}`}
     >
       <p className="text-sm text-gray-500">{label}</p>
@@ -253,10 +265,6 @@ export default function AdminDashboard() {
     )
   })
 
-  if (checking) {
-    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
-  }
-
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
       {toast && (
@@ -268,24 +276,9 @@ export default function AdminDashboard() {
       )}
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">Admin Dashboard</h1>
-        <div className="flex gap-2">
-          <Link href="/admin/upload">
-            <Button size="sm">+ List House</Button>
-          </Link>
-          <Link href="/admin/services">
-            <Button size="sm" variant="outline">Services</Button>
-          </Link>
-          <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-600 hover:underline self-center">
-            Download Payment Report
-          </a>
-        </div>
-      </div>
-
-      <div className="flex gap-2 mb-6 flex-wrap">
-        <Button variant={tab === 'stats' ? 'primary' : 'outline'} size="sm" onClick={() => setTab('stats')}>Dashboard</Button>
-        <Button variant={tab === 'houses' ? 'primary' : 'outline'} size="sm" onClick={() => { setTab('houses'); setListingsFilter('all') }}>Houses ({allListings.length})</Button>
-        <Button variant={tab === 'transactions' ? 'primary' : 'outline'} size="sm" onClick={() => { setTab('transactions'); loadTransactions() }}>Transactions</Button>
-        <Button variant={tab === 'users' ? 'primary' : 'outline'} size="sm" onClick={() => { setTab('users'); loadUsers() }}>Users ({users.length})</Button>
+        <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-600 hover:underline">
+          Download Payment Report
+        </a>
       </div>
 
       {tab === 'stats' && (
@@ -401,6 +394,46 @@ export default function AdminDashboard() {
               ))}</tbody>
             </table>
           </div>
+        </div>
+      )}
+
+      {tab === 'requests' && (
+        <div className="space-y-4">
+          {requests.length === 0 && <p className="text-gray-500 text-center py-8">No house requests yet.</p>}
+          {requests.map((r) => (
+            <div key={r.id} className="bg-white border rounded-xl p-4">
+              <div className="flex items-start justify-between gap-4 mb-3">
+                <div>
+                  <h3 className="font-semibold">{r.name}</h3>
+                  <p className="text-sm text-gray-500">{r.email} &middot; {r.phone}</p>
+                </div>
+                <select
+                  value={r.status}
+                  onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)}
+                  className={`text-xs border rounded px-2 py-1 font-medium ${
+                    r.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                    r.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                    r.status === 'fulfilled' ? 'text-green-700 bg-green-50 border-green-200' :
+                    'text-gray-700 bg-gray-50 border-gray-200'
+                  }`}
+                >
+                  <option value="pending">Pending</option>
+                  <option value="contacted">Contacted</option>
+                  <option value="fulfilled">Fulfilled</option>
+                  <option value="closed">Closed</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                <div><span className="text-gray-500">Location:</span> <span className="font-medium">{r.location}</span></div>
+                <div><span className="text-gray-500">Rent:</span> <span className="font-medium">{r.min_rent || r.max_rent ? `KES ${(r.min_rent || 0).toLocaleString()} — KES ${(r.max_rent || 0).toLocaleString()}` : 'Any'}</span></div>
+                <div><span className="text-gray-500">Token:</span> <span className="font-medium">{(r.token_options || []).join(', ') || 'Any'}</span></div>
+                <div><span className="text-gray-500">Water:</span> <span className="font-medium">{(r.water_options || []).join(', ') || 'Any'}</span></div>
+                <div><span className="text-gray-500">Design:</span> <span className="font-medium">{(r.house_designs || []).join(', ') || 'Any'}</span></div>
+                <div><span className="text-gray-500">Date:</span> <span className="font-medium">{new Date(r.created_at).toLocaleDateString()}</span></div>
+              </div>
+              {r.description && <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-3">{r.description}</p>}
+            </div>
+          ))}
         </div>
       )}
 

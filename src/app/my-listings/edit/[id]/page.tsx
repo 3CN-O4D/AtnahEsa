@@ -23,6 +23,7 @@ export default function EditListingPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [currentStatus, setCurrentStatus] = useState('')
 
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
@@ -59,6 +60,7 @@ export default function EditListingPage() {
       if (!data || data.uploader_id !== user.id) { router.push('/my-listings'); return }
 
       const l = data as Listing
+      setCurrentStatus(l.status)
       setTitle(l.title)
       setDescription(l.description)
       setPrice(String(l.price))
@@ -102,7 +104,7 @@ export default function EditListingPage() {
       const removed = originalImages.filter((url) => !images.includes(url))
       await Promise.allSettled(removed.map((url) => fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url }) })))
 
-      const { error: updateErr } = await supabase.from('listings').update({
+      const updates: Record<string, unknown> = {
         title, description, price: fee, rent: parseInt(rent) || 0,
         deposit: parseInt(deposit) || 0, deposit_refundable: depositRefundable,
         electric_bill: electricBill, water, vacancy, why_vacant: whyVacant,
@@ -111,7 +113,9 @@ export default function EditListingPage() {
         descriptive_location: descriptiveLocation, location,
         images, youtube_url: youtubeUrl || null, video_url: videoUrl || null,
         issues, issues_count: issues.length, payment_method: paymentMethod, lister_phone: listerPhone,
-      }).eq('id', id)
+      }
+      if (currentStatus === 'published') updates.status = 'pending'
+      const { error: updateErr } = await supabase.from('listings').update(updates).eq('id', id)
 
       if (updateErr) { setError(updateErr.message); return }
       setSuccess('Saved!'); setOriginalImages(images)

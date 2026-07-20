@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import Link from 'next/link'
 import { Home, Users, CalendarCheck, Building } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
@@ -56,9 +57,9 @@ export default function StatsPage() {
       <div className="mt-12 bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl p-8 text-center">
         <h2 className="text-xl font-bold text-gray-800 mb-2">Ready to find your next home?</h2>
         <p className="text-gray-500 mb-6">Join thousands of happy hunters and listers on AseHanta.</p>
-        <a href="/" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">
+        <Link href="/" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">
           Browse Listings
-        </a>
+        </Link>
       </div>
     </div>
   )

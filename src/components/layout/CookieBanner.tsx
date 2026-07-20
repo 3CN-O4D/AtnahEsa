@@ -4,12 +4,12 @@ import { useState, useEffect } from 'react'
 import { Cookie, X } from 'lucide-react'
 
 export default function CookieBanner() {
-  const [visible, setVisible] = useState(false)
-
-  useEffect(() => {
-    const consent = localStorage.getItem('cookie_consent')
-    if (!consent) setVisible(true)
-  }, [])
+  const [visible, setVisible] = useState(() => {
+    if (typeof window !== 'undefined') {
+      return !localStorage.getItem('cookie_consent')
+    }
+    return false
+  })
 
   const accept = () => {
     localStorage.setItem('cookie_consent', 'accepted')

@@ -215,7 +215,7 @@ export default function BookingPage() {
               </button>
               <button onClick={() => setShowRefundModal(true)}
                 className="w-full bg-white border border-red-200 text-red-600 rounded-xl py-3 font-semibold text-sm hover:bg-red-50 transition-colors">
-                ✕ I Don't Want It — Request 85% Refund
+                ✕ I Don&apos;t Want It — Request 85% Refund
               </button>
             </div>
 
@@ -275,11 +275,11 @@ export default function BookingPage() {
         <h1 className="text-2xl font-bold mb-2">Check Your Phone</h1>
         <p className="text-gray-600 mb-4">An M-Pesa STK push has been sent to <strong>{phone}</strong>. Enter your PIN to complete payment.</p>
         <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 mb-6">
-          <p className="font-medium mb-1">Didn't receive the prompt?</p>
+          <p className="font-medium mb-1">Didn&apos;t receive the prompt?</p>
           <p>Make sure your phone is on and has enough M-Pesa balance. The prompt expires in 60 seconds.</p>
         </div>
         <div className="space-y-3">
-          <Button onClick={handleStkConfirm} loading={loading}>I've Paid — Confirm</Button>
+            <Button onClick={handleStkConfirm} loading={loading}>I&apos;ve Paid — Confirm</Button>
           <Button variant="outline" onClick={() => { setStkSent(false); setLoading(false) }} className="w-full">Try Again</Button>
         </div>
       </div>

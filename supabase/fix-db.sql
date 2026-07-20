@@ -71,7 +71,48 @@ ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authentic
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
 
--- 7. Verify admin profile was created
+-- 7. Add is_anonymous column to reviews and mover_reviews
+ALTER TABLE public.reviews ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.mover_reviews ADD COLUMN IF NOT EXISTS is_anonymous BOOLEAN DEFAULT FALSE;
+
+-- 8. Create lister_reviews table
+CREATE TABLE IF NOT EXISTS public.lister_reviews (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  lister_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  reviewer_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  booking_id UUID REFERENCES public.bookings(id) ON DELETE SET NULL,
+  rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
+  comment TEXT DEFAULT '',
+  is_anonymous BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  UNIQUE(reviewer_id, lister_id)
+);
+ALTER TABLE public.lister_reviews ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Anyone can read lister_reviews" ON public.lister_reviews;
+CREATE POLICY "Anyone can read lister_reviews" ON public.lister_reviews FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Authenticated users can insert lister_reviews" ON public.lister_reviews;
+CREATE POLICY "Authenticated users can insert lister_reviews" ON public.lister_reviews FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
+
+CREATE OR REPLACE FUNCTION public.update_lister_rating_from_reviews()
+RETURNS TRIGGER AS $$
+BEGIN
+  UPDATE public.profiles
+  SET
+    average_rating = (SELECT ROUND(AVG(rating)::numeric, 2) FROM public.lister_reviews WHERE lister_id = NEW.lister_id),
+    total_reviews = (SELECT COUNT(*) FROM public.lister_reviews WHERE lister_id = NEW.lister_id)
+  WHERE id = NEW.lister_id;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_lister_review_inserted ON public.lister_reviews;
+CREATE TRIGGER on_lister_review_inserted
+  AFTER INSERT ON public.lister_reviews
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_lister_rating_from_reviews();
+
+-- 9. Verify admin profile was created
 DO $$
 BEGIN
   IF EXISTS (

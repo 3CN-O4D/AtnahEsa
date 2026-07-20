@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Moon, Sun } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, Moon, Sun } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME } from '@/lib/constants'
 import Button from '@/components/ui/Button'
@@ -13,6 +13,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { dark, toggle } = useTheme()
 
@@ -21,18 +22,21 @@ export default function Header() {
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user)
       if (data.user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
+        const { data: profile } = await supabase.from('profiles').select('role, avatar_url').eq('id', data.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
+        setAvatarUrl(profile?.avatar_url || null)
       }
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('role').eq('id', session.user.id).maybeSingle()
+        const { data: profile } = await supabase.from('profiles').select('role, avatar_url').eq('id', session.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
+        setAvatarUrl(profile?.avatar_url || null)
       } else {
         setIsAdmin(false)
+        setAvatarUrl(null)
       }
     })
 
@@ -48,6 +52,7 @@ export default function Header() {
     { href: '/', label: 'Home', icon: Home },
     { href: '/movers', label: 'Movers', icon: Truck },
     { href: '/wifi', label: 'WiFi', icon: Wifi },
+    { href: '/request-house', label: 'Request House', icon: undefined },
     { href: '/contact', label: 'Contact', icon: undefined },
   ]
 
@@ -84,8 +89,12 @@ export default function Header() {
                   className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
                 >
                   <span className="truncate max-w-[120px]">{user.email}</span>
-                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                    <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center overflow-hidden">
+                    {avatarUrl ? (
+                      <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                    ) : (
+                      <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                    )}
                   </div>
               </button>
               {showUserMenu && (
@@ -95,6 +104,9 @@ export default function Header() {
                   </Link>
                   <Link href="/my-listings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <List className="w-4 h-4" /> My Listings
+                  </Link>
+                  <Link href="/my-bookings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <Calendar className="w-4 h-4" /> My Bookings
                   </Link>
                   {isAdmin && (
                     <Link href="/admin" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -151,6 +163,9 @@ export default function Header() {
               </Link>
               <Link href="/my-listings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <List className="w-4 h-4" /> My Listings
+              </Link>
+              <Link href="/my-bookings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Calendar className="w-4 h-4" /> My Bookings
               </Link>
               <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                 <Upload className="w-4 h-4" />

@@ -1,3 +1,4 @@
+import Link from 'next/link'
 import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, CONTACT_LOCATION, WHATSAPP_NUMBER, SOCIAL_YOUTUBE, SOCIAL_TWITTER, SOCIAL_INSTAGRAM, SOCIAL_TIKTOK } from '@/lib/constants'
 
 export default function Footer() {
@@ -18,9 +19,9 @@ export default function Footer() {
           <div>
             <h4 className="text-white font-semibold mb-3">Quick Links</h4>
             <ul className="space-y-2 text-sm">
-              <li><a href="/" className="hover:text-white transition-colors">Home</a></li>
-              <li><a href="/movers" className="hover:text-white transition-colors">Movers</a></li>
-              <li><a href="/wifi" className="hover:text-white transition-colors">WiFi Packages</a></li>
+              <li><Link href="/" className="hover:text-white transition-colors">Home</Link></li>
+              <li><Link href="/movers" className="hover:text-white transition-colors">Movers</Link></li>
+              <li><Link href="/wifi" className="hover:text-white transition-colors">WiFi Packages</Link></li>
               <li><a href="/contact" className="hover:text-white transition-colors">Contact Us</a></li>
             </ul>
           </div>
@@ -49,10 +50,18 @@ export default function Footer() {
         {/* Collaborators */}
         <div className="border-t border-gray-800 mt-8 pt-6">
           <p className="text-center text-sm text-gray-500 mb-3">Our Collaborators</p>
-          <div className="flex justify-center items-center gap-6">
-            <a href="https://chshub.co.ke" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-sm transition-colors">chshub.co.ke</a>
-            <span className="text-gray-600">|</span>
-            <a href="https://jambonetkenya.co.ke" target="_blank" rel="noopener noreferrer" className="text-gray-400 hover:text-white text-sm transition-colors">jambonetkenya.co.ke</a>
+          <div className="flex justify-center items-center gap-8">
+            <a href="https://chshub.co.ke" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors group">
+              <div className="w-10 h-10 rounded-lg bg-gray-800 group-hover:bg-gray-700 flex items-center justify-center transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5 text-green-400">
+                  <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+                </svg>
+              </div>
+              <span className="text-xs">CHS Hub</span>
+            </a>
+            <a href="https://jambonetkenya.co.ke" target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
+              <img src="/images/jambonet-logo.jpeg" alt="Jambonet Kenya" className="h-10" />
+            </a>
           </div>
         </div>
 

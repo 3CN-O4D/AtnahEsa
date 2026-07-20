@@ -28,6 +28,7 @@ function ReviewsModal({ mover, onClose }: { mover: Mover; onClose: () => void })
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [myRating, setMyRating] = useState(0)
   const [myComment, setMyComment] = useState('')
+  const [myAnonymous, setMyAnonymous] = useState(false)
   const [submitting, setSubmitting] = useState(false)
 
   useEffect(() => {
@@ -40,10 +41,10 @@ function ReviewsModal({ mover, onClose }: { mover: Mover; onClose: () => void })
     if (!user || myRating === 0) return
     setSubmitting(true)
     const supabase = createClient()
-    await supabase.from('mover_reviews').insert({ mover_id: mover.id, user_id: user.id, rating: myRating, comment: myComment })
+    await supabase.from('mover_reviews').insert({ mover_id: mover.id, user_id: user.id, rating: myRating, comment: myComment, is_anonymous: myAnonymous })
     const { data } = await supabase.from('mover_reviews').select('*').eq('mover_id', mover.id).order('created_at', { ascending: false })
     setReviews((data ?? []) as MoverReview[])
-    setMyRating(0); setMyComment('')
+    setMyRating(0); setMyComment(''); setMyAnonymous(false)
     setSubmitting(false)
   }
 
@@ -62,6 +63,10 @@ function ReviewsModal({ mover, onClose }: { mover: Mover; onClose: () => void })
             <p className="text-sm font-medium">Rate this mover</p>
             <Stars rating={myRating} interactive onChange={setMyRating} size="text-xl" />
             <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)} placeholder="Share your experience..." className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+            <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+              <input type="checkbox" checked={myAnonymous} onChange={(e) => setMyAnonymous(e.target.checked)} className="rounded accent-gray-600" />
+              Post anonymously
+            </label>
             <Button size="sm" onClick={handleSubmit} loading={submitting} disabled={myRating === 0}>Submit</Button>
           </div>
         )}
@@ -101,8 +106,8 @@ export default function MoversPage() {
       </div>
 
       <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8 text-sm text-amber-800">
-        <p className="font-semibold mb-1">We haven't partnered with a moving company yet.</p>
-        <p>However, we can arrange for a localized mover — a rider or a truck — to help transport your belongings. Contact us and we'll connect you.</p>
+        <p className="font-semibold mb-1">We haven&apos;t partnered with a moving company yet.</p>
+        <p>However, we can arrange for a localized mover — a rider or a truck — to help transport your belongings. Contact us and we&apos;ll connect you.</p>
       </div>
 
       {movers.length === 0 && <div className="text-center py-12"><p className="text-gray-500">No movers listed yet.</p></div>}

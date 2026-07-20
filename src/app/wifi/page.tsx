@@ -43,7 +43,7 @@ export default function WifiPage() {
   const pkgsInCategory = (catId: string) => packages.filter((p) => catIdsForPkg(p.id).includes(catId))
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#f0faf0' }}>
+    <div className="min-h-screen bg-[#f0faf0] dark:bg-gray-900">
       {/* Brand Bar */}
       <div style={{ backgroundColor: '#1a5c2a', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-center gap-6">
@@ -85,7 +85,7 @@ export default function WifiPage() {
             <div className="max-w-6xl mx-auto px-4">
               <div className="text-center mb-12">
                 <h5 className="text-green-600 text-sm font-semibold tracking-widest uppercase mb-2">Our Pricing</h5>
-                <h2 className="text-3xl md:text-4xl font-bold" style={{ color: '#1a5c2a' }}>Unlimited Home WiFi Plans</h2>
+                <h2 className="text-3xl md:text-4xl font-bold text-[#1a5c2a] dark:text-green-300">Unlimited Home WiFi Plans</h2>
               </div>
 
               {categories.map((category) => {
@@ -94,13 +94,13 @@ export default function WifiPage() {
                 return (
                   <div key={category.id} className="mb-16 last:mb-0">
                     <div className="text-center mb-8">
-                      <h3 className="text-xl font-bold" style={{ color: '#1a5c2a' }}>{category.name}</h3>
-                      {category.description && <p className="text-gray-500 mt-1">{category.description}</p>}
+                      <h3 className="text-xl font-bold text-[#1a5c2a] dark:text-green-300">{category.name}</h3>
+                      {category.description && <p className="text-gray-500 dark:text-gray-400 mt-1">{category.description}</p>}
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
                       {pkgs.map((pkg, i) => (
-                        <div key={pkg.id} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 relative">
+                        <div key={pkg.id} className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700 relative">
                           {i === 1 && (
                             <div className="absolute top-0 left-0 right-0 z-10 py-2 text-center text-sm font-bold uppercase tracking-wider text-white" style={{ backgroundColor: '#22c55e' }}>
                               Best Seller
@@ -109,39 +109,39 @@ export default function WifiPage() {
 
                           <div className={i === 1 ? 'pt-12' : ''}>
                             <div className="pricing-head text-center px-6 pt-8 pb-2">
-                              <h3 className="text-xl font-bold" style={{ color: '#1a5c2a' }}>{pkg.name}</h3>
-                              <p className="text-gray-400 text-sm mt-1">{pkg.speed} internet speed</p>
+                              <h3 className="text-xl font-bold text-[#1a5c2a] dark:text-green-300">{pkg.name}</h3>
+                              <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{pkg.speed} internet speed</p>
                               <div className="inline-block mt-3 px-5 py-1.5 rounded text-white text-sm font-semibold" style={{ backgroundColor: '#1a5c2a' }}>
                                 {pkg.speed}
                               </div>
-                              <div className="flex justify-center gap-3 mt-4 text-xl" style={{ color: '#1a5c2a' }}>
+                              <div className="flex justify-center gap-3 mt-4 text-xl text-[#1a5c2a] dark:text-green-300">
                                 <Zap className="w-5 h-5" />
                                 <Wifi className="w-5 h-5" />
                                 <Layers className="w-5 h-5" />
                               </div>
-                              <hr className="mt-4 border-gray-100" />
+                              <hr className="mt-4 border-gray-100 dark:border-gray-700" />
                             </div>
 
                             <div className="px-6 py-4">
                               <ul className="space-y-2.5">
                                 {pkg.features.map((f, j) => (
-                                  <li key={j} className="flex items-start gap-2 text-sm text-gray-600">
+                                  <li key={j} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
                                     <Check className="w-4 h-4 shrink-0 mt-0.5" style={{ color: '#22c55e' }} />
                                     {f}
                                   </li>
                                 ))}
                               </ul>
-                              <hr className="mt-4 border-gray-100" />
+                              <hr className="mt-4 border-gray-100 dark:border-gray-700" />
                             </div>
 
                             <div className="text-center px-6 pb-2">
                               <div className="price-count">
                                 {pkg.original_price > 0 && (
-                                  <p className="text-sm text-gray-400 line-through mb-1">{formatPrice(pkg.original_price)}</p>
+                                  <p className="text-sm text-gray-400 dark:text-gray-500 line-through mb-1">{formatPrice(pkg.original_price)}</p>
                                 )}
-                                <h2 className="text-3xl font-bold" style={{ color: '#1a5c2a' }}>
+                                <h2 className="text-3xl font-bold text-[#1a5c2a] dark:text-green-300">
                                   {formatPrice(pkg.price)}
-                                  <sub className="text-base font-normal text-gray-400 bottom-0">/ Month</sub>
+                                  <sub className="text-base font-normal text-gray-400 dark:text-gray-500 bottom-0">/ Month</sub>
                                 </h2>
                               </div>
                             </div>
@@ -165,18 +165,18 @@ export default function WifiPage() {
               {packages.filter((p) => catIdsForPkg(p.id).length === 0).length > 0 && (
                 <div className="mb-16">
                   <div className="text-center mb-8">
-                    <h3 className="text-xl font-bold" style={{ color: '#1a5c2a' }}>More Packages</h3>
+                    <h3 className="text-xl font-bold text-[#1a5c2a] dark:text-green-300">More Packages</h3>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-5xl mx-auto">
                     {packages.filter((p) => catIdsForPkg(p.id).length === 0).map((pkg) => (
-                      <div key={pkg.id} className="bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100">
+                      <div key={pkg.id} className="bg-white dark:bg-gray-800 rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700">
                         <div className="text-center px-6 pt-8 pb-2">
-                          <h3 className="text-xl font-bold" style={{ color: '#1a5c2a' }}>{pkg.name}</h3>
-                          <p className="text-gray-400 text-sm mt-1">{pkg.speed} internet speed</p>
+                          <h3 className="text-xl font-bold text-[#1a5c2a] dark:text-green-300">{pkg.name}</h3>
+                          <p className="text-gray-400 dark:text-gray-500 text-sm mt-1">{pkg.speed} internet speed</p>
                           <div className="inline-block mt-3 px-5 py-1.5 rounded text-white text-sm font-semibold" style={{ backgroundColor: '#1a5c2a' }}>
                             {pkg.speed}
                           </div>
-                          <hr className="mt-4 border-gray-100" />
+                          <hr className="mt-4 border-gray-100 dark:border-gray-700" />
                         </div>
                         <div className="px-6 py-4">
                           <ul className="space-y-2.5">
@@ -187,15 +187,15 @@ export default function WifiPage() {
                               </li>
                             ))}
                           </ul>
-                          <hr className="mt-4 border-gray-100" />
+                          <hr className="mt-4 border-gray-100 dark:border-gray-700" />
                         </div>
                         <div className="text-center px-6 pb-2">
                           {pkg.original_price > 0 && (
                             <p className="text-sm text-gray-400 line-through mb-1">{formatPrice(pkg.original_price)}</p>
                           )}
-                          <h2 className="text-3xl font-bold" style={{ color: '#1a5c2a' }}>
+                          <h2 className="text-3xl font-bold text-[#1a5c2a] dark:text-green-300">
                             {formatPrice(pkg.price)}
-                            <sub className="text-base font-normal text-gray-400 bottom-0">/ Month</sub>
+                            <sub className="text-base font-normal text-gray-400 dark:text-gray-500 bottom-0">/ Month</sub>
                           </h2>
                         </div>
                         <div className="px-6 pb-8 pt-4 text-center">

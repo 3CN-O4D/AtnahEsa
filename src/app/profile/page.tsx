@@ -35,7 +35,7 @@ export default function ProfilePage() {
       setUserEmail(user.email ?? '')
       setIsGoogleUser(user.app_metadata?.provider === 'google')
       const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
-      if (error) { console.error('Profile fetch error:', error); router.push('/'); return }
+      if (error) { console.error('Profile fetch error:', error); setError('Failed to load profile: ' + error.message); setProfileLoaded(true); return }
       setProfile(data as Profile)
       setProfileLoaded(true)
     })
@@ -201,7 +201,8 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center">
-        <p className="text-gray-500 text-sm mb-4">Profile not found. Try signing out and back in.</p>
+        {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 mb-4">{error}</p>}
+        {!error && <p className="text-gray-500 text-sm mb-4">Profile not found. Try signing out and back in.</p>}
         <button onClick={() => { const s = createClient(); s.auth.signOut() }} className="text-sm text-blue-600 hover:underline">Sign Out</button>
       </div>
     )

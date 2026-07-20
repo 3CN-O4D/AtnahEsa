@@ -14,6 +14,7 @@ export default function AdminServicesPage() {
   type Tab = 'wifi' | 'movers' | 'categories' | 'bookings'
   type WifiBooking = { id: string; package_name: string; package_speed: string; package_price: number; name: string; phone: string; area: string; id_number: string; status: string; created_at: string }
 
+  const [checking, setChecking] = useState(true)
   const [tab, setTab] = useState<Tab>('wifi')
   const [wifiPkgs, setWifiPkgs] = useState<WifiPackage[]>([])
   const [categories, setCategories] = useState<WifiCategory[]>([])
@@ -54,7 +55,14 @@ export default function AdminServicesPage() {
   const [moverImage, setMoverImage] = useState('')
 
   useEffect(() => {
-    loadData()
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { router.push('/auth/signin'); return }
+      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (profile?.role !== 'admin') { router.push('/'); return }
+      setChecking(false)
+      loadData()
+    })
   }, [])
 
   const loadData = async () => {
@@ -224,6 +232,10 @@ export default function AdminServicesPage() {
   }
 
   const categoryMap = Object.fromEntries(categories.map((c) => [c.id, c]))
+
+  if (checking) {
+    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+  }
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">

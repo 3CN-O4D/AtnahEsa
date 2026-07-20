@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { Search } from 'lucide-react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import Button from '@/components/ui/Button'
@@ -12,6 +13,8 @@ import type { Listing, Booking, Transaction, Profile } from '@/types'
 type Tab = 'stats' | 'houses' | 'transactions' | 'users'
 
 export default function AdminDashboard() {
+  const router = useRouter()
+  const [checking, setChecking] = useState(true)
   const [tab, setTab] = useState<Tab>('stats')
   const [loaded, setLoaded] = useState(false)
   const [allListings, setAllListings] = useState<Listing[]>([])
@@ -34,7 +37,14 @@ export default function AdminDashboard() {
   }, [])
 
   useEffect(() => {
-    loadAll()
+    const supabase = createClient()
+    supabase.auth.getUser().then(async ({ data: { user } }) => {
+      if (!user) { router.push('/auth/signin'); return }
+      const { data: profile, error } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+      if (error || profile?.role !== 'admin') { router.push('/'); return }
+      setChecking(false)
+      loadAll()
+    })
   }, [])
 
   const loadAll = async () => {
@@ -226,6 +236,10 @@ export default function AdminDashboard() {
       (!isNaN(num) && (l.price === num || l.rent === num))
     )
   })
+
+  if (checking) {
+    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">

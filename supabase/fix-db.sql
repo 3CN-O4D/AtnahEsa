@@ -43,12 +43,12 @@ WHERE c.name = 'Home Packages'
 AND p.name LIKE 'Jambonet%'
 ON CONFLICT DO NOTHING;
 
--- 5. Create admin profile for asehanta@gmail.com
+-- 5. Create/update admin profile for asehanta@gmail.com
 INSERT INTO public.profiles (id, username, full_name, phone, role, terms_accepted)
 SELECT id, 'asehanta', 'AseHanta Admin', '', 'admin', true
 FROM auth.users
 WHERE email = 'asehanta@gmail.com'
-  AND NOT EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.users.id);
+ON CONFLICT (id) DO UPDATE SET role = 'admin', terms_accepted = true;
 
 -- 6. Restore schema-level grants (lost after DROP SCHEMA public CASCADE)
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
@@ -58,3 +58,17 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+
+-- 7. Verify admin profile was created
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM public.profiles p
+    JOIN auth.users u ON u.id = p.id
+    WHERE u.email = 'asehanta@gmail.com' AND p.role = 'admin'
+  ) THEN
+    RAISE NOTICE 'Admin profile OK for asehanta@gmail.com';
+  ELSE
+    RAISE WARNING 'Admin profile NOT FOUND for asehanta@gmail.com — check auth.users email';
+  END IF;
+END $$;

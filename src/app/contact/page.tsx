@@ -110,6 +110,27 @@ export default function ContactPage() {
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold dark:text-white">Other ways to reach us</h3>
             <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+              <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-start gap-3 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                <Mail className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" />
+                <span>{CONTACT_EMAIL}</span>
+              </a>
+              <a href={`tel:${CONTACT_PHONE}`} className="flex items-start gap-3 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                <Phone className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" />
+                <span>{CONTACT_PHONE_DISPLAY}</span>
+              </a>
+              <a
+                href={`https://wa.me/${WHATSAPP_NUMBER}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-start gap-3 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+              >
+                <MessageCircle className="w-4 h-4 mt-0.5 text-green-600 shrink-0" />
+                <span>WhatsApp</span>
+              </a>
+              <div className="flex items-start gap-3">
+                <MapPin className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" />
+                <span>{CONTACT_LOCATION}</span>
+              </div>
             </div>
           </div>
 

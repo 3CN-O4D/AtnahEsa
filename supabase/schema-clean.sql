@@ -126,11 +126,11 @@ ALTER TABLE public.wifi_categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read wifi categories"
   ON public.wifi_categories FOR SELECT USING (true);
 CREATE POLICY "Admins can insert wifi categories"
-  ON public.wifi_categories FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+  ON public.wifi_categories FOR INSERT WITH CHECK (public.is_admin());
 CREATE POLICY "Admins can update wifi categories"
-  ON public.wifi_categories FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+  ON public.wifi_categories FOR UPDATE USING (public.is_admin());
 CREATE POLICY "Admins can delete wifi categories"
-  ON public.wifi_categories FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+  ON public.wifi_categories FOR DELETE USING (public.is_admin());
 
 -- 7. WIFI PACKAGE ↔ CATEGORY (many-to-many)
 CREATE TABLE IF NOT EXISTS public.wifi_package_categories (
@@ -144,9 +144,9 @@ ALTER TABLE public.wifi_package_categories ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can read package categories"
   ON public.wifi_package_categories FOR SELECT USING (true);
 CREATE POLICY "Admins can manage package categories"
-  ON public.wifi_package_categories FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+  ON public.wifi_package_categories FOR INSERT WITH CHECK (public.is_admin());
 CREATE POLICY "Admins can delete package categories"
-  ON public.wifi_package_categories FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+  ON public.wifi_package_categories FOR DELETE USING (public.is_admin());
 
 -- 8. WIFI BOOKINGS
 CREATE TABLE IF NOT EXISTS public.wifi_bookings (
@@ -360,6 +360,18 @@ CREATE TRIGGER on_mover_review_inserted
   EXECUTE FUNCTION public.update_mover_rating();
 
 -- ============================================================
+-- ADMIN CHECK FUNCTION (bypasses RLS to prevent infinite recursion)
+-- ============================================================
+CREATE OR REPLACE FUNCTION public.is_admin()
+RETURNS BOOLEAN AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'
+  );
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================================
 -- RLS POLICIES
 -- ============================================================
 
@@ -369,7 +381,7 @@ CREATE POLICY "Users can view own profile" ON public.profiles FOR SELECT USING (
 DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
-CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (public.is_admin());
 
 -- LISTINGS
 DROP POLICY IF EXISTS "Anyone can view published listings" ON public.listings;
@@ -377,15 +389,15 @@ CREATE POLICY "Anyone can view published listings" ON public.listings FOR SELECT
 DROP POLICY IF EXISTS "Uploaders can view own listings" ON public.listings;
 CREATE POLICY "Uploaders can view own listings" ON public.listings FOR SELECT USING (auth.uid() = uploader_id);
 DROP POLICY IF EXISTS "Admins can view all listings" ON public.listings;
-CREATE POLICY "Admins can view all listings" ON public.listings FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all listings" ON public.listings FOR SELECT USING (public.is_admin());
 DROP POLICY IF EXISTS "Authenticated users can insert listings" ON public.listings;
 CREATE POLICY "Authenticated users can insert listings" ON public.listings FOR INSERT WITH CHECK (auth.uid() = uploader_id);
 DROP POLICY IF EXISTS "Admins can update any listing" ON public.listings;
-CREATE POLICY "Admins can update any listing" ON public.listings FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update any listing" ON public.listings FOR UPDATE USING (public.is_admin());
 DROP POLICY IF EXISTS "Uploaders can update own listings" ON public.listings;
 CREATE POLICY "Uploaders can update own listings" ON public.listings FOR UPDATE USING (auth.uid() = uploader_id);
 DROP POLICY IF EXISTS "Admins can delete listings" ON public.listings;
-CREATE POLICY "Admins can delete listings" ON public.listings FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can delete listings" ON public.listings FOR DELETE USING (public.is_admin());
 DROP POLICY IF EXISTS "Uploaders can delete own listings" ON public.listings;
 CREATE POLICY "Uploaders can delete own listings" ON public.listings FOR DELETE USING (auth.uid() = uploader_id);
 
@@ -395,49 +407,49 @@ CREATE POLICY "Users can view own bookings" ON public.bookings FOR SELECT USING 
 DROP POLICY IF EXISTS "Users can insert own bookings" ON public.bookings;
 CREATE POLICY "Users can insert own bookings" ON public.bookings FOR INSERT WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Admins can view all bookings" ON public.bookings;
-CREATE POLICY "Admins can view all bookings" ON public.bookings FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all bookings" ON public.bookings FOR SELECT USING (public.is_admin());
 DROP POLICY IF EXISTS "Admins can update bookings" ON public.bookings;
-CREATE POLICY "Admins can update bookings" ON public.bookings FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update bookings" ON public.bookings FOR UPDATE USING (public.is_admin());
 
 -- MOVERS
 DROP POLICY IF EXISTS "Anyone can read movers" ON public.movers;
 CREATE POLICY "Anyone can read movers" ON public.movers FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins can insert movers" ON public.movers;
-CREATE POLICY "Admins can insert movers" ON public.movers FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can insert movers" ON public.movers FOR INSERT WITH CHECK (public.is_admin());
 DROP POLICY IF EXISTS "Admins can update movers" ON public.movers;
-CREATE POLICY "Admins can update movers" ON public.movers FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update movers" ON public.movers FOR UPDATE USING (public.is_admin());
 DROP POLICY IF EXISTS "Admins can delete movers" ON public.movers;
-CREATE POLICY "Admins can delete movers" ON public.movers FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can delete movers" ON public.movers FOR DELETE USING (public.is_admin());
 
 -- WIFI PACKAGES
 DROP POLICY IF EXISTS "Anyone can read wifi packages" ON public.wifi_packages;
 CREATE POLICY "Anyone can read wifi packages" ON public.wifi_packages FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Admins can insert wifi packages" ON public.wifi_packages;
-CREATE POLICY "Admins can insert wifi packages" ON public.wifi_packages FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can insert wifi packages" ON public.wifi_packages FOR INSERT WITH CHECK (public.is_admin());
 DROP POLICY IF EXISTS "Admins can update wifi packages" ON public.wifi_packages;
-CREATE POLICY "Admins can update wifi packages" ON public.wifi_packages FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update wifi packages" ON public.wifi_packages FOR UPDATE USING (public.is_admin());
 DROP POLICY IF EXISTS "Admins can delete wifi packages" ON public.wifi_packages;
-CREATE POLICY "Admins can delete wifi packages" ON public.wifi_packages FOR DELETE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can delete wifi packages" ON public.wifi_packages FOR DELETE USING (public.is_admin());
 
 -- WIFI BOOKINGS
 DROP POLICY IF EXISTS "Anyone can insert wifi bookings" ON public.wifi_bookings;
 CREATE POLICY "Anyone can insert wifi bookings" ON public.wifi_bookings FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Admins can view all wifi bookings" ON public.wifi_bookings;
-CREATE POLICY "Admins can view all wifi bookings" ON public.wifi_bookings FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all wifi bookings" ON public.wifi_bookings FOR SELECT USING (public.is_admin());
 DROP POLICY IF EXISTS "Admins can update wifi bookings" ON public.wifi_bookings;
-CREATE POLICY "Admins can update wifi bookings" ON public.wifi_bookings FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update wifi bookings" ON public.wifi_bookings FOR UPDATE USING (public.is_admin());
 
 -- CONTACT SUBMISSIONS
 DROP POLICY IF EXISTS "Anyone can insert contact submissions" ON public.contact_submissions;
 CREATE POLICY "Anyone can insert contact submissions" ON public.contact_submissions FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Admins can read contact submissions" ON public.contact_submissions;
-CREATE POLICY "Admins can read contact submissions" ON public.contact_submissions FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can read contact submissions" ON public.contact_submissions FOR SELECT USING (public.is_admin());
 
 -- TRANSACTIONS
 DROP POLICY IF EXISTS "Admins can view all transactions" ON public.transactions;
-CREATE POLICY "Admins can view all transactions" ON public.transactions FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all transactions" ON public.transactions FOR SELECT USING (public.is_admin());
 DROP POLICY IF EXISTS "Admins can insert transactions" ON public.transactions;
-CREATE POLICY "Admins can insert transactions" ON public.transactions FOR INSERT WITH CHECK (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can insert transactions" ON public.transactions FOR INSERT WITH CHECK (public.is_admin());
 
 -- OTPS
 DROP POLICY IF EXISTS "Service role only" ON public.otps;
@@ -464,21 +476,21 @@ CREATE POLICY "Users can view own escrow holds" ON public.escrow_holds FOR SELEC
 DROP POLICY IF EXISTS "Users can update own escrow holds" ON public.escrow_holds;
 CREATE POLICY "Users can update own escrow holds" ON public.escrow_holds FOR UPDATE USING (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Admins can view all escrow holds" ON public.escrow_holds;
-CREATE POLICY "Admins can view all escrow holds" ON public.escrow_holds FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all escrow holds" ON public.escrow_holds FOR SELECT USING (public.is_admin());
 
 -- BOOKING REFUND REPORTS
 DROP POLICY IF EXISTS "Users can insert own reports" ON public.reports;
 CREATE POLICY "Users can insert own reports" ON public.reports FOR INSERT WITH CHECK (auth.uid() = user_id);
 DROP POLICY IF EXISTS "Admins can view all reports" ON public.reports;
-CREATE POLICY "Admins can view all reports" ON public.reports FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all reports" ON public.reports FOR SELECT USING (public.is_admin());
 
 -- FLAGGED REPORTS
 DROP POLICY IF EXISTS "Anyone can insert flagged_reports" ON public.flagged_reports;
 CREATE POLICY "Anyone can insert flagged_reports" ON public.flagged_reports FOR INSERT WITH CHECK (true);
 DROP POLICY IF EXISTS "Admins can view all flagged_reports" ON public.flagged_reports;
-CREATE POLICY "Admins can view all flagged_reports" ON public.flagged_reports FOR SELECT USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can view all flagged_reports" ON public.flagged_reports FOR SELECT USING (public.is_admin());
 DROP POLICY IF EXISTS "Admins can update flagged_reports" ON public.flagged_reports;
-CREATE POLICY "Admins can update flagged_reports" ON public.flagged_reports FOR UPDATE USING (auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin'));
+CREATE POLICY "Admins can update flagged_reports" ON public.flagged_reports FOR UPDATE USING (public.is_admin());
 
 -- MOVER REVIEWS
 DROP POLICY IF EXISTS "Anyone can read mover_reviews" ON public.mover_reviews;

@@ -50,6 +50,11 @@ FROM auth.users
 WHERE email = 'asehanta@gmail.com'
 ON CONFLICT (id) DO UPDATE SET role = 'admin', terms_accepted = true;
 
+-- 5b. Update auth.users metadata so the JWT includes role = 'admin' (required for RLS policies)
+UPDATE auth.users
+SET raw_user_meta_data = raw_user_meta_data || '{"role": "admin"}'::jsonb
+WHERE email = 'asehanta@gmail.com';
+
 -- 6. Restore schema-level grants (lost after DROP SCHEMA public CASCADE)
 GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
 GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;

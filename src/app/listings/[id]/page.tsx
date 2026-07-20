@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon } from 'lucide-react'
@@ -12,6 +12,7 @@ import { maskPhone } from '@/lib/utils'
 import { formatPrice } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
 import ReportModal from '@/components/reports/ReportModal'
+import ListingCard from '@/components/listings/ListingCard'
 import type { Listing, Review, Profile } from '@/types'
 
 function Stars({ rating, interactive, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {
@@ -46,6 +47,8 @@ export default function ListingDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const [canReview, setCanReview] = useState(false)
+  const [similar, setSimilar] = useState<Listing[]>([])
+  const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -91,6 +94,16 @@ export default function ListingDetailPage() {
             .eq('release_status', 'released')
           setCanReview((bookingCount ?? 0) > 0)
         }
+
+        // Fetch similar houses (same location)
+        const { data: sim } = await supabase
+          .from('listings')
+          .select('*')
+          .eq('status', 'published')
+          .eq('location', l.location)
+          .neq('id', id)
+          .limit(10)
+        setSimilar((sim ?? []) as Listing[])
 
         setLoading(false)
       })
@@ -260,6 +273,20 @@ export default function ListingDetailPage() {
             </div>
           )}
 
+          {/* Gallery — full-size images */}
+          {listing.images.length > 1 && (
+            <div>
+              <h2 className="text-lg font-semibold mb-3">Gallery</h2>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {listing.images.map((img, i) => (
+                  <button key={i} onClick={() => { setViewerIndex(i); setShowViewer(true) }} className="group relative aspect-video overflow-hidden rounded-xl">
+                    <img src={img} alt={`${listing.title} ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Reviews */}
           <div className="bg-white border rounded-xl p-5 space-y-4">
             <h3 className="font-semibold flex items-center gap-2">
@@ -348,6 +375,20 @@ export default function ListingDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Similar houses */}
+      {similar.length > 0 && (
+        <div className="mt-10">
+          <h2 className="text-xl font-bold mb-4">Similar Houses in {listing.location}</h2>
+          <div ref={scrollRef} className="flex gap-4 overflow-x-auto pb-4 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent -mx-4 px-4 snap-x snap-mandatory">
+            {similar.map((s) => (
+              <div key={s.id} className="snap-start shrink-0 w-[280px] sm:w-[300px]">
+                <ListingCard listing={s} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showReport && (
         <ReportModal targetType="listing" targetId={listing.id} targetTitle={listing.title} onClose={() => setShowReport(false)} />

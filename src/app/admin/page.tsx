@@ -133,7 +133,7 @@ export default function AdminDashboard() {
 
     // Verify deletion
     const { data: check } = await supabase.from('listings').select('id').eq('id', id).maybeSingle()
-    if (check) { showToast('error', 'Delete failed — still exists. Add RLS delete policy in Supabase.'); return }
+    if (check) { showToast('error', 'Delete blocked — RLS issue. Run fix-rls-recursion.sql in Supabase.'); return }
 
     showToast('success', 'Listing deleted')
     loadAll()
@@ -143,6 +143,7 @@ export default function AdminDashboard() {
     const supabase = createClient()
     const { error } = await supabase.from('listings').update({ status: 'booked' }).eq('id', id)
     if (error) { showToast('error', error.message); return }
+    if (!await verifyUpdate('listings', id, 'status', 'booked')) return
     showToast('success', 'Marked as booked')
     loadAll()
   }
@@ -151,14 +152,26 @@ export default function AdminDashboard() {
     const supabase = createClient()
     const { error } = await supabase.from('listings').update({ status: 'taken' }).eq('id', id)
     if (error) { showToast('error', error.message); return }
+    if (!await verifyUpdate('listings', id, 'status', 'taken')) return
     showToast('success', 'Marked as taken')
     loadAll()
+  }
+
+  const verifyUpdate = async (table: string, id: string, field: string, expected: string) => {
+    const supabase = createClient()
+    const { data } = await supabase.from(table as any).select(field).eq('id', id).maybeSingle()
+    if ((data as any)?.[field] !== expected) {
+      showToast('error', 'Update failed — RLS may be blocking. Run fix-rls-recursion.sql in Supabase.')
+      return false
+    }
+    return true
   }
 
   const handleMarkPublished = async (id: string) => {
     const supabase = createClient()
     const { error } = await supabase.from('listings').update({ status: 'published' }).eq('id', id)
     if (error) { showToast('error', error.message); return }
+    if (!await verifyUpdate('listings', id, 'status', 'published')) return
     showToast('success', 'Put back to published')
     loadAll()
   }
@@ -167,6 +180,7 @@ export default function AdminDashboard() {
     const supabase = createClient()
     const { error } = await supabase.from('listings').update({ status: 'published' }).eq('id', id)
     if (error) { showToast('error', error.message); return }
+    if (!await verifyUpdate('listings', id, 'status', 'published')) return
     showToast('success', 'Listing approved')
     loadAll()
   }
@@ -175,8 +189,10 @@ export default function AdminDashboard() {
     const supabase = createClient()
     const { error: e1 } = await supabase.from('bookings').update({ visit_status: 'completed', status: 'confirmed' }).eq('id', bookingId)
     if (e1) { showToast('error', e1.message); return }
+    if (!await verifyUpdate('bookings', bookingId, 'visit_status', 'completed')) return
     const { error: e2 } = await supabase.from('listings').update({ status: 'taken' }).eq('id', listingId)
     if (e2) { showToast('error', e2.message); return }
+    if (!await verifyUpdate('listings', listingId, 'status', 'taken')) return
     showToast('success', 'Visit marked as completed')
     loadAll()
   }

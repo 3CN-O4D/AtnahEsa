@@ -3,11 +3,12 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag } from 'lucide-react'
+import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
 import ImageViewer from '@/components/ui/ImageViewer'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { maskPhone } from '@/lib/utils'
 import { formatPrice } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
 import ReportModal from '@/components/reports/ReportModal'
@@ -251,8 +252,8 @@ export default function ListingDetailPage() {
                   <span className="text-gray-500 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
                 {lister.phone && (
-                  <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium">
-                    {lister.phone}
+                  <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium flex items-center gap-1">
+                    <PhoneIcon className="w-3.5 h-3.5" /> {maskPhone(lister.phone)}
                   </a>
                 )}
               </div>

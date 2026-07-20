@@ -3,6 +3,9 @@
 -- Run this in Supabase SQL Editor after pasting schema-clean.sql
 -- ============================================================
 
+-- Add avatar_url column to profiles if missing
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
+
 -- Allow profile_update type in OTPs check constraint
 ALTER TABLE public.otps DROP CONSTRAINT IF EXISTS otps_type_check;
 ALTER TABLE public.otps ADD CONSTRAINT otps_type_check CHECK (type IN ('signup', 'password_reset', 'profile_update'));

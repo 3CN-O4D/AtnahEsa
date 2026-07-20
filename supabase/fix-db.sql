@@ -3,6 +3,10 @@
 -- Run this in Supabase SQL Editor after pasting schema-clean.sql
 -- ============================================================
 
+-- Allow profile_update type in OTPs check constraint
+ALTER TABLE public.otps DROP CONSTRAINT IF EXISTS otps_type_check;
+ALTER TABLE public.otps ADD CONSTRAINT otps_type_check CHECK (type IN ('signup', 'password_reset', 'profile_update'));
+
 -- 1. Add missing wifi tables (if not already in schema-clean)
 CREATE TABLE IF NOT EXISTS public.wifi_categories (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

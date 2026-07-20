@@ -124,12 +124,16 @@ CREATE TABLE IF NOT EXISTS public.wifi_categories (
 
 ALTER TABLE public.wifi_categories ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read wifi categories" ON public.wifi_categories;
 CREATE POLICY "Anyone can read wifi categories"
   ON public.wifi_categories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can insert wifi categories" ON public.wifi_categories;
 CREATE POLICY "Admins can insert wifi categories"
   ON public.wifi_categories FOR INSERT WITH CHECK (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
+DROP POLICY IF EXISTS "Admins can update wifi categories" ON public.wifi_categories;
 CREATE POLICY "Admins can update wifi categories"
   ON public.wifi_categories FOR UPDATE USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
+DROP POLICY IF EXISTS "Admins can delete wifi categories" ON public.wifi_categories;
 CREATE POLICY "Admins can delete wifi categories"
   ON public.wifi_categories FOR DELETE USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
 
@@ -142,10 +146,13 @@ CREATE TABLE IF NOT EXISTS public.wifi_package_categories (
 
 ALTER TABLE public.wifi_package_categories ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Anyone can read package categories" ON public.wifi_package_categories;
 CREATE POLICY "Anyone can read package categories"
   ON public.wifi_package_categories FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Admins can manage package categories" ON public.wifi_package_categories;
 CREATE POLICY "Admins can manage package categories"
   ON public.wifi_package_categories FOR INSERT WITH CHECK (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
+DROP POLICY IF EXISTS "Admins can delete package categories" ON public.wifi_package_categories;
 CREATE POLICY "Admins can delete package categories"
   ON public.wifi_package_categories FOR DELETE USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
 
@@ -204,7 +211,7 @@ CREATE TABLE IF NOT EXISTS public.otps (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email TEXT NOT NULL,
   otp TEXT NOT NULL,
-  type TEXT NOT NULL CHECK (type IN ('signup', 'password_reset')),
+  type TEXT NOT NULL CHECK (type IN ('signup', 'password_reset', 'profile_update')),
   expires_at TIMESTAMPTZ NOT NULL,
   used BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMPTZ DEFAULT NOW()

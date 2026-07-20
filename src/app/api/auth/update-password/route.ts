@@ -3,13 +3,29 @@ import { createAdminClient } from '@/lib/supabase/admin'
 
 export async function POST(req: Request) {
   try {
-    const { email, password } = await req.json()
+    const { email, password, otp } = await req.json()
 
-    if (!email || !password || password.length < 6) {
+    if (!email || !password || password.length < 6 || !otp) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
     const supabase = createAdminClient()
+
+    const { data: otpRow, error: otpError } = await supabase
+      .from('otps')
+      .select('*')
+      .eq('email', email)
+      .eq('otp', otp)
+      .eq('type', 'password_reset')
+      .eq('used', false)
+      .gte('expires_at', new Date().toISOString())
+      .single()
+
+    if (otpError || !otpRow) {
+      return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 400 })
+    }
+
+    await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
 
     const { data: users } = await supabase.auth.admin.listUsers()
     const user = users?.users.find((u) => u.email === email)

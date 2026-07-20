@@ -75,10 +75,11 @@ export default function ForgotPasswordPage() {
     setError('')
 
     try {
+      const code = otp.join('')
       const res = await fetch('/api/auth/update-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, otp: code }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }

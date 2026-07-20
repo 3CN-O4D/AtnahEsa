@@ -25,12 +25,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 400 })
     }
 
-    await supabase
-      .from('otps')
-      .update({ used: true })
-      .eq('id', data.id)
-
     if (type === 'signup') {
+      await supabase.from('otps').update({ used: true }).eq('id', data.id)
       const { data: users, error: userError } = await supabase.auth.admin.listUsers()
       if (userError) {
         return NextResponse.json({ error: 'Failed to confirm user' }, { status: 500 })

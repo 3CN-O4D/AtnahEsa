@@ -4,11 +4,13 @@ import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
   try {
-    const { email, password, username, full_name, phone, role, terms_accepted } = await req.json()
+    const { email, password, username, full_name, phone, role: rawRole, terms_accepted } = await req.json()
 
     if (!email || !password || !username || !full_name) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
+
+    const role = rawRole === 'admin' ? 'hunter' : (rawRole === 'lister' ? 'lister' : 'hunter')
 
     const supabase = createAdminClient()
 

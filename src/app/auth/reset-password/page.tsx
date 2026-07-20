@@ -44,10 +44,11 @@ function ResetPasswordForm() {
     if (password.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true); setError('')
     try {
+      const code = otp.join('')
       const res = await fetch('/api/auth/update-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: localEmail, password }),
+        body: JSON.stringify({ email: localEmail, password, otp: code }),
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }

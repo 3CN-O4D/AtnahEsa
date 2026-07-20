@@ -207,6 +207,12 @@ export interface HouseRequest {
   token_options: string[]
   water_options: string[]
   house_designs: string[]
+  deposit_preference: string[]
+  deposit_refundable: string[]
+  building_type: string[]
+  house_type_requested: string[]
+  electric_bill: string[]
+  vacancy: string[]
   description: string
   status: 'pending' | 'contacted' | 'fulfilled' | 'closed'
   admin_notes: string | null

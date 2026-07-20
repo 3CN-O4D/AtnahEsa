@@ -72,12 +72,36 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json()
-    const { error: insertError } = await supabase.from('listings').insert({
-      ...body,
+
+    const allowedFields = {
+      title: body.title,
+      description: body.description,
+      price: body.price,
+      rent: body.rent,
+      deposit: body.deposit || 0,
+      deposit_refundable: body.deposit_refundable ?? true,
+      electric_bill: body.electric_bill || '',
+      water: body.water || '',
+      vacancy: body.vacancy || 'vacant',
+      why_vacant: body.why_vacant || '',
+      house_type: body.house_type || '',
+      building_type: body.building_type || '',
+      floor_number: body.floor_number || '',
+      descriptive_location: body.descriptive_location || '',
+      location: body.location,
+      images: body.images || [],
+      youtube_url: body.youtube_url || null,
+      video_url: body.video_url || null,
+      issues: body.issues || [],
+      issues_count: body.issues?.length || 0,
+      payment_method: body.payment_method || '',
+      lister_phone: body.lister_phone || '',
       uploader_id: user.id,
       uploader_name: user.email,
       status: 'pending',
-    })
+    }
+
+    const { error: insertError } = await supabase.from('listings').insert(allowedFields)
 
     if (insertError) {
       return NextResponse.json({ error: insertError.message, details: insertError.details, code: insertError.code }, { status: 400 })

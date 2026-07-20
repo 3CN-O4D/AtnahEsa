@@ -32,6 +32,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Listing is not available for booking' }, { status: 400 })
     }
 
+    const { data: existing } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('listing_id', listing_id)
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'confirmed'])
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({ error: 'You already have a pending booking for this listing' }, { status: 400 })
+    }
+
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
       .insert({

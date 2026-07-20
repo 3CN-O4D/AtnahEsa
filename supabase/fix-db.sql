@@ -112,7 +112,15 @@ CREATE TRIGGER on_lister_review_inserted
   FOR EACH ROW
   EXECUTE FUNCTION public.update_lister_rating_from_reviews();
 
--- 9. Verify admin profile was created
+-- 9. Add new house_requests columns for deposit/building/electric fields
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS deposit_preference TEXT[] DEFAULT '{}';
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS deposit_refundable TEXT[] DEFAULT '{}';
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS building_type TEXT[] DEFAULT '{}';
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS house_type_requested TEXT[] DEFAULT '{}';
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS electric_bill TEXT[] DEFAULT '{}';
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS vacancy TEXT[] DEFAULT '{}';
+
+-- 10. Verify admin profile was created
 DO $$
 BEGIN
   IF EXISTS (

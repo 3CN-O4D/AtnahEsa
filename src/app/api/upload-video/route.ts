@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
+import { createClient } from '@/lib/supabase/server'
 
 const s3 = new S3Client({
   endpoint: process.env.S3_ENDPOINT,
@@ -15,6 +16,10 @@ const BUCKET = process.env.S3_BUCKET!
 
 export async function POST(req: Request) {
   try {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
     const formData = await req.formData()
     const file = formData.get('file') as File | null
 

@@ -16,12 +16,32 @@ export async function POST(req: Request) {
 
     const { data: listing, error: listingError } = await supabase
       .from('listings')
-      .select('title, price, location')
+      .select('title, price, location, status, uploader_id')
       .eq('id', listing_id)
       .single()
 
     if (listingError || !listing) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
+    }
+
+    if (listing.uploader_id === user.id) {
+      return NextResponse.json({ error: 'You cannot book your own listing' }, { status: 400 })
+    }
+
+    if (listing.status !== 'published') {
+      return NextResponse.json({ error: 'Listing is not available for booking' }, { status: 400 })
+    }
+
+    const { data: existing } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('listing_id', listing_id)
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'confirmed'])
+      .maybeSingle()
+
+    if (existing) {
+      return NextResponse.json({ error: 'You already have a pending booking for this listing' }, { status: 400 })
     }
 
     if (listing.price < MIN_BOOKING_FEE) {

@@ -8,7 +8,12 @@ export async function POST(req: Request) {
     const callbackData = body.Body?.stkCallback
 
     if (!callbackData) {
-      return NextResponse.json({ error: 'Invalid callback' }, { status: 400 })
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Invalid callback' })
+    }
+
+    const checkoutRequestId = callbackData.CheckoutRequestID
+    if (!checkoutRequestId) {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Missing CheckoutRequestID' })
     }
 
     const {
@@ -35,28 +40,34 @@ export async function POST(req: Request) {
 
     const { data: tx } = await supabase
       .from('transactions')
-      .select('id, booking_id')
-      .eq('checkout_request_id', CheckoutRequestID)
-      .single()
+      .select('id, booking_id, status')
+      .eq('checkout_request_id', checkoutRequestId)
+      .maybeSingle()
 
-    if (tx) {
-      await supabase.from('transactions').update({
-        mpesa_receipt: receipt,
-        result_code: ResultCode,
-        result_desc: ResultDesc,
-        raw_callback: callbackData,
-        status: ResultCode === 0 ? 'success' : 'failed',
-      }).eq('id', tx.id)
+    if (!tx) {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Transaction not found' })
     }
 
-    if (ResultCode === 0 && tx) {
+    if (tx.status === 'success') {
+      return NextResponse.json({ ResultCode: 0, ResultDesc: 'Already processed' })
+    }
+
+    await supabase.from('transactions').update({
+      mpesa_receipt: receipt,
+      result_code: ResultCode,
+      result_desc: ResultDesc,
+      raw_callback: callbackData,
+      status: ResultCode === 0 ? 'success' : 'failed',
+    }).eq('id', tx.id)
+
+    if (ResultCode === 0) {
       const { data: booking } = await supabase
         .from('bookings')
-        .select('id, listing_id')
+        .select('id, listing_id, status')
         .eq('id', tx.booking_id)
         .single()
 
-      if (booking) {
+      if (booking && booking.status === 'pending') {
         await supabase.from('bookings').update({
           status: 'confirmed',
           mpesa_receipt: receipt,
@@ -69,19 +80,18 @@ export async function POST(req: Request) {
       notifyAdmins(
         'Payment Successful',
         'M-Pesa Payment Received',
-        { Phone: String(phone), Amount: `KES ${amount}`, Receipt: receipt, 'Checkout ID': CheckoutRequestID }
+        { Phone: String(phone), Amount: `KES ${amount}`, Receipt: receipt, 'Checkout ID': checkoutRequestId }
       )
     } else {
       notifyAdmins(
         'Payment Failed',
         'M-Pesa Payment Failed',
-        { 'Checkout ID': CheckoutRequestID, 'Result Code': String(ResultCode), Description: ResultDesc }
+        { 'Checkout ID': checkoutRequestId, 'Result Code': String(ResultCode), Description: ResultDesc }
       )
     }
 
-    return NextResponse.json({ success: true })
-  } catch (err) {
-    console.error('Callback error:', err)
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ ResultCode: 0, ResultDesc: 'Success' })
+  } catch {
+    return NextResponse.json({ ResultCode: 0, ResultDesc: 'Success' })
   }
 }

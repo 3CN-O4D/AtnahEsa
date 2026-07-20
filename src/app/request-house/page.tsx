@@ -30,6 +30,35 @@ const HOUSE_DESIGNS = [
   { id: 'other', label: 'Other' },
 ]
 
+const DEPOSIT_PREF_OPTIONS = [
+  { id: 'required', label: 'Require deposit' },
+  { id: 'not_required', label: 'No deposit needed' },
+  { id: 'either', label: 'Open to either' },
+]
+
+const DEPOSIT_REFUND_OPTIONS = [
+  { id: 'refundable', label: 'Refundable deposit' },
+  { id: 'non_refundable', label: 'Non-refundable' },
+  { id: 'either', label: 'Open to either' },
+]
+
+const BUILDING_TYPE_OPTIONS = [
+  { id: 'flat', label: 'Flat / Ground floor' },
+  { id: 'storey', label: 'Storey / Upstairs' },
+  { id: 'either', label: 'Open to either' },
+]
+
+const ELECTRIC_BILL_OPTIONS = [
+  { id: 'self_provided', label: 'Self provided' },
+  { id: 'inclusive', label: 'Inclusive in rent' },
+  { id: 'either', label: 'Open to either' },
+]
+
+const VACANCY_OPTIONS = [
+  { id: 'vacant', label: 'Vacant now' },
+  { id: 'any', label: 'Any time' },
+]
+
 function CheckboxGroup({ label, options, selected, onChange }: {
   label: string
   options: { id: string; label: string }[]
@@ -71,6 +100,12 @@ export default function RequestHousePage() {
   const [tokenOptions, setTokenOptions] = useState<string[]>([])
   const [waterOptions, setWaterOptions] = useState<string[]>([])
   const [houseDesigns, setHouseDesigns] = useState<string[]>([])
+  const [depositPreference, setDepositPreference] = useState<string[]>([])
+  const [depositRefundable, setDepositRefundable] = useState<string[]>([])
+  const [buildingType, setBuildingType] = useState<string[]>([])
+  const [houseTypeRequested, setHouseTypeRequested] = useState<string[]>([])
+  const [electricBill, setElectricBill] = useState<string[]>([])
+  const [vacancy, setVacancy] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
@@ -92,6 +127,12 @@ export default function RequestHousePage() {
           token_options: tokenOptions,
           water_options: waterOptions,
           house_designs: houseDesigns,
+          deposit_preference: depositPreference,
+          deposit_refundable: depositRefundable,
+          building_type: buildingType,
+          house_type_requested: houseTypeRequested,
+          electric_bill: electricBill,
+          vacancy: vacancy,
         }),
       })
       const data = await res.json()
@@ -146,9 +187,14 @@ export default function RequestHousePage() {
             <Input label="Max Rent (KES)" id="max-rent" type="number" min="0" step="500" placeholder="e.g. 15000" value={form.max_rent} onChange={(e) => update('max_rent', e.target.value)} />
           </div>
 
-          <CheckboxGroup label="Token / Deposit" options={TOKEN_OPTIONS} selected={tokenOptions} onChange={setTokenOptions} />
+          <CheckboxGroup label="Token Type" options={TOKEN_OPTIONS} selected={tokenOptions} onChange={setTokenOptions} />
           <CheckboxGroup label="Water" options={WATER_OPTIONS} selected={waterOptions} onChange={setWaterOptions} />
           <CheckboxGroup label="House Design" options={HOUSE_DESIGNS} selected={houseDesigns} onChange={setHouseDesigns} />
+          <CheckboxGroup label="Deposit" options={DEPOSIT_PREF_OPTIONS} selected={depositPreference} onChange={setDepositPreference} />
+          <CheckboxGroup label="Deposit Type" options={DEPOSIT_REFUND_OPTIONS} selected={depositRefundable} onChange={setDepositRefundable} />
+          <CheckboxGroup label="Building Type" options={BUILDING_TYPE_OPTIONS} selected={buildingType} onChange={setBuildingType} />
+          <CheckboxGroup label="Electric Bill" options={ELECTRIC_BILL_OPTIONS} selected={electricBill} onChange={setElectricBill} />
+          <CheckboxGroup label="Vacancy" options={VACANCY_OPTIONS} selected={vacancy} onChange={setVacancy} />
 
           <div className="space-y-1">
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Additional Details</label>

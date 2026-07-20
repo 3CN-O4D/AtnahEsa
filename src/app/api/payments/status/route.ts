@@ -17,6 +17,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing checkout_request_id' }, { status: 400 })
     }
 
+    const { data: tx } = await supabase
+      .from('transactions')
+      .select('user_id')
+      .eq('checkout_request_id', checkout_request_id)
+      .maybeSingle()
+
+    if (!tx) {
+      return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+    }
+
+    if (tx.user_id !== user.id) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
+
     const result = await queryStatus(checkout_request_id)
 
     return NextResponse.json(result)

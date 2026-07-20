@@ -25,7 +25,20 @@ export async function PATCH(
     }
 
     const body = await req.json()
-    const { error } = await supabase.from('listings').update(body).eq('id', id)
+
+    const allowedFields: Record<string, unknown> = {}
+    const adminUpdatable = [
+      'title', 'description', 'price', 'rent', 'deposit', 'deposit_refundable',
+      'location', 'descriptive_location', 'images', 'youtube_url', 'video_url',
+      'issues', 'issues_count', 'house_type', 'building_type', 'floor_number',
+      'electricity', 'electric_bill', 'water', 'vacancy', 'vacancy_type',
+      'why_vacant', 'payment_method', 'lister_phone', 'status',
+    ]
+    for (const key of adminUpdatable) {
+      if (body[key] !== undefined) allowedFields[key] = body[key]
+    }
+
+    const { error } = await supabase.from('listings').update(allowedFields).eq('id', id)
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 400 })

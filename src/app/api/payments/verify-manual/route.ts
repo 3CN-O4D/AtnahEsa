@@ -53,6 +53,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Listing not available' }, { status: 400 })
     }
 
+    const { data: existingBooking } = await supabase
+      .from('bookings')
+      .select('id')
+      .eq('listing_id', listing_id)
+      .eq('user_id', user.id)
+      .in('status', ['pending', 'confirmed'])
+      .maybeSingle()
+
+    if (existingBooking) {
+      return NextResponse.json({ error: 'You already have a pending booking for this listing' }, { status: 400 })
+    }
+
     const paidAmount = parseInt(amountStr) || listing.price
 
     const { data: booking, error: bookingError } = await supabase

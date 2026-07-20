@@ -3,6 +3,7 @@ import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import CookieBanner from '@/components/layout/CookieBanner'
+import { ThemeProvider } from '@/lib/ThemeProvider'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import Script from 'next/script'
 
@@ -31,10 +32,12 @@ export default function RootLayout({
         </Script>
       </head>
       <body className="min-h-screen flex flex-col">
-        <Header />
-        <main className="flex-1">{children}</main>
-        <Footer />
-        <CookieBanner />
+        <ThemeProvider>
+          <Header />
+          <main className="flex-1">{children}</main>
+          <Footer />
+          <CookieBanner />
+        </ThemeProvider>
 
         {/* Floating WhatsApp */}
         <a

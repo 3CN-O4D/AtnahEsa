@@ -9,6 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   username TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
   phone TEXT,
+  avatar_url TEXT,
   role TEXT NOT NULL DEFAULT 'hunter' CHECK (role IN ('hunter', 'lister', 'admin')),
   terms_accepted BOOLEAN DEFAULT false,
   average_rating NUMERIC(3,2) DEFAULT 0,

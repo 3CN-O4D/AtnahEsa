@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   try {
     const { email, otp, type } = await req.json()
 
-    if (!email || !otp || !['signup', 'password_reset'].includes(type)) {
+    if (!email || !otp || !['signup', 'password_reset', 'profile_update'].includes(type)) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
@@ -25,15 +25,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 400 })
     }
 
-    if (type === 'signup') {
+    if (type !== 'password_reset') {
       await supabase.from('otps').update({ used: true }).eq('id', data.id)
-      const { data: users, error: userError } = await supabase.auth.admin.listUsers()
-      if (userError) {
-        return NextResponse.json({ error: 'Failed to confirm user' }, { status: 500 })
-      }
-      const user = users.users.find((u) => u.email === email)
-      if (user) {
-        await supabase.auth.admin.updateUserById(user.id, { email_confirm: true })
+      if (type === 'signup') {
+        const { data: users, error: userError } = await supabase.auth.admin.listUsers()
+        if (userError) {
+          return NextResponse.json({ error: 'Failed to confirm user' }, { status: 500 })
+        }
+        const user = users.users.find((u) => u.email === email)
+        if (user) {
+          await supabase.auth.admin.updateUserById(user.id, { email_confirm: true })
+        }
       }
     }
 

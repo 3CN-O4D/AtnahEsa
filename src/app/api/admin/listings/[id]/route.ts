@@ -14,11 +14,15 @@ export async function PATCH(
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // TODO: Check if user has admin role
-    // const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-    // if (profile?.role !== 'admin') {
-    //   return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    // }
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    if (profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+    }
 
     const body = await req.json()
     const { error } = await supabase.from('listings').update(body).eq('id', id)

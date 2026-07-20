@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Moon, Sun } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME } from '@/lib/constants'
 import Button from '@/components/ui/Button'
+import { useTheme } from '@/lib/ThemeProvider'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 export default function Header() {
@@ -13,6 +14,7 @@ export default function Header() {
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const { dark, toggle } = useTheme()
 
   useEffect(() => {
     const supabase = createClient()
@@ -50,7 +52,7 @@ export default function Header() {
   ]
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-gray-200">
+    <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
         <Link href="/" className="flex items-center gap-2">
           <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
@@ -60,10 +62,13 @@ export default function Header() {
         {/* Desktop nav */}
         <nav className="hidden md:flex items-center gap-6">
           {navLinks.map(({ href, label }) => (
-            <Link key={href} href={href} className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+            <Link key={href} href={href} className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
               {label}
             </Link>
           ))}
+          <button onClick={toggle} className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={dark ? 'Light mode' : 'Dark mode'}>
+            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
           {user && (
             <Link href="/upload">
               <Button size="sm">
@@ -76,28 +81,28 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
-              >
-                <span className="truncate max-w-[120px]">{user.email}</span>
-                <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
-                  <UserIcon className="w-4 h-4 text-blue-600" />
-                </div>
+                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
+                >
+                  <span className="truncate max-w-[120px]">{user.email}</span>
+                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                    <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-300" />
+                  </div>
               </button>
               {showUserMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white border rounded-xl shadow-lg py-2 z-50">
-                  <Link href="/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl shadow-lg py-2 z-50">
+                  <Link href="/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Settings className="w-4 h-4" /> My Profile
                   </Link>
-                  <Link href="/my-listings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                  <Link href="/my-listings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <List className="w-4 h-4" /> My Listings
                   </Link>
                   {isAdmin && (
-                    <Link href="/admin" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                    <Link href="/admin" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <Shield className="w-4 h-4" /> Admin Panel
                     </Link>
                   )}
-                  <hr />
-                  <button onClick={() => { handleSignOut(); setShowUserMenu(false) }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                  <hr className="dark:border-gray-700" />
+                  <button onClick={() => { handleSignOut(); setShowUserMenu(false) }} className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
                     <LogOut className="w-4 h-4" /> Sign Out
                   </button>
                 </div>
@@ -113,45 +118,50 @@ export default function Header() {
           )}
         </nav>
 
-        {/* Mobile menu button */}
-        <button className="md:hidden p-2" onClick={() => setMenuOpen(!menuOpen)}>
-          {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-        </button>
+        {/* Mobile toggle + menu button */}
+        <div className="md:hidden flex items-center gap-1">
+          <button onClick={toggle} className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={dark ? 'Light mode' : 'Dark mode'}>
+            {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+          </button>
+          <button className="p-2" onClick={() => setMenuOpen(!menuOpen)}>
+            {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+          </button>
+        </div>
       </div>
 
       {/* Mobile nav */}
       {menuOpen && (
-        <div className="md:hidden border-t bg-white px-4 py-3 space-y-2">
+        <div className="md:hidden border-t bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 space-y-2">
           {navLinks.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}
               href={href}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               {Icon && <Icon className="w-4 h-4" />}
               {label}
             </Link>
           ))}
-          <hr className="my-2" />
+          <hr className="my-2 dark:border-gray-700" />
           {user ? (
             <>
-              <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+              <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Settings className="w-4 h-4" /> My Profile
               </Link>
-              <Link href="/my-listings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50">
+              <Link href="/my-listings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <List className="w-4 h-4" /> My Listings
               </Link>
-              <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 hover:bg-blue-50">
+              <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                 <Upload className="w-4 h-4" />
                 List House
               </Link>
               {isAdmin && (
-                <Link href="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-purple-600 hover:bg-purple-50">
+                <Link href="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30">
                   <Shield className="w-4 h-4" /> Admin Panel
                 </Link>
               )}
-              <button onClick={() => { handleSignOut(); setMenuOpen(false) }} className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-red-600 hover:bg-red-50">
+              <button onClick={() => { handleSignOut(); setMenuOpen(false) }} className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
                 <LogOut className="w-4 h-4" /> Sign Out
               </button>
             </>
@@ -159,7 +169,7 @@ export default function Header() {
             <Link
               href="/auth/signin"
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 hover:bg-blue-50"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
             >
               <UserIcon className="w-4 h-4" />
               Sign In

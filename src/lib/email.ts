@@ -10,11 +10,13 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-export async function sendOtpEmail(email: string, otp: string, type: 'signup' | 'password_reset') {
-  const subject = type === 'signup' ? 'Verify your AseHanta account' : 'Reset your AseHanta password'
+export async function sendOtpEmail(email: string, otp: string, type: 'signup' | 'password_reset' | 'profile_update') {
+  const subject = type === 'signup' ? 'Verify your AseHanta account' : type === 'password_reset' ? 'Reset your AseHanta password' : 'Confirm your AseHanta profile changes'
   const message = type === 'signup'
     ? `Your verification code is: <strong>${otp}</strong><br/><br/>Enter this code in the app to verify your email address.`
-    : `Your password reset code is: <strong>${otp}</strong><br/><br/>Enter this code in the app to reset your password.`
+    : type === 'password_reset'
+    ? `Your password reset code is: <strong>${otp}</strong><br/><br/>Enter this code in the app to reset your password.`
+    : `Your profile update code is: <strong>${otp}</strong><br/><br/>Enter this code in the app to confirm your profile changes.`
 
   await transporter.sendMail({
     from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,

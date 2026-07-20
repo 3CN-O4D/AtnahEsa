@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useSearchParams } from 'next/navigation'
-import { LayoutDashboard, Home, ArrowLeftRight, Users, FileText, Wrench, Upload, Menu, X, Shield } from 'lucide-react'
+import { LayoutDashboard, Home, ArrowLeftRight, Users, FileText, Wrench, Upload, Banknote, Menu, X, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 
@@ -13,6 +13,7 @@ const sidebarLinks = [
   { href: '/admin?tab=transactions', label: 'Transactions', icon: ArrowLeftRight },
   { href: '/admin?tab=users', label: 'Users', icon: Users },
   { href: '/admin?tab=requests', label: 'Requests', icon: FileText },
+  { href: '/admin/treasury', label: 'Treasury', icon: Banknote },
   { href: '/admin/services', label: 'Services', icon: Wrench },
   { href: '/admin/upload', label: 'List House', icon: Upload },
 ]

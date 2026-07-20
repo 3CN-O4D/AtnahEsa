@@ -43,7 +43,13 @@ function AdminDashboardInner() {
     setTimeout(() => setToast(null), 3000)
   }, [])
 
-  useEffect(() => { loadAll() }, [])
+  useEffect(() => { loadAll(); loadListings() }, [])
+
+  useEffect(() => {
+    if (tab === 'transactions') loadTransactions()
+    if (tab === 'users') loadUsers()
+    if (tab === 'requests') loadRequests()
+  }, [tab])
 
   async function loadAll() {
     const supabase = createClient()
@@ -71,11 +77,9 @@ function AdminDashboardInner() {
 
     setStats({ total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters })
     setLoaded(true)
-
-    loadListings()
   }
 
-  const loadListings = async () => {
+  async function loadListings() {
     const supabase = createClient()
 
     const { data: listingsData } = await supabase

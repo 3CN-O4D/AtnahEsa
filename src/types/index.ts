@@ -1,5 +1,5 @@
 export type ListingStatus = 'pending' | 'published' | 'booked' | 'taken' | 'rejected'
-export type VacancyStatus = 'pending' | 'available'
+export type VacancyStatus = 'pending' | 'available' | 'vacant'
 
 export interface Listing {
   id: string

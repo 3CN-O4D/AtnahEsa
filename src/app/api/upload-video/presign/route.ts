@@ -15,6 +15,17 @@ const s3 = new S3Client({
 
 const BUCKET = process.env.S3_BUCKET!
 
+const EXT_MIME: Record<string, string> = {
+  mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime',
+  avi: 'video/x-msvideo', mkv: 'video/x-matroska', m4v: 'video/mp4',
+  ogv: 'video/ogg', '3gp': 'video/3gpp',
+}
+
+function mimeFromName(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase()
+  return EXT_MIME[ext || ''] || 'video/mp4'
+}
+
 export async function GET(req: Request) {
   try {
     const supabase = await createClient()
@@ -23,25 +34,20 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const name = searchParams.get('name') || 'video.mp4'
-    const type = searchParams.get('type') || 'video/mp4'
-
-    if (!type.startsWith('video/')) {
-      return NextResponse.json({ error: 'Only video files allowed' }, { status: 400 })
-    }
-
     const ext = name.split('.').pop()
     const key = `listings/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    const contentType = mimeFromName(name)
 
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
-      ContentType: type,
+      ContentType: contentType,
     })
 
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 300 })
     const publicUrl = `${process.env.S3_ENDPOINT}/${BUCKET}/${key}`
 
-    return NextResponse.json({ url: signedUrl, publicUrl, key })
+    return NextResponse.json({ url: signedUrl, publicUrl, key, contentType })
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to generate upload URL' }, { status: 500 })
   }

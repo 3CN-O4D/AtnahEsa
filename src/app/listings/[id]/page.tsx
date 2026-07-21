@@ -219,7 +219,7 @@ export default function ListingDetailPage() {
             <div className="flex flex-wrap items-center gap-2 mb-1">
               {listing.house_type && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">{listing.house_type}</span>}
               {listing.building_type && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
-              {listing.vacancy && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${listing.vacancy === 'available' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{listing.vacancy === 'available' ? 'Available' : 'Pending'}</span>}
+              {listing.vacancy && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
             </div>
             <h1 className="text-2xl font-bold text-gray-900 mb-2">{listing.title}</h1>
             <div className="flex items-center gap-1 text-gray-500">
@@ -289,10 +289,11 @@ export default function ListingDetailPage() {
           {(listing.video_url || youtubeId) && (
             <div>
               <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Video className="w-5 h-5 text-red-500" /> Video Tour</h2>
-              <div className="aspect-video rounded-xl overflow-hidden">
+              <div className="aspect-video rounded-xl overflow-hidden bg-black">
                 {listing.video_url ? (
                   <video controls className="w-full h-full" playsInline>
                     <source src={listing.video_url} type={videoMimeType(listing.video_url)} />
+                    <a href={listing.video_url} download className="absolute inset-0 flex items-center justify-center text-white text-sm underline">Download video</a>
                   </video>
                 ) : (
                   <iframe src={`https://www.youtube.com/embed/${youtubeId}`} title="House Video Tour"

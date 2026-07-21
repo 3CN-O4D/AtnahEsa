@@ -196,9 +196,13 @@ export default function ListingDetailPage() {
 
   if (!listing) return null
 
-  const youtubeId = listing.youtube_url
-    ? listing.youtube_url.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1]
-    : null
+  const videos = [
+    ...((listing.video_urls?.length ? listing.video_urls : (listing.video_url ? [listing.video_url] : [])).map((u: string) => ({ type: 'direct' as const, url: u, id: '' }))),
+    ...((listing.youtube_urls?.length ? listing.youtube_urls : (listing.youtube_url ? [listing.youtube_url] : [])).map((u: string) => {
+      const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
+      return { type: 'youtube' as const, url: u, id: m?.[1] || '' }
+    }).filter((v) => v.id)),
+  ]
 
   const avgRating = reviews.length > 0 ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length * 10) / 10 : 0
 
@@ -287,19 +291,22 @@ export default function ListingDetailPage() {
             </div>
           )}
 
-          {(listing.video_url || youtubeId) && (
+          {(videos.length > 0) && (
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Video className="w-5 h-5 text-red-500" /> Video Tour</h2>
-              <div className="aspect-video rounded-xl overflow-hidden bg-black">
-                {listing.video_url ? (
-                  <video controls className="w-full h-full" playsInline>
-                    <source src={videoSrc(listing.video_url)} />
-                    <a href={videoSrc(listing.video_url)} download className="absolute inset-0 flex items-center justify-center text-white text-sm underline">Download video</a>
-                  </video>
-                ) : (
-                  <iframe src={`https://www.youtube.com/embed/${youtubeId}`} title="House Video Tour"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
-                )}
+              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Video className="w-5 h-5 text-red-500" /> Video Tours</h2>
+              <div className={`grid gap-4 ${videos.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : ''}`}>
+                {videos.map((v, i) => (
+                  <div key={i} className="aspect-video rounded-xl overflow-hidden bg-black">
+                    {v.type === 'direct' ? (
+                      <video controls className="w-full h-full" playsInline>
+                        <source src={videoSrc(v.url)} />
+                      </video>
+                    ) : (
+                      <iframe src={`https://www.youtube.com/embed/${v.id}`} title={`Video ${i + 1}`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
+                    )}
+                  </div>
+                ))}
               </div>
             </div>
           )}

@@ -67,6 +67,12 @@ export default function Footer() {
             <a href="https://jambonetkenya.co.ke" target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
               <img src="/images/jambonet-logo.jpeg" alt="Jambonet Kenya" className="h-8" />
             </a>
+            <span className="text-slate-600">|</span>
+            <span className="text-[11px] text-slate-500 hover:text-white transition-colors">Wasabinet</span>
+            <span className="text-slate-600">|</span>
+            <span className="text-[11px] text-slate-500 hover:text-white transition-colors">PulseGaming</span>
+            <span className="text-slate-600">|</span>
+            <span className="text-[11px] text-slate-500 hover:text-white transition-colors">Go Cycle</span>
           </div>
         </div>
 

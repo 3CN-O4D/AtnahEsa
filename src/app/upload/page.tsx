@@ -34,7 +34,7 @@ export default function UploadPage() {
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [videoUrl, setVideoUrl] = useState('')
+  const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
@@ -97,7 +97,7 @@ export default function UploadPage() {
           location,
           images,
           youtube_url: youtubeUrl || null,
-          video_url: videoUrl || null,
+          video_urls: videoUrls,
           issues,
           issues_count: issues.length,
           payment_method: paymentMethod,
@@ -314,7 +314,7 @@ export default function UploadPage() {
           onChange={(e) => setYoutubeUrl(e.target.value)}
         />
 
-        <VideoUploader videoUrl={videoUrl} onChange={setVideoUrl} />
+        <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">House Issues</label>

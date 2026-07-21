@@ -123,7 +123,7 @@ function AdminDashboardInner() {
 
     const { data: listingsData } = await supabase
       .from('listings')
-      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url')
+      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url, video_urls, youtube_urls')
       .order('created_at', { ascending: false })
 
     const listings = (listingsData ?? []) as Listing[]
@@ -295,9 +295,17 @@ function AdminDashboardInner() {
     clearCache('admin:'); loadAll()
   }
 
-  const handleUpdateYoutubeUrl = async (listingId: string, youtubeUrl: string) => {
+  const handleUpdateYoutubeUrl = async (listingId: string, youtubeUrls: string | string[]) => {
     const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ youtube_url: youtubeUrl }).eq('id', listingId)
+    const update: Record<string, unknown> = {}
+    if (typeof youtubeUrls === 'string') {
+      update.youtube_url = youtubeUrls
+      update.youtube_urls = [youtubeUrls]
+    } else {
+      update.youtube_urls = youtubeUrls
+      update.youtube_url = youtubeUrls[0] || null
+    }
+    const { error } = await supabase.from('listings').update(update).eq('id', listingId)
     if (error) { showToast('error', error.message); return }
     showToast('success', 'YouTube URL saved')
     clearCache('admin:'); loadAll()
@@ -593,38 +601,58 @@ function AdminDashboardInner() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Video Review</h2>
           {(() => {
-            const videoListings = allListings.filter((l) => l.video_url && !l.youtube_url)
+            const hasVideo = (l: typeof allListings[number]) => {
+              const urls = l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : [])
+              const ytUrls = l.youtube_urls?.length ? l.youtube_urls : (l.youtube_url ? [l.youtube_url] : [])
+              return urls.length > ytUrls.length
+            }
+            const videoListings = allListings.filter(hasVideo)
             if (videoListings.length === 0) return <p className="text-gray-500 text-center py-8">No videos awaiting review.</p>
-            return videoListings.map((listing) => (
+            return videoListings.map((listing) => {
+              const urls = listing.video_urls?.length ? listing.video_urls : (listing.video_url ? [listing.video_url] : [])
+              const ytUrls = listing.youtube_urls?.length ? listing.youtube_urls : (listing.youtube_url ? [listing.youtube_url] : [])
+              const pending = urls.filter((_, i) => !ytUrls[i])
+              return (
               <div key={listing.id} className="bg-white dark:bg-gray-100 border dark:border-gray-700 rounded-xl p-4">
-                <div className="flex items-start gap-4">
-                  <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-24 h-20 rounded-lg object-cover shrink-0" />
-                  <div className="flex-1 min-w-0">
+                <div className="flex items-start gap-4 mb-3">
+                  <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
+                  <div>
                     <h3 className="font-semibold text-gray-900">{listing.title}</h3>
-                    <p className="text-sm text-gray-500">{listing.location}</p>
-                    <div className="flex gap-2 mt-2">
-                      <a href={listing.video_url || '#'} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-blue-600 hover:underline">Preview Video &rarr;</a>
-                      <a href={`/api/video?key=${encodeURIComponent((listing.video_url || '').split('/object/public/')[1]?.split('/').slice(1).join('/').split('?')[0] || listing.video_url || '')}`} download
-                        className="text-xs text-gray-500 hover:underline">Download</a>
-                    </div>
-                  </div>
-                  <div className="shrink-0 space-y-2">
-                    <input
-                      type="text"
-                      placeholder="Paste YouTube URL..."
-                      defaultValue={listing.youtube_url || ''}
-                      id={`yt-${listing.id}`}
-                      className="block w-72 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-100 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                    />
-                    <Button size="sm" onClick={() => {
-                      const input = document.getElementById(`yt-${listing.id}`) as HTMLInputElement
-                      if (input?.value) handleUpdateYoutubeUrl(listing.id, input.value)
-                    }}>Save YouTube URL</Button>
+                    <p className="text-sm text-gray-500">{listing.location} &mdash; {pending.length} video{pending.length !== 1 ? 's' : ''} pending</p>
                   </div>
                 </div>
+                <div className="space-y-3">
+                  {pending.map((vurl, vi) => (
+                    <div key={vi} className="flex items-center gap-3 pl-2 border-l-2 border-blue-400">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs text-gray-500 truncate">Video {vi + 1}</p>
+                        <div className="flex gap-2 mt-1">
+                          <a href={vurl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Preview</a>
+                          <a href={`/api/video?key=${encodeURIComponent(vurl.split('/object/public/')[1]?.split('/').slice(1).join('/').split('?')[0] || vurl)}`} download className="text-xs text-gray-500 hover:underline">Download</a>
+                        </div>
+                      </div>
+                      <input
+                        type="text"
+                        placeholder="Paste YouTube URL..."
+                        id={`yt-${listing.id}-${vi}`}
+                        className="w-64 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-100 px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-3 flex justify-end">
+                  <Button size="sm" onClick={() => {
+                    const yts: string[] = []
+                    for (let i = 0; i < pending.length; i++) {
+                      const input = document.getElementById(`yt-${listing.id}-${i}`) as HTMLInputElement
+                      yts.push(input?.value || '')
+                    }
+                    const allYt = [...ytUrls, ...yts].filter(Boolean)
+                    handleUpdateYoutubeUrl(listing.id, allYt)
+                  }}>Save All YouTube URLs</Button>
+                </div>
               </div>
-            ))
+            )})
           })()}
         </div>
       )}

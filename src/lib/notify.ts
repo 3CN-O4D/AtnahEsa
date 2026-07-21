@@ -36,7 +36,7 @@ ${body}
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr><td style="border-top:1px solid ${BRAND.border};padding-top:20px;text-align:center">
 <p style="margin:0;font-size:12px;color:${BRAND.gray};line-height:1.6">
-AseHanta &bull; Kenya &bull; <a href="https://asehanta.co.ke" style="color:${BRAND.blue};text-decoration:none">asehanta.co.ke</a>
+AseHanta &bull; Kenya &bull; <a href="https://asehanta.com" style="color:${BRAND.blue};text-decoration:none">asehanta.com</a>
 </p>
 </td></tr>
 </table>

@@ -91,7 +91,7 @@ export async function POST(req: Request) {
       location: body.location,
       images: body.images || [],
       youtube_url: body.youtube_url || null,
-      video_url: body.video_url || null,
+      video_urls: body.video_urls || [],
       issues: body.issues || [],
       issues_count: body.issues?.length || 0,
       payment_method: body.payment_method || '',

@@ -11,6 +11,8 @@ export interface Listing {
   images: string[]
   youtube_url: string | null
   video_url: string | null
+  video_urls: string[]
+  youtube_urls: string[]
   issues: string[]
   issues_count: number
   deposit: number

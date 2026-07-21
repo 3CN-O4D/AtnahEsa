@@ -36,6 +36,10 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
           package_name: pkg.name,
           package_speed: pkg.speed,
           package_price: pkg.price,
+          package_provider: pkg.provider,
+          package_original_price: pkg.original_price,
+          package_description: pkg.description,
+          package_features: pkg.features,
           name, phone, area, id_number: idNumber,
         }),
       })

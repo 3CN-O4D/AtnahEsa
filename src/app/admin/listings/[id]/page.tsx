@@ -32,7 +32,7 @@ export default function AdminEditListingPage() {
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [videoUrl, setVideoUrl] = useState('')
+  const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
@@ -62,7 +62,7 @@ export default function AdminEditListingPage() {
       setDescriptiveLocation(l.descriptive_location)
       setLocation(l.location)
       setYoutubeUrl(l.youtube_url ?? '')
-      setVideoUrl(l.video_url ?? '')
+      setVideoUrls(l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : []))
       setIssues(l.issues)
       setPaymentMethod(l.payment_method)
       setImages(l.images)
@@ -116,7 +116,7 @@ export default function AdminEditListingPage() {
         location,
         images,
         youtube_url: youtubeUrl || null,
-        video_url: videoUrl || null,
+        video_urls: videoUrls,
         issues,
         issues_count: issues.length,
         payment_method: paymentMethod,
@@ -180,7 +180,7 @@ export default function AdminEditListingPage() {
 
         <Input label="Location (Area)" id="location" placeholder="e.g. Nairobi, Westlands" value={location} onChange={(e) => setLocation(e.target.value)} required />
         <Input label="YouTube Video URL (optional)" id="youtube" type="url" placeholder="https://youtube.com/watch?v=..." value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
-        <VideoUploader videoUrl={videoUrl} onChange={setVideoUrl} />
+        <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">House Issues</label>

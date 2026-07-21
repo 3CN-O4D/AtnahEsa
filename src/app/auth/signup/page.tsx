@@ -218,7 +218,7 @@ function SignUpForm() {
             className="mt-0.5 w-4 h-4 accent-blue-600 rounded" />
           <span className="text-xs text-gray-600">
             I agree to the{' '}
-            <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms &amp; Conditions</Link>
+            <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms for {role === 'lister' ? 'Listers' : 'House Hunters'}</Link>
             {' '}and consent to cookies being saved on my device for authentication purposes.
           </span>
         </label>

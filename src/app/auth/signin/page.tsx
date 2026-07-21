@@ -15,6 +15,7 @@ export default function SignInPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [agreeTerms, setAgreeTerms] = useState(false)
 
   const supabase = createClient()
 
@@ -53,6 +54,7 @@ export default function SignInPage() {
   }
 
   const handleGoogleSignIn = async () => {
+    if (!agreeTerms) { setError('You must agree to the Terms & Conditions'); return }
     setLoading(true)
     setError('')
     const { error: err } = await supabase.auth.signInWithOAuth({
@@ -117,6 +119,15 @@ export default function SignInPage() {
           <span className="bg-white px-2 text-gray-500">or</span>
         </div>
       </div>
+
+      <label className="flex items-start gap-2 cursor-pointer mb-4">
+        <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)}
+          className="mt-0.5 w-4 h-4 accent-blue-600 rounded shrink-0" />
+        <span className="text-xs text-gray-600">
+          I agree to the{' '}
+          <Link href="/terms" target="_blank" className="text-blue-600 hover:underline">Terms &amp; Conditions</Link>
+        </span>
+      </label>
 
       <Button
         type="button"

@@ -13,6 +13,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
   const { dark, toggle } = useTheme()
@@ -22,21 +23,24 @@ export default function Header() {
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user)
       if (data.user) {
-        const { data: profile } = await supabase.from('profiles').select('role, avatar_url').eq('id', data.user.id).maybeSingle()
+        const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', data.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
         setAvatarUrl(profile?.avatar_url || null)
+        setDisplayName(profile?.full_name || data.user?.email || null)
       }
     })
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null)
       if (session?.user) {
-        const { data: profile } = await supabase.from('profiles').select('role, avatar_url').eq('id', session.user.id).maybeSingle()
+        const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', session.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
         setAvatarUrl(profile?.avatar_url || null)
+        setDisplayName(profile?.full_name || session.user?.email || null)
       } else {
         setIsAdmin(false)
         setAvatarUrl(null)
+        setDisplayName(null)
       }
     })
 
@@ -58,16 +62,19 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-        <Link href="/" className="flex items-center gap-2">
-          <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
-          <span className="text-xl font-bold text-blue-600">{APP_NAME}</span>
-        </Link>
+      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
+        {/* Left: Logo + Name */}
+        <div className="flex items-center min-w-0 shrink-0">
+          <Link href="/" className="flex items-center gap-2.5">
+            <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
+            <span className="text-xl font-bold text-blue-600 hidden sm:inline">{APP_NAME}</span>
+          </Link>
+        </div>
 
-        {/* Desktop nav */}
-        <nav className="hidden md:flex items-center gap-6">
+        {/* Center: Desktop nav */}
+        <nav className="hidden md:flex items-center gap-5 mx-auto">
           {navLinks.map(({ href, label }) => (
-            <Link key={href} href={href} className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors">
+            <Link key={href} href={href} className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap">
               {label}
             </Link>
           ))}
@@ -76,19 +83,22 @@ export default function Header() {
           </button>
           {user && (
             <Link href="/upload">
-              <Button size="sm">
+              <Button size="sm" className="whitespace-nowrap">
                 <Upload className="w-4 h-4 mr-1.5" />
                 List House
               </Button>
             </Link>
           )}
+        </nav>
+
+        {/* Right: Profile */}
+        <div className="hidden md:flex items-center shrink-0">
           {user ? (
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
                 >
-                  <span className="truncate max-w-[120px]">{user.email}</span>
                   <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center overflow-hidden">
                     {avatarUrl ? (
                       <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
@@ -96,6 +106,7 @@ export default function Header() {
                       <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-300" />
                     )}
                   </div>
+                  <span className="truncate max-w-[120px]">{displayName || user.email}</span>
               </button>
               {showUserMenu && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl shadow-lg py-2 z-50">
@@ -128,9 +139,9 @@ export default function Header() {
               </Button>
             </Link>
           )}
-        </nav>
+        </div>
 
-        {/* Mobile toggle + menu button */}
+        {/* Mobile: dark mode + hamburger */}
         <div className="md:hidden flex items-center gap-1">
           <button onClick={toggle} className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={dark ? 'Light mode' : 'Dark mode'}>
             {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}

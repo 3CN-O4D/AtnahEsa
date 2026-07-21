@@ -1,85 +1,45 @@
-'use client'
+import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { notFound } from 'next/navigation'
+import UserProfile from './UserProfile'
+import type { Profile, Listing, Booking, Transaction } from '@/types'
 
-import { useState, useEffect } from 'react'
-import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft } from 'lucide-react'
-import Button from '@/components/ui/Button'
-import Input from '@/components/ui/Input'
-import { createClient } from '@/lib/supabase/client'
-import type { Profile, Listing } from '@/types'
+export const dynamic = 'force-dynamic'
 
-export default function AdminUserDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  const router = useRouter()
-  const [profile, setProfile] = useState<Profile | null>(null)
-  const [listings, setListings] = useState<Listing[]>([])
-  const [role, setRole] = useState('')
+export default async function AdminUserDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
 
-  useEffect(() => {
-    const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return notFound()
+  const { data: adminProfile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+  if (adminProfile?.role !== 'admin') return notFound()
 
-    supabase.from('profiles').select('*').eq('id', id).single().then(({ data }) => {
-      if (data) {
-        setProfile(data as Profile)
-        setRole(data.role)
-      }
-    })
+  const { data: profile } = await supabase.from('profiles').select('*').eq('id', id).single()
+  if (!profile) return notFound()
 
-    supabase.from('listings').select('*').eq('uploader_id', id).order('created_at', { ascending: false }).then(({ data }) => {
-      setListings((data ?? []) as Listing[])
-    })
-  }, [id])
+  const adminSupabase = createAdminClient()
+  const { data: authUser } = await adminSupabase.auth.admin.getUserById(id)
+  const email = authUser?.user?.email || null
 
-  const handleSaveRole = async () => {
-    const supabase = createClient()
-    await supabase.from('profiles').update({ role }).eq('id', id)
-    router.push('/admin')
-  }
+  const [listingsRes, bookingsRes, transactionsRes] = await Promise.all([
+    supabase.from('listings').select('*').eq('uploader_id', id).order('created_at', { ascending: false }),
+    supabase.from('bookings').select('*').eq('user_id', id).order('created_at', { ascending: false }),
+    supabase.from('transactions').select('*').eq('user_id', id).order('created_at', { ascending: false }),
+  ])
 
-  if (!profile) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+  const userProfile = profile as Profile
+  const listings = (listingsRes.data ?? []) as Listing[]
+  const bookings = (bookingsRes.data ?? []) as Booking[]
+  const transactions = (transactionsRes.data ?? []) as Transaction[]
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
-      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-6">
-        <ArrowLeft className="w-4 h-4" /> Back
-      </button>
-
-      <div className="bg-white border rounded-xl p-6 space-y-4">
-        <h1 className="text-2xl font-bold">{profile.full_name}</h1>
-
-        <div className="grid grid-cols-2 gap-4 text-sm">
-          <div><span className="text-gray-500">Username:</span> {profile.username}</div>
-          <div><span className="text-gray-500">Phone:</span> {profile.phone || '-'}</div>
-          <div><span className="text-gray-500">Joined:</span> {new Date(profile.created_at).toLocaleDateString()}</div>
-          <div className="flex items-center gap-2">
-            <span className="text-gray-500">Role:</span>
-            <select value={role} onChange={(e) => setRole(e.target.value)} className="text-sm border rounded px-2 py-1">
-              <option value="hunter">Hunter</option>
-              <option value="lister">Lister</option>
-              <option value="admin">Admin</option>
-            </select>
-          </div>
-        </div>
-
-        <Button size="sm" onClick={handleSaveRole}>Save Role</Button>
-      </div>
-
-      {listings.length > 0 && (
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold mb-3">Listings by {profile.full_name}</h2>
-          <div className="space-y-3">
-            {listings.map((l) => (
-              <div key={l.id} className="bg-white border rounded-xl p-3 flex items-center gap-3">
-                <img src={l.images[0] || '/placeholder.jpg'} alt="" className="w-16 h-12 rounded object-cover" />
-                <div className="flex-1">
-                  <p className="font-medium text-sm">{l.title}</p>
-                  <p className="text-xs text-gray-500">{l.location} | {l.status}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    <UserProfile
+      profile={userProfile}
+      listings={listings}
+      bookings={bookings}
+      transactions={transactions}
+      email={email}
+    />
   )
 }

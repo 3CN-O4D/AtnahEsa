@@ -15,6 +15,13 @@ import ReportModal from '@/components/reports/ReportModal'
 import ListingCard from '@/components/listings/ListingCard'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
+function videoMimeType(url: string): string {
+  const ext = url.split('?')[0].split('.').pop()?.toLowerCase()
+  const m: Record<string, string> = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska', m4v: 'video/mp4', ogv: 'video/ogg' }
+  m['3gp'] = 'video/3gpp'
+  return m[ext || ''] || 'video/mp4'
+}
+
 function Stars({ rating, interactive, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {
   return (
     <div className="flex gap-0.5">
@@ -284,7 +291,9 @@ export default function ListingDetailPage() {
               <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Video className="w-5 h-5 text-red-500" /> Video Tour</h2>
               <div className="aspect-video rounded-xl overflow-hidden">
                 {listing.video_url ? (
-                  <video src={listing.video_url} controls className="w-full h-full" />
+                  <video controls className="w-full h-full" playsInline>
+                    <source src={listing.video_url} type={videoMimeType(listing.video_url)} />
+                  </video>
                 ) : (
                   <iframe src={`https://www.youtube.com/embed/${youtubeId}`} title="House Video Tour"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />

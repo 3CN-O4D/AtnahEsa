@@ -66,7 +66,7 @@ export default function Header() {
         {/* Left: Logo + Name — flush to left edge */}
         <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">
           <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
-          <span className="text-xl font-bold text-blue-600 hidden sm:inline">{APP_NAME}</span>
+          <span className="text-lg sm:text-xl font-bold text-blue-600">{APP_NAME}</span>
         </Link>
 
         {/* Center: Desktop nav */}

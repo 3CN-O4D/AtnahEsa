@@ -34,7 +34,10 @@ function AdminDashboardInner() {
   const [stats, setStats] = useState({
     total: 0, published: 0, booked: 0, taken: 0, pending: 0,
     completed: 0, refunded: 0, withIssues: 0,
-    totalRevenue: 0, totalRefunded: 0, totalListers: 0, totalHunters: 0,
+    totalRevenue: 0, totalRefunded: 0, totalListers: 0, totalHunters: 0, totalUsers: 0,
+    totalMovers: 0, wifiPackages: 0, wifiBookings: 0,
+    contactSubmissions: 0, houseRequests: 0, reports: 0,
+    escrowHeld: 0, escrowHeldAmount: 0,
   })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -63,27 +66,44 @@ function AdminDashboardInner() {
     const supabase = createClient()
 
     const c = async (table: string, field?: string, value?: string | number) => {
-      let q = supabase.from(table as 'listings' | 'bookings' | 'profiles').select('*', { count: 'exact', head: true })
+      let q = supabase.from(table as any).select('*', { count: 'exact', head: true })
       if (field && value !== undefined) q = (q as typeof q).eq(field, value)
       return (await q).count ?? 0
     }
 
-    const total = await c('listings')
-    const publishedCount = await c('listings', 'status', 'published')
-    const bookedCount = await c('listings', 'status', 'booked')
-    const takenCount = await c('listings', 'status', 'taken')
-    const pendingCount = await c('listings', 'status', 'pending')
-    const withIssues = (await supabase.from('listings').select('*', { count: 'exact', head: true }).gt('issues_count', 0)).count ?? 0
+    const [
+      total, publishedCount, bookedCount, takenCount, pendingCount,
+      withIssues, completed, refunded, listers, hunters, totalUsers,
+      movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
+    ] = await Promise.all([
+      c('listings'),
+      c('listings', 'status', 'published'),
+      c('listings', 'status', 'booked'),
+      c('listings', 'status', 'taken'),
+      c('listings', 'status', 'pending'),
+      (await supabase.from('listings').select('*', { count: 'exact', head: true }).gt('issues_count', 0)).count ?? 0,
+      c('bookings', 'visit_status', 'completed'),
+      c('bookings', 'visit_status', 'refunded'),
+      c('profiles', 'role', 'lister'),
+      c('profiles', 'role', 'hunter'),
+      c('profiles'),
+      c('movers'),
+      c('wifi_packages'),
+      c('wifi_bookings'),
+      c('contact_submissions'),
+      c('house_requests'),
+      c('reports'),
+    ])
 
     const { data: bookings } = await supabase.from('bookings').select('amount, refund_amount, status')
     const totalRevenue = (bookings || []).filter((b) => b.status === 'confirmed').reduce((s, b) => s + (b.amount || 0), 0)
     const totalRefunded = (bookings || []).filter((b) => b.status === 'refunded').reduce((s, b) => s + (b.refund_amount || 0), 0)
-    const completed = await c('bookings', 'visit_status', 'completed')
-    const refunded = await c('bookings', 'visit_status', 'refunded')
-    const listers = await c('profiles', 'role', 'lister')
-    const hunters = await c('profiles', 'role', 'hunter')
 
-    setStats({ total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters })
+    const { data: escrows } = await supabase.from('escrow_holds').select('amount, status')
+    const escrowHeld = (escrows || []).filter((e) => e.status === 'held').length
+    const escrowHeldAmount = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
+
+    setStats({ total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters, totalUsers, totalMovers: movers, wifiPackages: wifiPkgs, wifiBookings: wifiBkgs, contactSubmissions: contacts, houseRequests: houseReqs, reports, escrowHeld, escrowHeldAmount })
     setLoaded(true)
   }
 
@@ -272,14 +292,20 @@ function AdminDashboardInner() {
     loadUsers()
   }
 
-  const statCard = (label: string, value: number | string, color: string, filter?: string) => (
+  const statCard = (label: string, value: number | string, color: string, link?: string) => (
     <button
-      onClick={() => { if (filter) { setListingsFilter(filter); router.push('/admin?tab=houses') } }}
-      className={`bg-white border rounded-xl p-4 text-left hover:shadow-md transition-shadow ${filter ? 'cursor-pointer' : ''}`}
+      onClick={() => { if (link) router.push(link) }}
+      className={`bg-white border rounded-xl p-4 text-left hover:shadow-md transition-shadow ${link ? 'cursor-pointer' : ''}`}
     >
       <p className="text-sm text-gray-500">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{typeof value === 'number' ? value : value}</p>
     </button>
+  )
+
+  const sectionTitle = (title: string, emoji: string) => (
+    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2 col-span-full mt-6 first:mt-0">
+      <span className="text-xl">{emoji}</span> {title}
+    </h3>
   )
 
   const filteredListings = (listingsFilter === 'all' ? allListings
@@ -323,18 +349,53 @@ function AdminDashboardInner() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {statCard('Total Houses', stats.total, 'text-gray-900', 'all')}
-            {statCard('Published', stats.published, 'text-green-600', 'published')}
-            {statCard('Booked', stats.booked, 'text-blue-600', 'booked')}
-            {statCard('Taken', stats.taken, 'text-purple-600', 'taken')}
-            {statCard('Pending Review', stats.pending, 'text-amber-600', 'pending')}
+            {sectionTitle('Properties', '🏠')}
+            {statCard('Total Houses', stats.total, 'text-gray-900', '/admin?tab=houses')}
+            {statCard('Published', stats.published, 'text-green-600', '/admin?tab=houses')}
+            {statCard('Booked', stats.booked, 'text-blue-600', '/admin?tab=houses')}
+            {statCard('Taken', stats.taken, 'text-purple-600', '/admin?tab=houses')}
+            {statCard('Pending Review', stats.pending, 'text-amber-600', '/admin?tab=houses')}
+            {statCard('With Issues', stats.withIssues, 'text-red-600', '/admin?tab=houses')}
+
+            {sectionTitle('People', '👥')}
+            {statCard('Total Users', stats.totalUsers, 'text-gray-900', '/admin?tab=users')}
+            {statCard('Listers', stats.totalListers, 'text-blue-600', '/admin?tab=users')}
+            {statCard('Hunters', stats.totalHunters, 'text-green-600', '/admin?tab=users')}
+            {statCard('House Requests', stats.houseRequests, 'text-amber-600', '/admin?tab=requests')}
+
+            {sectionTitle('Bookings & Revenue', '💰')}
             {statCard('Completed Visits', stats.completed, 'text-green-600')}
             {statCard('Refunded', stats.refunded, 'text-red-600')}
-            {statCard('With Issues', stats.withIssues, 'text-amber-600', 'issues')}
             {statCard('Revenue', formatPrice(stats.totalRevenue), 'text-green-600')}
             {statCard('Refunded Amount', formatPrice(stats.totalRefunded), 'text-red-600')}
-            {statCard('Listers', stats.totalListers, 'text-blue-600')}
-            {statCard('Hunters', stats.totalHunters, 'text-blue-600')}
+
+            {sectionTitle('Services', '📡')}
+            {statCard('Movers', stats.totalMovers, 'text-blue-600', '/admin/services')}
+            {statCard('WiFi Packages', stats.wifiPackages, 'text-green-600', '/admin/services')}
+            {statCard('WiFi Bookings', stats.wifiBookings, 'text-amber-600', '/admin/services')}
+
+            {sectionTitle('Inquiries', '📬')}
+            {statCard('Contact Messages', stats.contactSubmissions, 'text-blue-600')}
+            {statCard('Pending Requests', stats.houseRequests, 'text-amber-600', '/admin?tab=requests')}
+            {statCard('Reports', stats.reports, 'text-red-600')}
+
+            {sectionTitle('Treasury', '🏦')}
+            {statCard('Escrow Held', stats.escrowHeld, 'text-blue-600', '/admin/treasury')}
+            {statCard('Held Amount', formatPrice(stats.escrowHeldAmount), 'text-amber-600', '/admin/treasury')}
+
+            {/* Quick Actions */}
+            <div className="col-span-full mt-8">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                <span className="text-xl">⚡</span> Quick Actions
+              </h3>
+              <div className="flex flex-wrap gap-3">
+                <Link href="/admin/upload"><Button className="bg-blue-600 hover:bg-blue-700 text-white">+ List a House</Button></Link>
+                <Link href="/admin/services"><Button variant="outline">Manage Services</Button></Link>
+                <Link href="/admin/treasury"><Button variant="outline">Treasury</Button></Link>
+                <Link href="/admin?tab=requests"><Button variant="outline">House Requests</Button></Link>
+                <a href="/api/payments/reports?format=pdf" target="_blank"><Button variant="outline">Download Report</Button></a>
+              </div>
+            </div>
           </div>
         )
       )}

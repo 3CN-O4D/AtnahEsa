@@ -43,6 +43,14 @@ function AdminDashboardInner() {
     setTimeout(() => setToast(null), 3000)
   }, [])
 
+  const notifyUser = useCallback(async (to: string, action: string, data: Record<string, string>) => {
+    try { await fetch('/api/admin/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ to, action, data }) }) } catch {}
+  }, [])
+
+  const notifyUserById = useCallback(async (userId: string, action: string, data: Record<string, string>) => {
+    try { await fetch('/api/admin/notify', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ user_id: userId, action, data }) }) } catch {}
+  }, [])
+
   useEffect(() => { loadAll(); loadListings() }, [])
 
   useEffect(() => {
@@ -121,6 +129,8 @@ function AdminDashboardInner() {
     const { error } = await supabase.from('house_requests').update({ status }).eq('id', id)
     if (error) { showToast('error', error.message); return }
     showToast('success', `Request marked as ${status}`)
+    const reqData = requests.find((r) => r.id === id)
+    if (reqData?.email) notifyUser(reqData.email, 'request_contacted', { name: reqData.name, location: reqData.location || 'N/A', status })
     loadRequests()
   }
 
@@ -135,7 +145,7 @@ function AdminDashboardInner() {
     const supabase = createClient()
 
     // Fetch listing images to delete from Cloudinary
-    const { data: listing } = await supabase.from('listings').select('images').eq('id', id).single()
+    const { data: listing } = await supabase.from('listings').select('images, uploader_id, title').eq('id', id).single()
     if (listing?.images?.length) {
       await Promise.allSettled(
         listing.images.map((url: string) =>
@@ -152,6 +162,7 @@ function AdminDashboardInner() {
     if (check) { showToast('error', 'Delete blocked — RLS issue. Run fix-rls-recursion.sql in Supabase.'); return }
 
     showToast('success', 'Listing deleted')
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_deleted', { title: listing.title || 'Unknown', reason: 'Removed by admin' })
     loadAll()
   }
 
@@ -161,6 +172,8 @@ function AdminDashboardInner() {
     if (error) { showToast('error', error.message); return }
     if (!await verifyUpdate('listings', id, 'status', 'booked')) return
     showToast('success', 'Marked as booked')
+    const listing = allListings.find((l) => l.id === id)
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_booked', { title: listing.title, location: listing.location, date: new Date().toLocaleDateString(), phone: listing.lister_phone || 'N/A' })
     loadAll()
   }
 
@@ -170,6 +183,8 @@ function AdminDashboardInner() {
     if (error) { showToast('error', error.message); return }
     if (!await verifyUpdate('listings', id, 'status', 'taken')) return
     showToast('success', 'Marked as taken')
+    const listing = allListings.find((l) => l.id === id)
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_taken', { title: listing.title, location: listing.location })
     loadAll()
   }
 
@@ -189,6 +204,8 @@ function AdminDashboardInner() {
     if (error) { showToast('error', error.message); return }
     if (!await verifyUpdate('listings', id, 'status', 'published')) return
     showToast('success', 'Put back to published')
+    const listing = allListings.find((l) => l.id === id)
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_approved', { title: listing.title, location: listing.location, url: `${window.location.origin}/listings/${id}` })
     loadAll()
   }
 
@@ -198,6 +215,8 @@ function AdminDashboardInner() {
     if (error) { showToast('error', error.message); return }
     if (!await verifyUpdate('listings', id, 'status', 'published')) return
     showToast('success', 'Listing approved')
+    const listing = allListings.find((l) => l.id === id)
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_approved', { title: listing.title, location: listing.location, url: `${window.location.origin}/listings/${id}` })
     loadAll()
   }
 
@@ -210,6 +229,10 @@ function AdminDashboardInner() {
     if (e2) { showToast('error', e2.message); return }
     if (!await verifyUpdate('listings', listingId, 'status', 'taken')) return
     showToast('success', 'Visit marked as completed')
+    const listing = allListings.find((l) => l.id === listingId)
+    const booking = bookedList.find((l) => l.id === listingId)?.booking
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'booking_completed', { title: listing.title || 'Property', status: 'Completed' })
+    if (booking?.user_id) notifyUserById(booking.user_id, 'booking_completed', { title: listing?.title || 'Property', status: 'Completed' })
     loadAll()
   }
 
@@ -221,23 +244,31 @@ function AdminDashboardInner() {
     const { error: e2 } = await supabase.from('listings').update({ status: 'published' }).eq('id', listingId)
     if (e2) { showToast('error', e2.message); return }
     showToast('success', 'Refund processed')
+    const listing = allListings.find((l) => l.id === listingId)
+    const bookingEntry = bookedList.find((l) => l.id === listingId)?.booking
+    if (bookingEntry?.user_id) notifyUserById(bookingEntry.user_id, 'refund_processed', { title: listing?.title || 'Property', amount: `KES ${refundAmount.toLocaleString()}` })
     loadAll()
   }
 
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Delete this user? Cannot be undone.')) return
     const supabase = createClient()
+    const userProfile = users.find((u) => u.id === userId)
     const { error } = await supabase.from('profiles').delete().eq('id', userId)
     if (error) { showToast('error', error.message); return }
     showToast('success', 'User deleted')
+    if (userId) notifyUserById(userId, 'account_deleted', { name: userProfile?.full_name || userProfile?.username || 'User' })
     loadUsers()
   }
 
   const handleUpdateUserRole = async (userId: string, role: string) => {
     const supabase = createClient()
+    const userProfile = users.find((u) => u.id === userId)
+    const oldRole = userProfile?.role || 'unknown'
     const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
     if (error) { showToast('error', error.message); return }
     showToast('success', 'User role updated')
+    if (userId) notifyUserById(userId, 'role_changed', { old_role: oldRole, new_role: role })
     loadUsers()
   }
 

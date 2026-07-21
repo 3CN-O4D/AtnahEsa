@@ -330,13 +330,13 @@ function AdminDashboardInner() {
       onClick={() => { if (link) router.push(link) }}
       className={`bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4 text-left hover:shadow-md transition-shadow ${link ? 'cursor-pointer' : ''}`}
     >
-      <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
+      <p className="text-sm text-gray-500">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{typeof value === 'number' ? value : value}</p>
     </button>
   )
 
   const sectionTitle = (title: string, emoji: string) => (
-    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2 col-span-full mt-6 first:mt-0">
+    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2 col-span-full mt-6 first:mt-0">
       <span className="text-xl">{emoji}</span> {title}
     </h3>
   )
@@ -360,7 +360,7 @@ function AdminDashboardInner() {
   })
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8 dark:text-gray-200">
+    <div className="max-w-7xl mx-auto px-4 py-8">
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${
           toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
@@ -389,8 +389,8 @@ function AdminDashboardInner() {
             href={`/admin?tab=${t.key}`}
             className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
               tab === t.key
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
             }`}
           >
             {t.label}
@@ -441,7 +441,7 @@ function AdminDashboardInner() {
 
             {/* Quick Actions */}
             <div className="col-span-full mt-8">
-              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
                 <span className="text-xl">⚡</span> Quick Actions
               </h3>
               <div className="flex flex-wrap gap-3">
@@ -464,7 +464,7 @@ function AdminDashboardInner() {
                 key={f}
                 onClick={() => setListingsFilter(f)}
                 className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                  listingsFilter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
+                  listingsFilter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-300'
                 }`}
               >
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} {f === 'all' ? `(${allListings.length})` : `(${allListings.filter(l => f === 'issues' ? l.issues_count > 0 : l.status === f).length})`}
@@ -556,7 +556,7 @@ function AdminDashboardInner() {
             <div key={r.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div>
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">{r.name}</h3>
+                  <h3 className="font-semibold text-gray-900">{r.name}</h3>
                   <p className="text-sm text-gray-500">{r.email} &middot; {r.phone}</p>
                 </div>
                 <select
@@ -600,7 +600,7 @@ function AdminDashboardInner() {
                 <div className="flex items-start gap-4">
                   <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-24 h-20 rounded-lg object-cover shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{listing.title}</h3>
+                    <h3 className="font-semibold text-gray-900">{listing.title}</h3>
                     <p className="text-sm text-gray-500">{listing.location}</p>
                     <div className="flex gap-2 mt-2">
                       <a href={listing.video_url || '#'} target="_blank" rel="noopener noreferrer"

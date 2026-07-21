@@ -59,15 +59,17 @@ const VACANCY_OPTIONS = [
   { id: 'any', label: 'Any time' },
 ]
 
-function CheckboxGroup({ label, options, selected, onChange }: {
+function CheckboxGroup({ label, options, selected, onChange, hint }: {
   label: string
   options: { id: string; label: string }[]
   selected: string[]
   onChange: (ids: string[]) => void
+  hint?: string
 }) {
   return (
     <div className="space-y-2">
       <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</p>
+      {hint && <p className="text-xs text-gray-400">{hint}</p>}
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => {
           const active = selected.includes(opt.id)
@@ -187,14 +189,14 @@ export default function RequestHousePage() {
             <Input label="Max Rent (KES)" id="max-rent" type="number" min="0" step="500" placeholder="e.g. 15000" value={form.max_rent} onChange={(e) => update('max_rent', e.target.value)} />
           </div>
 
-          <CheckboxGroup label="Token Type" options={TOKEN_OPTIONS} selected={tokenOptions} onChange={setTokenOptions} />
-          <CheckboxGroup label="Water" options={WATER_OPTIONS} selected={waterOptions} onChange={setWaterOptions} />
-          <CheckboxGroup label="House Design" options={HOUSE_DESIGNS} selected={houseDesigns} onChange={setHouseDesigns} />
-          <CheckboxGroup label="Deposit" options={DEPOSIT_PREF_OPTIONS} selected={depositPreference} onChange={setDepositPreference} />
-          <CheckboxGroup label="Deposit Type" options={DEPOSIT_REFUND_OPTIONS} selected={depositRefundable} onChange={setDepositRefundable} />
-          <CheckboxGroup label="Building Type" options={BUILDING_TYPE_OPTIONS} selected={buildingType} onChange={setBuildingType} />
-          <CheckboxGroup label="Electric Bill" options={ELECTRIC_BILL_OPTIONS} selected={electricBill} onChange={setElectricBill} />
-          <CheckboxGroup label="Vacancy" options={VACANCY_OPTIONS} selected={vacancy} onChange={setVacancy} />
+          <CheckboxGroup label="Token Type" options={TOKEN_OPTIONS} selected={tokenOptions} onChange={setTokenOptions} hint="Select all that apply" />
+          <CheckboxGroup label="Water" options={WATER_OPTIONS} selected={waterOptions} onChange={setWaterOptions} hint="Select all that apply" />
+          <CheckboxGroup label="House Design" options={HOUSE_DESIGNS} selected={houseDesigns} onChange={setHouseDesigns} hint="Select all that apply — you can pick multiple" />
+          <CheckboxGroup label="Deposit" options={DEPOSIT_PREF_OPTIONS} selected={depositPreference} onChange={setDepositPreference} hint="Select all that apply" />
+          <CheckboxGroup label="Deposit Type" options={DEPOSIT_REFUND_OPTIONS} selected={depositRefundable} onChange={setDepositRefundable} hint="Select all that apply" />
+          <CheckboxGroup label="Building Type" options={BUILDING_TYPE_OPTIONS} selected={buildingType} onChange={setBuildingType} hint="Select all that apply" />
+          <CheckboxGroup label="Electric Bill" options={ELECTRIC_BILL_OPTIONS} selected={electricBill} onChange={setElectricBill} hint="Select all that apply" />
+          <CheckboxGroup label="Vacancy" options={VACANCY_OPTIONS} selected={vacancy} onChange={setVacancy} hint="Select all that apply" />
 
           <div className="space-y-1">
             <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Additional Details</label>

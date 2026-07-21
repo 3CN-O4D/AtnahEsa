@@ -15,11 +15,12 @@ import ReportModal from '@/components/reports/ReportModal'
 import ListingCard from '@/components/listings/ListingCard'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
-function videoMimeType(url: string): string {
-  const ext = url.split('?')[0].split('.').pop()?.toLowerCase()
-  const m: Record<string, string> = { mp4: 'video/mp4', webm: 'video/webm', mov: 'video/quicktime', avi: 'video/x-msvideo', mkv: 'video/x-matroska', m4v: 'video/mp4', ogv: 'video/ogg' }
-  m['3gp'] = 'video/3gpp'
-  return m[ext || ''] || 'video/mp4'
+function videoSrc(url: string): string {
+  if (url.startsWith('https://') && url.includes('/storage/v1/s3/')) {
+    const parts = url.split('/storage/v1/s3/')
+    if (parts[1]) return `/api/video?key=${encodeURIComponent(parts[1].replace(/^[^/]+\//, ''))}`
+  }
+  return url
 }
 
 function Stars({ rating, interactive, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {
@@ -292,8 +293,8 @@ export default function ListingDetailPage() {
               <div className="aspect-video rounded-xl overflow-hidden bg-black">
                 {listing.video_url ? (
                   <video controls className="w-full h-full" playsInline>
-                    <source src={listing.video_url} type={videoMimeType(listing.video_url)} />
-                    <a href={listing.video_url} download className="absolute inset-0 flex items-center justify-center text-white text-sm underline">Download video</a>
+                    <source src={videoSrc(listing.video_url)} />
+                    <a href={videoSrc(listing.video_url)} download className="absolute inset-0 flex items-center justify-center text-white text-sm underline">Download video</a>
                   </video>
                 ) : (
                   <iframe src={`https://www.youtube.com/embed/${youtubeId}`} title="House Video Tour"

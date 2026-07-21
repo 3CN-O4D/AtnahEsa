@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       '3br': '3 Bedroom', bungalow: 'Bungalow', apartment: 'Apartment', townhouse: 'Townhouse', other: 'Other',
     }
 
-    notifyAdmins(
+    await notifyAdmins(
       'New House Request',
       '🏠 New House Request',
       {

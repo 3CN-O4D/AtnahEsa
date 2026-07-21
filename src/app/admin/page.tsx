@@ -123,7 +123,7 @@ function AdminDashboardInner() {
 
     const { data: listingsData } = await supabase
       .from('listings')
-      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone')
+      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url')
       .order('created_at', { ascending: false })
 
     const listings = (listingsData ?? []) as Listing[]
@@ -295,6 +295,14 @@ function AdminDashboardInner() {
     clearCache('admin:'); loadAll()
   }
 
+  const handleUpdateYoutubeUrl = async (listingId: string, youtubeUrl: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from('listings').update({ youtube_url: youtubeUrl }).eq('id', listingId)
+    if (error) { showToast('error', error.message); return }
+    showToast('success', 'YouTube URL saved')
+    clearCache('admin:'); loadAll()
+  }
+
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Delete this user? Cannot be undone.')) return
     const supabase = createClient()
@@ -320,15 +328,15 @@ function AdminDashboardInner() {
   const statCard = (label: string, value: number | string, color: string, link?: string) => (
     <button
       onClick={() => { if (link) router.push(link) }}
-      className={`bg-white border rounded-xl p-4 text-left hover:shadow-md transition-shadow ${link ? 'cursor-pointer' : ''}`}
+      className={`bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4 text-left hover:shadow-md transition-shadow ${link ? 'cursor-pointer' : ''}`}
     >
-      <p className="text-sm text-gray-500">{label}</p>
+      <p className="text-sm text-gray-500 dark:text-gray-400">{label}</p>
       <p className={`text-2xl font-bold ${color}`}>{typeof value === 'number' ? value : value}</p>
     </button>
   )
 
   const sectionTitle = (title: string, emoji: string) => (
-    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2 col-span-full mt-6 first:mt-0">
+    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-3 flex items-center gap-2 col-span-full mt-6 first:mt-0">
       <span className="text-xl">{emoji}</span> {title}
     </h3>
   )
@@ -352,7 +360,7 @@ function AdminDashboardInner() {
   })
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="max-w-7xl mx-auto px-4 py-8 dark:text-gray-200">
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${
           toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
@@ -360,11 +368,34 @@ function AdminDashboardInner() {
           {toast.message}
         </div>
       )}
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Admin Dashboard</h1>
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-2xl font-bold dark:text-white">Admin Dashboard</h1>
         <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-600 hover:underline">
           Download Payment Report
         </a>
+      </div>
+
+      <div className="flex gap-1 flex-wrap mb-6 border-b border-gray-200 dark:border-gray-700 pb-1">
+        {[
+          { key: 'stats', label: 'Stats' },
+          { key: 'houses', label: 'Houses' },
+          { key: 'videos', label: 'Videos' },
+          { key: 'transactions', label: 'Transactions' },
+          { key: 'requests', label: 'Requests' },
+          { key: 'users', label: 'Users' },
+        ].map((t) => (
+          <Link
+            key={t.key}
+            href={`/admin?tab=${t.key}`}
+            className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+              tab === t.key
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+            }`}
+          >
+            {t.label}
+          </Link>
+        ))}
       </div>
 
       {tab === 'stats' && (
@@ -410,7 +441,7 @@ function AdminDashboardInner() {
 
             {/* Quick Actions */}
             <div className="col-span-full mt-8">
-              <h3 className="text-lg font-semibold text-gray-800 mb-4 flex items-center gap-2">
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 mb-4 flex items-center gap-2">
                 <span className="text-xl">⚡</span> Quick Actions
               </h3>
               <div className="flex flex-wrap gap-3">
@@ -433,7 +464,7 @@ function AdminDashboardInner() {
                 key={f}
                 onClick={() => setListingsFilter(f)}
                 className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                  listingsFilter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300'
+                  listingsFilter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-300 dark:border-gray-600'
                 }`}
               >
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} {f === 'all' ? `(${allListings.length})` : `(${allListings.filter(l => f === 'issues' ? l.issues_count > 0 : l.status === f).length})`}
@@ -448,14 +479,14 @@ function AdminDashboardInner() {
               value={houseSearch}
               onChange={(e) => setHouseSearch(e.target.value)}
               placeholder="Search by title, location, price, rent..."
-              className="w-full pl-10 pr-4 h-10 rounded-lg border border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           {filteredListings.length === 0 && <p className="text-gray-500 text-center py-8">No listings.</p>}
 
           {filteredListings.map((listing) => (
-            <div key={listing.id} className="bg-white border rounded-xl p-4 flex items-start gap-4">
+            <div key={listing.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4 flex items-start gap-4">
               <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -494,13 +525,13 @@ function AdminDashboardInner() {
           {transactions.length === 0 && <p className="text-gray-500 text-center py-8">No transactions yet.</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50 border-b">
+              <thead><tr className="bg-gray-50 dark:bg-gray-800 border-b dark:border-gray-700">
                 <th className="text-left p-3 font-medium">Receipt</th><th className="text-left p-3 font-medium">Phone</th>
                 <th className="text-left p-3 font-medium">Amount</th><th className="text-left p-3 font-medium">Status</th>
                 <th className="text-left p-3 font-medium">Date</th>
               </tr></thead>
               <tbody>{transactions.map((tx) => (
-                <tr key={tx.id} className="border-b hover:bg-gray-50">
+                <tr key={tx.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="p-3">{tx.mpesa_receipt || '-'}</td>
                   <td className="p-3">{tx.phone}</td>
                   <td className="p-3 font-medium">{formatPrice(tx.amount)}</td>
@@ -522,10 +553,10 @@ function AdminDashboardInner() {
         <div className="space-y-4">
           {requests.length === 0 && <p className="text-gray-500 text-center py-8">No house requests yet.</p>}
           {requests.map((r) => (
-            <div key={r.id} className="bg-white border rounded-xl p-4">
+            <div key={r.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4">
               <div className="flex items-start justify-between gap-4 mb-3">
                 <div>
-                  <h3 className="font-semibold">{r.name}</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">{r.name}</h3>
                   <p className="text-sm text-gray-500">{r.email} &middot; {r.phone}</p>
                 </div>
                 <select
@@ -558,13 +589,53 @@ function AdminDashboardInner() {
         </div>
       )}
 
+      {tab === 'videos' && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-semibold">Video Review</h2>
+          {(() => {
+            const videoListings = allListings.filter((l) => l.video_url && !l.youtube_url)
+            if (videoListings.length === 0) return <p className="text-gray-500 text-center py-8">No videos awaiting review.</p>
+            return videoListings.map((listing) => (
+              <div key={listing.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4">
+                <div className="flex items-start gap-4">
+                  <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-24 h-20 rounded-lg object-cover shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-gray-900 dark:text-gray-100">{listing.title}</h3>
+                    <p className="text-sm text-gray-500">{listing.location}</p>
+                    <div className="flex gap-2 mt-2">
+                      <a href={listing.video_url || '#'} target="_blank" rel="noopener noreferrer"
+                        className="text-xs text-blue-600 hover:underline">Preview Video &rarr;</a>
+                      <a href={`/api/video?key=${encodeURIComponent((listing.video_url || '').split('/object/public/')[1]?.split('/').slice(1).join('/').split('?')[0] || listing.video_url || '')}`} download
+                        className="text-xs text-gray-500 hover:underline">Download</a>
+                    </div>
+                  </div>
+                  <div className="shrink-0 space-y-2">
+                    <input
+                      type="text"
+                      placeholder="Paste YouTube URL..."
+                      defaultValue={listing.youtube_url || ''}
+                      id={`yt-${listing.id}`}
+                      className="block w-72 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                    <Button size="sm" onClick={() => {
+                      const input = document.getElementById(`yt-${listing.id}`) as HTMLInputElement
+                      if (input?.value) handleUpdateYoutubeUrl(listing.id, input.value)
+                    }}>Save YouTube URL</Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          })()}
+        </div>
+      )}
+
       {tab === 'users' && (
         <div className="space-y-4">
           <Input label="" id="user-search" placeholder="Search by name, email, or phone..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="max-w-sm" />
           {users.length === 0 && <p className="text-gray-500 text-center py-8">No users.</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50 border-b">
+              <thead><tr className="bg-gray-50 dark:bg-gray-800 border-b dark:border-gray-700">
                 <th className="text-left p-3 font-medium">Name</th><th className="text-left p-3 font-medium">Username</th>
                 <th className="text-left p-3 font-medium">Phone</th><th className="text-left p-3 font-medium">Role</th>
                 <th className="text-left p-3 font-medium">Joined</th><th className="text-left p-3 font-medium">Actions</th>
@@ -572,7 +643,7 @@ function AdminDashboardInner() {
               <tbody>{users
                 .filter((u) => !userSearch || (u.full_name?.toLowerCase() || '').includes(userSearch.toLowerCase()) || (u.username?.toLowerCase() || '').includes(userSearch.toLowerCase()) || (u.phone || '').includes(userSearch))
                 .map((u) => (
-                <tr key={u.id} className="border-b hover:bg-gray-50">
+                <tr key={u.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800/50">
                   <td className="p-3 font-medium">{u.full_name}</td>
                   <td className="p-3 text-gray-600">{u.username}</td>
                   <td className="p-3">{u.phone || '-'}</td>

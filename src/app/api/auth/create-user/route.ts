@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    notifyAdmins(
+    await notifyAdmins(
       'New User Registration',
       'New User Signed Up',
       { Name: full_name, Username: username, Email: email, Phone: phone || 'N/A', Role: role || 'hunter' }

@@ -12,6 +12,7 @@ const transporter = nodemailer.createTransport({
   },
 })
 
+const ADMIN_EMAILS = ['asehanta@gmail.com', 'derrickom005@gmail.com']
 const BRAND = { name: 'AseHanta', blue: '#2563EB', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
 
 function baseHtml(body: string) {

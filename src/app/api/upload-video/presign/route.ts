@@ -38,14 +38,17 @@ export async function GET(req: Request) {
     const key = `listings/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const contentType = mimeFromName(name)
 
+    const projectRef = process.env.S3_ENDPOINT!.match(/https?:\/\/([^.]+)/)?.[1] || ''
+    const publicUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/${BUCKET}/${key}`
+
     const command = new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,
       ContentType: contentType,
+      ContentDisposition: 'inline',
     })
 
     const signedUrl = await getSignedUrl(s3, command, { expiresIn: 300 })
-    const publicUrl = `${process.env.S3_ENDPOINT}/${BUCKET}/${key}`
 
     return NextResponse.json({ url: signedUrl, publicUrl, key, contentType })
   } catch (err) {

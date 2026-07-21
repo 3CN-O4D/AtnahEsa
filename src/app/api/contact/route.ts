@@ -25,7 +25,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    notifyAdmins(
+    await notifyAdmins(
       'New Contact Submission',
       'Contact Form Submission',
       { Name: name, Phone: phone, Email: email, 'ID Number': id_number, Location: location, Message: message || 'N/A' }

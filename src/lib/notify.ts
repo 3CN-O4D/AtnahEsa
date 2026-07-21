@@ -112,6 +112,20 @@ function statusBadge(status: string) {
   return badge(status, '#E2E8F0', BRAND.gray)
 }
 
+export async function notifyUser(to: string, subject: string, title: string, fields: Record<string, string>) {
+  const body = render(subject, title, fields)
+  try {
+    await transporter.sendMail({
+      from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
+      to,
+      subject: `[AseHanta] ${subject}`,
+      html: body,
+    })
+  } catch (err) {
+    console.error(`Failed to notify ${to}:`, err)
+  }
+}
+
 function render(subject: string, title: string, fields: Record<string, string>) {
   const tmpl = detectTemplate(subject)
   const lines = Object.entries(fields) as [string, string][]

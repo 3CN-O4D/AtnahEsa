@@ -20,7 +20,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    notifyAdmins(
+    await notifyAdmins(
       'WIFI NEEDED',
       'WiFi Booking Request',
       { Name: name, Phone: phone, Area: area, Package: package_name || 'N/A', Speed: package_speed || 'N/A', Price: package_price ? `KES ${package_price}` : 'N/A', 'ID Number': id_number || 'Not provided' }

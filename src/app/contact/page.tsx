@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Mail, Phone, MapPin, Send, MessageCircle } from 'lucide-react'
+import { Mail, Phone, MapPin, Send, MessageCircle, Home } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, CONTACT_LOCATION, WHATSAPP_NUMBER } from '@/lib/constants'
@@ -134,13 +134,18 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 rounded-xl p-4 text-sm text-blue-800 dark:text-blue-200">
-            <p className="font-medium mb-1">Need a house urgently?</p>
-            <p>
-              Browse our listings and book a viewing directly. We can also help match
-              you with the perfect home.
-            </p>
-          </div>
+          <a
+            href="/listings"
+            className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-4 transition-colors"
+          >
+            <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0">
+              <Home className="w-5 h-5" />
+            </div>
+            <div className="text-sm">
+              <p className="font-medium">Request a House</p>
+              <p className="text-blue-100 text-xs">Browse listings and find your perfect home</p>
+            </div>
+          </a>
         </div>
       </div>
     </div>

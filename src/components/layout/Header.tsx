@@ -62,17 +62,15 @@ export default function Header() {
 
   return (
     <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        {/* Left: Logo + Name */}
-        <div className="flex items-center min-w-0 shrink-0">
-          <Link href="/" className="flex items-center gap-2.5">
-            <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
-            <span className="text-xl font-bold text-blue-600 hidden sm:inline">{APP_NAME}</span>
-          </Link>
-        </div>
+      <div className="flex items-center h-16">
+        {/* Left: Logo + Name — flush to left edge */}
+        <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">
+          <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
+          <span className="text-xl font-bold text-blue-600 hidden sm:inline">{APP_NAME}</span>
+        </Link>
 
         {/* Center: Desktop nav */}
-        <nav className="hidden md:flex items-center gap-5 mx-auto">
+        <nav className="hidden md:flex items-center justify-center flex-1 gap-5 px-4">
           {navLinks.map(({ href, label }) => (
             <Link key={href} href={href} className="text-sm text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap">
               {label}
@@ -91,8 +89,8 @@ export default function Header() {
           )}
         </nav>
 
-        {/* Right: Profile */}
-        <div className="hidden md:flex items-center shrink-0">
+        {/* Right: Profile — flush to right edge */}
+        <div className="hidden md:flex items-center pr-4 shrink-0">
           {user ? (
             <div className="relative">
               <button
@@ -141,8 +139,8 @@ export default function Header() {
           )}
         </div>
 
-        {/* Mobile: dark mode + hamburger */}
-        <div className="md:hidden flex items-center gap-1">
+        {/* Mobile: dark mode + hamburger — flush to right */}
+        <div className="md:hidden flex items-center gap-1 pr-4 ml-auto">
           <button onClick={toggle} className="p-2 rounded-lg text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={dark ? 'Light mode' : 'Dark mode'}>
             {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
           </button>

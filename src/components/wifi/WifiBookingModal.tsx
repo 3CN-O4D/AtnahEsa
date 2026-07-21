@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { X, MessageCircle, Phone, Check } from 'lucide-react'
+import { X, MessageCircle, Phone, Check, PhoneOff } from 'lucide-react'
 import { WHATSAPP_NUMBER, CONTACT_PHONE } from '@/lib/constants'
 import { formatPrice } from '@/lib/utils'
 import type { WifiPackage } from '@/types'
@@ -12,13 +12,15 @@ interface WifiBookingModalProps {
 }
 
 export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps) {
-  const [step, setStep] = useState<'form' | 'choice'>('form')
+  const [step, setStep] = useState<'form' | 'submitted'>('form')
   const [name, setName] = useState('')
   const [phone, setPhone] = useState('')
   const [area, setArea] = useState('')
   const [idNumber, setIdNumber] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [contactPhone, setContactPhone] = useState('')
+  const [phoneChanged, setPhoneChanged] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,13 +41,12 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); setLoading(false); return }
-      setStep('choice')
+      setContactPhone(phone)
+      setStep('submitted')
     } catch {
       setError('Something went wrong')
     } finally { setLoading(false) }
   }
-
-  const waMsg = `Hi AseHanta! I'm interested in the ${pkg.name} (${pkg.speed}) at ${formatPrice(pkg.price)}/month.%0A%0AName: ${name}%0APhone: ${phone}%0AArea: ${area}${idNumber ? `%0AID No: ${idNumber}` : ''}`
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
@@ -57,7 +58,7 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
         {step === 'form' ? (
           <>
             <h2 className="text-lg font-bold mb-1">{pkg.name}</h2>
-            <p className="text-sm text-gray-500 mb-4">{pkg.speed} — {formatPrice(pkg.price)}/month</p>
+            <p className="text-sm text-gray-500 mb-4">{pkg.speed} &mdash; {formatPrice(pkg.price)}/month</p>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>
@@ -91,32 +92,46 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
                 <Check className="w-6 h-6 text-green-600" />
               </div>
               <h2 className="text-lg font-bold mb-1">Request Submitted!</h2>
-              <p className="text-sm text-gray-500 mb-6">How would you like to proceed?</p>
+              <p className="text-sm text-gray-500 mb-4">
+                We&apos;ll contact you via <strong>call</strong> or <strong>WhatsApp</strong> to confirm your booking.
+              </p>
             </div>
 
-            <div className="space-y-3">
-              <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${waMsg}`} target="_blank" rel="noopener noreferrer"
-                className="flex items-center gap-3 w-full bg-green-50 border border-green-200 rounded-xl p-4 hover:bg-green-100 transition-colors">
-                <div className="w-10 h-10 bg-green-500 rounded-full flex items-center justify-center">
-                  <MessageCircle className="w-5 h-5 text-white" />
-                </div>
-                <div className="text-left">
-                  <p className="font-semibold text-green-800">Book via WhatsApp</p>
-                  <p className="text-xs text-green-600">Chat with us now</p>
-                </div>
-              </a>
+            <div className="bg-gray-50 rounded-xl p-4 space-y-3">
+              <p className="text-sm font-medium text-gray-700">Contact number</p>
+              <div className="flex items-center gap-3">
+                <Phone className="w-5 h-5 text-blue-500 shrink-0" />
+                <input
+                  type="tel"
+                  value={contactPhone}
+                  onChange={(e) => { setContactPhone(e.target.value); setPhoneChanged(true) }}
+                  className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              {phoneChanged && contactPhone !== phone && (
+                <p className="text-xs text-amber-600">We&apos;ll use this number to reach you instead.</p>
+              )}
+              {!phoneChanged && (
+                <p className="text-xs text-gray-500">We&apos;ll call or WhatsApp you on this number.</p>
+              )}
+            </div>
 
+            <div className="flex gap-2 mt-4">
+              <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+                `Hi AseHanta! I'm interested in the ${pkg.name} (${pkg.speed}) at ${formatPrice(pkg.price)}/month.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}${idNumber ? `\nID No: ${idNumber}` : ''}`
+              )}`} target="_blank" rel="noopener noreferrer"
+                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-700 transition-colors">
+                <MessageCircle className="w-4 h-4" /> WhatsApp Now
+              </a>
               <a href={`tel:${CONTACT_PHONE}`}
-                className="flex items-center gap-3 w-full bg-blue-50 border border-blue-200 rounded-xl p-4 hover:bg-blue-100 transition-colors">
-                <div className="w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center">
-                  <Phone className="w-5 h-5 text-white" />
-                </div>
-                <div className="text-left">
-                  <p className="font-semibold text-blue-800">Book via Call</p>
-                  <p className="text-xs text-blue-600">{CONTACT_PHONE}</p>
-                </div>
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-blue-700 transition-colors">
+                <Phone className="w-4 h-4" /> Call Now
               </a>
             </div>
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              Or wait &mdash; we&apos;ll reach out to you shortly.
+            </p>
           </>
         )}
       </div>

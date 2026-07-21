@@ -9,6 +9,7 @@ import { formatPrice } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import type { Listing, Booking, Transaction, Profile, HouseRequest } from '@/types'
+import { getCached, setCache, clearCache } from '@/lib/data-cache'
 
 export default function AdminDashboard() {
   return (
@@ -63,6 +64,9 @@ function AdminDashboardInner() {
   }, [tab])
 
   async function loadAll() {
+    const cached = getCached<typeof stats>('admin:stats')
+    if (cached) { setStats(cached); setLoaded(true); return }
+
     const supabase = createClient()
 
     const c = async (table: string, field?: string, value?: string | number) => {
@@ -81,7 +85,7 @@ function AdminDashboardInner() {
       c('listings', 'status', 'booked'),
       c('listings', 'status', 'taken'),
       c('listings', 'status', 'pending'),
-      (await supabase.from('listings').select('*', { count: 'exact', head: true }).gt('issues_count', 0)).count ?? 0,
+      supabase.from('listings').select('id', { count: 'exact', head: true }).gt('issues_count', 0).then((r) => r.count ?? 0),
       c('bookings', 'visit_status', 'completed'),
       c('bookings', 'visit_status', 'refunded'),
       c('profiles', 'role', 'lister'),
@@ -95,53 +99,74 @@ function AdminDashboardInner() {
       c('reports'),
     ])
 
-    const { data: bookings } = await supabase.from('bookings').select('amount, refund_amount, status')
+    const [{ data: bookings }, { data: escrows }] = await Promise.all([
+      supabase.from('bookings').select('amount, refund_amount, status'),
+      supabase.from('escrow_holds').select('amount, status'),
+    ])
+
     const totalRevenue = (bookings || []).filter((b) => b.status === 'confirmed').reduce((s, b) => s + (b.amount || 0), 0)
     const totalRefunded = (bookings || []).filter((b) => b.status === 'refunded').reduce((s, b) => s + (b.refund_amount || 0), 0)
-
-    const { data: escrows } = await supabase.from('escrow_holds').select('amount, status')
     const escrowHeld = (escrows || []).filter((e) => e.status === 'held').length
     const escrowHeldAmount = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
 
-    setStats({ total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters, totalUsers, totalMovers: movers, wifiPackages: wifiPkgs, wifiBookings: wifiBkgs, contactSubmissions: contacts, houseRequests: houseReqs, reports, escrowHeld, escrowHeldAmount })
+    const result = { total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters, totalUsers, totalMovers: movers, wifiPackages: wifiPkgs, wifiBookings: wifiBkgs, contactSubmissions: contacts, houseRequests: houseReqs, reports, escrowHeld, escrowHeldAmount }
+    setCache('admin:stats', result)
+    setStats(result)
     setLoaded(true)
   }
 
   async function loadListings() {
+    const cached = getCached<{ all: Listing[]; booked: (Listing & { booking?: Booking })[] }>('admin:listings')
+    if (cached) { setAllListings(cached.all); setBookedList(cached.booked); return }
+
     const supabase = createClient()
 
     const { data: listingsData } = await supabase
       .from('listings')
-      .select('*')
+      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone')
       .order('created_at', { ascending: false })
 
-    setAllListings((listingsData ?? []) as Listing[])
+    const listings = (listingsData ?? []) as Listing[]
+    setAllListings(listings)
 
-    const { data: bookingsData } = await supabase
-      .from('bookings')
-      .select('*')
-      .in('listing_id', (listingsData ?? []).map((l) => l.id))
+    if (listings.length > 0) {
+      const { data: bookingsData } = await supabase
+        .from('bookings')
+        .select('id, listing_id, user_id, amount, phone, status, visit_status, release_status, refund_amount, created_at')
+        .in('listing_id', listings.map((l) => l.id))
 
-    const bookedWithDetails = (listingsData ?? [])
-      .filter((l) => l.status === 'booked')
-      .map((l) => ({
-        ...l,
-        booking: (bookingsData ?? []).find((b) => b.listing_id === l.id),
-      })) as (Listing & { booking?: Booking })[]
+      const booked = listings
+        .filter((l) => l.status === 'booked')
+        .map((l) => ({
+          ...l,
+          booking: (bookingsData ?? []).find((b) => b.listing_id === l.id),
+        })) as (Listing & { booking?: Booking })[]
 
-    setBookedList(bookedWithDetails)
+      setCache('admin:listings', { all: listings, booked })
+      setBookedList(booked)
+    } else {
+      setBookedList([])
+    }
   }
 
   const loadTransactions = async () => {
+    const cached = getCached<Transaction[]>('admin:transactions')
+    if (cached) { setTransactions(cached); return }
     const supabase = createClient()
-    const { data } = await supabase.from('transactions').select('*').order('created_at', { ascending: false }).limit(100)
-    setTransactions((data ?? []) as Transaction[])
+    const { data } = await supabase.from('transactions').select('id, booking_id, user_id, phone, amount, mpesa_receipt, mpesa_message, checkout_request_id, status, created_at').order('created_at', { ascending: false }).limit(100)
+    const result = (data ?? []) as Transaction[]
+    setCache('admin:transactions', result)
+    setTransactions(result)
   }
 
   const loadRequests = async () => {
+    const cached = getCached<HouseRequest[]>('admin:requests')
+    if (cached) { setRequests(cached); return }
     const supabase = createClient()
     const { data } = await supabase.from('house_requests').select('*').order('created_at', { ascending: false })
-    setRequests((data ?? []) as HouseRequest[])
+    const result = (data ?? []) as HouseRequest[]
+    setCache('admin:requests', result)
+    setRequests(result)
   }
 
   const handleUpdateRequestStatus = async (id: string, status: string) => {
@@ -151,7 +176,7 @@ function AdminDashboardInner() {
     showToast('success', `Request marked as ${status}`)
     const reqData = requests.find((r) => r.id === id)
     if (reqData?.email) notifyUser(reqData.email, 'request_contacted', { name: reqData.name, location: reqData.location || 'N/A', status })
-    loadRequests()
+    clearCache('admin:'); loadRequests()
   }
 
   const loadUsers = async () => {
@@ -183,7 +208,7 @@ function AdminDashboardInner() {
 
     showToast('success', 'Listing deleted')
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_deleted', { title: listing.title || 'Unknown', reason: 'Removed by admin' })
-    loadAll()
+    clearCache('admin:'); loadAll()
   }
 
   const handleMarkBooked = async (id: string) => {
@@ -194,7 +219,7 @@ function AdminDashboardInner() {
     showToast('success', 'Marked as booked')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_booked', { title: listing.title, location: listing.location, date: new Date().toLocaleDateString(), phone: listing.lister_phone || 'N/A' })
-    loadAll()
+    clearCache('admin:'); loadAll()
   }
 
   const handleMarkTaken = async (id: string) => {
@@ -205,7 +230,7 @@ function AdminDashboardInner() {
     showToast('success', 'Marked as taken')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_taken', { title: listing.title, location: listing.location })
-    loadAll()
+    clearCache('admin:'); loadAll()
   }
 
   const verifyUpdate = async (table: string, id: string, field: string, expected: string) => {
@@ -237,7 +262,7 @@ function AdminDashboardInner() {
     showToast('success', 'Listing approved')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_approved', { title: listing.title, location: listing.location, url: `${window.location.origin}/listings/${id}` })
-    loadAll()
+    clearCache('admin:'); loadAll()
   }
 
   const handleMarkCompleted = async (listingId: string, bookingId: string) => {
@@ -253,7 +278,7 @@ function AdminDashboardInner() {
     const booking = bookedList.find((l) => l.id === listingId)?.booking
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'booking_completed', { title: listing.title || 'Property', status: 'Completed' })
     if (booking?.user_id) notifyUserById(booking.user_id, 'booking_completed', { title: listing?.title || 'Property', status: 'Completed' })
-    loadAll()
+    clearCache('admin:'); loadAll()
   }
 
   const handleProcessRefund = async (listingId: string, bookingId: string, amount: number) => {
@@ -267,7 +292,7 @@ function AdminDashboardInner() {
     const listing = allListings.find((l) => l.id === listingId)
     const bookingEntry = bookedList.find((l) => l.id === listingId)?.booking
     if (bookingEntry?.user_id) notifyUserById(bookingEntry.user_id, 'refund_processed', { title: listing?.title || 'Property', amount: `KES ${refundAmount.toLocaleString()}` })
-    loadAll()
+    clearCache('admin:'); loadAll()
   }
 
   const handleDeleteUser = async (userId: string) => {
@@ -278,7 +303,7 @@ function AdminDashboardInner() {
     if (error) { showToast('error', error.message); return }
     showToast('success', 'User deleted')
     if (userId) notifyUserById(userId, 'account_deleted', { name: userProfile?.full_name || userProfile?.username || 'User' })
-    loadUsers()
+    clearCache('admin:'); loadUsers()
   }
 
   const handleUpdateUserRole = async (userId: string, role: string) => {
@@ -289,7 +314,7 @@ function AdminDashboardInner() {
     if (error) { showToast('error', error.message); return }
     showToast('success', 'User role updated')
     if (userId) notifyUserById(userId, 'role_changed', { old_role: oldRole, new_role: role })
-    loadUsers()
+    clearCache('admin:'); loadUsers()
   }
 
   const statCard = (label: string, value: number | string, color: string, link?: string) => (

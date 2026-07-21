@@ -3,13 +3,13 @@ import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, CONTACT_
 
 export default function Footer() {
   return (
-    <footer className="bg-gray-900 text-gray-400 py-12 mt-16">
+    <footer className="bg-slate-900 text-slate-400 py-12 mt-16">
       <div className="max-w-7xl mx-auto px-4">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
               <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
-              <h3 className="text-white font-bold text-lg">{APP_NAME}</h3>
+              <h3 className="text-blue-300 font-bold text-lg">{APP_NAME}</h3>
             </div>
             <p className="text-sm leading-relaxed">
               Your trusted house hunting platform based in {CONTACT_LOCATION}. Find, book, and move into your next home with ease.
@@ -17,7 +17,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-white font-semibold mb-3">Quick Links</h4>
+            <h4 className="text-blue-300 font-semibold mb-3">Quick Links</h4>
             <ul className="space-y-2 text-sm">
               <li><Link href="/" className="hover:text-white transition-colors">Home</Link></li>
               <li><Link href="/movers" className="hover:text-white transition-colors">Movers</Link></li>
@@ -27,7 +27,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-white font-semibold mb-3">Contact</h4>
+            <h4 className="text-blue-300 font-semibold mb-3">Contact</h4>
             <ul className="space-y-2 text-sm">
               <li><a href={`mailto:${CONTACT_EMAIL}`} className="hover:text-white transition-colors">{CONTACT_EMAIL}</a></li>
               <li><a href={`tel:${CONTACT_PHONE}`} className="hover:text-white transition-colors">{CONTACT_PHONE_DISPLAY}</a></li>
@@ -37,7 +37,7 @@ export default function Footer() {
           </div>
 
           <div>
-            <h4 className="text-white font-semibold mb-3">Follow Us</h4>
+            <h4 className="text-blue-300 font-semibold mb-3">Follow Us</h4>
             <div className="space-y-2 text-sm">
               <a href={SOCIAL_YOUTUBE} target="_blank" rel="noopener noreferrer" className="block hover:text-red-400 transition-colors">YouTube</a>
               <a href={SOCIAL_TWITTER} target="_blank" rel="noopener noreferrer" className="block hover:text-white transition-colors">X (Twitter)</a>
@@ -48,11 +48,11 @@ export default function Footer() {
         </div>
 
         {/* Collaborators */}
-        <div className="border-t border-gray-800 mt-8 pt-6">
+        <div className="border-t border-slate-800 mt-8 pt-6">
           <p className="text-center text-sm text-gray-500 mb-3">Our Collaborators</p>
           <div className="flex justify-center items-center gap-8">
             <a href="https://chshub.co.ke" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 text-gray-400 hover:text-white transition-colors group">
-              <div className="w-10 h-10 rounded-lg bg-gray-800 group-hover:bg-gray-700 flex items-center justify-center transition-colors">
+              <div className="w-10 h-10 rounded-lg bg-slate-800 group-hover:bg-slate-700 flex items-center justify-center transition-colors">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-5 h-5 text-green-400">
                   <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
                 </svg>

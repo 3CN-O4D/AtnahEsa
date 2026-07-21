@@ -4,6 +4,7 @@ const CONSUMER_SECRET = process.env.DARAJA_CONSUMER_SECRET || ''
 const PASSKEY = process.env.DARAJA_PASSKEY || ''
 const SHORTCODE = process.env.DARAJA_SHORTCODE || ''
 const TILL_NUMBER = process.env.DARAJA_TILL_NUMBER || ''
+const INITIATOR_NAME = process.env.DARAJA_INITIATOR_NAME || SHORTCODE
 const CALLBACK_URL = process.env.DARAJA_CALLBACK_URL || ''
 
 const BASE_URL = DARAJA_ENV === 'production'
@@ -156,7 +157,7 @@ export async function b2cPayment(phone: string, amount: number, remarks: string,
     },
     body: JSON.stringify({
       OriginatorConversationID: '',
-      InitiatorName: SHORTCODE,
+      InitiatorName: INITIATOR_NAME,
       SecurityCredential: process.env.DARAJA_SECURITY_CREDENTIAL || '',
       CommandID: 'BusinessPayment',
       Amount: amount,

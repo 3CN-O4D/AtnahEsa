@@ -15,8 +15,8 @@ export const metadata: Metadata = {
   },
   description: 'House hunting platform. Browse listings, book viewings, find movers and WiFi packages.',
   icons: {
-    icon: '/favicon.svg',
-    apple: '/images/asehanta-logo.jpeg',
+    icon: '/favicon.ico',
+    apple: '/apple-touch-icon.png',
   },
 }
 

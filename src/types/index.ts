@@ -182,6 +182,12 @@ export interface Profile {
   updated_at: string
 }
 
+export interface WifiPackageCategory {
+  package_id: string
+  category_id: string
+  best_seller: boolean
+}
+
 export interface WifiBooking {
   id: string
   package_id: string

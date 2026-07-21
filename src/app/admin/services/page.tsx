@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
-import { Wifi, Truck, FolderKanban, Phone, MessageCircle, Plus, Trash2, Check } from 'lucide-react'
+import { Wifi, Truck, FolderKanban, Phone, MessageCircle, Plus, Trash2, Check, Star } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import type { WifiPackage, WifiCategory, Mover } from '@/types'
+import type { WifiPackage, WifiCategory, WifiPackageCategory, Mover } from '@/types'
 
 export default function AdminServicesPage() {
   const router = useRouter()
@@ -18,7 +18,7 @@ export default function AdminServicesPage() {
   const [tab, setTab] = useState<Tab>('wifi')
   const [wifiPkgs, setWifiPkgs] = useState<WifiPackage[]>([])
   const [categories, setCategories] = useState<WifiCategory[]>([])
-  const [pkgCats, setPkgCats] = useState<Record<string, string[]>>({})
+  const [pkgCats, setPkgCats] = useState<Record<string, { category_id: string; best_seller: boolean }[]>>({})
   const [movers, setMovers] = useState<Mover[]>([])
   const [wifiBookings, setWifiBookings] = useState<WifiBooking[]>([])
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -37,7 +37,7 @@ export default function AdminServicesPage() {
   const [wifiDesc, setWifiDesc] = useState('')
   const [wifiFeatures, setWifiFeatures] = useState('')
   const [wifiOriginalPrice, setWifiOriginalPrice] = useState('')
-  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+  const [selectedCategories, setSelectedCategories] = useState<{ id: string; best_seller: boolean }[]>([])
 
   // Category state
   const [editingCat, setEditingCat] = useState<WifiCategory | null>(null)
@@ -79,10 +79,10 @@ export default function AdminServicesPage() {
     setMovers((mRes.data ?? []) as Mover[])
     setWifiBookings((bRes.data ?? []) as WifiBooking[])
 
-    const grouped: Record<string, string[]> = {}
+    const grouped: Record<string, { category_id: string; best_seller: boolean }[]> = {}
     for (const row of pcRes.data ?? []) {
       if (!grouped[row.package_id]) grouped[row.package_id] = []
-      grouped[row.package_id].push(row.category_id)
+      grouped[row.package_id].push({ category_id: row.category_id, best_seller: row.best_seller ?? false })
     }
     setPkgCats(grouped)
   }
@@ -94,8 +94,16 @@ export default function AdminServicesPage() {
   }
 
   const toggleCategory = (catId: string) => {
+    setSelectedCategories((prev) => {
+      const exists = prev.find((c) => c.id === catId)
+      if (exists) return prev.filter((c) => c.id !== catId)
+      return [...prev, { id: catId, best_seller: false }]
+    })
+  }
+
+  const toggleBestSeller = (catId: string) => {
     setSelectedCategories((prev) =>
-      prev.includes(catId) ? prev.filter((id) => id !== catId) : [...prev, catId]
+      prev.map((c) => (c.id === catId ? { ...c, best_seller: !c.best_seller } : c))
     )
   }
 
@@ -127,7 +135,7 @@ export default function AdminServicesPage() {
     if (pkgId) {
       await supabase.from('wifi_package_categories').delete().eq('package_id', pkgId)
       if (selectedCategories.length > 0) {
-        const rows = selectedCategories.map((catId) => ({ package_id: pkgId!, category_id: catId }))
+        const rows = selectedCategories.map((s) => ({ package_id: pkgId!, category_id: s.id, best_seller: s.best_seller }))
         const { error } = await supabase.from('wifi_package_categories').insert(rows)
         if (error) { showToast('error', error.message); return }
       }
@@ -156,11 +164,12 @@ export default function AdminServicesPage() {
     setWifiDesc(pkg.description)
     setWifiFeatures(pkg.features.join('\n'))
     setWifiOriginalPrice(String(pkg.original_price))
-    setSelectedCategories(pkgCats[pkg.id] ?? [])
+    setSelectedCategories((pkgCats[pkg.id] ?? []).map((pc) => ({ id: pc.category_id, best_seller: pc.best_seller ?? false })))
     setTab('wifi')
   }
 
-  const catIdsForPkg = (pkgId: string) => pkgCats[pkgId] ?? []
+  const catsForPkg = (pkgId: string) => pkgCats[pkgId] ?? []
+  const catIdsForPkg = (pkgId: string) => catsForPkg(pkgId).map((c) => c.category_id)
 
   // Category handlers
   const resetCatForm = () => {
@@ -278,26 +287,42 @@ export default function AdminServicesPage() {
                 <label className="text-sm font-medium text-gray-700">Categories (select all that apply)</label>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   {categories.map((c) => {
-                    const checked = selectedCategories.includes(c.id)
+                    const entry = selectedCategories.find((s) => s.id === c.id)
+                    const checked = !!entry
                     return (
-                      <button
-                        key={c.id}
-                        type="button"
-                        onClick={() => toggleCategory(c.id)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-colors ${
-                          checked
-                            ? 'border-transparent text-white'
-                            : 'border-gray-300 text-gray-700 hover:border-gray-400'
-                        }`}
-                        style={checked ? { backgroundColor: c.color } : {}}
-                      >
-                        <div className={`w-4 h-4 rounded flex items-center justify-center border ${
-                          checked ? 'border-white bg-white/20' : 'border-gray-400'
-                        }`}>
-                          {checked && <Check className="w-3 h-3 text-white" />}
-                        </div>
-                        {c.name}
-                      </button>
+                      <div key={c.id} className="flex items-stretch gap-0.5">
+                        <button
+                          type="button"
+                          onClick={() => toggleCategory(c.id)}
+                          className={`flex-1 flex items-center gap-2 px-3 py-2 rounded-l-lg border text-sm transition-colors ${
+                            checked
+                              ? 'border-transparent text-white'
+                              : 'border-gray-300 text-gray-700 hover:border-gray-400'
+                          }`}
+                          style={checked ? { backgroundColor: c.color } : {}}
+                        >
+                          <div className={`w-4 h-4 rounded flex items-center justify-center border ${
+                            checked ? 'border-white bg-white/20' : 'border-gray-400'
+                          }`}>
+                            {checked && <Check className="w-3 h-3 text-white" />}
+                          </div>
+                          {c.name}
+                        </button>
+                        {checked && (
+                          <button
+                            type="button"
+                            onClick={() => toggleBestSeller(c.id)}
+                            className={`px-2 py-2 border border-l-0 rounded-r-lg text-sm transition-colors ${
+                              entry.best_seller
+                                ? 'border-yellow-400 bg-yellow-50 text-yellow-700'
+                                : 'border-gray-300 text-gray-400 hover:text-yellow-500'
+                            }`}
+                            title="Mark as best seller in this category"
+                          >
+                            <Star className={`w-4 h-4 ${entry.best_seller ? 'fill-yellow-400' : ''}`} />
+                          </button>
+                        )}
+                      </div>
                     )
                   })}
                   {categories.length === 0 && (

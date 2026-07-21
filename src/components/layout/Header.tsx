@@ -72,7 +72,7 @@ export default function Header() {
         {/* Center: Desktop nav */}
         <nav className="hidden md:flex items-center justify-center flex-1 gap-5 px-4">
           {navLinks.map(({ href, label }) => (
-              <Link key={href} href={href} className="text-sm text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap">
+              <Link key={href} href={href} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap">
               {label}
             </Link>
           ))}
@@ -95,7 +95,7 @@ export default function Header() {
             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-100 hover:text-gray-900 dark:hover:text-white"
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white"
                 >
                   <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center overflow-hidden">
                     {avatarUrl ? (

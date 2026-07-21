@@ -16,10 +16,21 @@ export default function HomePage() {
   const [sort, setSort] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [showFilters, setShowFilters] = useState(false)
+  const [stats, setStats] = useState({ available: 0, pending: 0, taken: 0 })
 
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setUser(data.user ? { id: data.user.id } : null))
+    supabase.from('listings').select('status').then(({ data }) => {
+      if (!data) return
+      let available = 0, pending = 0, taken = 0
+      for (const row of data) {
+        if (row.status === 'published') available++
+        else if (row.status === 'pending') pending++
+        else if (row.status === 'taken') taken++
+      }
+      setStats({ available, pending, taken })
+    })
   }, [])
 
   const fetchListings = useCallback(
@@ -102,6 +113,22 @@ export default function HomePage() {
         <Link href={listAHouseLink} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
           + List a House
         </Link>
+      </div>
+
+      {/* Stats */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-green-700">{stats.available}</p>
+          <p className="text-xs text-green-600 font-medium">Available Houses</p>
+        </div>
+        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-yellow-700">{stats.pending}</p>
+          <p className="text-xs text-yellow-600 font-medium">Pending</p>
+        </div>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-blue-700">{stats.taken}</p>
+          <p className="text-xs text-blue-600 font-medium">Taken</p>
+        </div>
       </div>
 
       {/* Search + Sort + Filters */}

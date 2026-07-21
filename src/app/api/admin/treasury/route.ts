@@ -78,23 +78,50 @@ export async function POST(request: Request) {
   }
 
   if (action === 'refund') {
-    const refundAmount = Math.round((escrow.amount || 0) * 0.85)
+    const percentage = body.percentage ?? 85
+    const refundAmount = Math.round((escrow.amount || 0) * (percentage / 100))
     const { error: e1 } = await supabase.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrow_id)
     if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
 
     const { error: e2 } = await supabase.from('bookings').update({
-      release_status: 'refunded', refund_percentage: 85, refund_amount: refundAmount, refunded_at: new Date().toISOString(),
+      release_status: 'refunded', refund_percentage: percentage, refund_amount: refundAmount, refunded_at: new Date().toISOString(),
     }).eq('id', escrow.booking_id)
     if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
 
     await supabase.from('transactions').insert({
       booking_id: escrow.booking_id, user_id: escrow.user_id, phone: '',
-      amount: refundAmount, mpesa_receipt: '', mpesa_message: 'Admin processed 85% refund',
+      amount: refundAmount, mpesa_receipt: '', mpesa_message: `Admin processed ${percentage}% refund`,
       checkout_request_id: '', status: 'success',
     })
 
-    return NextResponse.json({ success: true, message: `85% refund (KES ${refundAmount.toLocaleString()}) processed` })
+    return NextResponse.json({ success: true, message: `${percentage}% refund (KES ${refundAmount.toLocaleString()}) processed` })
   }
 
-  return NextResponse.json({ error: 'Invalid action. Use release or refund.' }, { status: 400 })
+  if (action === 'extend_hold') {
+    const days = body.days ?? 7
+    const newUntil = new Date(Date.now() + days * 86400000).toISOString()
+    const { error } = await supabase.from('escrow_holds').update({ held_until: newUntil }).eq('id', escrow_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+    await supabase.from('transactions').insert({
+      booking_id: escrow.booking_id, user_id: escrow.user_id, phone: '',
+      amount: 0, mpesa_receipt: '', mpesa_message: `Admin extended hold by ${days} days`,
+      checkout_request_id: '', status: 'success',
+    })
+    return NextResponse.json({ success: true, message: `Hold extended by ${days} days` })
+  }
+
+  if (action === 'reverse_tx') {
+    const txId = body.transaction_id
+    if (!txId) return NextResponse.json({ error: 'transaction_id required' }, { status: 400 })
+    const { data: tx } = await supabase.from('transactions').select('*').eq('id', txId).single()
+    if (!tx) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+    await supabase.from('transactions').insert({
+      booking_id: tx.booking_id, user_id: tx.user_id, phone: tx.phone,
+      amount: -tx.amount, mpesa_receipt: '', mpesa_message: `Admin reversal of ${tx.mpesa_receipt || tx.id.slice(0, 8)}`,
+      checkout_request_id: '', status: 'success',
+    })
+    return NextResponse.json({ success: true, message: `Reversal logged for KES ${tx.amount.toLocaleString()}` })
+  }
+
+  return NextResponse.json({ error: `Invalid action '${action}'. Use release, refund, extend_hold, or reverse_tx.` }, { status: 400 })
 }

@@ -15,7 +15,10 @@ export const metadata: Metadata = {
   },
   description: 'House hunting platform. Browse listings, book viewings, find movers and WiFi packages.',
   icons: {
-    icon: '/favicon.ico',
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/favicon.png', type: 'image/png', sizes: '32x32' },
+    ],
     apple: '/apple-touch-icon.png',
   },
 }

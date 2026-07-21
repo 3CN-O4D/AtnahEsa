@@ -14,6 +14,10 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description: 'House hunting platform. Browse listings, book viewings, find movers and WiFi packages.',
+  icons: {
+    icon: '/icon.png',
+    apple: '/apple-touch-icon.png',
+  },
 }
 
 export default function RootLayout({

@@ -52,6 +52,10 @@ export default function ProfilePage() {
       setProfile(p)
       setEditing({ full_name: p.full_name, username: p.username, phone: p.phone || '' })
       setProfileLoaded(true)
+    }).catch((err) => {
+      console.error('Profile load error:', err)
+      setError('Failed to load profile')
+      setProfileLoaded(true)
     })
   }, [router])
 

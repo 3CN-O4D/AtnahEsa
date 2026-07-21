@@ -150,8 +150,9 @@ export async function notifyAdmins(subject: string, title: string, fields: Recor
         subject: `[AseHanta] ${subject}`,
         html: body,
       })
+      console.log(`✅ Email sent to ${to}: ${subject}`)
     } catch (err) {
-      console.error(`Failed to notify ${to}:`, err)
+      console.error(`❌ Failed to notify ${to}:`, err)
     }
   }
 }

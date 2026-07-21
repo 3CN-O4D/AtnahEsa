@@ -92,6 +92,11 @@ const templates: Record<string, Template> = {
   'Payment Successful': { emoji: '✅', color: '#059669', label: 'Payment Received' },
   'Payment Failed': { emoji: '❌', color: '#DC2626', label: 'Payment Failed' },
   'Manual Payment Verified': { emoji: '📱', color: '#7C3AED', label: 'Manual Payment' },
+  'Manual Payment Submitted for Verification': { emoji: '⏳', color: '#D97706', label: 'Manual Payment Pending' },
+  'Manual Payment Verification Failed': { emoji: '⚠️', color: '#DC2626', label: 'Verification Failed' },
+  'Manual Payment Verified by Daraja': { emoji: '✅', color: '#059669', label: 'Payment Confirmed' },
+  'B2C Refund Initiated': { emoji: '💰', color: '#059669', label: 'B2C Refund' },
+  'B2C Refund Failed': { emoji: '❌', color: '#DC2626', label: 'B2C Failed' },
 }
 
 function detectTemplate(subject: string): Template {

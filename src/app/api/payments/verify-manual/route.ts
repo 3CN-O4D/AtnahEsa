@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { transactionStatusQuery } from '@/lib/daraja'
 import { notifyAdmins } from '@/lib/notify'
 
 const TILL_NUMBER = process.env.DARAJA_TILL_NUMBER || ''
@@ -25,7 +26,6 @@ export async function POST(req: Request) {
     const tillMatch = mpesa_message.includes(TILL_NUMBER)
 
     const receipt = receiptMatch?.[1] || ''
-    const amountStr = amountMatch?.[1]?.replace(/,/g, '') || ''
 
     if (!receipt) {
       return NextResponse.json({ error: 'Could not find transaction code in message' }, { status: 400 })
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       .from('transactions')
       .select('id')
       .eq('mpesa_receipt', receipt)
-      .single()
+      .maybeSingle()
 
     if (existing) {
       return NextResponse.json({ error: 'This transaction code has already been used' }, { status: 400 })
@@ -58,14 +58,14 @@ export async function POST(req: Request) {
       .select('id')
       .eq('listing_id', listing_id)
       .eq('user_id', user.id)
-      .in('status', ['pending', 'confirmed'])
+      .in('status', ['pending', 'verifying', 'confirmed'])
       .maybeSingle()
 
     if (existingBooking) {
       return NextResponse.json({ error: 'You already have a pending booking for this listing' }, { status: 400 })
     }
 
-    const paidAmount = parseInt(amountStr) || listing.price
+    const paidAmount = parseInt(amountMatch?.[1]?.replace(/,/g, '') || '') || listing.price
 
     const { data: booking, error: bookingError } = await supabase
       .from('bookings')
@@ -74,9 +74,9 @@ export async function POST(req: Request) {
         user_id: user.id,
         amount: paidAmount,
         phone,
-        status: 'confirmed',
+        status: 'verifying',
         mpesa_receipt: receipt,
-        mpesa_metadata: { mpesa_message },
+        mpesa_metadata: { mpesa_message, till_found: tillMatch },
       })
       .select()
       .single()
@@ -85,25 +85,52 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: bookingError.message }, { status: 500 })
     }
 
-    await supabase.from('listings').update({ status: 'booked' }).eq('id', listing.id)
+    const { data: tx, error: txError } = await supabase
+      .from('transactions')
+      .insert({
+        booking_id: booking.id,
+        listing_id: listing.id,
+        user_id: user.id,
+        phone,
+        amount: paidAmount,
+        mpesa_receipt: receipt,
+        mpesa_message,
+        status: 'verifying',
+      })
+      .select()
+      .single()
 
-    await supabase.from('transactions').insert({
-      booking_id: booking.id,
-      user_id: user.id,
-      phone,
-      amount: paidAmount,
-      mpesa_receipt: receipt,
-      mpesa_message,
-      status: 'success',
-    })
+    if (txError) {
+      await supabase.from('bookings').update({ status: 'cancelled' }).eq('id', booking.id)
+      return NextResponse.json({ error: txError.message }, { status: 500 })
+    }
+
+    let darajaResult: Record<string, unknown> = {}
+    try {
+      darajaResult = await transactionStatusQuery(receipt)
+
+      if (darajaResult.OriginatorConversationID) {
+        await supabase.from('transactions').update({
+          originator_conversation_id: darajaResult.OriginatorConversationID,
+        }).eq('id', tx.id)
+      }
+    } catch (err) {
+      console.error('Transaction status query failed:', err)
+    }
 
     notifyAdmins(
-      'Manual Payment Verified',
-      'Manual M-Pesa Payment',
+      'Manual Payment Submitted for Verification',
+      'M-Pesa Payment Pending Daraja Check',
       { User: user.email || 'N/A', Phone: phone, Listing: listing.title || 'N/A', Amount: `KES ${paidAmount}`, Receipt: receipt }
     )
 
-    return NextResponse.json({ success: true, booking })
+    return NextResponse.json({
+      success: true,
+      booking_id: booking.id,
+      transaction_id: tx.id,
+      receipt,
+      daraja_initiated: !!darajaResult.ResponseCode,
+    })
   } catch (err) {
     console.error('Manual verify error:', err)
     return NextResponse.json({ error: 'Verification failed' }, { status: 500 })

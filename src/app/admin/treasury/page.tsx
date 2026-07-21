@@ -83,10 +83,39 @@ export default function TreasuryPage() {
     setConfirmAction(null)
   }
 
-  const handleRefund = () => {
+  const handleRefund = async () => {
     if (!refundModal) return
-    postAction({ action: 'refund', escrow_id: refundModal.escrow.id, percentage: refundPercentage })
-    setRefundModal(null)
+    const escrow = refundModal.escrow
+    const refundAmount = Math.round((escrow.amount || 0) * (refundPercentage / 100))
+
+    if (!refundPhone || refundPhone.length < 10) {
+      showToast('error', 'Enter a valid M-Pesa phone number for the refund')
+      return
+    }
+
+    setActionLoading(escrow.id)
+    try {
+      const res = await fetch('/api/payments/b2c', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phone: refundPhone,
+          amount: refundAmount,
+          booking_id: escrow.booking_id,
+          escrow_id: escrow.id,
+          remarks: `Refund ${refundPercentage}% for ${escrow.listing?.title || 'listing'}`,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { showToast('error', data.error || 'B2C failed'); return }
+      showToast('success', `Refund of KES ${refundAmount.toLocaleString()} sent to ${refundPhone}`)
+      setRefundModal(null)
+      loadData()
+    } catch {
+      showToast('error', 'Failed to process refund')
+    } finally {
+      setActionLoading(null)
+    }
   }
 
   const handleExtend = () => {
@@ -100,6 +129,7 @@ export default function TreasuryPage() {
   }
 
   const [refundPercentage, setRefundPercentage] = useState(85)
+  const [refundPhone, setRefundPhone] = useState('')
   const [extendDays, setExtendDays] = useState(7)
 
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
@@ -344,31 +374,40 @@ export default function TreasuryPage() {
             <p className="text-sm mb-3" style={{ color: 'var(--color-gray-600)' }}>
               {refundModal.escrow.listing?.title} &middot; {formatPrice(refundModal.escrow.amount)}
             </p>
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-gray-700)' }}>Refund Percentage</label>
-              <div className="flex gap-2">
-                {[50, 85, 100].map((p) => (
-                  <button key={p} onClick={() => setRefundPercentage(p)}
-                    className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      refundPercentage === p ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100'
-                    }`}
-                    style={refundPercentage !== p ? { borderColor: 'var(--color-gray-300)', color: 'var(--color-gray-700)' } : {}}>
-                    {p}%
-                  </button>
-                ))}
+            <div className="mb-4 space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-gray-700)' }}>Customer M-Pesa Number</label>
+                <input type="tel" value={refundPhone} onChange={(e) => setRefundPhone(e.target.value)}
+                  placeholder="0712 345 678"
+                  className="block w-full rounded-lg border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  style={{ backgroundColor: 'var(--color-gray-50)', borderColor: 'var(--color-gray-300)', color: 'var(--color-gray-900)' }} />
               </div>
-              <div className="mt-2">
-                <span className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
-                  Amount: {formatPrice(Math.round(refundModal.escrow.amount * refundPercentage / 100))}
-                  {refundPercentage < 100 && ` (platform retains ${formatPrice(refundModal.escrow.amount - Math.round(refundModal.escrow.amount * refundPercentage / 100))})`}
-                </span>
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-gray-700)' }}>Refund Percentage</label>
+                <div className="flex gap-2">
+                  {[50, 85, 100].map((p) => (
+                    <button key={p} onClick={() => setRefundPercentage(p)}
+                      className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        refundPercentage === p ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100'
+                      }`}
+                      style={refundPercentage !== p ? { borderColor: 'var(--color-gray-300)', color: 'var(--color-gray-700)' } : {}}>
+                      {p}%
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-2">
+                  <span className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
+                    Amount: {formatPrice(Math.round(refundModal.escrow.amount * refundPercentage / 100))}
+                    {refundPercentage < 100 && ` (platform retains ${formatPrice(refundModal.escrow.amount - Math.round(refundModal.escrow.amount * refundPercentage / 100))})`}
+                  </span>
+                </div>
               </div>
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setRefundModal(null)}>Cancel</Button>
               <Button onClick={handleRefund} loading={actionLoading === refundModal.escrow.id}
                 className="bg-amber-600 hover:bg-amber-700 text-white">
-                Refund {refundPercentage}%
+                Send KES {Math.round((refundModal.escrow.amount * refundPercentage) / 100).toLocaleString()}
               </Button>
             </div>
           </div>

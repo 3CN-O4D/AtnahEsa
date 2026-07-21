@@ -112,3 +112,63 @@ export async function queryStatus(checkoutRequestId: string) {
 
   return res.json()
 }
+
+export async function transactionStatusQuery(receipt: string) {
+  const token = await getAccessToken()
+
+  const tillNumber = TILL_NUMBER || SHORTCODE
+
+  const res = await fetch(`${BASE_URL}/mpesa/transactionstatus/v1/query`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      CommandID: 'TransactionStatusQuery',
+      PartyA: tillNumber,
+      IdentifierType: TILL_NUMBER ? '2' : '4',
+      Remarks: 'Verify manual payment',
+      QueueTimeOutURL: `${CALLBACK_URL}/api/daraja/timeout`,
+      ResultURL: `${CALLBACK_URL}/api/daraja/transaction-status-callback`,
+      TransactionID: receipt,
+    }),
+  })
+
+  const data = await res.json()
+  return data
+}
+
+export async function b2cPayment(phone: string, amount: number, remarks: string, occasion = 'Refund') {
+  const token = await getAccessToken()
+
+  const formattedPhone = phone.startsWith('0')
+    ? '254' + phone.slice(1)
+    : phone.startsWith('+')
+      ? phone.slice(1)
+      : phone
+
+  const res = await fetch(`${BASE_URL}/mpesa/b2c/v1/paymentrequest`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      OriginatorConversationID: '',
+      InitiatorName: SHORTCODE,
+      SecurityCredential: process.env.DARAJA_SECURITY_CREDENTIAL || '',
+      CommandID: 'BusinessPayment',
+      Amount: amount,
+      PartyA: SHORTCODE,
+      PartyB: formattedPhone,
+      Remarks: remarks,
+      QueueTimeOutURL: `${CALLBACK_URL}/api/daraja/timeout`,
+      ResultURL: `${CALLBACK_URL}/api/daraja/b2c-callback`,
+      Occasion: occasion,
+    }),
+  })
+
+  const data = await res.json()
+  return data
+}

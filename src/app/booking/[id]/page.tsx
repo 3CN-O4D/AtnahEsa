@@ -32,6 +32,9 @@ export default function BookingPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stk')
   const [stkSent, setStkSent] = useState(false)
   const [checkoutRequestId, setCheckoutRequestId] = useState('')
+  const [manualVerifying, setManualVerifying] = useState(false)
+  const [manualTxId, setManualTxId] = useState('')
+  const [verifyPollCount, setVerifyPollCount] = useState(0)
 
   const [booking, setBooking] = useState<Booking | null>(null)
   const [escrowHold, setEscrowHold] = useState<EscrowHold | null>(null)
@@ -130,9 +133,47 @@ export default function BookingPage() {
       })
       const data = await res.json()
       if (!res.ok) setError(data.error || 'Verification failed')
-      else await createEscrowHold(data.booking.id)
+      else {
+        setManualTxId(data.transaction_id)
+        setManualVerifying(true)
+        setVerifyPollCount(0)
+      }
     } catch { setError('Verification failed') } finally { setLoading(false) }
   }
+
+  useEffect(() => {
+    if (!manualVerifying || !manualTxId) return
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/payments/verify-status?transaction_id=${manualTxId}`)
+        const data = await res.json()
+        if (data.status === 'success') {
+          clearInterval(poll)
+          setManualVerifying(false)
+          if (data.booking) {
+            const supabase = createClient()
+            const { data: eb } = await supabase.from('bookings').select('*').eq('id', data.booking.id).single()
+            if (eb) {
+              setBooking(eb as Booking)
+              setStep('dashboard')
+              const { data: eh } = await supabase.from('escrow_holds').select('*').eq('booking_id', eb.id).maybeSingle()
+              if (eh) setEscrowHold(eh as EscrowHold)
+            }
+          }
+        } else if (data.status === 'failed') {
+          clearInterval(poll)
+          setManualVerifying(false)
+          setError(data.result_desc || 'Payment verification failed. The transaction code could not be confirmed.')
+        }
+        setVerifyPollCount((c) => c + 1)
+      } catch {
+        clearInterval(poll)
+        setManualVerifying(false)
+        setError('Failed to check verification status')
+      }
+    }, 3000)
+    return () => clearInterval(poll)
+  }, [manualVerifying, manualTxId])
 
   const handleReleaseFunds = async () => {
     if (!escrowHold || !booking || !listing || !user) return
@@ -282,6 +323,28 @@ export default function BookingPage() {
             <Button onClick={handleStkConfirm} loading={loading}>I&apos;ve Paid — Confirm</Button>
           <Button variant="outline" onClick={() => { setStkSent(false); setLoading(false) }} className="w-full">Try Again</Button>
         </div>
+      </div>
+    )
+  }
+
+  if (manualVerifying) {
+    return (
+      <div className="max-w-md mx-auto px-4 py-16 text-center">
+        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Clock className="w-8 h-8 text-amber-600" />
+        </div>
+        <h1 className="text-2xl font-bold mb-2">Verifying Payment</h1>
+        <p className="text-gray-600 mb-4">
+          We&apos;re confirming your M-Pesa transaction with Safaricom. This usually takes a few seconds.
+        </p>
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 mb-6">
+          <p className="font-medium mb-1">Receipt: <strong>{mpesaMessage.match(/([A-Z0-9]{10,})/)?.[0] || ''}</strong></p>
+          <p>Checking with Daraja... {verifyPollCount > 5 ? 'Still waiting, this may take a moment.' : ''}</p>
+        </div>
+        <div className="flex justify-center">
+          <div className="animate-spin w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full" />
+        </div>
+        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4"><p className="text-sm text-red-600">{error}</p></div>}
       </div>
     )
   }

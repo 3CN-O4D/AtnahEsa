@@ -75,7 +75,7 @@ export interface Report {
 
 export type ReleaseStatus = 'pending' | 'released' | 'refund_requested' | 'refunded' | 'rejected'
 
-export type BookingStatus = 'pending' | 'confirmed' | 'cancelled' | 'refunded'
+export type BookingStatus = 'pending' | 'verifying' | 'confirmed' | 'cancelled' | 'refunded'
 export type VisitStatus = 'pending' | 'visited' | 'completed' | 'refunded'
 
 export interface Booking {
@@ -156,7 +156,7 @@ export interface Transaction {
   result_code: number | null
   result_desc: string
   raw_callback: Record<string, unknown>
-  status: 'pending' | 'success' | 'failed'
+  status: 'pending' | 'verifying' | 'success' | 'failed'
   created_at: string
 }
 

@@ -180,6 +180,7 @@ export interface Profile {
   avatar_url: string | null
   average_rating: number
   total_reviews: number
+  has_password: boolean
   created_at: string
   updated_at: string
 }

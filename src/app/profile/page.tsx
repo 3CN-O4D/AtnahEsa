@@ -15,6 +15,7 @@ export default function ProfilePage() {
   const [profileLoaded, setProfileLoaded] = useState(false)
   const [userEmail, setUserEmail] = useState('')
   const [isGoogleUser, setIsGoogleUser] = useState(false)
+  const [hasPassword, setHasPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editing, setEditing] = useState({ full_name: '', username: '', phone: '' })
@@ -24,6 +25,13 @@ export default function ProfilePage() {
   const [profileOtpSent, setProfileOtpSent] = useState(false)
   const [profileOtp, setProfileOtp] = useState(['', '', '', '', '', ''])
   const [profileOtpLoading, setProfileOtpLoading] = useState(false)
+
+  // Email change
+  const [emailStep, setEmailStep] = useState<'idle' | 'otp' | 'done'>('idle')
+  const [newEmail, setNewEmail] = useState('')
+  const [emailOtp, setEmailOtp] = useState(['', '', '', '', '', ''])
+  const [emailOtpLoading, setEmailOtpLoading] = useState(false)
+  const emailOtpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   // Password change
   const [step, setStep] = useState<'form' | 'otp' | 'done'>('form')
@@ -44,13 +52,33 @@ export default function ProfilePage() {
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) { router.push('/auth/signin'); return }
       setUserEmail(user.email ?? '')
-      const hasEmailIdentity = user.identities?.some((i) => i.provider === 'email')
-      setIsGoogleUser(user.app_metadata?.provider === 'google' && !hasEmailIdentity)
-      const { data, error } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
-      if (error) { console.error('Profile fetch error:', error); setError('Failed to load profile: ' + error.message); setProfileLoaded(true); return }
-      const p = data as Profile
-      setProfile(p)
-      setEditing({ full_name: p.full_name, username: p.username, phone: p.phone || '' })
+      const isGoogle = user.app_metadata?.provider === 'google'
+      setIsGoogleUser(isGoogle)
+      const { data: existing } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
+      if (existing) {
+        const p = existing as Profile & { has_password?: boolean }
+        setProfile(p)
+        setHasPassword(!!p.has_password)
+        setEditing({ full_name: p.full_name, username: p.username, phone: p.phone || '' })
+      } else {
+        const meta = user.user_metadata || {}
+        const defaultUsername = meta.preferred_username || meta.username || user.email?.split('@')[0] || 'user'
+        const { data: created, error: createError } = await supabase
+          .from('profiles')
+          .insert({ id: user.id, full_name: meta.full_name || meta.name || user.email?.split('@')[0] || 'User', username: defaultUsername, phone: meta.phone || '', role: meta.role || 'hunter', terms_accepted: true, has_password: !isGoogle })
+          .select()
+          .single()
+        if (createError || !created) {
+          console.error('Profile create error:', createError)
+          setError('Failed to create profile. Please contact support.')
+          setProfileLoaded(true)
+          return
+        }
+        const p = created as Profile & { has_password?: boolean }
+        setProfile(p)
+        setHasPassword(!!p.has_password)
+        setEditing({ full_name: p.full_name, username: p.username, phone: p.phone || '' })
+      }
       setProfileLoaded(true)
     }).catch((err) => {
       console.error('Profile load error:', err)
@@ -191,6 +219,77 @@ export default function ProfilePage() {
     }
   }
 
+  // Email change handlers
+  const handleSendEmailOtp = async () => {
+    setError(''); setSuccess('')
+    if (!newEmail.trim()) { setError('Enter a new email address'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { setError('Invalid email address'); return }
+    if (newEmail === userEmail) { setError('New email is the same as current email'); return }
+    setEmailOtpLoading(true)
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: newEmail, type: 'email_change' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setEmailOtpLoading(false); return }
+      setEmailStep('otp')
+      setTimeout(() => emailOtpRefs.current[0]?.focus(), 100)
+    } catch {
+      setError('Failed to send OTP')
+    } finally {
+      setEmailOtpLoading(false)
+    }
+  }
+
+  const handleVerifyEmailOtp = async () => {
+    setError(''); setSuccess('')
+    const code = emailOtp.join('')
+    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    setEmailOtpLoading(true)
+    try {
+      const res = await fetch('/api/profile/change-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ new_email: newEmail, otp: code }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setEmailOtpLoading(false); return }
+      setUserEmail(newEmail)
+      setNewEmail('')
+      setEmailStep('done')
+      setSuccess('Email address updated successfully!')
+    } catch {
+      setError('Something went wrong')
+    } finally {
+      setEmailOtpLoading(false)
+    }
+  }
+
+  const handleEmailOtpChange = (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return
+    const next = [...emailOtp]
+    next[index] = value
+    setEmailOtp(next)
+    if (value && index < 5) emailOtpRefs.current[index + 1]?.focus()
+  }
+
+  const handleEmailOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !emailOtp[index] && index > 0) {
+      emailOtpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleEmailOtpPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!text) return
+    const next = [...emailOtp]
+    for (let i = 0; i < text.length; i++) next[i] = text[i]
+    setEmailOtp(next)
+    emailOtpRefs.current[Math.min(text.length, 5)]?.focus()
+  }
+
   // Password change handlers (unchanged logic)
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -202,6 +301,8 @@ export default function ProfilePage() {
       const supabase = createClient()
       const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
       if (updateErr) { setError(updateErr.message); setLoading(false); return }
+      await supabase.from('profiles').update({ has_password: true }).eq('id', profile!.id)
+      setHasPassword(true)
       setStep('done')
       setSuccess('Password created successfully!')
       setNewPassword(''); setConfirmPassword('')
@@ -245,6 +346,8 @@ export default function ProfilePage() {
       if (verifyErr) { setError(verifyErr.message); setLoading(false); return }
       const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
       if (updateErr) { setError(updateErr.message); setLoading(false); return }
+      await supabase.from('profiles').update({ has_password: true }).eq('id', profile!.id)
+      setHasPassword(true)
       setStep('done')
       setSuccess('Password changed successfully!')
       setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp(['', '', '', '', '', ''])
@@ -386,7 +489,7 @@ export default function ProfilePage() {
       </div>
 
       {/* Password Section */}
-      {step === 'form' && isGoogleUser && !editMode && (
+      {step === 'form' && isGoogleUser && !hasPassword && !editMode && (
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Create Password
@@ -419,7 +522,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {step === 'form' && !isGoogleUser && !editMode && (
+      {step === 'form' && !(isGoogleUser && !hasPassword) && !editMode && (
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Change Password
@@ -491,6 +594,72 @@ export default function ProfilePage() {
 
       {step === 'done' && success && (
         <p className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4">{success}</p>
+      )}
+
+      {/* Email Change Section */}
+      {emailStep === 'idle' && !editMode && (
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
+            <Mail className="w-5 h-5" /> Change Email
+          </h2>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+            Current email: <strong className="dark:text-white">{userEmail}</strong>
+          </p>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label htmlFor="new-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Email</label>
+              <input id="new-email" type="email" placeholder="Enter new email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            <Button onClick={handleSendEmailOtp} loading={emailOtpLoading} className="w-full">Send OTP</Button>
+          </div>
+        </div>
+      )}
+
+      {emailStep === 'otp' && (
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
+            <Mail className="w-5 h-5" /> Verify New Email
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            A code has been sent to <strong className="dark:text-white">{newEmail}</strong>.
+          </p>
+          <div className="space-y-4">
+            <div className="flex justify-center gap-2" onPaste={handleEmailOtpPaste}>
+              {emailOtp.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { emailOtpRefs.current[i] = el }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleEmailOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleEmailOtpKeyDown(i, e)}
+                  className="w-11 h-12 text-center text-lg font-semibold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => { setEmailStep('idle'); setEmailOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Back</Button>
+              <Button onClick={handleVerifyEmailOtp} loading={emailOtpLoading} className="flex-1">Confirm</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {emailStep === 'done' && (
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-2 dark:text-white flex items-center gap-2">
+            <Mail className="w-5 h-5" /> Email Changed
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Your email has been updated to <strong className="dark:text-white">{userEmail}</strong>.
+          </p>
+          <Button onClick={() => setEmailStep('idle')} variant="outline" className="w-full">Done</Button>
+        </div>
       )}
     </div>
   )

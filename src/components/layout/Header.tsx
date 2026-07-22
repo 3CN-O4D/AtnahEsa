@@ -158,7 +158,7 @@ export default function Header() {
               key={href}
               href={href}
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
               {Icon && <Icon className="w-4 h-4" />}
               {label}
@@ -167,13 +167,13 @@ export default function Header() {
           <hr className="my-2 dark:border-gray-700" />
           {user ? (
             <>
-              <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800>
+              <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Settings className="w-4 h-4" /> My Profile
               </Link>
-              <Link href="/my-listings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800>
+              <Link href="/my-listings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <List className="w-4 h-4" /> My Listings
               </Link>
-              <Link href="/my-bookings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800>
+              <Link href="/my-bookings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Calendar className="w-4 h-4" /> My Bookings
               </Link>
               <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">

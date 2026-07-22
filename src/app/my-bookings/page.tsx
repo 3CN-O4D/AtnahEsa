@@ -102,11 +102,11 @@ export default function MyBookingsPage() {
       {showListerTab && (
         <div className="flex border rounded-lg mb-6 overflow-hidden">
           <button onClick={() => setTab('hunter')}
-            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'hunter' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-            <Eye className="w-4 h-4 inline mr-1.5" /> My Viewings
-          </button>
-          <button onClick={() => setTab('lister')}
-            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'lister' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'hunter' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+              <Eye className="w-4 h-4 inline mr-1.5" /> My Viewings
+            </button>
+            <button onClick={() => setTab('lister')}
+              className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'lister' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
             <Home className="w-4 h-4 inline mr-1.5" /> Bookings on My Houses
           </button>
         </div>
@@ -140,7 +140,7 @@ export default function MyBookingsPage() {
                     <StatusBadge release_status={b.release_status || 'pending'} />
                   </div>
                   <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
-                    <span className="font-medium text-gray-700 dark:text-gray-300">{formatPrice(b.amount)}</span>
+                    <span className="font-medium text-gray-700">{formatPrice(b.amount)}</span>
                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(b.created_at).toLocaleDateString()}</span>
                     {b.escrow_hold && b.escrow_hold.status === 'held' && (
                       <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={b.escrow_hold.held_until} /></span>

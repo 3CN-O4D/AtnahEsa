@@ -12,7 +12,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createClient()
-    const { data, error } = await supabase.from('house_requests').insert({
+    const { error } = await supabase.from('house_requests').insert({
       name: name.trim(),
       email: email.trim(),
       phone: phone.trim(),
@@ -23,7 +23,7 @@ export async function POST(request: Request) {
       water_options: water_options || [],
       house_designs: house_designs || [],
       description: description?.trim() || '',
-    }).select().single()
+    })
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 })
@@ -53,7 +53,7 @@ export async function POST(request: Request) {
       }
     )
 
-    return NextResponse.json({ success: true, request: data })
+    return NextResponse.json({ success: true })
   } catch (err) {
     console.error('House request error:', err)
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })

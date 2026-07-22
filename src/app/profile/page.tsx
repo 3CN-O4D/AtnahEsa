@@ -447,7 +447,7 @@ export default function ProfilePage() {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center">
         <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-        <p className="text-gray-500 dark:text-gray-400 text-sm">Loading profile...</p>
+        <p className="text-gray-500 text-sm">Loading profile...</p>
       </div>
     )
   }
@@ -456,7 +456,7 @@ export default function ProfilePage() {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center">
         {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4">{error}</p>}
-        {!error && <p className="text-gray-500 dark:text-gray-400 text-sm mb-4">Profile not found. Try signing out and back in.</p>}
+        {!error && <p className="text-gray-500 text-sm mb-4">Profile not found. Try signing out and back in.</p>}
         <button onClick={() => { const s = createClient(); s.auth.signOut() }} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">Sign Out</button>
       </div>
     )
@@ -464,7 +464,7 @@ export default function ProfilePage() {
 
   return (
     <div className="max-w-md mx-auto px-4 py-8">
-      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6">
+      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white mb-6">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
@@ -498,7 +498,7 @@ export default function ProfilePage() {
               </label>
             )}
           </div>
-          {avatarUploading && <p className="text-sm text-gray-500 dark:text-gray-400">Uploading...</p>}
+          {avatarUploading && <p className="text-sm text-gray-500">Uploading...</p>}
         </div>
 
         {/* Fields */}
@@ -519,7 +519,7 @@ export default function ProfilePage() {
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600">
                   A code has been sent to <strong className="dark:text-white">{userEmail}</strong>.
                 </p>
                 <div className="flex justify-center gap-2" onPaste={(e) => handleOtpPaste(e, profileOtp, setProfileOtp)}>
@@ -556,16 +556,16 @@ export default function ProfilePage() {
             </div>
             <div className="flex items-center gap-2">
               <Mail className="w-4 h-4 text-gray-400" />
-              <span className="dark:text-gray-200">{profile.username}</span>
+              <span>{profile.username}</span>
             </div>
             <div className="flex items-center gap-2">
               <Phone className="w-4 h-4 text-gray-400" />
-              <span className="dark:text-gray-200">{profile.phone || 'No phone'}</span>
+              <span>{profile.phone || 'No phone'}</span>
             </div>
-            <div className="text-gray-500 dark:text-gray-400">
-              Role: <span className="font-medium capitalize dark:text-gray-200">{profile.role}</span>
+            <div className="text-gray-500">
+              Role: <span className="font-medium capitalize">{profile.role}</span>
             </div>
-            <div className="text-gray-500 dark:text-gray-400">
+            <div className="text-gray-500">
               Joined: {new Date(profile.created_at).toLocaleDateString()}
             </div>
           </div>
@@ -582,12 +582,12 @@ export default function ProfilePage() {
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Create Password
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          <p className="text-sm text-gray-500 mb-4">
             You signed in with Google. Set a password to also sign in with email and password. We&apos;ll send a verification code to your email first.
           </p>
           <form onSubmit={handleCreatePassword} className="space-y-4">
             <div className="space-y-1">
-              <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
+              <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
               <div className="relative">
                 <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
@@ -596,7 +596,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="space-y-1">
-              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm Password</label>
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">Confirm Password</label>
               <div className="relative">
                 <input id="confirm-password" type={showConfirm ? 'text' : 'password'} placeholder="Repeat password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                 <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
@@ -654,7 +654,7 @@ export default function ProfilePage() {
           </h2>
           <form onSubmit={handleChangePassword} className="space-y-4">
             <div className="space-y-1">
-              <label htmlFor="old-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Current Password</label>
+              <label htmlFor="old-password" className="block text-sm font-medium text-gray-700">Current Password</label>
               <div className="relative">
                 <input id="old-password" type={showOld ? 'text' : 'password'} placeholder="Enter current password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                 <button type="button" onClick={() => setShowOld(!showOld)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
@@ -663,7 +663,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="space-y-1">
-              <label htmlFor="new-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Password</label>
+              <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
               <div className="relative">
                 <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
@@ -672,7 +672,7 @@ export default function ProfilePage() {
               </div>
             </div>
             <div className="space-y-1">
-              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm New Password</label>
+              <label htmlFor="confirm-password" className="block text-sm font-medium text-gray-700">Confirm New Password</label>
               <div className="relative">
                 <input id="confirm-password" type={showConfirm ? 'text' : 'password'} placeholder="Repeat new password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                 <button type="button" onClick={() => setShowConfirm(!showConfirm)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
@@ -739,12 +739,12 @@ export default function ProfilePage() {
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Mail className="w-5 h-5" /> Change Email
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
+          <p className="text-sm text-gray-500 mb-4">
             Current email: <strong className="dark:text-white">{userEmail}</strong>
           </p>
           <div className="space-y-4">
             <div className="space-y-1">
-              <label htmlFor="new-email" className="block text-sm font-medium text-gray-700 dark:text-gray-300">New Email</label>
+              <label htmlFor="new-email" className="block text-sm font-medium text-gray-700">New Email</label>
               <input id="new-email" type="email" placeholder="Enter new email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
             {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}

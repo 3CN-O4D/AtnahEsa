@@ -57,7 +57,7 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+      <label className="block text-sm font-medium text-gray-700">
         Video Tours <span className="text-xs text-gray-400">({videoUrls.length}/{MAX_VIDEOS})</span>
       </label>
       {error && <p className="text-sm text-red-600">{error}</p>}
@@ -90,7 +90,7 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
         <button
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
-          className="w-full h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-500 dark:text-gray-400 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"
+          className="w-full h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"
         >
           {uploading ? (
             <div className="animate-spin w-5 h-5 border-2 border-blue-600 border-t-transparent rounded-full" />

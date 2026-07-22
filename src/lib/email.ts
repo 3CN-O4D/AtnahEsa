@@ -53,26 +53,32 @@ If you didn&rsquo;t request this, you can ignore this email.
 const typeConfig: Record<string, { emoji: string; color: string; badge: string }> = {
   signup: { emoji: '🎉', color: '#059669', badge: 'Email Verification' },
   password_reset: { emoji: '🔐', color: '#D97706', badge: 'Password Reset' },
+  password_create: { emoji: '🔑', color: '#7C3AED', badge: 'Create Password' },
   profile_update: { emoji: '👤', color: '#2563EB', badge: 'Profile Update' },
+  email_change: { emoji: '📧', color: '#0891B2', badge: 'Email Change' },
 }
 
-export async function sendOtpEmail(email: string, otp: string, type: 'signup' | 'password_reset' | 'profile_update') {
-  const cfg = typeConfig[type]
+export async function sendOtpEmail(email: string, otp: string, type: string) {
+  const cfg = typeConfig[type] || { emoji: '✉️', color: '#2563EB', badge: 'Verification' }
 
   const subjects: Record<string, string> = {
     signup: 'Verify your AseHanta account',
     password_reset: 'Reset your AseHanta password',
+    password_create: 'Create your AseHanta password',
     profile_update: 'Confirm your AseHanta profile changes',
+    email_change: 'Verify your new email address',
   }
 
   const messages: Record<string, string> = {
     signup: 'Thanks for joining! Use the code below to verify your email address and activate your account.',
     password_reset: 'We received a password reset request. Use the code below to create a new password.',
+    password_create: 'Use the code below to set a password for your AseHanta account.',
     profile_update: 'Use the code below to confirm the changes to your profile.',
+    email_change: 'Use the code below to confirm your new email address.',
   }
 
-  const subject = subjects[type]
-  const message = messages[type]
+  const subject = subjects[type] || 'AseHanta verification code'
+  const message = messages[type] || 'Use the code below to verify.'
 
   const body = `
 <tr><td style="padding:24px 32px;text-align:center">

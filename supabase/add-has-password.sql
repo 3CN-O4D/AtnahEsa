@@ -15,3 +15,15 @@ UPDATE profiles SET has_password = true WHERE id IN (
 -- Update otps CHECK constraint to include new types
 ALTER TABLE otps DROP CONSTRAINT IF EXISTS otps_type_check;
 ALTER TABLE otps ADD CONSTRAINT otps_type_check CHECK (type IN ('signup', 'password_reset', 'password_create', 'profile_update', 'email_change'));
+
+-- Allow users to insert their own profile (missing from original schema)
+ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE policyname = 'Users can insert own profile' AND tablename = 'profiles'
+  ) THEN
+    CREATE POLICY "Users can insert own profile" ON public.profiles
+      FOR INSERT WITH CHECK (auth.uid() = id);
+  END IF;
+END $$;

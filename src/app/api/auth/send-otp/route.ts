@@ -43,13 +43,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: `DB error: ${dbError.message}` }, { status: 500 })
     }
 
+    let emailSent = false
     try {
       await sendOtpEmail(email, otp, type)
+      emailSent = true
     } catch (emailErr) {
       console.error('Failed to send OTP email:', emailErr)
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, emailSent })
   } catch (err) {
     return NextResponse.json({ error: `Server error: ${err instanceof Error ? err.message : 'unknown'}` }, { status: 500 })
   }

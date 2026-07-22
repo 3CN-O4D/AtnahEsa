@@ -68,7 +68,7 @@ function CheckboxGroup({ label, options, selected, onChange, hint }: {
 }) {
   return (
     <div className="space-y-2">
-      <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</p>
+      <p className="text-sm font-medium text-gray-700">{label}</p>
       {hint && <p className="text-xs text-gray-400">{hint}</p>}
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => {
@@ -81,7 +81,7 @@ function CheckboxGroup({ label, options, selected, onChange, hint }: {
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 active
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                  : 'bg-white dark:bg-gray-800 text-gray-600 border-gray-300 dark:border-gray-600 hover:border-blue-400'
               }`}
             >
               {active && <Check className="w-3.5 h-3.5" />}
@@ -154,7 +154,7 @@ export default function RequestHousePage() {
           <Check className="w-8 h-8 text-green-600" />
         </div>
         <h1 className="text-2xl font-bold mb-2 dark:text-white">Request Submitted!</h1>
-        <p className="text-gray-600 dark:text-gray-400 mb-6">We&apos;ll search for houses matching your needs and notify you when we find them.</p>
+        <p className="text-gray-600 mb-6">We&apos;ll search for houses matching your needs and notify you when we find them.</p>
         <Link href="/" className="text-sm text-blue-600 hover:underline">Back to Home</Link>
       </div>
     )
@@ -162,25 +162,25 @@ export default function RequestHousePage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-8">
-      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white mb-6">
+      <button onClick={() => window.history.back()} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white mb-6">
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
       <h1 className="text-2xl font-bold mb-2 dark:text-white">Request a House</h1>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-8">
+      <p className="text-sm text-gray-500 mb-8">
         Tell us what you&apos;re looking for and we&apos;ll help find it.
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Contact Info</h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Contact Info</h2>
           <Input label="Full Name" id="name" value={form.name} onChange={(e) => update('name', e.target.value)} required />
           <Input label="Email" id="email" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
           <Input label="Phone Number" id="phone" type="tel" placeholder="0712 345 678" value={form.phone} onChange={(e) => update('phone', e.target.value)} required />
         </div>
 
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wider">What I&apos;m Looking For</h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">What I&apos;m Looking For</h2>
 
           <Input label="Preferred Location" id="location" placeholder="e.g. Eldoret, Nairobi..." value={form.location} onChange={(e) => update('location', e.target.value)} required />
 
@@ -199,7 +199,7 @@ export default function RequestHousePage() {
           <CheckboxGroup label="Vacancy" options={VACANCY_OPTIONS} selected={vacancy} onChange={setVacancy} hint="Select all that apply" />
 
           <div className="space-y-1">
-            <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Additional Details</label>
+            <label htmlFor="description" className="block text-sm font-medium text-gray-700">Additional Details</label>
             <textarea id="description" rows={4} placeholder="Tell us more about what you need..." value={form.description}
               onChange={(e) => update('description', e.target.value)}
               className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />

@@ -17,6 +17,7 @@ export async function GET(request: Request) {
       const avatarUrl = meta.avatar_url || meta.picture || ''
       const username = meta.username || meta.preferred_username || session.user.email?.split('@')[0] || ''
 
+      const isGoogle = session.user.app_metadata?.provider === 'google'
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
           avatar_url: avatarUrl,
           role: 'hunter',
           terms_accepted: true,
+          has_password: !isGoogle,
         }, { onConflict: 'id' })
 
       if (profileError) {

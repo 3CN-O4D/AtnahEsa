@@ -45,7 +45,7 @@ export default function ContactPage() {
           <Mail className="w-8 h-8 text-green-600" />
         </div>
         <h1 className="text-2xl font-bold mb-2">Message Sent!</h1>
-        <p className="text-gray-600 dark:text-gray-400">
+        <p className="text-gray-600">
           We&apos;ll get back to you as soon as possible.
         </p>
       </div>
@@ -58,7 +58,7 @@ export default function ContactPage() {
         <img src="/images/asehanta-logo.jpeg" alt="AseHanta" className="h-10 w-10 rounded-full object-cover" />
         <div>
           <h1 className="text-2xl font-bold">Contact Us</h1>
-          <p className="text-gray-600 dark:text-gray-400 text-sm">
+          <p className="text-gray-600 text-sm">
             Have a question about a listing, mover, or WiFi package? Fill in the form below.
           </p>
         </div>
@@ -73,7 +73,7 @@ export default function ContactPage() {
           <Input label="Your Location" id="location" value={location} onChange={(e) => setLocation(e.target.value)} required />
 
           <div className="space-y-1">
-            <label htmlFor="message" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Message</label>
+            <label htmlFor="message" className="block text-sm font-medium text-gray-700">Message</label>
             <textarea
               id="message"
               rows={4}
@@ -98,7 +98,7 @@ export default function ContactPage() {
               )}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-green-400 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-green-400 transition-colors"
             >
               <MessageCircle className="w-4 h-4 text-green-600" />
               WhatsApp
@@ -109,7 +109,7 @@ export default function ContactPage() {
         <div className="space-y-6">
           <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold dark:text-white">Other ways to reach us</h3>
-            <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
+            <div className="space-y-3 text-sm text-gray-600">
               <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-start gap-3 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
                 <Mail className="w-4 h-4 mt-0.5 text-blue-600 shrink-0" />
                 <span>{CONTACT_EMAIL}</span>

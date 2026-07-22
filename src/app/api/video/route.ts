@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3'
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 
 const s3 = new S3Client({
   endpoint: process.env.S3_ENDPOINT,
@@ -20,19 +21,10 @@ export async function GET(req: Request) {
     if (!key) return NextResponse.json({ error: 'Missing key' }, { status: 400 })
 
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key })
-    const { Body, ContentType, ContentLength } = await s3.send(command)
-    if (!Body) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    const url = await getSignedUrl(s3, command, { expiresIn: 3600 })
 
-    const stream = Body as ReadableStream
-    return new NextResponse(stream, {
-      headers: {
-        'Content-Type': ContentType || 'video/mp4',
-        'Content-Length': String(ContentLength || ''),
-        'Content-Disposition': 'inline',
-        'Accept-Ranges': 'bytes',
-      },
-    })
-  } catch {
-    return NextResponse.json({ error: 'Video not found' }, { status: 404 })
+    return NextResponse.redirect(url, 302)
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed' }, { status: 500 })
   }
 }

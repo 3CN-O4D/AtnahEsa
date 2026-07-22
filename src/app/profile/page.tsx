@@ -50,6 +50,7 @@ export default function ProfilePage() {
   const createOtpRefs = useRef<(HTMLInputElement | null)[]>([])
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
   const profileOtpRefs = useRef<(HTMLInputElement | null)[]>([])
   const passwordOtpRefs = useRef<(HTMLInputElement | null)[]>([])
 
@@ -296,6 +297,34 @@ export default function ProfilePage() {
     emailOtpRefs.current[Math.min(text.length, 5)]?.focus()
   }
 
+  // Generic resend OTP handler with cooldown
+  const startCooldown = () => {
+    setResendCooldown(60)
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0 }
+        return prev - 1
+      })
+    }, 1000)
+  }
+
+  const handleResendOtp = async (email: string, type: string) => {
+    if (resendCooldown > 0) return
+    setError('')
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); return }
+      startCooldown()
+    } catch {
+      setError('Failed to resend code')
+    }
+  }
+
   // Create password handlers (Google users - OTP verified)
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -513,6 +542,9 @@ export default function ProfilePage() {
                   <Button onClick={() => { setProfileOtpSent(false); setProfileOtp(['', '', '', '', '', '']) }} variant="outline" className="flex-1">Back</Button>
                   <Button onClick={handleVerifyProfileOtp} loading={profileOtpLoading} className="flex-1">Confirm</Button>
                 </div>
+                <button type="button" onClick={() => handleResendOtp(userEmail, 'profile_update')} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
+                  {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+                </button>
               </div>
             )}
           </div>
@@ -608,6 +640,9 @@ export default function ProfilePage() {
               <Button onClick={() => { setCreateStep('form'); setCreateOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Back</Button>
               <Button onClick={handleVerifyCreateOtp} loading={loading} className="flex-1">Verify & Create</Button>
             </div>
+            <button type="button" onClick={() => handleResendOtp(userEmail, 'password_create')} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+            </button>
           </div>
         </div>
       )}
@@ -678,6 +713,18 @@ export default function ProfilePage() {
             </div>
             {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
             <Button type="submit" loading={loading} className="w-full">Verify & Change Password</Button>
+            <button type="button" onClick={async () => {
+              if (resendCooldown > 0) return
+              setError('')
+              try {
+                const supabase = createClient()
+                const { error: reauthErr } = await supabase.auth.reauthenticate()
+                if (reauthErr) { setError(reauthErr.message); return }
+                startCooldown()
+              } catch { setError('Failed to resend code') }
+            }} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+            </button>
           </form>
         </div>
       )}
@@ -736,6 +783,9 @@ export default function ProfilePage() {
               <Button onClick={() => { setEmailStep('idle'); setEmailOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Back</Button>
               <Button onClick={handleVerifyEmailOtp} loading={emailOtpLoading} className="flex-1">Confirm</Button>
             </div>
+            <button type="button" onClick={() => handleResendOtp(newEmail, 'email_change')} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
+              {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
+            </button>
           </div>
         </div>
       )}

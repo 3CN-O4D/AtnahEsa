@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       .select('*')
       .eq('email', email)
       .eq('otp', otp)
-      .eq('type', 'password_reset')
+      .in('type', ['password_reset', 'password_create'])
       .eq('used', false)
       .gte('expires_at', new Date().toISOString())
       .single()

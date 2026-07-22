@@ -42,6 +42,12 @@ export default function ProfilePage() {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showConfirm, setShowConfirm] = useState(false)
   const [passwordOtp, setPasswordOtp] = useState(['', '', '', '', '', ''])
+
+  // Create password (Google users - needs OTP)
+  const [createStep, setCreateStep] = useState<'form' | 'otp' | 'done'>('form')
+  const [createOtp, setCreateOtp] = useState(['', '', '', '', '', ''])
+  const [createOtpLoading, setCreateOtpLoading] = useState(false)
+  const createOtpRefs = useRef<(HTMLInputElement | null)[]>([])
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
   const profileOtpRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -290,7 +296,7 @@ export default function ProfilePage() {
     emailOtpRefs.current[Math.min(text.length, 5)]?.focus()
   }
 
-  // Password change handlers (unchanged logic)
+  // Create password handlers (Google users - OTP verified)
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setSuccess('')
@@ -298,19 +304,69 @@ export default function ProfilePage() {
     if (newPassword.length < 6) { setError('Password must be at least 6 characters'); return }
     setLoading(true)
     try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, type: 'password_create' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setLoading(false); return }
+      setCreateStep('otp')
+      setTimeout(() => createOtpRefs.current[0]?.focus(), 100)
+    } catch {
+      setError('Failed to send OTP')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleVerifyCreateOtp = async () => {
+    setError(''); setSuccess('')
+    const code = createOtp.join('')
+    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    setLoading(true)
+    try {
+      const res = await fetch('/api/auth/update-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, password: newPassword, otp: code }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setLoading(false); return }
       const supabase = createClient()
-      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
-      if (updateErr) { setError(updateErr.message); setLoading(false); return }
       await supabase.from('profiles').update({ has_password: true }).eq('id', profile!.id)
       setHasPassword(true)
-      setStep('done')
+      setCreateStep('done')
       setSuccess('Password created successfully!')
-      setNewPassword(''); setConfirmPassword('')
+      setNewPassword(''); setConfirmPassword(''); setCreateOtp(['', '', '', '', '', ''])
     } catch {
       setError('Something went wrong')
     } finally {
       setLoading(false)
     }
+  }
+
+  const handleCreateOtpChange = (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return
+    const next = [...createOtp]
+    next[index] = value
+    setCreateOtp(next)
+    if (value && index < 5) createOtpRefs.current[index + 1]?.focus()
+  }
+
+  const handleCreateOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !createOtp[index] && index > 0) {
+      createOtpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleCreateOtpPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!text) return
+    const next = [...createOtp]
+    for (let i = 0; i < text.length; i++) next[i] = text[i]
+    setCreateOtp(next)
+    createOtpRefs.current[Math.min(text.length, 5)]?.focus()
   }
 
   const handleChangePassword = async (e: React.FormEvent) => {
@@ -489,13 +545,13 @@ export default function ProfilePage() {
       </div>
 
       {/* Password Section */}
-      {step === 'form' && isGoogleUser && !hasPassword && !editMode && (
+      {createStep === 'form' && isGoogleUser && !hasPassword && !editMode && (
         <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Create Password
           </h2>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-            You signed in with Google. Set a password to also sign in with email and password.
+            You signed in with Google. Set a password to also sign in with email and password. We&apos;ll send a verification code to your email first.
           </p>
           <form onSubmit={handleCreatePassword} className="space-y-4">
             <div className="space-y-1">
@@ -517,8 +573,42 @@ export default function ProfilePage() {
               </div>
             </div>
             {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-            <Button type="submit" loading={loading} className="w-full">Create Password</Button>
+            <Button type="submit" loading={loading} className="w-full">Send Verification Code</Button>
           </form>
+        </div>
+      )}
+
+      {createStep === 'otp' && isGoogleUser && !hasPassword && (
+        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
+          <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
+            <Lock className="w-5 h-5" /> Verify Code
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Enter the 6-digit code sent to <strong className="dark:text-white">{userEmail}</strong>.
+          </p>
+          <div className="space-y-4">
+            <div className="flex justify-center gap-2" onPaste={handleCreateOtpPaste}>
+              {createOtp.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { createOtpRefs.current[i] = el }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleCreateOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleCreateOtpKeyDown(i, e)}
+                  className="w-11 h-12 text-center text-lg font-semibold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => { setCreateStep('form'); setCreateOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Back</Button>
+              <Button onClick={handleVerifyCreateOtp} loading={loading} className="flex-1">Verify & Create</Button>
+            </div>
+          </div>
         </div>
       )}
 

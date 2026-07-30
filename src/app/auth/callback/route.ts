@@ -18,6 +18,13 @@ export async function GET(request: Request) {
       const username = meta.username || meta.preferred_username || session.user.email?.split('@')[0] || ''
 
       const isGoogle = session.user.app_metadata?.provider === 'google'
+
+      const { data: existing } = await supabase
+        .from('profiles')
+        .select('role, verified')
+        .eq('id', userId)
+        .maybeSingle()
+
       const { error: profileError } = await supabase
         .from('profiles')
         .upsert({
@@ -25,7 +32,8 @@ export async function GET(request: Request) {
           full_name: fullName,
           username: username,
           avatar_url: avatarUrl,
-          role: 'hunter',
+          role: existing?.role || 'hunter',
+          verified: existing?.verified || false,
           terms_accepted: true,
           has_password: !isGoogle,
         }, { onConflict: 'id' })

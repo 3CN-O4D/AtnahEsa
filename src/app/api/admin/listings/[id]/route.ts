@@ -1,51 +1,38 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  try {
-    const { id } = await params
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .maybeSingle()
+  const body = await req.json()
+  const adminSupabase = createAdminClient()
 
-    if (profile?.role !== 'admin') {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    }
+  const { error } = await adminSupabase.from('listings').update(body).eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    const body = await req.json()
+  const { data: updated } = await adminSupabase.from('listings').select('*').eq('id', id).single()
+  return NextResponse.json(updated)
+}
 
-    const allowedFields: Record<string, unknown> = {}
-    const adminUpdatable = [
-      'title', 'description', 'price', 'rent', 'deposit', 'deposit_refundable',
-      'location', 'descriptive_location', 'images', 'youtube_url', 'video_url',
-      'issues', 'issues_count', 'house_type', 'building_type', 'floor_number',
-      'electricity', 'electric_bill', 'water', 'vacancy', 'vacancy_type',
-      'why_vacant', 'payment_method', 'lister_phone', 'status', 'taken_by_name',
-    ]
-    for (const key of adminUpdatable) {
-      if (body[key] !== undefined) allowedFields[key] = body[key]
-    }
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
+  const supabase = await createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { error } = await supabase.from('listings').update(allowedFields).eq('id', id)
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+  const adminSupabase = createAdminClient()
+  const { error } = await adminSupabase.from('listings').delete().eq('id', id)
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-  }
+  return NextResponse.json({ success: true })
 }

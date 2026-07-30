@@ -141,7 +141,7 @@ export default function ListingDetailPage() {
         const { data: sim } = await supabase
           .from('listings')
           .select('*')
-          .in('status', ['published', 'taken'])
+          .eq('status', 'published')
           .eq('location', l.location)
           .neq('id', id)
           .limit(10)
@@ -216,7 +216,6 @@ export default function ListingDetailPage() {
         <Slideshow images={listing.images} className="w-full aspect-video mb-6" onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }} />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
         {listing.status === 'booked' && <div className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-medium px-3 py-1 rounded-full">Booked</div>}
-        {listing.status === 'taken' && <div className="absolute top-4 right-4 bg-rose-500 text-white text-sm font-medium px-3 py-1 rounded-full">Taken</div>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -567,9 +566,15 @@ export default function ListingDetailPage() {
             </div>
 
             {user ? (
+              listing.status === 'taken' ? (
+                <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/50 rounded-xl p-4 text-center">
+                  <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">This house has been taken</p>
+                </div>
+              ) : (
               <Link href={`/booking/${listing.id}`}>
                 <Button className="w-full"><Calendar className="w-4 h-4 mr-1.5" /> Book Viewing</Button>
               </Link>
+              )
             ) : (
               <div className="space-y-2">
                 <Link href="/auth/signin">

@@ -32,15 +32,15 @@ export default function Modal({ open, onClose, title, children, className }: Mod
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div
         className={cn(
-          'relative bg-white rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto z-10',
+          'relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto z-10',
           className
         )}
       >
         {title && (
-          <div className="flex items-center justify-between p-4 border-b">
-            <h2 className="text-lg font-semibold">{title}</h2>
-            <button onClick={onClose} className="p-1 hover:bg-gray-100 rounded-lg">
-              <X className="w-5 h-5" />
+          <div className="flex items-center justify-between p-4 border-b dark:border-gray-700">
+            <h2 className="text-lg font-semibold dark:text-gray-100">{title}</h2>
+            <button onClick={onClose} className="p-1 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg">
+              <X className="w-5 h-5 dark:text-gray-400" />
             </button>
           </div>
         )}

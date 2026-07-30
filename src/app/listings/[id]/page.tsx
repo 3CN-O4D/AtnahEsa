@@ -3,10 +3,11 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon, BadgeCheck } from 'lucide-react'
+import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon, BadgeCheck, X } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
 import ImageViewer from '@/components/ui/ImageViewer'
 import Button from '@/components/ui/Button'
+import Modal from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
 import { maskPhone } from '@/lib/utils'
 import { formatPrice } from '@/lib/utils'
@@ -64,6 +65,7 @@ export default function ListingDetailPage() {
   const [listerComment, setListerComment] = useState('')
   const [listerAnonymous, setListerAnonymous] = useState(false)
   const [submittingLister, setSubmittingLister] = useState(false)
+  const [listerModalOpen, setListerModalOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -323,15 +325,15 @@ export default function ListingDetailPage() {
                     lister.full_name?.charAt(0)?.toUpperCase() || 'L'
                   )}
                 </div>
-                <div>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg flex items-center gap-1.5">
-                    {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
-                    {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-blue-400" />}
-                  </p>
-                  <div className="flex items-center gap-2 mt-0.5">
-                    <Stars rating={lister.average_rating || 0} />
-                    <span className="text-sm text-gray-500 dark:text-gray-400">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
-                  </div>
+                  <div>
+                    <button onClick={() => setListerModalOpen(true)} className="font-semibold text-gray-900 dark:text-gray-100 text-lg flex items-center gap-1.5 hover:underline text-left">
+                      {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
+                      {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-blue-400" />}
+                    </button>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <Stars rating={lister.average_rating || 0} />
+                      <span className="text-sm text-gray-600 dark:text-gray-300">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
+                    </div>
                   {lister.average_rating > 0 && (
                     <p className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-0.5">{lister.average_rating} out of 5</p>
                   )}
@@ -609,6 +611,78 @@ export default function ListingDetailPage() {
 
       {showReport && (
         <ReportModal targetType="listing" targetId={listing.id} targetTitle={listing.title} onClose={() => setShowReport(false)} />
+      )}
+
+      {lister && (
+        <Modal open={listerModalOpen} onClose={() => setListerModalOpen(false)} title={`@${lister.username || lister.full_name || 'Anonymous'}`}>
+          <div className="space-y-5">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0 overflow-hidden">
+                {lister.avatar_url ? (
+                  <img src={lister.avatar_url} alt="" className="w-full h-full object-cover" />
+                ) : (
+                  lister.full_name?.charAt(0)?.toUpperCase() || 'L'
+                )}
+              </div>
+              <div>
+                <p className="font-semibold text-lg text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                  {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
+                  {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-blue-400" />}
+                </p>
+                <div className="flex items-center gap-2 mt-1">
+                  <Stars rating={lister.average_rating || 0} />
+                  <span className="text-sm text-gray-600 dark:text-gray-300">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{lister.listing_count}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">House{lister.listing_count !== 1 ? 's' : ''} Listed</p>
+              </div>
+              <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
+                <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{lister.total_reviews || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Review{lister.total_reviews !== 1 ? 's' : ''}</p>
+              </div>
+            </div>
+
+            <div>
+              <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-1.5">
+                <Star className="w-4 h-4 text-yellow-500" /> Reviews from Customers
+              </h4>
+              {listerReviews.length === 0 ? (
+                <p className="text-sm text-gray-400 dark:text-gray-500">No reviews yet.</p>
+              ) : (
+                <div className="space-y-3 max-h-60 overflow-y-auto">
+                  {listerReviews.map((r, i) => {
+                    const rp = listerReviewProfiles[r.reviewer_id]
+                    const isAnonymous = r.is_anonymous
+                    return (
+                      <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-300 shrink-0 overflow-hidden">
+                            {!isAnonymous && rp?.avatar_url ? (
+                              <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
+                            ) : (
+                              !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
+                            )}
+                          </div>
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                          <div className="flex items-center gap-2 ml-auto">
+                            <Stars rating={r.rating} />
+                            <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        {r.comment && <p className="text-sm text-gray-600 dark:text-gray-400 ml-8">{r.comment}</p>}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </div>
+        </Modal>
       )}
     </div>
   )

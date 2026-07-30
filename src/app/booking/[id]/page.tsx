@@ -188,25 +188,10 @@ export default function BookingPage() {
         checkout_request_id: '', status: 'success',
       })
 
-      const { data: listerProfile } = await supabase.from('profiles').select('phone, email, full_name, username').eq('id', listing.uploader_id).single()
-
-      if (listerProfile) {
-        await notifyUser(user.email || '', 'Contact Details Released',
-          `You can now contact the lister of "${listing.title}"`,
-          { Lister: listerProfile.full_name || listerProfile.username || 'Lister', Phone: listerProfile.phone || 'N/A', Email: listerProfile.email || 'N/A' }
-        )
-      }
-
-      const { data: hunterProfile } = await supabase.from('profiles').select('phone, email, full_name, username').eq('id', user.id).single()
-      if (hunterProfile) {
-        const { data: listerEmail } = await supabase.from('profiles').select('email').eq('id', listing.uploader_id).single()
-        if (listerEmail?.email) {
-          await notifyUser(listerEmail.email, 'Tenant Contact Details Released',
-            `A tenant has released funds and their contact details are now available for "${listing.title}"`,
-            { Tenant: hunterProfile.full_name || hunterProfile.username || 'Tenant', Phone: hunterProfile.phone || 'N/A', Email: hunterProfile.email || 'N/A' }
-          )
-        }
-      }
+      fetch('/api/notify-contact', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ booking_id: booking.id }),
+      }).catch(() => {})
 
       setEscrowHold({ ...escrowHold, status: 'released' })
     } catch { setError('Failed to release funds') } finally { setReleasing(false) }

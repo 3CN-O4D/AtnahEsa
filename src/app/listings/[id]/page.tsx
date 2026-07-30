@@ -32,7 +32,7 @@ function Stars({ rating, interactive, onChange }: { rating: number; interactive?
           key={star}
           type={interactive ? 'button' : undefined}
           onClick={() => interactive && onChange?.(star)}
-          className={`text-lg ${interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'} transition-transform ${star <= rating ? 'text-yellow-400' : 'text-gray-300'}`}
+          className={`text-lg ${interactive ? 'cursor-pointer hover:scale-110' : 'cursor-default'} transition-transform ${star <= rating ? 'text-yellow-400' : 'text-gray-300 dark:text-gray-500'}`}
         >
           ★
         </button>

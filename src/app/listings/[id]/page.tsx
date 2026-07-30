@@ -64,6 +64,7 @@ export default function ListingDetailPage() {
   const [listerComment, setListerComment] = useState('')
   const [listerAnonymous, setListerAnonymous] = useState(false)
   const [submittingLister, setSubmittingLister] = useState(false)
+  const [showPhone, setShowPhone] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -313,8 +314,8 @@ export default function ListingDetailPage() {
 
           {/* Lister info */}
           {lister && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-100 rounded-xl p-5 space-y-4">
-              <h3 className="font-semibold flex items-center gap-2 text-blue-800"><User className="w-4 h-4" /> Listed by</h3>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-100 dark:border-blue-800/50 rounded-xl p-5 space-y-4">
+              <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-300"><User className="w-4 h-4" /> Listed by</h3>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
                   {lister.avatar_url ? (
@@ -324,7 +325,7 @@ export default function ListingDetailPage() {
                   )}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 text-lg">{lister.full_name || 'Anonymous'}</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg">{lister.full_name || 'Anonymous'}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Stars rating={lister.average_rating || 0} />
                     <span className="text-sm text-gray-500">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
@@ -340,9 +341,15 @@ export default function ListingDetailPage() {
                   <span className="text-gray-500 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
                 {lister.phone && (
-                  <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium flex items-center gap-1">
-                    <PhoneIcon className="w-3.5 h-3.5" /> {maskPhone(lister.phone)}
-                  </a>
+                  showPhone ? (
+                    <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium flex items-center gap-1">
+                      <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
+                    </a>
+                  ) : (
+                    <button onClick={() => setShowPhone(true)} className="text-blue-600 hover:underline font-medium flex items-center gap-1 text-left">
+                      <PhoneIcon className="w-3.5 h-3.5" /> {maskPhone(lister.phone)}
+                    </button>
+                  )
                 )}
               </div>
             </div>
@@ -363,14 +370,14 @@ export default function ListingDetailPage() {
           )}
 
           {/* Reviews */}
-          <div className="bg-white border rounded-xl p-5 space-y-4">
+          <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold flex items-center gap-2">
               <Star className="w-4 h-4 text-yellow-500" /> Reviews
-              {avgRating > 0 && <span className="text-sm font-normal text-gray-500">({avgRating} avg)</span>}
+              {avgRating > 0 && <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({avgRating} avg)</span>}
             </h3>
 
             {user && canReview && !alreadyReviewed && (
-              <div className="space-y-3 p-4 bg-gray-50 rounded-xl">
+              <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
                 <p className="text-sm font-medium">Rate this property</p>
                 <Stars rating={myRating} interactive onChange={setMyRating} />
                 <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
@@ -461,7 +468,7 @@ export default function ListingDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-white border rounded-xl p-4 space-y-4 sticky top-24">
+          <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 sticky top-24">
             <div>
               <p className="text-sm text-gray-500">Monthly Rent</p>
               <p className="text-2xl font-bold text-gray-900">{formatPrice(listing.rent)}</p>

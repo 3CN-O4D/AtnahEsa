@@ -40,7 +40,6 @@ export default function HomePage() {
       }
       setStats({ available, pending, taken })
     }).catch((err) => console.error('Stats fetch failed:', err))
-    })
   }, [])
 
   const fetchListings = useCallback(

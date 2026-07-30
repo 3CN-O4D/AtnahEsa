@@ -77,8 +77,10 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
   return (
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {listings.map((listing) => (
-          <ListingCard key={listing.id} listing={listing} />
+        {listings.map((listing, i) => (
+          <div key={listing.id} className="animate-fadeIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
+            <ListingCard listing={listing} />
+          </div>
         ))}
       </div>
       {!hasMore && listings.length === 0 && (

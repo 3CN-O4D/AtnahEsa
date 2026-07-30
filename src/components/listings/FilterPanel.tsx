@@ -39,7 +39,7 @@ export default function FilterPanel({ onApply }: FilterPanelProps) {
   }
 
   return (
-    <div className="bg-white border rounded-xl p-4 space-y-4">
+    <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 animate-fadeIn">
       <Input
         label="Location"
         id="filter-location"
@@ -87,7 +87,7 @@ export default function FilterPanel({ onApply }: FilterPanelProps) {
       </div>
 
       <div className="space-y-1">
-        <label className="block text-sm font-medium text-gray-700">Issues</label>
+        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Issues</label>
         <div className="flex flex-wrap gap-2">
           {ISSUE_FILTERS.map((opt) => (
             <button

@@ -8,6 +8,7 @@ import SortDropdown from '@/components/listings/SortDropdown'
 import FilterPanel from '@/components/listings/FilterPanel'
 import { createClient } from '@/lib/supabase/client'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
+import { useCountUp } from '@/hooks/useCountUp'
 import type { Listing } from '@/types'
 
 export default function HomePage() {
@@ -105,6 +106,10 @@ export default function HomePage() {
 
   const listAHouseLink = user ? '/upload' : '/auth/signup?role=lister'
 
+  const countAvailable = useCountUp(stats.available)
+  const countPending = useCountUp(stats.pending)
+  const countTaken = useCountUp(stats.taken)
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Hero section */}
@@ -125,15 +130,15 @@ export default function HomePage() {
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
         <div className="bg-[#e8f8eb] dark:bg-[#30B54A]/20 border border-[#30B54A] dark:border-[#30B54A]/50 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-[#30B54A] dark:text-[#6fdc84]">{stats.available}</p>
+          <p className="text-2xl font-bold text-[#30B54A] dark:text-[#6fdc84]">{countAvailable}</p>
           <p className="text-xs text-[#30B54A] dark:text-[#6fdc84] font-medium">Available Houses</p>
         </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.pending}</p>
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center" style={{ animationDelay: '0.1s' }}>
+          <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{countPending}</p>
           <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium">Pending</p>
         </div>
-        <Link href="/taken" className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.taken}</p>
+        <Link href="/taken" className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow" style={{ animationDelay: '0.2s' }}>
+          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{countTaken}</p>
           <p className="text-xs text-purple-600 dark:text-purple-300 font-medium">Taken Houses</p>
         </Link>
       </div>
@@ -147,7 +152,7 @@ export default function HomePage() {
           <SortDropdown value={sort} onChange={setSort} />
         </div>
 
-        {showFilters && <FilterPanel onApply={setFilters} />}
+        {showFilters && <div className="animate-fadeIn"><FilterPanel onApply={setFilters} /></div>}
       </div>
 
       {/* Listing grid with infinite scroll */}

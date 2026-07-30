@@ -13,6 +13,7 @@ import { maskPhone } from '@/lib/utils'
 import { formatPrice } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
 import ListingCard from '@/components/listings/ListingCard'
+import { SkeletonDetail } from '@/components/ui/Skeleton'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
 const ImageViewer = dynamic(() => import('@/components/ui/ImageViewer'), { ssr: false })
@@ -160,7 +161,7 @@ export default function ListingDetailPage() {
   const alreadyReviewed = user && reviews.some((r) => r.user_id === user.id)
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+    return <SkeletonDetail />
   }
 
   if (!listing) return null
@@ -334,7 +335,7 @@ export default function ListingDetailPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {listing.images.map((img, i) => (
                   <button key={i} onClick={() => { setViewerIndex(i); setShowViewer(true) }} className="group relative aspect-video overflow-hidden rounded-xl">
-                    <img src={img} alt={`${listing.title} ${i + 1}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <img src={img} alt={`${listing.title} ${i + 1}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500 ease-out" />
                   </button>
                 ))}
               </div>

@@ -32,7 +32,7 @@ export async function PATCH(
       'location', 'descriptive_location', 'images', 'youtube_url', 'video_url',
       'issues', 'issues_count', 'house_type', 'building_type', 'floor_number',
       'electricity', 'electric_bill', 'water', 'vacancy', 'vacancy_type',
-      'why_vacant', 'payment_method', 'lister_phone', 'status',
+      'why_vacant', 'payment_method', 'lister_phone', 'status', 'taken_by_name',
     ]
     for (const key of adminUpdatable) {
       if (body[key] !== undefined) allowedFields[key] = body[key]

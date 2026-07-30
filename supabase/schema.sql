@@ -539,6 +539,12 @@ ALTER TABLE public.bookings ADD COLUMN IF NOT EXISTS report_id UUID REFERENCES p
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS average_rating NUMERIC(3,2) DEFAULT 0;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAULT 0;
 
+-- Add verified column to profiles (admin can toggle)
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
+
+-- Add taken_by_name to listings (records who took the house)
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS taken_by_name TEXT DEFAULT '';
+
 -- 17. Storey/Flat columns for listings
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS building_type TEXT DEFAULT '' CHECK (building_type IN ('', 'storey', 'flat'));
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS floor_number TEXT DEFAULT '';

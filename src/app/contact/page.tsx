@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 import { Mail, Phone, MapPin, Send, MessageCircle, Home } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
@@ -134,8 +135,8 @@ export default function ContactPage() {
             </div>
           </div>
 
-          <a
-            href="/listings"
+          <Link
+            href="/request-house"
             className="flex items-center gap-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl p-4 transition-colors"
           >
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center shrink-0">
@@ -145,7 +146,7 @@ export default function ContactPage() {
               <p className="font-medium">Request a House</p>
               <p className="text-blue-100 text-xs">Browse listings and find your perfect home</p>
             </div>
-          </a>
+          </Link>
         </div>
       </div>
     </div>

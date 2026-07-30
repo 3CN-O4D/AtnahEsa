@@ -1,10 +1,12 @@
 'use client'
 
 import Link from 'next/link'
-import { MapPin, AlertTriangle } from 'lucide-react'
+import { useState, useEffect } from 'react'
+import { MapPin, AlertTriangle, BadgeCheck } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Slideshow from '@/components/ui/Slideshow'
 import { formatPrice } from '@/lib/utils'
+import { createClient } from '@/lib/supabase/client'
 import type { Listing } from '@/types'
 
 interface ListingCardProps {
@@ -12,6 +14,29 @@ interface ListingCardProps {
 }
 
 export default function ListingCard({ listing }: ListingCardProps) {
+  const [listerName, setListerName] = useState(listing.uploader_name || '')
+  const [verified, setVerified] = useState(false)
+
+  useEffect(() => {
+    const supabase = createClient()
+    supabase
+      .from('profiles')
+      .select('role, verified, full_name')
+      .eq('id', listing.uploader_id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          if (data.role === 'admin') {
+            setListerName('AseHanta')
+            setVerified(true)
+          } else {
+            setListerName(data.full_name || listing.uploader_name || '')
+            setVerified(!!data.verified)
+          }
+        }
+      })
+  }, [listing.uploader_id, listing.uploader_name])
+
   return (
     <Link href={`/listings/${listing.id}`}>
       <Card hover>
@@ -37,6 +62,10 @@ export default function ListingCard({ listing }: ListingCardProps) {
                 <span>{listing.issues.length} issue{listing.issues.length > 1 ? 's' : ''}</span>
               </div>
             )}
+          </div>
+          <div className="flex items-center gap-1.5 text-xs text-gray-500 pt-1 border-t border-gray-100">
+            <span>By: {listerName}</span>
+            {verified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />}
           </div>
         </div>
       </Card>

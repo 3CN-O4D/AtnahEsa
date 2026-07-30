@@ -43,6 +43,12 @@ export default function ProfilePage() {
   const [showConfirm, setShowConfirm] = useState(false)
   const [passwordOtp, setPasswordOtp] = useState(['', '', '', '', '', ''])
 
+  // Delete account
+  const [deleteStep, setDeleteStep] = useState<'confirm' | 'otp' | 'done'>('confirm')
+  const [deleteOtp, setDeleteOtp] = useState(['', '', '', '', '', ''])
+  const [deleteOtpLoading, setDeleteOtpLoading] = useState(false)
+  const deleteOtpRefs = useRef<(HTMLInputElement | null)[]>([])
+
   // Create password (Google users - needs OTP)
   const [createStep, setCreateStep] = useState<'form' | 'otp' | 'done'>('form')
   const [createOtp, setCreateOtp] = useState(['', '', '', '', '', ''])
@@ -295,6 +301,77 @@ export default function ProfilePage() {
     for (let i = 0; i < text.length; i++) next[i] = text[i]
     setEmailOtp(next)
     emailOtpRefs.current[Math.min(text.length, 5)]?.focus()
+  }
+
+  // Delete account handlers
+  const handleDeleteSendOtp = async () => {
+    setError(''); setSuccess('')
+    setDeleteOtpLoading(true)
+    try {
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, type: 'delete_account' }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setDeleteOtpLoading(false); return }
+      setDeleteStep('otp')
+      setTimeout(() => deleteOtpRefs.current[0]?.focus(), 100)
+    } catch {
+      setError('Failed to send OTP')
+    } finally {
+      setDeleteOtpLoading(false)
+    }
+  }
+
+  const handleVerifyDeleteOtp = async () => {
+    setError(''); setSuccess('')
+    const code = deleteOtp.join('')
+    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    setDeleteOtpLoading(true)
+    try {
+      const res = await fetch('/api/profile/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ otp: code }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error); setDeleteOtpLoading(false); return }
+      setDeleteStep('done')
+      setSuccess('Account deleted. Redirecting...')
+      setTimeout(() => {
+        const supabase = createClient()
+        supabase.auth.signOut()
+        window.location.href = '/'
+      }, 2000)
+    } catch {
+      setError('Something went wrong')
+    } finally {
+      setDeleteOtpLoading(false)
+    }
+  }
+
+  const handleDeleteOtpChange = (index: number, value: string) => {
+    if (!/^\d?$/.test(value)) return
+    const next = [...deleteOtp]
+    next[index] = value
+    setDeleteOtp(next)
+    if (value && index < 5) deleteOtpRefs.current[index + 1]?.focus()
+  }
+
+  const handleDeleteOtpKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !deleteOtp[index] && index > 0) {
+      deleteOtpRefs.current[index - 1]?.focus()
+    }
+  }
+
+  const handleDeleteOtpPaste = (e: React.ClipboardEvent) => {
+    const text = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6)
+    if (!text) return
+    const next = [...deleteOtp]
+    for (let i = 0; i < text.length; i++) next[i] = text[i]
+    setDeleteOtp(next)
+    deleteOtpRefs.current[Math.min(text.length, 5)]?.focus()
   }
 
   // Generic resend OTP handler with cooldown
@@ -799,6 +876,54 @@ export default function ProfilePage() {
             Your email has been updated to <strong className="dark:text-white">{userEmail}</strong>.
           </p>
           <Button onClick={() => setEmailStep('idle')} variant="outline" className="w-full">Done</Button>
+        </div>
+      )}
+
+      {/* Delete Account */}
+      {deleteStep === 'confirm' && !editMode && (
+        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 rounded-xl p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-2 dark:text-white flex items-center gap-2 text-red-600">
+            Delete Account
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            This will permanently delete your account and all associated data. A verification code will be sent to <strong className="dark:text-white">{userEmail}</strong>.
+          </p>
+          {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
+          <Button onClick={handleDeleteSendOtp} loading={deleteOtpLoading} variant="danger" className="w-full">Delete My Account</Button>
+        </div>
+      )}
+
+      {deleteStep === 'otp' && (
+        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 rounded-xl p-6 mt-6">
+          <h2 className="text-lg font-semibold mb-2 dark:text-white flex items-center gap-2 text-red-600">
+            Confirm Deletion
+          </h2>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+            Enter the 6-digit code sent to <strong className="dark:text-white">{userEmail}</strong> to confirm account deletion.
+          </p>
+          <div className="space-y-4">
+            <div className="flex justify-center gap-2" onPaste={handleDeleteOtpPaste}>
+              {deleteOtp.map((digit, i) => (
+                <input
+                  key={i}
+                  ref={(el) => { deleteOtpRefs.current[i] = el }}
+                  type="text"
+                  inputMode="numeric"
+                  maxLength={1}
+                  value={digit}
+                  onChange={(e) => handleDeleteOtpChange(i, e.target.value)}
+                  onKeyDown={(e) => handleDeleteOtpKeyDown(i, e)}
+                  className="w-11 h-12 text-center text-lg font-semibold border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500"
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+            {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
+            <div className="flex gap-2">
+              <Button onClick={() => { setDeleteStep('confirm'); setDeleteOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Cancel</Button>
+              <Button onClick={handleVerifyDeleteOtp} loading={deleteOtpLoading} variant="danger" className="flex-1">Permanently Delete</Button>
+            </div>
+          </div>
         </div>
       )}
     </div>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import nodemailer from 'nodemailer'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 const transporter = nodemailer.createTransport({
@@ -146,19 +147,21 @@ const actionTemplates: Record<string, (data: Record<string, string>) => ActionDe
 }
 
 export async function POST(request: Request) {
-  const supabase = createAdminClient()
+  const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
+  const adminSupabase = createAdminClient()
+
   const body = await request.json()
   const { to, user_id, action, data } = body as { to?: string; user_id?: string; action: string; data: Record<string, string> }
 
   let recipient = to
   if (!recipient && user_id) {
-    const { data: authUser } = await supabase.auth.admin.getUserById(user_id)
+    const { data: authUser } = await adminSupabase.auth.admin.getUserById(user_id)
     recipient = authUser?.user?.email || undefined
   }
   if (!recipient || !action) {

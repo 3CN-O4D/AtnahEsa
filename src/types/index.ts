@@ -32,6 +32,7 @@ export interface Listing {
   status: ListingStatus
   uploader_id: string
   uploader_name: string
+  taken_by_name: string
   created_at: string
   updated_at: string
 }
@@ -181,6 +182,7 @@ export interface Profile {
   average_rating: number
   total_reviews: number
   has_password: boolean
+  verified: boolean
   created_at: string
   updated_at: string
 }

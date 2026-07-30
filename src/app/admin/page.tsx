@@ -33,7 +33,7 @@ function AdminDashboardInner() {
   const [requests, setRequests] = useState<HouseRequest[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [stats, setStats] = useState({
-    total: 0, published: 0, booked: 0, taken: 0, pending: 0,
+    total: 0, published: 0, booked: 0, taken: 0, pending: 0, vacant: 0, vacancyPending: 0,
     completed: 0, refunded: 0, withIssues: 0,
     totalRevenue: 0, totalRefunded: 0, totalListers: 0, totalHunters: 0, totalUsers: 0,
     totalMovers: 0, wifiPackages: 0, wifiBookings: 0,
@@ -76,7 +76,7 @@ function AdminDashboardInner() {
     }
 
     const [
-      total, publishedCount, bookedCount, takenCount, pendingCount,
+      total, publishedCount, bookedCount, takenCount, pendingCount, vacantCount, vacancyPendingCount,
       withIssues, completed, refunded, listers, hunters, totalUsers,
       movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
     ] = await Promise.all([
@@ -85,6 +85,8 @@ function AdminDashboardInner() {
       c('listings', 'status', 'booked'),
       c('listings', 'status', 'taken'),
       c('listings', 'status', 'pending'),
+      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'vacant').then((r) => r.count ?? 0),
+      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'pending').then((r) => r.count ?? 0),
       supabase.from('listings').select('id', { count: 'exact', head: true }).gt('issues_count', 0).then((r) => r.count ?? 0),
       c('bookings', 'visit_status', 'completed'),
       c('bookings', 'visit_status', 'refunded'),
@@ -109,7 +111,7 @@ function AdminDashboardInner() {
     const escrowHeld = (escrows || []).filter((e) => e.status === 'held').length
     const escrowHeldAmount = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
 
-    const result = { total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters, totalUsers, totalMovers: movers, wifiPackages: wifiPkgs, wifiBookings: wifiBkgs, contactSubmissions: contacts, houseRequests: houseReqs, reports, escrowHeld, escrowHeldAmount }
+    const result = { total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, vacant: vacantCount, vacancyPending: vacancyPendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters, totalUsers, totalMovers: movers, wifiPackages: wifiPkgs, wifiBookings: wifiBkgs, contactSubmissions: contacts, houseRequests: houseReqs, reports, escrowHeld, escrowHeldAmount }
     setCache('admin:stats', result)
     setStats(result)
     setLoaded(true)
@@ -123,7 +125,7 @@ function AdminDashboardInner() {
 
     const { data: listingsData } = await supabase
       .from('listings')
-      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url, video_urls, youtube_urls')
+      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url, video_urls, youtube_urls, taken_by_name')
       .order('created_at', { ascending: false })
 
     const listings = (listingsData ?? []) as Listing[]
@@ -223,8 +225,10 @@ function AdminDashboardInner() {
   }
 
   const handleMarkTaken = async (id: string) => {
+    const name = prompt('Who took this house? (Enter name):')
+    if (!name || !name.trim()) return
     const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ status: 'taken' }).eq('id', id)
+    const { error } = await supabase.from('listings').update({ status: 'taken', taken_by_name: name.trim() }).eq('id', id)
     if (error) { showToast('error', error.message); return }
     if (!await verifyUpdate('listings', id, 'status', 'taken')) return
     showToast('success', 'Marked as taken')
@@ -241,6 +245,19 @@ function AdminDashboardInner() {
       return false
     }
     return true
+  }
+
+  const handleReject = async (id: string) => {
+    const reason = prompt('Reason for rejection:')
+    if (!reason) return
+    const supabase = createClient()
+    const { error } = await supabase.from('listings').update({ status: 'rejected' }).eq('id', id)
+    if (error) { showToast('error', error.message); return }
+    if (!await verifyUpdate('listings', id, 'status', 'rejected')) return
+    showToast('success', 'Listing rejected')
+    const listing = allListings.find((l) => l.id === id)
+    if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_rejected', { title: listing.title, reason })
+    clearCache('admin:'); loadAll()
   }
 
   const handleMarkPublished = async (id: string) => {
@@ -333,6 +350,14 @@ function AdminDashboardInner() {
     clearCache('admin:'); loadUsers()
   }
 
+  const handleToggleVerified = async (userId: string, currentVerified: boolean) => {
+    const supabase = createClient()
+    const { error } = await supabase.from('profiles').update({ verified: !currentVerified }).eq('id', userId)
+    if (error) { showToast('error', error.message); return }
+    showToast('success', `User ${currentVerified ? 'unverified' : 'verified'}`)
+    clearCache('admin:'); loadUsers()
+  }
+
   const statCard = (label: string, value: number | string, color: string, link?: string) => (
     <button
       onClick={() => { if (link) router.push(link) }}
@@ -413,13 +438,17 @@ function AdminDashboardInner() {
           </div>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {sectionTitle('Properties', '🏠')}
-            {statCard('Total Houses', stats.total, 'text-gray-900', '/admin?tab=houses')}
+            {sectionTitle('Approval Stats', '📋')}
+            {statCard('Awaiting Approval', stats.pending, 'text-amber-600', '/admin?tab=houses')}
             {statCard('Published', stats.published, 'text-green-600', '/admin?tab=houses')}
+            {statCard('Rejected / Issues', stats.withIssues, 'text-red-600', '/admin?tab=houses')}
+
+            {sectionTitle('Vacancy Stats', '🏠')}
+            {statCard('Total Houses', stats.total, 'text-gray-900', '/admin?tab=houses')}
+            {statCard('Vacant Houses', stats.vacant, 'text-green-600', '/admin?tab=houses')}
+            {statCard('Pending (Vacancy)', stats.vacancyPending, 'text-yellow-600', '/admin?tab=houses')}
             {statCard('Booked', stats.booked, 'text-blue-600', '/admin?tab=houses')}
             {statCard('Taken', stats.taken, 'text-purple-600', '/admin?tab=houses')}
-            {statCard('Pending Review', stats.pending, 'text-amber-600', '/admin?tab=houses')}
-            {statCard('With Issues', stats.withIssues, 'text-red-600', '/admin?tab=houses')}
 
             {sectionTitle('People', '👥')}
             {statCard('Total Users', stats.totalUsers, 'text-gray-900', '/admin?tab=users')}
@@ -514,6 +543,7 @@ function AdminDashboardInner() {
               <div className="flex gap-2 shrink-0 flex-wrap">
                 <Link href={`/admin/listings/${listing.id}`}><Button variant="outline" size="sm">Edit</Button></Link>
                 {listing.status === 'pending' && <Button size="sm" onClick={() => handleApprove(listing.id)}>Approve</Button>}
+                {listing.status === 'pending' && <Button size="sm" variant="danger" onClick={() => handleReject(listing.id)}>Reject</Button>}
                 {listing.status === 'published' && <Button size="sm" onClick={() => handleMarkBooked(listing.id)}>Mark Booked</Button>}
                 {listing.status === 'booked' && <Button size="sm" onClick={() => handleMarkTaken(listing.id)}>Mark Taken</Button>}
                 {listing.status === 'taken' && <Button size="sm" variant="outline" onClick={() => handleMarkPublished(listing.id)}>Put Back</Button>}
@@ -666,7 +696,7 @@ function AdminDashboardInner() {
               <thead><tr className="bg-gray-50 border-b dark:border-gray-700">
                 <th className="text-left p-3 font-medium">Name</th><th className="text-left p-3 font-medium">Username</th>
                 <th className="text-left p-3 font-medium">Phone</th><th className="text-left p-3 font-medium">Role</th>
-                <th className="text-left p-3 font-medium">Joined</th><th className="text-left p-3 font-medium">Actions</th>
+                <th className="text-left p-3 font-medium">Verified</th><th className="text-left p-3 font-medium">Joined</th><th className="text-left p-3 font-medium">Actions</th>
               </tr></thead>
               <tbody>{users
                 .filter((u) => !userSearch || (u.full_name?.toLowerCase() || '').includes(userSearch.toLowerCase()) || (u.username?.toLowerCase() || '').includes(userSearch.toLowerCase()) || (u.phone || '').includes(userSearch))
@@ -681,6 +711,16 @@ function AdminDashboardInner() {
                       <option value="lister">Lister</option>
                       <option value="admin">Admin</option>
                     </select>
+                  </td>
+                  <td className="p-3">
+                    <button
+                      onClick={() => handleToggleVerified(u.id, !!u.verified)}
+                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                        u.verified ? 'bg-blue-100 text-blue-700 hover:bg-blue-200' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                      }`}
+                    >
+                      {u.verified ? 'Verified' : 'Not Verified'}
+                    </button>
                   </td>
                   <td className="p-3 text-gray-500">{new Date(u.created_at).toLocaleDateString()}</td>
                   <td className="p-3 flex gap-1">

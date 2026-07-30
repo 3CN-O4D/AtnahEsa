@@ -55,24 +55,16 @@ export default function Footer() {
         {/* Collaborators */}
         <div className="border-t border-slate-800 mt-6 pt-5">
           <p className="text-center text-xs text-slate-600 mb-3">Our Collaborators</p>
-          <div className="flex justify-center items-center gap-6">
-            <a href="https://chshub.co.ke" target="_blank" rel="noopener noreferrer" className="flex flex-col items-center gap-1 text-slate-500 hover:text-white transition-colors group">
-              <div className="w-9 h-9 rounded-lg bg-slate-800 group-hover:bg-slate-700 flex items-center justify-center transition-colors">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-4 h-4 text-green-400">
-                  <path d="M19 14l-7 7m0 0l-7-7m7 7V3" />
-                </svg>
-              </div>
-              <span className="text-[10px]">CHS Hub</span>
-            </a>
-            <a href="https://jambonetkenya.co.ke" target="_blank" rel="noopener noreferrer" className="opacity-60 hover:opacity-100 transition-opacity">
-              <img src="/images/jambonet-logo.jpeg" alt="Jambonet Kenya" className="h-8" />
-            </a>
+          <div className="flex justify-center items-center gap-3 text-xs text-slate-500">
+            <span>CHS Hub</span>
             <span className="text-slate-600">|</span>
-            <span className="text-[11px] text-slate-500 hover:text-white transition-colors">Wasabinet</span>
+            <span>Jambonet Kenya</span>
             <span className="text-slate-600">|</span>
-            <span className="text-[11px] text-slate-500 hover:text-white transition-colors">PulseGaming</span>
+            <span>Wasabinet</span>
             <span className="text-slate-600">|</span>
-            <span className="text-[11px] text-slate-500 hover:text-white transition-colors">Go Cycle</span>
+            <span>PulseGaming</span>
+            <span className="text-slate-600">|</span>
+            <span>Go Cycle</span>
           </div>
         </div>
 

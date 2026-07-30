@@ -21,13 +21,20 @@ export default function HomePage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => setUser(data.user ? { id: data.user.id } : null))
-    supabase.from('listings').select('status').then(({ data }) => {
-      if (!data) return
+    Promise.all([
+      supabase.from('listings').select('status'),
+      supabase.from('listings').select('vacancy').eq('status', 'published'),
+    ]).then(([statusRes, vacancyRes]) => {
+      const statusData = statusRes.data
+      const vacancyData = vacancyRes.data
+      if (!statusData) return
       let available = 0, pending = 0, taken = 0
-      for (const row of data) {
+      for (const row of statusData) {
         if (row.status === 'published') available++
-        else if (row.status === 'pending') pending++
         else if (row.status === 'taken') taken++
+      }
+      if (vacancyData) {
+        pending = vacancyData.filter((r) => r.vacancy === 'pending').length
       }
       setStats({ available, pending, taken })
     })
@@ -104,10 +111,10 @@ export default function HomePage() {
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Find Your Perfect Home
+            Find Your Perfect Home and Get Connected
           </h1>
           <p className="text-gray-600">
-            Browse verified listings, book viewings, and move in with ease.
+            Browse verified listings, book, move in and get connected with ease.
           </p>
         </div>
         <Link href={listAHouseLink} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
@@ -125,10 +132,10 @@ export default function HomePage() {
           <p className="text-2xl font-bold text-yellow-700">{stats.pending}</p>
           <p className="text-xs text-yellow-600 font-medium">Pending</p>
         </div>
-        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-blue-700">{stats.taken}</p>
-          <p className="text-xs text-blue-600 font-medium">Taken</p>
-        </div>
+        <Link href="/taken" className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center hover:shadow-md transition-shadow">
+          <p className="text-2xl font-bold text-purple-700">{stats.taken}</p>
+          <p className="text-xs text-purple-600 font-medium">Taken Houses</p>
+        </Link>
       </div>
 
       {/* Search + Sort + Filters */}

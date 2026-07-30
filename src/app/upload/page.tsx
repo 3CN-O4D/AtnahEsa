@@ -12,6 +12,8 @@ import type { User } from '@supabase/supabase-js'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
 const ELECTRIC_BILL_OPTS = ['Self Provided', 'Inclusive in Rent']
+const WATER_BILL_OPTS = ['Self Provided', 'Inclusive in Rent']
+const REASON_OPTS = ['Previous tenant moved out', 'Newly constructed']
 
 export default function UploadPage() {
   const router = useRouter()
@@ -249,23 +251,27 @@ export default function UploadPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-4">
-          <Input
-            label="Water"
-            id="water"
-            placeholder="e.g. Inclusive in Rent"
-            value={water}
-            onChange={(e) => setWater(e.target.value)}
-          />
-          <Input
-            label="Lister Phone (visible to admin)"
-            id="listerPhone"
-            type="tel"
-            placeholder="e.g. 0712345678"
-            value={listerPhone}
-            onChange={(e) => setListerPhone(e.target.value)}
-          />
+        {/* Water Bill */}
+        <div className="space-y-1">
+          <label className="block text-sm font-medium text-gray-700">Water Bill</label>
+          <div className="flex flex-wrap gap-2">
+            {WATER_BILL_OPTS.map((opt) => (
+              <button key={opt} type="button" onClick={() => setWater(opt)}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${water === opt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                {opt}
+              </button>
+            ))}
+          </div>
         </div>
+
+        <Input
+          label="Lister Phone (visible to admin)"
+          id="listerPhone"
+          type="tel"
+          placeholder="e.g. 0712345678"
+          value={listerPhone}
+          onChange={(e) => setListerPhone(e.target.value)}
+        />
 
         {/* Vacancy */}
         <div className="space-y-1">
@@ -276,9 +282,17 @@ export default function UploadPage() {
             <option value="pending">Pending</option>
           </select>
           {vacancy === 'vacant' && (
-            <input type="text" value={whyVacant} onChange={(e) => setWhyVacant(e.target.value)}
-              placeholder="Why is it vacant? (e.g. Previous tenant moved out)"
-              className="mt-2 block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div className="mt-2 space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Reason for Vacancy</label>
+              <div className="flex flex-wrap gap-2">
+                {REASON_OPTS.map((opt) => (
+                  <button key={opt} type="button" onClick={() => setWhyVacant(opt)}
+                    className={`px-3 py-1.5 text-sm rounded-lg border transition-colors ${whyVacant === opt ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300 hover:border-blue-400'}`}>
+                    {opt}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
         </div>
 

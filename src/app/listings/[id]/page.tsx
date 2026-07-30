@@ -383,55 +383,55 @@ export default function ListingDetailPage() {
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
               {(listing.house_type && listing.house_type !== 'Other') && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Type</span>
+                  <span className="text-gray-500 dark:text-gray-300">Type</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.house_type}</span>
                 </>
               )}
               {listing.building_type && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Building</span>
+                  <span className="text-gray-500 dark:text-gray-300">Building</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right capitalize">{listing.building_type === 'storey' ? 'Storey / Upstairs' : 'Flat / Ground Floor'}</span>
                 </>
               )}
               {listing.floor_number && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Floor</span>
+                  <span className="text-gray-500 dark:text-gray-300">Floor</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.floor_number}</span>
                 </>
               )}
               {listing.deposit > 0 && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Deposit</span>
+                  <span className="text-gray-500 dark:text-gray-300">Deposit</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{formatPrice(listing.deposit)}{listing.deposit_refundable === false ? ' (non-refundable)' : ' (refundable)'}</span>
                 </>
               )}
               {listing.electric_bill && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Electric Bill</span>
+                  <span className="text-gray-500 dark:text-gray-300">Electric Bill</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.electric_bill}</span>
                 </>
               )}
               {listing.water && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Water</span>
+                  <span className="text-gray-500 dark:text-gray-300">Water</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.water}</span>
                 </>
               )}
               {listing.vacancy && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Status</span>
+                  <span className="text-gray-500 dark:text-gray-300">Status</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right capitalize">{listing.vacancy === 'vacant' ? 'Vacant' : 'Pending'}</span>
                 </>
               )}
               {listing.why_vacant && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Reason</span>
+                  <span className="text-gray-500 dark:text-gray-300">Reason</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.why_vacant}</span>
                 </>
               )}
               {listing.descriptive_location && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-400">Access</span>
+                  <span className="text-gray-500 dark:text-gray-300">Access</span>
                   <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.descriptive_location}</span>
                 </>
               )}
@@ -440,19 +440,19 @@ export default function ListingDetailPage() {
 
           {/* Reviews */}
           <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
-            <h3 className="font-semibold flex items-center gap-2">
+            <h3 className="font-semibold flex items-center gap-2 dark:text-gray-100">
               <Star className="w-4 h-4 text-yellow-500" /> Reviews
-              {avgRating > 0 && <span className="text-sm font-normal text-gray-500 dark:text-gray-400">({avgRating} avg)</span>}
+              {avgRating > 0 && <span className="text-sm font-normal text-gray-500 dark:text-gray-300">({avgRating} avg)</span>}
             </h3>
 
             {user && canReview && !alreadyReviewed && (
               <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <p className="text-sm font-medium">Rate this property</p>
+                <p className="text-sm font-medium dark:text-gray-200">Rate this property</p>
                 <Stars rating={myRating} interactive onChange={setMyRating} />
                 <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
                   placeholder="Your comments (optional)..."
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
-                <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300 cursor-pointer">
                   <input type="checkbox" checked={myAnonymous} onChange={(e) => setMyAnonymous(e.target.checked)} className="rounded accent-gray-600" />
                   Post anonymously
                 </label>
@@ -460,13 +460,13 @@ export default function ListingDetailPage() {
               </div>
             )}
             {user && canReview && !alreadyReviewed && lister && (
-              <div className="space-y-3 p-4 bg-indigo-50 rounded-xl">
-                <p className="text-sm font-medium">Rate {lister.full_name || 'the lister'}</p>
+              <div className="space-y-3 p-4 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl">
+                <p className="text-sm font-medium dark:text-gray-200">Rate {lister.full_name || 'the lister'}</p>
                 <Stars rating={listerRating} interactive onChange={setListerRating} />
                 <textarea value={listerComment} onChange={(e) => setListerComment(e.target.value)}
                   placeholder="Share your experience with this lister (optional)..."
-                  className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
-                <label className="flex items-center gap-2 text-sm text-gray-500 cursor-pointer">
+                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300 cursor-pointer">
                   <input type="checkbox" checked={listerAnonymous} onChange={(e) => setListerAnonymous(e.target.checked)} className="rounded accent-gray-600" />
                   Post anonymously
                 </label>
@@ -474,59 +474,59 @@ export default function ListingDetailPage() {
               </div>
             )}
             {user && !canReview && (
-              <p className="text-xs text-gray-400 italic">Only users who booked and released funds can review.</p>
+              <p className="text-xs text-gray-400 dark:text-gray-400 italic">Only users who booked and released funds can review.</p>
             )}
 
-            {reviews.length === 0 && <p className="text-sm text-gray-400">No reviews yet.</p>}
+            {reviews.length === 0 && <p className="text-sm text-gray-400 dark:text-gray-400">No reviews yet.</p>}
             {reviews.map((r, i) => {
               const rp = reviewProfiles[r.user_id]
               const isAnonymous = r.is_anonymous
               return (
-                <div key={r.id || i} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-xs font-bold text-blue-600 shrink-0 overflow-hidden">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300 shrink-0 overflow-hidden">
                       {!isAnonymous && rp?.avatar_url ? (
                         <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                       )}
                     </div>
-                    <span className="text-sm font-medium text-gray-700">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
                     <div className="flex items-center gap-2 ml-auto">
                       <Stars rating={r.rating} />
-                      <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                      <span className="text-xs text-gray-400 dark:text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  {r.comment && <p className="text-sm text-gray-600 ml-8">{r.comment}</p>}
+                  {r.comment && <p className="text-sm text-gray-600 dark:text-gray-300 ml-8">{r.comment}</p>}
                 </div>
               )
             })}
             {listerReviews.length > 0 && (
               <>
-                <hr className="border-gray-200" />
-                <h4 className="text-sm font-semibold text-gray-500 flex items-center gap-1.5">
+                <hr className="border-gray-200 dark:border-gray-700" />
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
                   <Star className="w-3.5 h-3.5 text-yellow-500" /> Lister Reviews
                 </h4>
                 {listerReviews.map((r, i) => {
                   const rp = listerReviewProfiles[r.reviewer_id]
                   const isAnonymous = r.is_anonymous
                   return (
-                    <div key={r.id || i} className="border-b border-gray-100 last:border-0 pb-3 last:pb-0">
+                    <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-indigo-100 flex items-center justify-center text-xs font-bold text-indigo-600 shrink-0 overflow-hidden">
+                        <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-300 shrink-0 overflow-hidden">
                           {!isAnonymous && rp?.avatar_url ? (
                             <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
                           ) : (
                             !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                           )}
                         </div>
-                        <span className="text-sm font-medium text-gray-700">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
                         <div className="flex items-center gap-2 ml-auto">
                           <Stars rating={r.rating} />
-                          <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                          <span className="text-xs text-gray-400 dark:text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
-                      {r.comment && <p className="text-sm text-gray-600 ml-8">{r.comment}</p>}
+                      {r.comment && <p className="text-sm text-gray-600 dark:text-gray-300 ml-8">{r.comment}</p>}
                     </div>
                   )
                 })}

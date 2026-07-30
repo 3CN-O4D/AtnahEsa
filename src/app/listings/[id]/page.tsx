@@ -143,7 +143,7 @@ export default function ListingDetailPage() {
         const { data: sim } = await supabase
           .from('listings')
           .select('*')
-          .eq('status', 'published')
+          .in('status', ['published', 'taken'])
           .eq('location', l.location)
           .neq('id', id)
           .limit(10)
@@ -218,6 +218,7 @@ export default function ListingDetailPage() {
         <Slideshow images={listing.images} className="w-full aspect-video mb-6" onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }} />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
         {listing.status === 'booked' && <div className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-medium px-3 py-1 rounded-full">Booked</div>}
+        {listing.status === 'taken' && <div className="absolute top-4 right-4 bg-rose-500 text-white text-sm font-medium px-3 py-1 rounded-full">Taken</div>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">

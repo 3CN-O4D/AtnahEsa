@@ -40,8 +40,13 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
         const { error: uploadError } = await supabase.storage.from(bucket).upload(key, file, { upsert: true })
         if (uploadError) throw new Error(uploadError.message)
 
-        const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(key)
-        results.push(publicUrl)
+        const signRes = await fetch(`/api/upload-video/sign?bucket=${encodeURIComponent(bucket)}&key=${encodeURIComponent(key)}`)
+        const signText = await signRes.text()
+        let signData
+        try { signData = JSON.parse(signText) } catch { throw new Error(`Sign failed: ${signRes.status} ${signText.slice(0, 200)}`) }
+        if (!signRes.ok || signData.error) throw new Error(signData.error || 'Sign failed')
+
+        results.push(signData.url)
       }
 
       onChange([...videoUrls, ...results])

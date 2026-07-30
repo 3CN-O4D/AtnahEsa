@@ -64,7 +64,6 @@ export default function ListingDetailPage() {
   const [listerComment, setListerComment] = useState('')
   const [listerAnonymous, setListerAnonymous] = useState(false)
   const [submittingLister, setSubmittingLister] = useState(false)
-  const [showPhone, setShowPhone] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -325,7 +324,7 @@ export default function ListingDetailPage() {
                   )}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg">{lister.full_name || 'Anonymous'}</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg">@{lister.username || lister.full_name || 'Anonymous'}</p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Stars rating={lister.average_rating || 0} />
                     <span className="text-sm text-gray-500">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
@@ -340,17 +339,15 @@ export default function ListingDetailPage() {
                   <span className="font-bold text-blue-700">{lister.listing_count}</span>
                   <span className="text-gray-500 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
-                {lister.phone && (
-                  showPhone ? (
-                    <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium flex items-center gap-1">
-                      <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
-                    </a>
-                  ) : (
-                    <button onClick={() => setShowPhone(true)} className="text-blue-600 hover:underline font-medium flex items-center gap-1 text-left">
-                      <PhoneIcon className="w-3.5 h-3.5" /> {maskPhone(lister.phone)}
-                    </button>
-                  )
-                )}
+                {lister.phone && canReview ? (
+                  <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium flex items-center gap-1">
+                    <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
+                  </a>
+                ) : lister.phone ? (
+                  <span className="text-gray-400 dark:text-gray-500 text-sm flex items-center gap-1">
+                    <PhoneIcon className="w-3.5 h-3.5" /> Locked until booking
+                  </span>
+                ) : null}
               </div>
             </div>
           )}

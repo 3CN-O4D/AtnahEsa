@@ -258,6 +258,10 @@ function AdminDashboardInner() {
     const refundAmount = Math.round(amount * 0.6)
     const { error: e1 } = await supabase.from('bookings').update({ status: 'refunded', visit_status: 'refunded', refund_amount: refundAmount, refunded_at: new Date().toISOString() }).eq('id', bookingId)
     if (e1) { showToast('error', e1.message); return }
+    const { data: escrow } = await supabase.from('escrow_holds').select('id').eq('booking_id', bookingId).maybeSingle()
+    if (escrow) {
+      await supabase.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrow.id)
+    }
     const res = await fetch(`/api/admin/listings/${listingId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'published' }),

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { Smartphone, MessageSquare, CheckCircle, Clock, AlertTriangle, X } from 'lucide-react'
 import Input from '@/components/ui/Input'
@@ -60,10 +60,11 @@ export default function BookingPage() {
   }, [id, router])
 
   useEffect(() => {
+    if (step !== 'dashboard') return
     if (!escrowHold?.held_until) return
     const update = () => {
       const diff = new Date(escrowHold.held_until).getTime() - Date.now()
-      if (diff <= 0) { setCountdown('Ready'); return }
+      if (diff <= 0) { setCountdown('Expired — auto-releasing...'); return }
       const h = Math.floor(diff / 3600000)
       const m = Math.floor((diff % 3600000) / 60000)
       const s = Math.floor((diff % 60000) / 1000)
@@ -72,24 +73,7 @@ export default function BookingPage() {
     update()
     const i = setInterval(update, 1000)
     return () => clearInterval(i)
-  }, [escrowHold?.held_until])
-
-  const createEscrowHold = useCallback(async (bookingId: string) => {
-    if (!listing || !user) return
-    const supabase = createClient()
-    const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-    const { data: escrow } = await supabase.from('escrow_holds').insert({
-      booking_id: bookingId, user_id: user.id, listing_id: listing.id,
-      amount: listing.price, status: 'held', held_until: heldUntil,
-    }).select().single()
-    if (escrow) {
-      await supabase.from('bookings').update({ escrow_hold_id: escrow.id }).eq('id', bookingId)
-      const { data: b } = await supabase.from('bookings').select('*').eq('id', bookingId).single()
-      if (b) setBooking(b as Booking)
-      setEscrowHold(escrow as EscrowHold)
-      setStep('dashboard')
-    }
-  }, [listing, user])
+  }, [step, escrowHold?.held_until])
 
   const handleStkPush = async () => {
     if (!listing || !user) return
@@ -114,8 +98,14 @@ export default function BookingPage() {
       const { data: tx } = await supabase.from('transactions')
         .select('booking_id').eq('checkout_request_id', checkoutRequestId).single()
       if (tx) {
-        const { data: eb } = await supabase.from('bookings').select('*').eq('id', tx.booking_id).single()
-        if (eb?.status === 'confirmed') { await createEscrowHold(eb.id); setLoading(false); return }
+        const { data: eb } = await supabase.from('bookings').select('*, escrow_hold:escrow_holds(*)').eq('id', tx.booking_id).single()
+        if (eb?.status === 'confirmed') {
+          setBooking(eb as Booking)
+          if (eb.escrow_hold) setEscrowHold(eb.escrow_hold as unknown as EscrowHold)
+          setStep('dashboard')
+          setLoading(false)
+          return
+        }
       }
       setError('Payment not yet confirmed. Check M-Pesa and try again.')
     } catch { setError('Failed to confirm payment') } finally { setLoading(false) }
@@ -179,21 +169,12 @@ export default function BookingPage() {
     if (!escrowHold || !booking || !listing || !user) return
     setReleasing(true); setError('')
     try {
-      const supabase = createClient()
-      await supabase.from('escrow_holds').update({ status: 'released', released_at: new Date().toISOString() }).eq('id', escrowHold.id)
-      await supabase.from('bookings').update({ release_status: 'released' }).eq('id', booking.id)
-      await supabase.from('transactions').insert({
-        booking_id: booking.id, user_id: user.id, phone: booking.phone,
-        amount: listing.price, mpesa_receipt: '', mpesa_message: 'Funds released to lister',
-        checkout_request_id: '', status: 'success',
-      })
-
-      fetch('/api/notify-contact', {
+      const res = await fetch('/api/treasury/release', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ booking_id: booking.id }),
-      }).catch(() => {})
-
-      setEscrowHold({ ...escrowHold, status: 'released' })
+        body: JSON.stringify({ escrow_id: escrowHold.id }),
+      })
+      if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed to release funds') }
+      else setEscrowHold({ ...escrowHold, status: 'released' })
     } catch { setError('Failed to release funds') } finally { setReleasing(false) }
   }
 
@@ -211,6 +192,11 @@ export default function BookingPage() {
       if (report) {
         await supabase.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrowHold.id)
         await supabase.from('bookings').update({ release_status: 'refunded', refund_percentage: 85, refund_amount: refundAmount, report_id: report.id }).eq('id', booking.id)
+        await supabase.from('transactions').insert({
+          booking_id: booking.id, user_id: user.id, phone: booking.phone || '',
+          amount: refundAmount, mpesa_receipt: '', mpesa_message: 'User refund after report',
+          checkout_request_id: '', status: 'success',
+        })
         setEscrowHold({ ...escrowHold, status: 'refunded' })
         setShowRefundModal(false)
       }

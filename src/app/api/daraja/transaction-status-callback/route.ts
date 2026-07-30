@@ -58,7 +58,7 @@ export async function POST(req: Request) {
       if (amountOk) {
         const { data: booking } = await supabase
           .from('bookings')
-          .select('id, listing_id, user_id, status, mpesa_metadata')
+          .select('id, listing_id, user_id, status, mpesa_metadata, escrow_hold_id')
           .eq('id', tx.booking_id)
           .single()
 
@@ -66,24 +66,30 @@ export async function POST(req: Request) {
           const existingMeta = (booking.mpesa_metadata || {}) as Record<string, unknown>
           const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 
-          const { data: escrow } = await supabase
-            .from('escrow_holds')
-            .insert({
-              booking_id: booking.id,
-              user_id: booking.user_id,
-              listing_id: booking.listing_id,
-              amount: tx.amount,
-              status: 'held',
-              held_until: heldUntil,
-            })
-            .select()
-            .single()
+          let escrowId: string | null = null
+          if (booking.escrow_hold_id) {
+            escrowId = booking.escrow_hold_id
+          } else {
+            const { data: escrow } = await supabase
+              .from('escrow_holds')
+              .insert({
+                booking_id: booking.id,
+                user_id: booking.user_id,
+                listing_id: booking.listing_id,
+                amount: tx.amount,
+                status: 'held',
+                held_until: heldUntil,
+              })
+              .select()
+              .single()
+            escrowId = escrow?.id || null
+          }
 
           await supabase.from('bookings').update({
             status: 'confirmed',
             mpesa_receipt: verifiedReceipt,
             mpesa_metadata: { ...existingMeta, verified_by_daraja: true, receiver_name: receiverName },
-            escrow_hold_id: escrow?.id || null,
+            escrow_hold_id: escrowId,
           }).eq('id', booking.id)
 
           await supabase.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)

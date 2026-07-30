@@ -38,21 +38,51 @@ export async function POST(req: Request) {
 
     const { data: tx } = await supabase
       .from('transactions')
-      .select('id, booking_id, mpesa_receipt, status')
+      .select('id, booking_id, escrow_hold_id, mpesa_receipt, status')
       .eq('originator_conversation_id', convId)
       .maybeSingle()
 
-    if (tx) {
-      await supabase.from('transactions').update({
-        status: ResultCode === 0 ? 'success' : 'failed',
-        mpesa_receipt: receipt || tx.mpesa_receipt,
-        result_code: ResultCode,
-        result_desc: ResultDesc || '',
-        raw_callback: result,
-      }).eq('id', tx.id)
+    if (!tx) {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Transaction not found' })
     }
 
+    if (tx.status === 'success') {
+      return NextResponse.json({ ResultCode: 0, ResultDesc: 'Already processed' })
+    }
+
+    await supabase.from('transactions').update({
+      status: ResultCode === 0 ? 'success' : 'failed',
+      mpesa_receipt: receipt || tx.mpesa_receipt,
+      result_code: ResultCode,
+      result_desc: ResultDesc || '',
+      raw_callback: result,
+    }).eq('id', tx.id)
+
     if (ResultCode === 0) {
+      if (tx.escrow_hold_id) {
+        await supabase.from('escrow_holds').update({
+          status: 'refunded',
+          refunded_at: new Date().toISOString(),
+        }).eq('id', tx.escrow_hold_id)
+      } else if (tx.booking_id) {
+        const { data: escrow } = await supabase
+          .from('escrow_holds')
+          .select('id')
+          .eq('booking_id', tx.booking_id)
+          .maybeSingle()
+        if (escrow) {
+          await supabase.from('escrow_holds').update({
+            status: 'refunded',
+            refunded_at: new Date().toISOString(),
+          }).eq('id', escrow.id)
+        }
+      }
+
+      await supabase.from('bookings').update({
+        release_status: 'refunded',
+        refunded_at: new Date().toISOString(),
+      }).eq('id', tx.booking_id)
+
       notifyAdmins(
         'B2C Refund Successful',
         'Money sent to customer',

@@ -54,13 +54,6 @@ export async function POST(req: Request) {
       raw_callback: result,
     }).select().single()
 
-    if (escrow_id && responseCode === '0') {
-      await adminSupabase.from('escrow_holds').update({
-        status: 'refunded',
-        refunded_at: new Date().toISOString(),
-      }).eq('id', escrow_id)
-    }
-
     notifyAdmins(
       responseCode === '0' ? 'B2C Refund Initiated' : 'B2C Refund Failed',
       'Money transfer to customer',

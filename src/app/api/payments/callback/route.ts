@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     if (ResultCode === 0) {
       const { data: booking } = await supabase
         .from('bookings')
-        .select('id, listing_id, status')
+        .select('id, listing_id, user_id, status, escrow_hold_id')
         .eq('id', tx.booking_id)
         .single()
 
@@ -75,6 +75,25 @@ export async function POST(req: Request) {
         }).eq('id', booking.id)
 
         await supabase.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)
+
+        if (!booking.escrow_hold_id) {
+          const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+          const { data: escrow } = await supabase
+            .from('escrow_holds')
+            .insert({
+              booking_id: booking.id,
+              user_id: booking.user_id,
+              listing_id: booking.listing_id,
+              amount: amount || 0,
+              status: 'held',
+              held_until: heldUntil,
+            })
+            .select()
+            .single()
+          if (escrow) {
+            await supabase.from('bookings').update({ escrow_hold_id: escrow.id }).eq('id', booking.id)
+          }
+        }
       }
 
       notifyAdmins(

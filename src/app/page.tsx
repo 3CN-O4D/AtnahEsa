@@ -47,7 +47,7 @@ export default function HomePage() {
       let q = supabase
         .from('listings')
         .select('*')
-        .in('status', ['published', 'taken'])
+        .eq('status', 'published')
         .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
 
       // Search by location or title

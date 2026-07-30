@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useRef } from 'react'
-import { Upload, X, Video, Download, Film } from 'lucide-react'
+import { X, Download, Film } from 'lucide-react'
 
 interface VideoUploaderProps {
   videoUrls: string[]
@@ -28,18 +28,17 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
     try {
       const results: string[] = []
       for (const file of toUpload) {
-        const presignRes = await fetch(`/api/upload-video/presign?name=${encodeURIComponent(file.name)}`)
-        const data = await presignRes.json()
-        if (!presignRes.ok || data.error) throw new Error(data.error || 'Failed to get upload URL')
+        const formData = new FormData()
+        formData.append('file', file)
 
-        const uploadRes = await fetch(data.url, {
-          method: 'PUT',
-          body: file,
-          headers: { 'Content-Type': data.contentType },
+        const res = await fetch('/api/upload-video', {
+          method: 'POST',
+          body: formData,
         })
-        if (!uploadRes.ok) throw new Error('Upload failed')
+        const data = await res.json()
+        if (!res.ok || data.error) throw new Error(data.error || 'Upload failed')
 
-        if (data.publicUrl) results.push(data.publicUrl)
+        if (data.url) results.push(data.url)
       }
 
       onChange([...videoUrls, ...results])

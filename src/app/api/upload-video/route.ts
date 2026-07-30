@@ -60,7 +60,8 @@ export async function POST(req: Request) {
       ContentType: contentType,
     }))
 
-    const publicUrl = `${process.env.S3_ENDPOINT}/${BUCKET}/${key}`
+    const projectRef = process.env.S3_ENDPOINT!.match(/https?:\/\/([^.]+)/)?.[1] || ''
+    const publicUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/${BUCKET}/${key}`
 
     return NextResponse.json({ url: publicUrl })
   } catch (err) {

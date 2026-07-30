@@ -372,6 +372,69 @@ export default function ListingDetailPage() {
             </div>
           )}
 
+          {/* House Details */}
+          <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
+            <h3 className="font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+              <Home className="w-4 h-4 text-blue-500" /> House Details
+            </h3>
+            <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
+              {(listing.house_type && listing.house_type !== 'Other') && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Type</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.house_type}</span>
+                </>
+              )}
+              {listing.building_type && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Building</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right capitalize">{listing.building_type === 'storey' ? 'Storey / Upstairs' : 'Flat / Ground Floor'}</span>
+                </>
+              )}
+              {listing.floor_number && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Floor</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.floor_number}</span>
+                </>
+              )}
+              {listing.deposit > 0 && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Deposit</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{formatPrice(listing.deposit)}{listing.deposit_refundable === false ? ' (non-refundable)' : ' (refundable)'}</span>
+                </>
+              )}
+              {listing.electric_bill && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Electric Bill</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.electric_bill}</span>
+                </>
+              )}
+              {listing.water && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Water</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.water}</span>
+                </>
+              )}
+              {listing.vacancy && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Status</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right capitalize">{listing.vacancy === 'vacant' ? 'Vacant' : 'Pending'}</span>
+                </>
+              )}
+              {listing.why_vacant && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Reason</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.why_vacant}</span>
+                </>
+              )}
+              {listing.descriptive_location && (
+                <>
+                  <span className="text-gray-500 dark:text-gray-400">Access</span>
+                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.descriptive_location}</span>
+                </>
+              )}
+            </div>
+          </div>
+
           {/* Reviews */}
           <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold flex items-center gap-2">

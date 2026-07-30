@@ -194,7 +194,7 @@ export default function ListingDetailPage() {
             <div className="flex flex-wrap items-center gap-2 mb-1">
               {listing.house_type && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">{listing.house_type}</span>}
               {listing.building_type && <span className="text-xs bg-gray-100 text-gray-600 dark:text-white px-2 py-0.5 rounded-full">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
-              {listing.vacancy && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
+              {listing.vacancy && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#e8f8eb] text-[#30B54A]' : 'bg-amber-50 text-amber-700'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{listing.title}</h1>
             <div className="flex items-center gap-1 text-gray-500 dark:text-white dark:text-white">

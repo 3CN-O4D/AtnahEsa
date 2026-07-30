@@ -124,9 +124,9 @@ export default function HomePage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-green-700">{stats.available}</p>
-          <p className="text-xs text-green-600 font-medium">Available Houses</p>
+        <div className="bg-[#e8f8eb] border border-[#30B54A] rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-[#30B54A]">{stats.available}</p>
+          <p className="text-xs text-[#30B54A] font-medium">Available Houses</p>
         </div>
         <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
           <p className="text-2xl font-bold text-yellow-700">{stats.pending}</p>

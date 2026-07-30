@@ -110,10 +110,10 @@ export default function HomePage() {
       {/* Hero section */}
       <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
-            Find Your Perfect Home and Get Connected
+          <h1 className="text-3xl font-bold dark:text-white mb-2">
+            Find Your Perfect Home and <span className="text-[#30B54A]">Get Connected</span>
           </h1>
-          <p className="text-gray-600">
+          <p className="text-gray-600 dark:text-gray-300">
             Browse verified listings, book, move in and get connected with ease.
           </p>
         </div>
@@ -124,17 +124,17 @@ export default function HomePage() {
 
       {/* Stats */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-[#e8f8eb] border border-[#30B54A] rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-[#30B54A]">{stats.available}</p>
-          <p className="text-xs text-[#30B54A] font-medium">Available Houses</p>
+        <div className="bg-[#e8f8eb] dark:bg-[#30B54A]/20 border border-[#30B54A] dark:border-[#30B54A]/50 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-[#30B54A] dark:text-[#6fdc84]">{stats.available}</p>
+          <p className="text-xs text-[#30B54A] dark:text-[#6fdc84] font-medium">Available Houses</p>
         </div>
-        <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
-          <p className="text-2xl font-bold text-yellow-700">{stats.pending}</p>
-          <p className="text-xs text-yellow-600 font-medium">Pending</p>
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center">
+          <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{stats.pending}</p>
+          <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium">Pending</p>
         </div>
-        <Link href="/taken" className="bg-purple-50 border border-purple-200 rounded-xl p-4 text-center hover:shadow-md transition-shadow">
-          <p className="text-2xl font-bold text-purple-700">{stats.taken}</p>
-          <p className="text-xs text-purple-600 font-medium">Taken Houses</p>
+        <Link href="/taken" className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow">
+          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{stats.taken}</p>
+          <p className="text-xs text-purple-600 dark:text-purple-300 font-medium">Taken Houses</p>
         </Link>
       </div>
 

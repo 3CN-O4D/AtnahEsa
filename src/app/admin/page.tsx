@@ -290,10 +290,10 @@ function AdminDashboardInner() {
 
   const handleDeleteUser = async (userId: string) => {
     if (!confirm('Delete this user? Cannot be undone.')) return
-    const supabase = createClient()
     const userProfile = users.find((u) => u.id === userId)
-    const { error } = await supabase.from('profiles').delete().eq('id', userId)
-    if (error) { showToast('error', error.message); return }
+    const res = await fetch(`/api/admin/users/${userId}`, { method: 'DELETE' })
+    const data = await res.json()
+    if (!res.ok) { showToast('error', data.error || 'Failed to delete user'); return }
     showToast('success', 'User deleted')
     if (userId) notifyUserById(userId, 'account_deleted', { name: userProfile?.full_name || userProfile?.username || 'User' })
     clearCache('admin:'); loadUsers()
@@ -315,9 +315,12 @@ function AdminDashboardInner() {
   }
 
   const handleToggleVerified = async (userId: string, currentVerified: boolean) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('profiles').update({ verified: !currentVerified }).eq('id', userId)
-    if (error) { showToast('error', error.message); return }
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, verified: !currentVerified }),
+    })
+    const data = await res.json()
+    if (!res.ok) { showToast('error', data.error || 'Failed to toggle verified'); return }
     showToast('success', `User ${currentVerified ? 'unverified' : 'verified'}`)
     clearCache('admin:'); loadUsers()
   }

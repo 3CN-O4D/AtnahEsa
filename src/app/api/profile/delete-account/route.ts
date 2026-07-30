@@ -33,12 +33,12 @@ export async function POST(req: Request) {
 
     await admin.from('otps').update({ used: true }).eq('id', otpData.id)
 
-    const { error: listingsErr } = await supabase.from('listings').delete().eq('uploader_id', user.id)
+    const { error: listingsErr } = await admin.from('listings').delete().eq('uploader_id', user.id)
     if (listingsErr) {
       return NextResponse.json({ error: listingsErr.message }, { status: 500 })
     }
 
-    const { error: profileErr } = await supabase.from('profiles').delete().eq('id', user.id)
+    const { error: profileErr } = await admin.from('profiles').delete().eq('id', user.id)
     if (profileErr) {
       return NextResponse.json({ error: profileErr.message }, { status: 500 })
     }

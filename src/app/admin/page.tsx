@@ -153,10 +153,9 @@ function AdminDashboardInner() {
 
   const handleDeleteListing = async (id: string) => {
     if (!confirm('Delete this listing permanently?')) return
-    const supabase = createClient()
 
     // Fetch listing images to delete from Cloudinary
-    const { data: listing } = await supabase.from('listings').select('images, uploader_id, title').eq('id', id).single()
+    const listing = allListings.find((l) => l.id === id)
     if (listing?.images?.length) {
       await Promise.allSettled(
         listing.images.map((url: string) =>
@@ -165,12 +164,8 @@ function AdminDashboardInner() {
       )
     }
 
-    const { error } = await supabase.from('listings').delete().eq('id', id)
-    if (error) { showToast('error', error.message); return }
-
-    // Verify deletion
-    const { data: check } = await supabase.from('listings').select('id').eq('id', id).maybeSingle()
-    if (check) { showToast('error', 'Delete blocked — RLS issue. Run fix-rls-recursion.sql in Supabase.'); return }
+    const res = await fetch(`/api/admin/listings/${id}`, { method: 'DELETE' })
+    if (!res.ok) { showToast('error', 'Delete failed'); return }
 
     showToast('success', 'Listing deleted')
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_deleted', { title: listing.title || 'Unknown', reason: 'Removed by admin' })
@@ -178,10 +173,11 @@ function AdminDashboardInner() {
   }
 
   const handleMarkBooked = async (id: string) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ status: 'booked' }).eq('id', id)
-    if (error) { showToast('error', error.message); return }
-    if (!await verifyUpdate('listings', id, 'status', 'booked')) return
+    const res = await fetch(`/api/admin/listings/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'booked' }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to mark as booked'); return }
     showToast('success', 'Marked as booked')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_booked', { title: listing.title, location: listing.location, date: new Date().toLocaleDateString(), phone: listing.lister_phone || 'N/A' })
@@ -191,33 +187,25 @@ function AdminDashboardInner() {
   const handleMarkTaken = async (id: string) => {
     const name = prompt('Who took this house? (Enter name):')
     if (!name || !name.trim()) return
-    const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ status: 'taken', taken_by_name: name.trim() }).eq('id', id)
-    if (error) { showToast('error', error.message); return }
-    if (!await verifyUpdate('listings', id, 'status', 'taken')) return
+    const res = await fetch(`/api/admin/listings/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'taken', taken_by_name: name.trim() }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to mark as taken'); return }
     showToast('success', 'Marked as taken')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_taken', { title: listing.title, location: listing.location })
     clearCache('admin:'); loadAll()
   }
 
-  const verifyUpdate = async (table: string, id: string, field: string, expected: string) => {
-    const supabase = createClient()
-    const { data } = await supabase.from(table as 'listings' | 'bookings').select(field).eq('id', id).maybeSingle()
-    if ((data as unknown as Record<string, string>)?.[field] !== expected) {
-      showToast('error', 'Update failed — RLS may be blocking. Run fix-rls-recursion.sql in Supabase.')
-      return false
-    }
-    return true
-  }
-
   const handleReject = async (id: string) => {
     const reason = prompt('Reason for rejection:')
     if (!reason) return
-    const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ status: 'rejected' }).eq('id', id)
-    if (error) { showToast('error', error.message); return }
-    if (!await verifyUpdate('listings', id, 'status', 'rejected')) return
+    const res = await fetch(`/api/admin/listings/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'rejected' }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to reject listing'); return }
     showToast('success', 'Listing rejected')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_rejected', { title: listing.title, reason })
@@ -225,10 +213,11 @@ function AdminDashboardInner() {
   }
 
   const handleMarkPublished = async (id: string) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ status: 'published' }).eq('id', id)
-    if (error) { showToast('error', error.message); return }
-    if (!await verifyUpdate('listings', id, 'status', 'published')) return
+    const res = await fetch(`/api/admin/listings/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'published' }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to publish listing'); return }
     showToast('success', 'Put back to published')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_approved', { title: listing.title, location: listing.location, url: `${window.location.origin}/listings/${id}` })
@@ -236,10 +225,11 @@ function AdminDashboardInner() {
   }
 
   const handleApprove = async (id: string) => {
-    const supabase = createClient()
-    const { error } = await supabase.from('listings').update({ status: 'published' }).eq('id', id)
-    if (error) { showToast('error', error.message); return }
-    if (!await verifyUpdate('listings', id, 'status', 'published')) return
+    const res = await fetch(`/api/admin/listings/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'published' }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to approve listing'); return }
     showToast('success', 'Listing approved')
     const listing = allListings.find((l) => l.id === id)
     if (listing?.uploader_id) notifyUserById(listing.uploader_id, 'listing_approved', { title: listing.title, location: listing.location, url: `${window.location.origin}/listings/${id}` })
@@ -250,10 +240,11 @@ function AdminDashboardInner() {
     const supabase = createClient()
     const { error: e1 } = await supabase.from('bookings').update({ visit_status: 'completed', status: 'confirmed' }).eq('id', bookingId)
     if (e1) { showToast('error', e1.message); return }
-    if (!await verifyUpdate('bookings', bookingId, 'visit_status', 'completed')) return
-    const { error: e2 } = await supabase.from('listings').update({ status: 'taken' }).eq('id', listingId)
-    if (e2) { showToast('error', e2.message); return }
-    if (!await verifyUpdate('listings', listingId, 'status', 'taken')) return
+    const res = await fetch(`/api/admin/listings/${listingId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'taken' }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to mark listing as taken'); return }
     showToast('success', 'Visit marked as completed')
     const listing = allListings.find((l) => l.id === listingId)
     const booking = bookedList.find((l) => l.id === listingId)?.booking
@@ -267,8 +258,11 @@ function AdminDashboardInner() {
     const refundAmount = Math.round(amount * 0.6)
     const { error: e1 } = await supabase.from('bookings').update({ status: 'refunded', visit_status: 'refunded', refund_amount: refundAmount, refunded_at: new Date().toISOString() }).eq('id', bookingId)
     if (e1) { showToast('error', e1.message); return }
-    const { error: e2 } = await supabase.from('listings').update({ status: 'published' }).eq('id', listingId)
-    if (e2) { showToast('error', e2.message); return }
+    const res = await fetch(`/api/admin/listings/${listingId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'published' }),
+    })
+    if (!res.ok) { showToast('error', 'Failed to publish listing after refund'); return }
     showToast('success', 'Refund processed')
     const listing = allListings.find((l) => l.id === listingId)
     const bookingEntry = bookedList.find((l) => l.id === listingId)?.booking
@@ -277,7 +271,6 @@ function AdminDashboardInner() {
   }
 
   const handleUpdateYoutubeUrl = async (listingId: string, youtubeUrls: string | string[]) => {
-    const supabase = createClient()
     const update: Record<string, unknown> = {}
     if (typeof youtubeUrls === 'string') {
       update.youtube_url = youtubeUrls
@@ -286,8 +279,11 @@ function AdminDashboardInner() {
       update.youtube_urls = youtubeUrls
       update.youtube_url = youtubeUrls[0] || null
     }
-    const { error } = await supabase.from('listings').update(update).eq('id', listingId)
-    if (error) { showToast('error', error.message); return }
+    const res = await fetch(`/api/admin/listings/${listingId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(update),
+    })
+    if (!res.ok) { showToast('error', 'Failed to save YouTube URL'); return }
     showToast('success', 'YouTube URL saved')
     clearCache('admin:'); loadAll()
   }

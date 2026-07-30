@@ -177,6 +177,7 @@ export interface Profile {
   username: string
   full_name: string
   phone: string
+  email: string
   role: 'hunter' | 'lister' | 'admin'
   avatar_url: string | null
   average_rating: number

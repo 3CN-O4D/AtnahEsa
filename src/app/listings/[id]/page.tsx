@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon } from 'lucide-react'
+import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon, BadgeCheck } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
 import ImageViewer from '@/components/ui/ImageViewer'
 import Button from '@/components/ui/Button'
@@ -324,13 +324,19 @@ export default function ListingDetailPage() {
                   )}
                 </div>
                 <div>
-                  <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg">@{lister.username || lister.full_name || 'Anonymous'}</p>
+                  <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg flex items-center gap-1.5">
+                    {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
+                    {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500" />}
+                  </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Stars rating={lister.average_rating || 0} />
                     <span className="text-sm text-gray-500">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
                   </div>
                   {lister.average_rating > 0 && (
                     <p className="text-xs text-blue-600 font-medium mt-0.5">{lister.average_rating} out of 5</p>
+                  )}
+                  {lister.role === 'admin' && (
+                    <p className="text-xs text-blue-500 font-medium mt-0.5">Official AseHanta Listing</p>
                   )}
                 </div>
               </div>

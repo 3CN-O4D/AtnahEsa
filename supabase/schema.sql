@@ -301,13 +301,14 @@ CREATE POLICY "Admins can read contact submissions"
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, username, full_name, phone, role, terms_accepted)
+  INSERT INTO public.profiles (id, username, full_name, phone, role, email, terms_accepted)
   VALUES (
     NEW.id,
     COALESCE(NEW.raw_user_meta_data->>'username', SPLIT_PART(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
     NEW.raw_user_meta_data->>'phone',
     COALESCE(NEW.raw_user_meta_data->>'role', 'hunter'),
+    NEW.email,
     COALESCE((NEW.raw_user_meta_data->>'terms_accepted')::boolean, false)
   );
   RETURN NEW;
@@ -541,6 +542,9 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS total_reviews INTEGER DEFAU
 
 -- Add verified column to profiles (admin can toggle)
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS verified BOOLEAN DEFAULT FALSE;
+
+-- Add email column to profiles
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT DEFAULT '';
 
 -- Add taken_by_name to listings (records who took the house)
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS taken_by_name TEXT DEFAULT '';

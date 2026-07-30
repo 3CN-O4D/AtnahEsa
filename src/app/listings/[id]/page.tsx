@@ -2,19 +2,21 @@
 
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon, BadgeCheck, X } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
-import ImageViewer from '@/components/ui/ImageViewer'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
 import { maskPhone } from '@/lib/utils'
 import { formatPrice } from '@/lib/utils'
 import { APP_NAME } from '@/lib/constants'
-import ReportModal from '@/components/reports/ReportModal'
 import ListingCard from '@/components/listings/ListingCard'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
+
+const ImageViewer = dynamic(() => import('@/components/ui/ImageViewer'), { ssr: false })
+const ReportModal = dynamic(() => import('@/components/reports/ReportModal'), { ssr: false })
 
 function videoSrc(url: string): string {
   if (url.startsWith('https://') && url.includes('/storage/v1/s3/')) {
@@ -70,87 +72,52 @@ export default function ListingDetailPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ? { id: data.user.id, email: data.user.email } : null))
 
-    supabase
-      .from('listings')
-      .select('*')
-      .eq('id', id)
-      .single()
-      .then(async ({ data, error }) => {
-        if (error || !data) { router.push('/'); return }
-        const l = data as Listing
-        setListing(l)
+    Promise.all([
+      supabase.auth.getUser(),
+      supabase.from('listings').select('*').eq('id', id).single(),
+    ]).then(async ([userRes, listingRes]) => {
+      const currentUser = userRes.data.user
+      setUser(currentUser ? { id: currentUser.id, email: currentUser.email } : null)
 
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', l.uploader_id)
-          .single()
+      if (listingRes.error || !listingRes.data) { router.push('/'); return }
+      const l = listingRes.data as Listing
+      setListing(l)
 
-        const { count } = await supabase
-          .from('listings')
-          .select('*', { count: 'exact', head: true })
-          .eq('uploader_id', l.uploader_id)
+      const [profileRes, countRes, revsRes, lrRes, simRes, bookingCountRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', l.uploader_id).single(),
+        supabase.from('listings').select('*', { count: 'exact', head: true }).eq('uploader_id', l.uploader_id),
+        supabase.from('reviews').select('*').eq('listing_id', id).order('created_at', { ascending: false }),
+        l.uploader_id ? supabase.from('lister_reviews').select('*').eq('lister_id', l.uploader_id).order('created_at', { ascending: false }) : Promise.resolve({ data: null }),
+        supabase.from('listings').select('*').in('status', ['published', 'taken']).eq('location', l.location).neq('id', id).limit(10),
+        currentUser ? supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).eq('release_status', 'released') : Promise.resolve({ count: null }),
+      ])
 
-        if (profile) setLister({ ...profile as Profile, listing_count: count ?? 0 })
+      if (profileRes.data) setLister({ ...profileRes.data as Profile, listing_count: countRes.count ?? 0 })
 
-        const { data: revs } = await supabase
-          .from('reviews')
-          .select('*')
-          .eq('listing_id', id)
-          .order('created_at', { ascending: false })
-        setReviews((revs ?? []) as Review[])
+      const revs = (revsRes.data ?? []) as Review[]
+      setReviews(revs)
 
-        const userIds = [...new Set((revs ?? []).map((r) => r.user_id))]
-        if (userIds.length > 0) {
-          const { data: rp } = await supabase.from('profiles').select('*').in('id', userIds)
-          const profileMap: Record<string, Profile> = {}
-          for (const p of rp ?? []) profileMap[p.id] = p as Profile
-          setReviewProfiles(profileMap)
-        }
+      const lr = (lrRes.data ?? []) as ListerReview[]
+      setListerReviews(lr)
 
-        // Fetch lister reviews + profiles
-        if (l.uploader_id) {
-          const { data: lr } = await supabase
-            .from('lister_reviews')
-            .select('*')
-            .eq('lister_id', l.uploader_id)
-            .order('created_at', { ascending: false })
-          setListerReviews((lr ?? []) as ListerReview[])
+      setSimilar((simRes.data ?? []) as Listing[])
 
-          const lrUserIds = [...new Set((lr ?? []).map((r) => r.reviewer_id))]
-          if (lrUserIds.length > 0) {
-            const { data: lrp } = await supabase.from('profiles').select('*').in('id', lrUserIds)
-            const lrProfileMap: Record<string, Profile> = {}
-            for (const p of lrp ?? []) lrProfileMap[p.id] = p as Profile
-            setListerReviewProfiles(lrProfileMap)
-          }
-        }
+      if (currentUser) setCanReview((bookingCountRes?.count ?? 0) > 0)
 
-        const { data: userData } = await supabase.auth.getUser()
-        if (userData.user) {
-          const { count: bookingCount } = await supabase
-            .from('bookings')
-            .select('*', { count: 'exact', head: true })
-            .eq('listing_id', id)
-            .eq('user_id', userData.user.id)
-            .eq('release_status', 'released')
-          setCanReview((bookingCount ?? 0) > 0)
-        }
+      const userIds = [...new Set(revs.map((r) => r.user_id))]
+      const lrUserIds = [...new Set(lr.map((r) => r.reviewer_id))]
+      const allProfileIds = [...new Set([...userIds, ...lrUserIds])]
+      if (allProfileIds.length > 0) {
+        const { data: allProfiles } = await supabase.from('profiles').select('*').in('id', allProfileIds)
+        const pmap: Record<string, Profile> = {}
+        for (const p of allProfiles ?? []) pmap[p.id] = p as Profile
+        setReviewProfiles(pmap)
+        setListerReviewProfiles(pmap)
+      }
 
-        // Fetch similar houses (same location)
-        const { data: sim } = await supabase
-          .from('listings')
-          .select('*')
-          .in('status', ['published', 'taken'])
-          .eq('location', l.location)
-          .neq('id', id)
-          .limit(10)
-        setSimilar((sim ?? []) as Listing[])
-
-        setLoading(false)
-      })
+      setLoading(false)
+    })
   }, [id, router])
 
   const handleSubmitReview = async () => {
@@ -368,7 +335,7 @@ export default function ListingDetailPage() {
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {listing.images.map((img, i) => (
                   <button key={i} onClick={() => { setViewerIndex(i); setShowViewer(true) }} className="group relative aspect-video overflow-hidden rounded-xl">
-                    <img src={img} alt={`${listing.title} ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
+                    <img src={img} alt={`${listing.title} ${i + 1}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300" />
                   </button>
                 ))}
               </div>

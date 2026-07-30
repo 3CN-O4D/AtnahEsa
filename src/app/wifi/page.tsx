@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { Zap, Check, Phone, Mail, Clock, Layers, MessageCircle, Wifi, Star } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import { SkeletonPage } from '@/components/ui/Skeleton'
 import WifiBookingModal from '@/components/wifi/WifiBookingModal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
@@ -96,9 +97,7 @@ export default function WifiPage() {
       </section>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="animate-spin w-8 h-8 border-2 border-green-500 border-t-transparent rounded-full" />
-        </div>
+        <SkeletonPage />
       ) : (
         <>
           {/* Pricing Section */}

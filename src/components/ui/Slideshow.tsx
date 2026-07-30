@@ -51,7 +51,7 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
       <img
         src={images[current]}
         alt={`Slide ${current + 1}`}
-        className="w-full h-full object-cover transition-opacity duration-500 pointer-events-none"
+        className="w-full h-full object-cover transition-all duration-500 group-hover:scale-150 pointer-events-none"
       />
       {images.length > 1 && (
         <>

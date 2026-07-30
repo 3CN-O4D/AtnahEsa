@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, MessageSquare, Home, User as UserIcon } from 'lucide-react'
+import { SkeletonBooking } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import type { Booking, Listing, EscrowHold } from '@/types'
@@ -90,7 +91,7 @@ export default function MyBookingsPage() {
     })
   }, [router])
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+  if (loading) return <SkeletonBooking />
 
   const currentBookings = tab === 'hunter' ? bookings : listerBookings
   const showListerTab = profileRole === 'lister' || profileRole === 'admin'

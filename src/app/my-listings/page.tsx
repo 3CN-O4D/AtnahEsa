@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { Edit3, Trash2, Plus, Home, MapPin, Eye, Calendar, ArrowLeft, ExternalLink } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import { SkeletonPage } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import type { Listing } from '@/types'
@@ -62,7 +63,7 @@ export default function MyListingsPage() {
   }
 
   if (loading) {
-    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+    return <SkeletonPage />
   }
 
   return (

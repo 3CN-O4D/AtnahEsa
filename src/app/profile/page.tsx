@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { User, Lock, Mail, Phone, ArrowLeft, Eye, EyeOff, List, Camera, X, Check } from 'lucide-react'
+import { SkeletonProfile } from '@/components/ui/Skeleton'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
@@ -521,12 +522,7 @@ export default function ProfilePage() {
   }
 
   if (!profileLoaded) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-20 text-center">
-        <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full mx-auto mb-4" />
-        <p className="text-gray-500 text-sm">Loading profile...</p>
-      </div>
-    )
+    return <SkeletonProfile />
   }
 
   if (!profile) {

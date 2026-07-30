@@ -16,6 +16,8 @@ interface ListingCardProps {
 export default function ListingCard({ listing }: ListingCardProps) {
   const [listerName, setListerName] = useState(listing.uploader_name || '')
   const [verified, setVerified] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showVerifyTip, setShowVerifyTip] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
@@ -29,9 +31,11 @@ export default function ListingCard({ listing }: ListingCardProps) {
           if (data.role === 'admin') {
             setListerName('AseHanta')
             setVerified(true)
+            setIsAdmin(true)
           } else {
             setListerName(data.full_name || listing.uploader_name || '')
             setVerified(!!data.verified)
+            setIsAdmin(false)
           }
         }
       })
@@ -69,7 +73,21 @@ export default function ListingCard({ listing }: ListingCardProps) {
             <Link href={`/listers/${listing.uploader_id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-blue-600 hover:underline">
               {listerName}
             </Link>
-            {verified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />}
+            {verified && (
+              <button
+                type="button"
+                onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowVerifyTip(!showVerifyTip) }}
+                className="relative"
+                title={isAdmin ? 'Verified by AseHanta' : 'Verified User'}
+              >
+                <BadgeCheck className={`w-3.5 h-3.5 ${isAdmin ? 'text-green-500' : 'text-blue-500'}`} />
+                {showVerifyTip && (
+                  <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[10px] font-medium bg-gray-900 text-white px-2 py-0.5 rounded shadow-lg z-10">
+                    {isAdmin ? 'Verified by AseHanta' : 'Verified User'}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </Card>

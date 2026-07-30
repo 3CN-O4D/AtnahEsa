@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Home, ArrowLeft } from 'lucide-react'
+import { SkeletonPage } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import type { Listing } from '@/types'
 
@@ -35,9 +36,7 @@ export default function TakenHousesPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
-          <div className="animate-spin w-8 h-8 border-2 border-purple-600 border-t-transparent rounded-full" />
-        </div>
+        <SkeletonPage />
       ) : listings.length === 0 ? (
         <div className="text-center py-20">
           <Home className="w-12 h-12 text-gray-300 mx-auto mb-3" />

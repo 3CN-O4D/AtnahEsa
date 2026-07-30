@@ -67,53 +67,15 @@ function AdminDashboardInner() {
     const cached = getCached<typeof stats>('admin:stats')
     if (cached) { setStats(cached); setLoaded(true); return }
 
-    const supabase = createClient()
-
-    const c = async (table: string, field?: string, value?: string | number) => {
-      let q = supabase.from(table as any).select('*', { count: 'exact', head: true })
-      if (field && value !== undefined) q = (q as typeof q).eq(field, value)
-      return (await q).count ?? 0
+    try {
+      const res = await fetch('/api/admin/stats')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setStats(data as typeof stats)
+      setCache('admin:stats', data)
+    } catch (err) {
+      console.error('Failed to load stats:', err)
     }
-
-    const [
-      total, publishedCount, bookedCount, takenCount, pendingCount, vacantCount, vacancyPendingCount,
-      withIssues, completed, refunded, listers, hunters, totalUsers,
-      movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
-    ] = await Promise.all([
-      c('listings'),
-      c('listings', 'status', 'published'),
-      c('listings', 'status', 'booked'),
-      c('listings', 'status', 'taken'),
-      c('listings', 'status', 'pending'),
-      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'vacant').then((r) => r.count ?? 0),
-      supabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'pending').then((r) => r.count ?? 0),
-      supabase.from('listings').select('id', { count: 'exact', head: true }).gt('issues_count', 0).then((r) => r.count ?? 0),
-      c('bookings', 'visit_status', 'completed'),
-      c('bookings', 'visit_status', 'refunded'),
-      c('profiles', 'role', 'lister'),
-      c('profiles', 'role', 'hunter'),
-      c('profiles'),
-      c('movers'),
-      c('wifi_packages'),
-      c('wifi_bookings'),
-      c('contact_submissions'),
-      c('house_requests'),
-      c('reports'),
-    ])
-
-    const [{ data: bookings }, { data: escrows }] = await Promise.all([
-      supabase.from('bookings').select('amount, refund_amount, status'),
-      supabase.from('escrow_holds').select('amount, status'),
-    ])
-
-    const totalRevenue = (bookings || []).filter((b) => b.status === 'confirmed').reduce((s, b) => s + (b.amount || 0), 0)
-    const totalRefunded = (bookings || []).filter((b) => b.status === 'refunded').reduce((s, b) => s + (b.refund_amount || 0), 0)
-    const escrowHeld = (escrows || []).filter((e) => e.status === 'held').length
-    const escrowHeldAmount = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
-
-    const result = { total, published: publishedCount, booked: bookedCount, taken: takenCount, pending: pendingCount, vacant: vacantCount, vacancyPending: vacancyPendingCount, completed, refunded, withIssues, totalRevenue, totalRefunded, totalListers: listers, totalHunters: hunters, totalUsers, totalMovers: movers, wifiPackages: wifiPkgs, wifiBookings: wifiBkgs, contactSubmissions: contacts, houseRequests: houseReqs, reports, escrowHeld, escrowHeldAmount }
-    setCache('admin:stats', result)
-    setStats(result)
     setLoaded(true)
   }
 
@@ -121,33 +83,35 @@ function AdminDashboardInner() {
     const cached = getCached<{ all: Listing[]; booked: (Listing & { booking?: Booking })[] }>('admin:listings')
     if (cached) { setAllListings(cached.all); setBookedList(cached.booked); return }
 
-    const supabase = createClient()
+    try {
+      const res = await fetch('/api/admin/listings')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
 
-    const { data: listingsData } = await supabase
-      .from('listings')
-      .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url, video_urls, youtube_urls, taken_by_name')
-      .order('created_at', { ascending: false })
+      const listings = (data ?? []) as Listing[]
+      setAllListings(listings)
 
-    const listings = (listingsData ?? []) as Listing[]
-    setAllListings(listings)
+      if (listings.length > 0) {
+        const supabase = createClient()
+        const { data: bookingsData } = await supabase
+          .from('bookings')
+          .select('id, listing_id, user_id, amount, phone, status, visit_status, release_status, refund_amount, created_at')
+          .in('listing_id', listings.map((l) => l.id))
 
-    if (listings.length > 0) {
-      const { data: bookingsData } = await supabase
-        .from('bookings')
-        .select('id, listing_id, user_id, amount, phone, status, visit_status, release_status, refund_amount, created_at')
-        .in('listing_id', listings.map((l) => l.id))
+        const booked = listings
+          .filter((l) => l.status === 'booked')
+          .map((l) => ({
+            ...l,
+            booking: (bookingsData ?? []).find((b) => b.listing_id === l.id),
+          })) as (Listing & { booking?: Booking })[]
 
-      const booked = listings
-        .filter((l) => l.status === 'booked')
-        .map((l) => ({
-          ...l,
-          booking: (bookingsData ?? []).find((b) => b.listing_id === l.id),
-        })) as (Listing & { booking?: Booking })[]
-
-      setCache('admin:listings', { all: listings, booked })
-      setBookedList(booked)
-    } else {
-      setBookedList([])
+        setCache('admin:listings', { all: listings, booked })
+        setBookedList(booked)
+      } else {
+        setBookedList([])
+      }
+    } catch (err) {
+      console.error('Failed to load listings:', err)
     }
   }
 

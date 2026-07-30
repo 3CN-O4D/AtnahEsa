@@ -64,7 +64,10 @@ export default function ListingCard({ listing }: ListingCardProps) {
             )}
           </div>
           <div className="flex items-center gap-1.5 text-xs text-gray-500 pt-1 border-t border-gray-100">
-            <span>By: {listerName}</span>
+            <span>By: </span>
+            <Link href={`/listers/${listing.uploader_id}`} onClick={(e) => e.stopPropagation()} className="font-medium text-blue-600 hover:underline">
+              {listerName}
+            </Link>
             {verified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />}
           </div>
         </div>

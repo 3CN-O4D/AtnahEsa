@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { X, Download, Film } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 
 interface VideoUploaderProps {
   videoUrls: string[]
@@ -26,19 +27,21 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
     setUploading(true)
 
     try {
+      const supabase = createClient()
       const results: string[] = []
       for (const file of toUpload) {
-        const res = await fetch(`/api/upload-video?name=${encodeURIComponent(file.name)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': file.type },
-          body: file,
-        })
-        const text = await res.text()
-        let data
-        try { data = JSON.parse(text) } catch { throw new Error(`Upload failed: ${res.status} ${text.slice(0, 200)}`) }
-        if (!res.ok || data.error) throw new Error(data.error || 'Upload failed')
+        const infoRes = await fetch(`/api/upload-video/info?name=${encodeURIComponent(file.name)}`)
+        const infoText = await infoRes.text()
+        let infoData
+        try { infoData = JSON.parse(infoText) } catch { throw new Error(`Upload failed: ${infoRes.status} ${infoText.slice(0, 200)}`) }
+        if (!infoRes.ok || infoData.error) throw new Error(infoData.error || 'Upload failed')
 
-        if (data.url) results.push(data.url)
+        const { bucket, key } = infoData
+        const { error: uploadError } = await supabase.storage.from(bucket).upload(key, file, { upsert: true })
+        if (uploadError) throw new Error(uploadError.message)
+
+        const { data: { publicUrl } } = supabase.storage.from(bucket).getPublicUrl(key)
+        results.push(publicUrl)
       }
 
       onChange([...videoUrls, ...results])

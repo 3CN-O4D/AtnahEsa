@@ -33,26 +33,22 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const formData = await req.formData()
-    const file = formData.get('file') as File | null
-
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    }
-
-    const ext = file.name.split('.').pop()?.toLowerCase()
+    const { searchParams } = new URL(req.url)
+    const fileName = searchParams.get('name') || 'video.mp4'
+    const ext = fileName.split('.').pop()?.toLowerCase()
     if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
       return NextResponse.json({ error: `Unsupported format .${ext}. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` }, { status: 400 })
     }
 
-    if (file.size > 50 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Video must be under 50MB' }, { status: 400 })
+    const contentType = req.headers.get('content-type') || mimeFromName(fileName)
+
+    const bytes = await req.arrayBuffer()
+    if (!bytes.byteLength) {
+      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
     }
 
     const key = `listings/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
-    const contentType = mimeFromName(file.name)
 
-    const bytes = await file.arrayBuffer()
     await s3.send(new PutObjectCommand({
       Bucket: BUCKET,
       Key: key,

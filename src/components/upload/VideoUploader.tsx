@@ -28,14 +28,14 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
     try {
       const results: string[] = []
       for (const file of toUpload) {
-        const formData = new FormData()
-        formData.append('file', file)
-
-        const res = await fetch('/api/upload-video', {
+        const res = await fetch(`/api/upload-video?name=${encodeURIComponent(file.name)}`, {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': file.type },
+          body: file,
         })
-        const data = await res.json()
+        const text = await res.text()
+        let data
+        try { data = JSON.parse(text) } catch { throw new Error(`Upload failed: ${res.status} ${text.slice(0, 200)}`) }
         if (!res.ok || data.error) throw new Error(data.error || 'Upload failed')
 
         if (data.url) results.push(data.url)

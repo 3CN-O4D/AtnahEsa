@@ -26,6 +26,7 @@ export default function HomePage() {
       supabase.from('listings').select('status'),
       supabase.from('listings').select('vacancy').eq('status', 'published'),
     ]).then(([statusRes, vacancyRes]) => {
+      if (statusRes.error) { console.error('Stats query error:', statusRes.error); return }
       const statusData = statusRes.data
       const vacancyData = vacancyRes.data
       if (!statusData) return
@@ -38,6 +39,7 @@ export default function HomePage() {
         pending = vacancyData.filter((r) => r.vacancy === 'pending').length
       }
       setStats({ available, pending, taken })
+    }).catch((err) => console.error('Stats fetch failed:', err))
     })
   }, [])
 

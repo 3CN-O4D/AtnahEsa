@@ -210,8 +210,8 @@ export default function ListingDetailPage() {
 
   return (
     <div className="max-w-4xl mx-auto px-4 py-6">
-      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-4">
-        <ArrowLeft className="w-4 h-4" /> Back
+      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-600 dark:text-white dark:text-white hover:text-gray-900 dark:text-white dark:hover:text-white mb-4">
+        <ArrowLeft className="w-4 h-4 dark:text-white" /> Back
       </button>
 
       <div className="relative">
@@ -226,12 +226,12 @@ export default function ListingDetailPage() {
           <div>
             <div className="flex flex-wrap items-center gap-2 mb-1">
               {listing.house_type && <span className="text-xs bg-blue-50 text-blue-700 px-2 py-0.5 rounded-full font-medium">{listing.house_type}</span>}
-              {listing.building_type && <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
+              {listing.building_type && <span className="text-xs bg-gray-100 text-gray-600 dark:text-white px-2 py-0.5 rounded-full">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
               {listing.vacancy && <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-green-50 text-green-700' : 'bg-amber-50 text-amber-700'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
             </div>
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">{listing.title}</h1>
-            <div className="flex items-center gap-1 text-gray-500">
-              <MapPin className="w-4 h-4" /> <span>{listing.location}</span>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">{listing.title}</h1>
+            <div className="flex items-center gap-1 text-gray-500 dark:text-white dark:text-white">
+              <MapPin className="w-4 h-4 dark:text-white" /> <span>{listing.location}</span>
             </div>
           </div>
 
@@ -263,7 +263,7 @@ export default function ListingDetailPage() {
           </div>
 
           {listing.vacancy_type && (
-            <div className="flex items-start gap-2 text-sm text-gray-600 bg-gray-50 rounded-xl p-3">
+            <div className="flex items-start gap-2 text-sm text-gray-600 dark:text-white bg-gray-50 rounded-xl p-3">
               <Info className="w-4 h-4 mt-0.5 shrink-0 text-gray-400" />
               <span><strong>Vacancy:</strong> {listing.vacancy_type}{listing.why_vacant ? ` — ${listing.why_vacant}` : ''}</span>
             </div>
@@ -271,13 +271,13 @@ export default function ListingDetailPage() {
 
           <div>
             <h2 className="text-lg font-semibold mb-2">Description</h2>
-            <p className="text-gray-600 whitespace-pre-wrap">{listing.description}</p>
+            <p className="text-gray-600 dark:text-white whitespace-pre-wrap">{listing.description}</p>
           </div>
 
           {listing.descriptive_location && (
             <div>
               <h2 className="text-lg font-semibold mb-2">Location Details</h2>
-              <p className="text-gray-600 whitespace-pre-wrap">{listing.descriptive_location}</p>
+              <p className="text-gray-600 dark:text-white whitespace-pre-wrap">{listing.descriptive_location}</p>
             </div>
           )}
 
@@ -286,7 +286,7 @@ export default function ListingDetailPage() {
               <h2 className="text-lg font-semibold mb-2 flex items-center gap-2"><AlertTriangle className="w-5 h-5 text-amber-500" /> House Issues</h2>
               <ul className="space-y-1.5">
                 {listing.issues.map((issue, i) => (
-                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
+                  <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-white">
                     <span className="w-1.5 h-1.5 rounded-full bg-amber-400 mt-1.5 shrink-0" /> {issue}
                   </li>
                 ))}
@@ -317,7 +317,7 @@ export default function ListingDetailPage() {
           {/* Lister info */}
           {lister && (
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border border-blue-100 dark:border-blue-800/50 rounded-xl p-5 space-y-4">
-              <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-200"><User className="w-4 h-4" /> Listed by</h3>
+              <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-white"><User className="w-4 h-4" /> Listed by</h3>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
                   {lister.avatar_url ? (
@@ -327,33 +327,33 @@ export default function ListingDetailPage() {
                   )}
                 </div>
                   <div>
-                    <button onClick={() => setListerModalOpen(true)} className="font-semibold text-gray-900 dark:text-gray-100 text-lg flex items-center gap-1.5 hover:underline text-left">
+                    <button onClick={() => setListerModalOpen(true)} className="font-semibold text-gray-900 dark:text-white dark:text-white text-lg flex items-center gap-1.5 hover:underline text-left">
                       {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
-                      {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-blue-400" />}
+                      {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" />}
                     </button>
                     <div className="flex items-center gap-2 mt-0.5">
                       <Stars rating={lister.average_rating || 0} />
-                      <span className="text-sm text-gray-600 dark:text-gray-300">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
+                      <span className="text-sm text-gray-600 dark:text-white dark:text-white">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
                     </div>
                   {lister.average_rating > 0 && (
-                    <p className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-0.5">{lister.average_rating} out of 5</p>
+                    <p className="text-xs text-blue-600 dark:text-white font-medium mt-0.5">{lister.average_rating} out of 5</p>
                   )}
                   {lister.role === 'admin' && (
-                    <p className="text-xs text-blue-500 dark:text-blue-300 font-medium mt-0.5">Official AseHanta Listing</p>
+                    <p className="text-xs text-blue-500 dark:text-white font-medium mt-0.5">Official AseHanta Listing</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-4 text-sm">
                 <div className="bg-white/60 dark:bg-white/10 rounded-lg px-3 py-1.5">
-                  <span className="font-bold text-blue-700 dark:text-blue-300">{lister.listing_count}</span>
-                  <span className="text-gray-500 dark:text-gray-400 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
+                  <span className="font-bold text-blue-700 dark:text-white">{lister.listing_count}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
                 {lister.phone && canReview ? (
-                  <a href={`tel:${lister.phone}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1">
+                  <a href={`tel:${lister.phone}`} className="text-blue-600 dark:text-white hover:underline font-medium flex items-center gap-1">
                     <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
                   </a>
                 ) : lister.phone ? (
-                  <span className="text-gray-400 dark:text-gray-400 text-sm flex items-center gap-1">
+                  <span className="text-gray-400 dark:text-white text-sm flex items-center gap-1">
                     <PhoneIcon className="w-3.5 h-3.5" /> Locked until booking
                   </span>
                 ) : null}
@@ -377,62 +377,62 @@ export default function ListingDetailPage() {
 
           {/* House Details */}
           <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
-            <h3 className="font-semibold flex items-center gap-2 text-gray-900 dark:text-gray-100">
+            <h3 className="font-semibold flex items-center gap-2 text-gray-900 dark:text-white dark:text-white">
               <Home className="w-4 h-4 text-blue-500" /> House Details
             </h3>
             <div className="grid grid-cols-2 gap-x-6 gap-y-3 text-sm">
               {(listing.house_type && listing.house_type !== 'Other') && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Type</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.house_type}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Type</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{listing.house_type}</span>
                 </>
               )}
               {listing.building_type && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Building</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right capitalize">{listing.building_type === 'storey' ? 'Storey / Upstairs' : 'Flat / Ground Floor'}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Building</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right capitalize">{listing.building_type === 'storey' ? 'Storey / Upstairs' : 'Flat / Ground Floor'}</span>
                 </>
               )}
               {listing.floor_number && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Floor</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.floor_number}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Floor</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{listing.floor_number}</span>
                 </>
               )}
               {listing.deposit > 0 && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Deposit</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{formatPrice(listing.deposit)}{listing.deposit_refundable === false ? ' (non-refundable)' : ' (refundable)'}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Deposit</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{formatPrice(listing.deposit)}{listing.deposit_refundable === false ? ' (non-refundable)' : ' (refundable)'}</span>
                 </>
               )}
               {listing.electric_bill && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Electric Bill</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.electric_bill}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Electric Bill</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{listing.electric_bill}</span>
                 </>
               )}
               {listing.water && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Water</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.water}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Water</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{listing.water}</span>
                 </>
               )}
               {listing.vacancy && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Status</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right capitalize">{listing.vacancy === 'vacant' ? 'Vacant' : 'Pending'}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Status</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right capitalize">{listing.vacancy === 'vacant' ? 'Vacant' : 'Pending'}</span>
                 </>
               )}
               {listing.why_vacant && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Reason</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.why_vacant}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Reason</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{listing.why_vacant}</span>
                 </>
               )}
               {listing.descriptive_location && (
                 <>
-                  <span className="text-gray-500 dark:text-gray-300">Access</span>
-                  <span className="font-medium text-gray-900 dark:text-gray-100 text-right">{listing.descriptive_location}</span>
+                  <span className="text-gray-500 dark:text-white dark:text-white">Access</span>
+                  <span className="font-medium text-gray-900 dark:text-white dark:text-white text-right">{listing.descriptive_location}</span>
                 </>
               )}
             </div>
@@ -440,19 +440,19 @@ export default function ListingDetailPage() {
 
           {/* Reviews */}
           <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
-            <h3 className="font-semibold flex items-center gap-2 dark:text-gray-100">
+            <h3 className="font-semibold flex items-center gap-2 dark:text-white">
               <Star className="w-4 h-4 text-yellow-500" /> Reviews
-              {avgRating > 0 && <span className="text-sm font-normal text-gray-500 dark:text-gray-300">({avgRating} avg)</span>}
+              {avgRating > 0 && <span className="text-sm font-normal text-gray-500 dark:text-white dark:text-white">({avgRating} avg)</span>}
             </h3>
 
             {user && canReview && !alreadyReviewed && (
               <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
-                <p className="text-sm font-medium dark:text-gray-200">Rate this property</p>
+                <p className="text-sm font-medium dark:text-white">Rate this property</p>
                 <Stars rating={myRating} interactive onChange={setMyRating} />
                 <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
                   placeholder="Your comments (optional)..."
-                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
-                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300 cursor-pointer">
+                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-white dark:text-white cursor-pointer">
                   <input type="checkbox" checked={myAnonymous} onChange={(e) => setMyAnonymous(e.target.checked)} className="rounded accent-gray-600" />
                   Post anonymously
                 </label>
@@ -461,12 +461,12 @@ export default function ListingDetailPage() {
             )}
             {user && canReview && !alreadyReviewed && lister && (
               <div className="space-y-3 p-4 bg-indigo-50 dark:bg-indigo-950/50 rounded-xl">
-                <p className="text-sm font-medium dark:text-gray-200">Rate {lister.full_name || 'the lister'}</p>
+                <p className="text-sm font-medium dark:text-white">Rate {lister.full_name || 'the lister'}</p>
                 <Stars rating={listerRating} interactive onChange={setListerRating} />
                 <textarea value={listerComment} onChange={(e) => setListerComment(e.target.value)}
                   placeholder="Share your experience with this lister (optional)..."
-                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
-                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-300 cursor-pointer">
+                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-white dark:text-white cursor-pointer">
                   <input type="checkbox" checked={listerAnonymous} onChange={(e) => setListerAnonymous(e.target.checked)} className="rounded accent-gray-600" />
                   Post anonymously
                 </label>
@@ -474,37 +474,37 @@ export default function ListingDetailPage() {
               </div>
             )}
             {user && !canReview && (
-              <p className="text-xs text-gray-400 dark:text-gray-400 italic">Only users who booked and released funds can review.</p>
+              <p className="text-xs text-gray-400 dark:text-white italic">Only users who booked and released funds can review.</p>
             )}
 
-            {reviews.length === 0 && <p className="text-sm text-gray-400 dark:text-gray-400">No reviews yet.</p>}
+            {reviews.length === 0 && <p className="text-sm text-gray-400 dark:text-white">No reviews yet.</p>}
             {reviews.map((r, i) => {
               const rp = reviewProfiles[r.user_id]
               const isAnonymous = r.is_anonymous
               return (
                 <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-blue-300 shrink-0 overflow-hidden">
+                    <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-white shrink-0 overflow-hidden">
                       {!isAnonymous && rp?.avatar_url ? (
                         <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
                       ) : (
                         !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                       )}
                     </div>
-                    <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                    <span className="text-sm font-medium text-gray-700 dark:text-white dark:text-white">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
                     <div className="flex items-center gap-2 ml-auto">
                       <Stars rating={r.rating} />
-                      <span className="text-xs text-gray-400 dark:text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                      <span className="text-xs text-gray-400 dark:text-white">{new Date(r.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
-                  {r.comment && <p className="text-sm text-gray-600 dark:text-gray-300 ml-8">{r.comment}</p>}
+                  {r.comment && <p className="text-sm text-gray-600 dark:text-white dark:text-white ml-8">{r.comment}</p>}
                 </div>
               )
             })}
             {listerReviews.length > 0 && (
               <>
                 <hr className="border-gray-200 dark:border-gray-700" />
-                <h4 className="text-sm font-semibold text-gray-500 dark:text-gray-300 flex items-center gap-1.5">
+                <h4 className="text-sm font-semibold text-gray-500 dark:text-white dark:text-white flex items-center gap-1.5">
                   <Star className="w-3.5 h-3.5 text-yellow-500" /> Lister Reviews
                 </h4>
                 {listerReviews.map((r, i) => {
@@ -520,13 +520,13 @@ export default function ListingDetailPage() {
                             !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                           )}
                         </div>
-                        <span className="text-sm font-medium text-gray-700 dark:text-gray-200">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                        <span className="text-sm font-medium text-gray-700 dark:text-white dark:text-white">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
                         <div className="flex items-center gap-2 ml-auto">
                           <Stars rating={r.rating} />
-                          <span className="text-xs text-gray-400 dark:text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
+                          <span className="text-xs text-gray-400 dark:text-white">{new Date(r.created_at).toLocaleDateString()}</span>
                         </div>
                       </div>
-                      {r.comment && <p className="text-sm text-gray-600 dark:text-gray-300 ml-8">{r.comment}</p>}
+                      {r.comment && <p className="text-sm text-gray-600 dark:text-white dark:text-white ml-8">{r.comment}</p>}
                     </div>
                   )
                 })}
@@ -539,12 +539,12 @@ export default function ListingDetailPage() {
         <div className="space-y-4">
           <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 sticky top-24">
             <div>
-              <p className="text-sm text-gray-500">Monthly Rent</p>
-              <p className="text-2xl font-bold text-gray-900">{formatPrice(listing.rent)}</p>
+              <p className="text-sm text-gray-500 dark:text-white">Monthly Rent</p>
+              <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatPrice(listing.rent)}</p>
             </div>
 
             <div>
-              <p className="text-sm text-gray-500">Hunting Fee</p>
+              <p className="text-sm text-gray-500 dark:text-white">Hunting Fee</p>
               <p className="text-xl font-semibold text-blue-600">{formatPrice(listing.price)}</p>
               <p className="text-xs text-gray-400 mt-0.5">Paid once to book a viewing</p>
             </div>
@@ -562,7 +562,7 @@ export default function ListingDetailPage() {
 
             <hr />
 
-            <div className="text-xs text-gray-500 space-y-1">
+            <div className="text-xs text-gray-500 dark:text-white space-y-1">
               <p><strong>Listed:</strong> {new Date(listing.created_at).toLocaleDateString()}</p>
               <p><strong>Issues reported:</strong> {listing.issues.length}</p>
               <p><strong>House type:</strong> {listing.house_type || 'N/A'}</p>
@@ -626,34 +626,34 @@ export default function ListingDetailPage() {
                 )}
               </div>
               <div>
-                <p className="font-semibold text-lg text-gray-900 dark:text-gray-100 flex items-center gap-1.5">
+                <p className="font-semibold text-lg text-gray-900 dark:text-white dark:text-white flex items-center gap-1.5">
                   {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
-                  {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-blue-400" />}
+                  {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" />}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <Stars rating={lister.average_rating || 0} />
-                  <span className="text-sm text-gray-600 dark:text-gray-300">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
+                  <span className="text-sm text-gray-600 dark:text-white dark:text-white">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3">
               <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{lister.listing_count}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">House{lister.listing_count !== 1 ? 's' : ''} Listed</p>
+                <p className="text-2xl font-bold text-blue-700 dark:text-white">{lister.listing_count}</p>
+                <p className="text-xs text-gray-500 dark:text-white dark:text-white">House{lister.listing_count !== 1 ? 's' : ''} Listed</p>
               </div>
               <div className="bg-amber-50 dark:bg-amber-900/20 rounded-lg p-3 text-center">
-                <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{lister.total_reviews || 0}</p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">Review{lister.total_reviews !== 1 ? 's' : ''}</p>
+                <p className="text-2xl font-bold text-amber-700 dark:text-white">{lister.total_reviews || 0}</p>
+                <p className="text-xs text-gray-500 dark:text-white dark:text-white">Review{lister.total_reviews !== 1 ? 's' : ''}</p>
               </div>
             </div>
 
             <div>
-              <h4 className="font-semibold text-gray-900 dark:text-gray-100 mb-3 flex items-center gap-1.5">
+              <h4 className="font-semibold text-gray-900 dark:text-white dark:text-white mb-3 flex items-center gap-1.5">
                 <Star className="w-4 h-4 text-yellow-500" /> Reviews from Customers
               </h4>
               {listerReviews.length === 0 ? (
-                <p className="text-sm text-gray-400 dark:text-gray-500">No reviews yet.</p>
+                <p className="text-sm text-gray-400 dark:text-white">No reviews yet.</p>
               ) : (
                 <div className="space-y-3 max-h-60 overflow-y-auto">
                   {listerReviews.map((r, i) => {
@@ -669,13 +669,13 @@ export default function ListingDetailPage() {
                               !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                             )}
                           </div>
-                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
+                          <span className="text-sm font-medium text-gray-700 dark:text-white dark:text-white">{isAnonymous ? 'Anonymous' : (rp?.full_name || 'Anonymous')}</span>
                           <div className="flex items-center gap-2 ml-auto">
                             <Stars rating={r.rating} />
                             <span className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString()}</span>
                           </div>
                         </div>
-                        {r.comment && <p className="text-sm text-gray-600 dark:text-gray-400 ml-8">{r.comment}</p>}
+                        {r.comment && <p className="text-sm text-gray-600 dark:text-white dark:text-white ml-8">{r.comment}</p>}
                       </div>
                     )
                   })}

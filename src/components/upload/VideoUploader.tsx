@@ -81,6 +81,7 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
                   <Download className="w-3.5 h-3.5" />
                 </a>
                 <button
+                  type="button"
                   onClick={() => removeVideo(i)}
                   className="p-1.5 bg-red-500/80 text-white rounded-full hover:bg-red-600"
                   title="Remove"
@@ -95,6 +96,7 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
 
       {videoUrls.length < MAX_VIDEOS && (
         <button
+          type="button"
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
           className="w-full h-20 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-600 flex flex-col items-center justify-center gap-1 text-gray-500 hover:border-blue-400 hover:text-blue-500 transition-colors disabled:opacity-50"

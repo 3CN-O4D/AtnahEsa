@@ -53,6 +53,7 @@ export default function ImageUploader({ images, onChange, maxImages = 10 }: Imag
           <div key={i} className="relative aspect-square rounded-lg overflow-hidden bg-gray-100 group">
             <img src={url} alt={`Upload ${i + 1}`} className="w-full h-full object-cover" />
             <button
+              type="button"
               onClick={() => removeImage(i)}
               className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
             >
@@ -62,6 +63,7 @@ export default function ImageUploader({ images, onChange, maxImages = 10 }: Imag
         ))}
         {images.length < maxImages && (
           <button
+            type="button"
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
             className={cn(

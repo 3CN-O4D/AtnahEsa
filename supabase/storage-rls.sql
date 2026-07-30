@@ -17,13 +17,13 @@ USING (true);
 CREATE POLICY "Allow authenticated updates"
 ON storage.objects FOR UPDATE
 TO authenticated
-USING (auth.uid() = owner_id);
+USING (auth.uid()::text = owner_id);
 
 -- Allow authenticated users to delete their own uploads
 CREATE POLICY "Allow authenticated deletes"
 ON storage.objects FOR DELETE
 TO authenticated
-USING (auth.uid() = owner_id);
+USING (auth.uid()::text = owner_id);
 
 -- Public read access for signed URLs to work for unauthenticated users (hunters)
 CREATE POLICY "Allow public reads for signed URLs"

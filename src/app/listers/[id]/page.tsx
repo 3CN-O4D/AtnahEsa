@@ -54,7 +54,7 @@ export default function ListerPage() {
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold dark:text-white">{displayName}</h1>
               {profile.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-green-500" /></span>}
-              {profile.role !== 'admin' && profile.verified && <span title="Verified User"><BadgeCheck className="w-5 h-5 text-blue-500" /></span>}
+              {profile.role !== 'admin' && profile.verified && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-500" /></span>}
             </div>
             <p className="text-sm text-gray-500 capitalize">{profile.role}</p>
           </div>

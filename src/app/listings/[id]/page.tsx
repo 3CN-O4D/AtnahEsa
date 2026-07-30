@@ -297,7 +297,7 @@ export default function ListingDetailPage() {
                     <button onClick={() => setListerModalOpen(true)} className="font-semibold text-gray-900 dark:text-white text-lg flex items-center gap-1.5 hover:underline text-left">
                       {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
                       {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-green-500" /></span>}
-                      {lister.role !== 'admin' && lister.verified && <span title="Verified User"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
+                      {lister.role !== 'admin' && lister.verified && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
                     </button>
                     <div className="flex items-center gap-2 mt-0.5">
                       <Stars rating={lister.average_rating || 0} />
@@ -597,7 +597,7 @@ export default function ListingDetailPage() {
                 <p className="font-semibold text-lg text-gray-900 dark:text-white flex items-center gap-1.5">
                   {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
                   {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-green-500" /></span>}
-                  {lister.role !== 'admin' && lister.verified && <span title="Verified User"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
+                  {lister.role !== 'admin' && lister.verified && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
                 </p>
                 <div className="flex items-center gap-2 mt-1">
                   <Stars rating={lister.average_rating || 0} />

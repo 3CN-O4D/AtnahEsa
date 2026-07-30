@@ -78,12 +78,12 @@ export default function ListingCard({ listing }: ListingCardProps) {
                 type="button"
                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setShowVerifyTip(!showVerifyTip) }}
                 className="relative"
-                title={isAdmin ? 'Verified by AseHanta' : 'Verified User'}
+                title="Verified by AseHanta"
               >
                 <BadgeCheck className={`w-3.5 h-3.5 ${isAdmin ? 'text-green-500' : 'text-blue-500'}`} />
                 {showVerifyTip && (
                   <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[10px] font-medium bg-black dark:bg-black text-white px-2 py-0.5 rounded shadow-lg border border-gray-700 z-50">
-                    {isAdmin ? 'Verified by AseHanta' : 'Verified User'}
+Verified by AseHanta
                   </span>
                 )}
               </button>

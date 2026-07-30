@@ -73,6 +73,9 @@ export async function POST(req: Request) {
 
     const body = await req.json()
 
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+    const isAdmin = profile?.role === 'admin'
+
     const allowedFields = {
       title: body.title,
       description: body.description,
@@ -98,7 +101,7 @@ export async function POST(req: Request) {
       lister_phone: body.lister_phone || '',
       uploader_id: user.id,
       uploader_name: user.email,
-      status: 'pending',
+      status: isAdmin ? 'published' : 'pending',
     }
 
     const { error: insertError } = await supabase.from('listings').insert(allowedFields)

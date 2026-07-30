@@ -340,11 +340,15 @@ function AdminDashboardInner() {
   }
 
   const handleUpdateUserRole = async (userId: string, role: string) => {
-    const supabase = createClient()
     const userProfile = users.find((u) => u.id === userId)
     const oldRole = userProfile?.role || 'unknown'
-    const { error } = await supabase.from('profiles').update({ role }).eq('id', userId)
-    if (error) { showToast('error', error.message); return }
+    const res = await fetch('/api/admin/users', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ userId, role }),
+    })
+    const data = await res.json()
+    if (!res.ok) { showToast('error', data.error || 'Failed to update role'); return }
     showToast('success', 'User role updated')
     if (userId) notifyUserById(userId, 'role_changed', { old_role: oldRole, new_role: role })
     clearCache('admin:'); loadUsers()

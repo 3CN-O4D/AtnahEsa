@@ -311,6 +311,9 @@ BEGIN
     NEW.email,
     COALESCE((NEW.raw_user_meta_data->>'terms_accepted')::boolean, false)
   );
+
+  -- Sync role to auth.users metadata so JWT-based RLS policies work (non-recursive)
+  UPDATE auth.users SET raw_user_meta_data = raw_user_meta_data || jsonb_build_object('role', COALESCE(NEW.raw_user_meta_data->>'role', 'hunter')) WHERE id = NEW.id;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

@@ -189,7 +189,7 @@ function AdminDashboardInner() {
     if (!name || !name.trim()) return
     const res = await fetch(`/api/admin/listings/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'taken', taken_by_name: name.trim() }),
+      body: JSON.stringify({ status: 'taken', taken_by_name: name.trim(), taken_at: new Date().toISOString() }),
     })
     if (!res.ok) { showToast('error', 'Failed to mark as taken'); return }
     showToast('success', 'Marked as taken')

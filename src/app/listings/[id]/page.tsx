@@ -141,7 +141,7 @@ export default function ListingDetailPage() {
         const { data: sim } = await supabase
           .from('listings')
           .select('*')
-          .eq('status', 'published')
+          .in('status', ['published', 'taken'])
           .eq('location', l.location)
           .neq('id', id)
           .limit(10)
@@ -216,6 +216,7 @@ export default function ListingDetailPage() {
         <Slideshow images={listing.images} className="w-full aspect-video mb-6" onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }} />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
         {listing.status === 'booked' && <div className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-medium px-3 py-1 rounded-full">Booked</div>}
+        {listing.status === 'taken' && <div className="absolute top-4 right-4 bg-rose-500 text-white text-sm font-medium px-3 py-1 rounded-full">Taken</div>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -313,8 +314,8 @@ export default function ListingDetailPage() {
 
           {/* Lister info */}
           {lister && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/30 dark:to-indigo-900/30 border border-blue-100 dark:border-blue-800/50 rounded-xl p-5 space-y-4">
-              <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-300"><User className="w-4 h-4" /> Listed by</h3>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border border-blue-100 dark:border-blue-800/50 rounded-xl p-5 space-y-4">
+              <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-blue-200"><User className="w-4 h-4" /> Listed by</h3>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
                   {lister.avatar_url ? (
@@ -326,31 +327,31 @@ export default function ListingDetailPage() {
                 <div>
                   <p className="font-semibold text-gray-900 dark:text-gray-100 text-lg flex items-center gap-1.5">
                     {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
-                    {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500" />}
+                    {(lister.role === 'admin' || lister.verified) && <BadgeCheck className="w-5 h-5 text-blue-500 dark:text-blue-400" />}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     <Stars rating={lister.average_rating || 0} />
-                    <span className="text-sm text-gray-500">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">({lister.total_reviews || 0} review{(lister.total_reviews || 0) !== 1 ? 's' : ''})</span>
                   </div>
                   {lister.average_rating > 0 && (
-                    <p className="text-xs text-blue-600 font-medium mt-0.5">{lister.average_rating} out of 5</p>
+                    <p className="text-xs text-blue-600 dark:text-blue-300 font-medium mt-0.5">{lister.average_rating} out of 5</p>
                   )}
                   {lister.role === 'admin' && (
-                    <p className="text-xs text-blue-500 font-medium mt-0.5">Official AseHanta Listing</p>
+                    <p className="text-xs text-blue-500 dark:text-blue-300 font-medium mt-0.5">Official AseHanta Listing</p>
                   )}
                 </div>
               </div>
               <div className="flex items-center gap-4 text-sm">
-                <div className="bg-white/60 rounded-lg px-3 py-1.5">
-                  <span className="font-bold text-blue-700">{lister.listing_count}</span>
-                  <span className="text-gray-500 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
+                <div className="bg-white/60 dark:bg-white/10 rounded-lg px-3 py-1.5">
+                  <span className="font-bold text-blue-700 dark:text-blue-300">{lister.listing_count}</span>
+                  <span className="text-gray-500 dark:text-gray-400 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
                 {lister.phone && canReview ? (
-                  <a href={`tel:${lister.phone}`} className="text-blue-600 hover:underline font-medium flex items-center gap-1">
+                  <a href={`tel:${lister.phone}`} className="text-blue-600 dark:text-blue-400 hover:underline font-medium flex items-center gap-1">
                     <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
                   </a>
                 ) : lister.phone ? (
-                  <span className="text-gray-400 dark:text-gray-500 text-sm flex items-center gap-1">
+                  <span className="text-gray-400 dark:text-gray-400 text-sm flex items-center gap-1">
                     <PhoneIcon className="w-3.5 h-3.5" /> Locked until booking
                   </span>
                 ) : null}

@@ -42,6 +42,11 @@ export default function ListingCard({ listing }: ListingCardProps) {
       <Card hover>
         <div className="aspect-[4/3] relative">
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
+          {listing.status === 'taken' && (
+            <div className="absolute top-2 left-2 bg-rose-500 text-white text-xs font-medium px-2 py-1 rounded-full">
+              Taken
+            </div>
+          )}
           <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full">
             {formatPrice(listing.price)}
           </div>
@@ -70,6 +75,11 @@ export default function ListingCard({ listing }: ListingCardProps) {
             </Link>
             {verified && <BadgeCheck className="w-3.5 h-3.5 text-blue-500" />}
           </div>
+          {listing.status === 'taken' && listing.taken_by_name && (
+            <div className="text-xs text-rose-500 pt-0.5">
+              Taken by {listing.taken_by_name}{listing.taken_at ? ` on ${new Date(listing.taken_at).toLocaleDateString()}` : ''}
+            </div>
+          )}
         </div>
       </Card>
     </Link>

@@ -42,14 +42,16 @@ export default function ListingCard({ listing }: ListingCardProps) {
   }, [listing.uploader_id, listing.uploader_name])
 
   return (
-    <Link href={`/listings/${listing.id}`}>
+    <Link href={`/listings/${listing.id}`} aria-disabled={listing.status === 'taken'}>
       <Card hover>
-        <div className="aspect-[4/3] relative">
+        <div className={`aspect-[4/3] relative ${listing.status === 'taken' ? 'grayscale-[0.4] brightness-90' : ''}`}>
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
           {listing.status === 'taken' && (
-            <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-              TAKEN
+            <div className="absolute inset-0 bg-purple-900/20 flex items-center justify-center">
+              <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                TAKEN
+              </div>
             </div>
           )}
           <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full">
@@ -57,11 +59,14 @@ export default function ListingCard({ listing }: ListingCardProps) {
           </div>
         </div>
         <div className="p-3 space-y-2">
-          <h3 className="font-semibold text-gray-900 truncate">{listing.title}</h3>
+          <h3 className={`font-semibold truncate ${listing.status === 'taken' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900'}`}>{listing.title}</h3>
           <div className="flex items-center gap-1 text-sm text-gray-500">
             <MapPin className="w-3.5 h-3.5" />
             <span className="truncate">{listing.location}</span>
           </div>
+          {listing.status === 'taken' && (
+            <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">View only — already taken</p>
+          )}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-blue-600">
               Rent: {formatPrice(listing.rent)}/mo

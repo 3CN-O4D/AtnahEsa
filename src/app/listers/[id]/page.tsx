@@ -23,7 +23,7 @@ export default function ListerPage() {
     const supabase = createClient()
 
     Promise.all([
-      supabase.from('profiles').select('*').eq('id', id).maybeSingle(),
+      supabase.from('profiles_public').select('*').eq('id', id).maybeSingle(),
       supabase.from('listings').select('*').eq('uploader_id', id).eq('status', 'published').order('created_at', { ascending: false }),
       supabase.from('listings').select('*').eq('uploader_id', id).eq('status', 'taken').order('created_at', { ascending: false }),
     ]).then(([profileRes, listingsRes, takenRes]) => {

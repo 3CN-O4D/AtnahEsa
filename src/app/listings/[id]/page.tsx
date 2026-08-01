@@ -86,7 +86,7 @@ export default function ListingDetailPage() {
       setListing(l)
 
       const [profileRes, countRes, revsRes, lrRes, simRes, bookingCountRes] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', l.uploader_id).single(),
+        supabase.from('profiles_public').select('*').eq('id', l.uploader_id).single(),
         supabase.from('listings').select('*', { count: 'exact', head: true }).eq('uploader_id', l.uploader_id),
         supabase.from('reviews').select('*').eq('listing_id', id).order('created_at', { ascending: false }),
         l.uploader_id ? supabase.from('lister_reviews').select('*').eq('lister_id', l.uploader_id).order('created_at', { ascending: false }) : Promise.resolve({ data: null }),
@@ -110,7 +110,7 @@ export default function ListingDetailPage() {
       const lrUserIds = [...new Set(lr.map((r) => r.reviewer_id))]
       const allProfileIds = [...new Set([...userIds, ...lrUserIds])]
       if (allProfileIds.length > 0) {
-        const { data: allProfiles } = await supabase.from('profiles').select('*').in('id', allProfileIds)
+        const { data: allProfiles } = await supabase.from('profiles_public').select('*').in('id', allProfileIds)
         const pmap: Record<string, Profile> = {}
         for (const p of allProfiles ?? []) pmap[p.id] = p as Profile
         setReviewProfiles(pmap)

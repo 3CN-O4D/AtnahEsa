@@ -22,7 +22,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
   useEffect(() => {
     const supabase = createClient()
     supabase
-      .from('profiles')
+      .from('profiles_public')
       .select('role, verified, full_name')
       .eq('id', listing.uploader_id)
       .maybeSingle()

@@ -443,8 +443,22 @@ DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
-DROP POLICY IF EXISTS "Public can view profiles for listing cards" ON public.profiles;
-CREATE POLICY "Public can view profiles for listing cards" ON public.profiles FOR SELECT USING (true);
+
+-- Public-safe view exposing only display fields (no phone/email).
+DROP VIEW IF EXISTS public.profiles_public;
+CREATE VIEW public.profiles_public AS
+SELECT
+  id,
+  full_name,
+  role,
+  verified,
+  avatar_url,
+  average_rating,
+  total_reviews,
+  created_at
+FROM public.profiles;
+
+GRANT SELECT ON public.profiles_public TO anon, authenticated;
 
 -- LISTINGS
 DROP POLICY IF EXISTS "Anyone can view published listings" ON public.listings;

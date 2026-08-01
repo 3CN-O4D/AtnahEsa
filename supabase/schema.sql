@@ -34,10 +34,21 @@ CREATE POLICY "Admins can view all profiles"
     auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
   );
 
--- Public can view display info (name, verified, role) to show on listing cards
-CREATE POLICY "Public can view profiles for listing cards"
-  ON public.profiles FOR SELECT
-  USING (true);
+-- Public-safe view exposing only display fields (no phone/email).
+-- Public pages query this view instead of the raw table.
+CREATE OR REPLACE VIEW public.profiles_public AS
+SELECT
+  id,
+  full_name,
+  role,
+  verified,
+  avatar_url,
+  average_rating,
+  total_reviews,
+  created_at
+FROM public.profiles;
+
+GRANT SELECT ON public.profiles_public TO anon, authenticated;
 
 -- 2. LISTINGS
 CREATE TABLE IF NOT EXISTS public.listings (

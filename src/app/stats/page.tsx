@@ -14,8 +14,8 @@ export default function StatsPage() {
     Promise.all([
       supabase.from('listings').select('*', { count: 'exact', head: true }),
       supabase.from('bookings').select('*', { count: 'exact', head: true }),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'hunter'),
-      supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'lister'),
+      supabase.from('profiles_public').select('*', { count: 'exact', head: true }).eq('role', 'hunter'),
+      supabase.from('profiles_public').select('*', { count: 'exact', head: true }).eq('role', 'lister'),
     ]).then(([h, b, hu, li]) => {
       setStats({
         houses: h.count ?? 0,

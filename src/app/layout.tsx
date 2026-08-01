@@ -14,6 +14,9 @@ export const metadata: Metadata = {
     template: `%s | ${APP_NAME}`,
   },
   description: 'House hunting platform. Browse listings, book viewings, find movers and WiFi packages.',
+  verification: {
+    google: 'ezCkvGutGXm1IEFaqWvh5spcuQOSzO1oKDKPzoxe7Jw',
+  },
   icons: {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',

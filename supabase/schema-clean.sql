@@ -443,6 +443,8 @@ DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING (auth.jwt() -> 'user_metadata' ->> 'role' = 'admin');
+DROP POLICY IF EXISTS "Public can view profiles for listing cards" ON public.profiles;
+CREATE POLICY "Public can view profiles for listing cards" ON public.profiles FOR SELECT USING (true);
 
 -- LISTINGS
 DROP POLICY IF EXISTS "Anyone can view published listings" ON public.listings;

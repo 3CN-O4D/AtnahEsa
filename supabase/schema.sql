@@ -34,6 +34,11 @@ CREATE POLICY "Admins can view all profiles"
     auth.uid() IN (SELECT id FROM public.profiles WHERE role = 'admin')
   );
 
+-- Public can view display info (name, verified, role) to show on listing cards
+CREATE POLICY "Public can view profiles for listing cards"
+  ON public.profiles FOR SELECT
+  USING (true);
+
 -- 2. LISTINGS
 CREATE TABLE IF NOT EXISTS public.listings (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,

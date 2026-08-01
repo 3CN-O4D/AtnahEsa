@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, MessageCircle, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, MessageCircle, AlertTriangle, Copy, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import HouseBookingModal from '@/components/listings/HouseBookingModal'
 import { createClient } from '@/lib/supabase/client'
@@ -15,6 +15,17 @@ export default function BookingPage() {
   const router = useRouter()
   const [listing, setListing] = useState<Listing | null>(null)
   const [showBooking, setShowBooking] = useState(false)
+  const [copied, setCopied] = useState(false)
+
+  const copyTill = async () => {
+    try {
+      await navigator.clipboard.writeText(TILL_NUMBER)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      setCopied(false)
+    }
+  }
 
   useEffect(() => {
     const supabase = createClient()
@@ -64,16 +75,26 @@ export default function BookingPage() {
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
         <p className="text-sm font-semibold text-blue-800 mb-1">Or Pay Directly via M-Pesa Till</p>
         <p className="text-xs text-blue-700 mb-2">
-          Send the {formatPrice(listing.price)} hunting fee to the Till number below, then contact us on WhatsApp to confirm your booking.
+          Send the {formatPrice(listing.price)} hunting fee to the Till number below, paste the M-Pesa confirmation
+          message in the booking form, and we&apos;ll verify your payment and release the house.
         </p>
         <div className="flex items-center justify-between bg-white border border-blue-200 rounded-lg px-4 py-3">
           <div>
             <p className="text-xs text-gray-500">Till Number</p>
             <p className="text-2xl font-bold tracking-wider text-blue-700">{TILL_NUMBER}</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-gray-500">Amount</p>
-            <p className="text-sm font-semibold">{formatPrice(listing.price)}</p>
+          <div className="flex flex-col items-end gap-1.5">
+            <div className="text-right">
+              <p className="text-xs text-gray-500">Amount</p>
+              <p className="text-sm font-semibold">{formatPrice(listing.price)}</p>
+            </div>
+            <button
+              onClick={copyTill}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700 transition-colors"
+            >
+              {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+              {copied ? 'Copied!' : 'Copy Till'}
+            </button>
           </div>
         </div>
       </div>

@@ -37,6 +37,7 @@ CREATE TABLE IF NOT EXISTS public.house_bookings (
   phone TEXT NOT NULL,
   area TEXT NOT NULL,
   id_number TEXT DEFAULT '',
+  mpesa_message TEXT DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'contacted', 'completed', 'cancelled')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

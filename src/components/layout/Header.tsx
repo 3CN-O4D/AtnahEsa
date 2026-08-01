@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, Moon, Sun } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME } from '@/lib/constants'
 import Button from '@/components/ui/Button'
-import { useTheme } from '@/lib/ThemeProvider'
+import ThemeToggle from '@/components/layout/ThemeToggle'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 export default function Header() {
@@ -16,7 +16,6 @@ export default function Header() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const { dark, toggle } = useTheme()
 
   useEffect(() => {
     const supabase = createClient()
@@ -76,9 +75,7 @@ export default function Header() {
               {label}
             </Link>
           ))}
-          <button onClick={toggle} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={dark ? 'Light mode' : 'Dark mode'}>
-            {dark ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
+          <ThemeToggle />
           {user && (
             <Link href="/upload">
               <Button size="sm" className="whitespace-nowrap">
@@ -141,9 +138,7 @@ export default function Header() {
 
         {/* Mobile: dark mode + hamburger — flush to right */}
         <div className="md:hidden flex items-center gap-1 pr-4 ml-auto">
-          <button onClick={toggle} className="p-2 rounded-lg text-gray-500 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors" title={dark ? 'Light mode' : 'Dark mode'}>
-            {dark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
-          </button>
+          <ThemeToggle />
           <button className="p-2" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>

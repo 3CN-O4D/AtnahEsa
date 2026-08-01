@@ -95,6 +95,7 @@ const templates: Record<string, Template> = {
   'Manual Payment Submitted for Verification': { emoji: '⏳', color: '#D97706', label: 'Manual Payment Pending' },
   'Manual Payment Verification Failed': { emoji: '⚠️', color: '#DC2626', label: 'Verification Failed' },
   'Manual Payment Verified by Daraja': { emoji: '✅', color: '#059669', label: 'Payment Confirmed' },
+  'Till Payment Received': { emoji: '🏦', color: '#2563EB', label: 'Till Payment' },
   'B2C Refund Initiated': { emoji: '💰', color: '#059669', label: 'B2C Refund' },
   'B2C Refund Failed': { emoji: '❌', color: '#DC2626', label: 'B2C Failed' },
 }

@@ -186,6 +186,7 @@ export default function ListingDetailPage() {
         <Slideshow images={listing.images} className="w-full aspect-video mb-6" onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }} />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
         {listing.status === 'booked' && <div className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-medium px-3 py-1 rounded-full">Booked</div>}
+        {listing.status === 'taken' && <div className="absolute top-4 right-4 bg-purple-600 text-white text-sm font-bold px-3 py-1 rounded-full">TAKEN</div>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -536,22 +537,28 @@ export default function ListingDetailPage() {
               <p><strong>House type:</strong> {listing.house_type || 'N/A'}</p>
             </div>
 
-            {user ? (
-              listing.status === 'taken' ? (
-                <div className="bg-rose-50 dark:bg-rose-900/20 border border-rose-200 dark:border-rose-800/50 rounded-xl p-4 text-center">
-                  <p className="text-sm font-semibold text-rose-700 dark:text-rose-300">This house has been taken</p>
-                </div>
-              ) : (
+            {listing.status === 'taken' ? (
+              <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
+                <p className="text-sm font-semibold text-purple-700">This house has been taken.</p>
+                <p className="text-xs text-purple-600 mt-1">
+                  Similar houses may be available &mdash; request one below and our agents will find it for you.
+                </p>
+                <Link href="/request-house">
+                  <Button className="w-full mt-3" variant="secondary">
+                    <Home className="w-4 h-4 mr-1.5" /> Request a House
+                  </Button>
+                </Link>
+              </div>
+            ) : user ? (
               <Link href={`/booking/${listing.id}`}>
                 <Button className="w-full"><Calendar className="w-4 h-4 mr-1.5" /> Book Viewing</Button>
               </Link>
-              )
             ) : (
               <div className="space-y-2">
-                <Link href="/auth/signin">
-                  <Button className="w-full"><Calendar className="w-4 h-4 mr-1.5" /> Sign in to Book</Button>
+                <Link href={`/booking/${listing.id}`}>
+                  <Button className="w-full"><Calendar className="w-4 h-4 mr-1.5" /> Book Viewing</Button>
                 </Link>
-                <p className="text-xs text-gray-400 text-center">Don&apos;t have an account? <Link href="/auth/signup" className="text-blue-600 hover:underline">Sign up</Link></p>
+                <p className="text-xs text-gray-400 text-center">No payment needed to book right now — we&apos;ll confirm via WhatsApp.</p>
               </div>
             )}
 

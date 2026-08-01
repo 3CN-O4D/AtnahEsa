@@ -1,3 +1,50 @@
+// =====================================================================
+// ⚠️ DARAJA / SAFARICOM PAYMENT — TEMPORARILY DISABLED (site inoperative)
+//
+// We had a hitch getting the Safaricom API keys, so the M-Pesa payment
+// logic is commented out until the keys are ready (revert on Monday).
+// While disabled, the booking flow uses WhatsApp instead of M-Pesa.
+// See: src/app/booking/[id]/page.tsx  and  src/components/listings/HouseBookingModal.tsx
+//
+// To REVERT: uncomment the whole file (git diff / Monday revert).
+// =====================================================================
+
+const DISABLED = 'M-Pesa payments are temporarily disabled while Safaricom API keys are being set up. Please book via WhatsApp instead.'
+
+export interface DarajaResponse {
+  MerchantRequestID?: string
+  CheckoutRequestID?: string
+  ResponseCode?: string
+  ResponseDescription?: string
+  OriginatorConversationID?: string
+  ConversationID?: string
+  [key: string]: unknown
+}
+
+export async function stkPush(phone: string, amount: number, accountRef: string, transactionDesc: string): Promise<DarajaResponse> {
+  throw new Error(DISABLED)
+}
+
+export async function accountBalance(): Promise<DarajaResponse> {
+  throw new Error(DISABLED)
+}
+
+export async function queryStatus(checkoutRequestId: string): Promise<DarajaResponse> {
+  throw new Error(DISABLED)
+}
+
+export async function transactionStatusQuery(receipt: string): Promise<DarajaResponse> {
+  throw new Error(DISABLED)
+}
+
+export async function b2cPayment(phone: string, amount: number, remarks: string, occasion = 'Refund'): Promise<DarajaResponse> {
+  throw new Error(DISABLED)
+}
+
+// =====================================================================
+// ⚠️ ORIGINAL DARAJA IMPLEMENTATION (commented out — revert on Monday)
+// =====================================================================
+/*
 const DARAJA_ENV = process.env.DARAJA_ENV || 'sandbox'
 const CONSUMER_KEY = process.env.DARAJA_CONSUMER_KEY || ''
 const CONSUMER_SECRET = process.env.DARAJA_CONSUMER_SECRET || ''
@@ -173,3 +220,4 @@ export async function b2cPayment(phone: string, amount: number, remarks: string,
   const data = await res.json()
   return data
 }
+*/

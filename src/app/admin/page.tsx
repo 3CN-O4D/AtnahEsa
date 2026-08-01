@@ -242,7 +242,7 @@ function AdminDashboardInner() {
     if (e1) { showToast('error', e1.message); return }
     const res = await fetch(`/api/admin/listings/${listingId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'taken' }),
+      body: JSON.stringify({ status: 'taken', taken_at: new Date().toISOString() }),
     })
     if (!res.ok) { showToast('error', 'Failed to mark listing as taken'); return }
     showToast('success', 'Visit marked as completed')

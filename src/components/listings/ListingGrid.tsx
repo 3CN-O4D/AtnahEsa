@@ -1,7 +1,9 @@
 'use client'
 
 import { useRef, useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import ListingCard from './ListingCard'
+import { Home, Wifi, Search } from 'lucide-react'
 import type { Listing } from '@/types'
 
 interface ListingGridProps {
@@ -84,7 +86,46 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
         ))}
       </div>
       {!hasMore && listings.length === 0 && (
-        <p className="text-center text-gray-500 py-12">No listings found.</p>
+        <div className="text-center py-12 space-y-6">
+          <div className="space-y-2">
+            <h2 className="text-xl font-bold text-gray-900">All Houses Are Currently Taken</h2>
+            <p className="text-gray-600 max-w-md mx-auto">
+              Every available house has been snapped up. We take every request seriously &mdash; tell us what
+              you&apos;re looking for and our agents will be on the ground to find it for you.
+            </p>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-3 justify-center">
+            <Link href="/request-house">
+              <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+                <Home className="w-4 h-4" /> Request a House
+              </span>
+            </Link>
+            <Link href="/wifi">
+              <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors">
+                <Wifi className="w-4 h-4" /> Browse WiFi Packages
+              </span>
+            </Link>
+          </div>
+
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 max-w-md mx-auto text-left">
+            <p className="text-sm font-semibold text-blue-800 flex items-center gap-2 mb-2">
+              <Wifi className="w-4 h-4" /> While You Wait — Get Internet Ready
+            </p>
+            <p className="text-xs text-blue-700 leading-relaxed">
+              Moving into a new home? Compare the latest WiFi packages from top providers and pick a plan.
+              Packages start as low as KES 1,000/month.
+            </p>
+            <Link href="/wifi" className="text-xs text-blue-600 hover:underline mt-2 inline-block font-medium">
+              View packages →
+            </Link>
+          </div>
+
+          <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
+            <Search className="w-3.5 h-3.5" />
+            Try adjusting your search or filters, or request a house and we&apos;ll match you.
+          </div>
+        </div>
       )}
       {hasMore && (
         <div ref={loaderRef} className="flex justify-center py-8">

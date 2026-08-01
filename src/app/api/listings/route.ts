@@ -21,7 +21,7 @@ export async function GET(req: Request) {
     let q = supabase
       .from('listings')
       .select('*')
-      .eq('status', 'published')
+      .in('status', ['published', 'taken'])
       .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
 
     if (query) {

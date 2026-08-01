@@ -54,6 +54,7 @@ CREATE TABLE IF NOT EXISTS public.listings (
   descriptive_location TEXT DEFAULT '',
   payment_method TEXT NOT NULL DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'booked', 'taken', 'rejected')),
+  taken_at TIMESTAMPTZ,
   uploader_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   uploader_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -62,10 +63,10 @@ CREATE TABLE IF NOT EXISTS public.listings (
 
 ALTER TABLE public.listings ENABLE ROW LEVEL SECURITY;
 
--- Everyone can read published listings
+-- Everyone can read published and taken listings (taken shown publicly as "Taken")
 CREATE POLICY "Anyone can view published listings"
   ON public.listings FOR SELECT
-  USING (status = 'published');
+  USING (status IN ('published', 'taken'));
 
 -- Uploaders can view own listings
 CREATE POLICY "Uploaders can view own listings"
@@ -410,6 +411,22 @@ CREATE POLICY "Service role only"
 -- 12. HELPER FUNCTION: Create first admin (run manually after setting up)
 -- Run this in Supabase SQL Editor AFTER creating your own account:
 -- UPDATE public.profiles SET role = 'admin' WHERE id = '<your-user-uuid>';
+
+-- 12b. AUTO-DELETE TAKEN LISTINGS AFTER 24 HOURS
+-- Schedule via Supabase pg_cron (Dashboard -> Database -> Extensions -> enable pg_cron):
+--   select cron.schedule('cleanup-taken-listings', '0 * * * *', 'select public.delete_expired_taken_listings();');
+CREATE OR REPLACE FUNCTION public.delete_expired_taken_listings()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM public.listings
+  WHERE status = 'taken'
+    AND taken_at IS NOT NULL
+    AND taken_at < now() - interval '24 hours';
+END;
+$$;
 
 -- 13. NEW COLUMNS for listings (house_type, deposit_refundable, electric_bill, vacancy, vacancy_type)
 ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS house_type TEXT DEFAULT '';

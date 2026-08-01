@@ -2,421 +2,86 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { Smartphone, MessageSquare, CheckCircle, Clock, AlertTriangle, X } from 'lucide-react'
-import Input from '@/components/ui/Input'
+import { ArrowLeft, MessageCircle, AlertTriangle } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import HouseBookingModal from '@/components/listings/HouseBookingModal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { MIN_BOOKING_FEE, APP_NAME } from '@/lib/constants'
-import type { Listing, Booking, EscrowHold } from '@/types'
-
-type PaymentMethod = 'stk' | 'manual'
-
-const REFUND_REASONS = [
-  { id: 'inaccurate', label: "It's inaccurate or incorrect" },
-  { id: 'not_real', label: "It's not a real place to stay" },
-  { id: 'scam', label: "It's a scam" },
-  { id: 'offensive', label: "It's offensive" },
-  { id: 'other', label: "It's something else" },
-]
+import { WHATSAPP_NUMBER } from '@/lib/constants'
+import type { Listing } from '@/types'
 
 export default function BookingPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [listing, setListing] = useState<Listing | null>(null)
-  const [user, setUser] = useState<{ id: string } | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-  const [phone, setPhone] = useState('')
-  const [mpesaMessage, setMpesaMessage] = useState('')
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('stk')
-  const [stkSent, setStkSent] = useState(false)
-  const [checkoutRequestId, setCheckoutRequestId] = useState('')
-  const [manualVerifying, setManualVerifying] = useState(false)
-  const [manualTxId, setManualTxId] = useState('')
-  const [verifyPollCount, setVerifyPollCount] = useState(0)
-
-  const [booking, setBooking] = useState<Booking | null>(null)
-  const [escrowHold, setEscrowHold] = useState<EscrowHold | null>(null)
-  const [step, setStep] = useState<'payment' | 'dashboard'>('payment')
-
-  const [showRefundModal, setShowRefundModal] = useState(false)
-  const [reportReasons, setReportReasons] = useState<string[]>([])
-  const [reportDescription, setReportDescription] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  const [releasing, setReleasing] = useState(false)
-  const [countdown, setCountdown] = useState('')
+  const [showBooking, setShowBooking] = useState(false)
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push('/auth/signin')
-      else setUser(data.user)
-    })
     supabase.from('listings').select('*').eq('id', id).single().then(({ data }) => {
       if (!data) router.push('/')
       else setListing(data as Listing)
     })
   }, [id, router])
 
-  useEffect(() => {
-    if (step !== 'dashboard') return
-    if (!escrowHold?.held_until) return
-    const update = () => {
-      const diff = new Date(escrowHold.held_until).getTime() - Date.now()
-      if (diff <= 0) { setCountdown('Expired — auto-releasing...'); return }
-      const h = Math.floor(diff / 3600000)
-      const m = Math.floor((diff % 3600000) / 60000)
-      const s = Math.floor((diff % 60000) / 1000)
-      setCountdown(`${h}h ${m}m ${s}s`)
-    }
-    update()
-    const i = setInterval(update, 1000)
-    return () => clearInterval(i)
-  }, [step, escrowHold?.held_until])
-
-  const handleStkPush = async () => {
-    if (!listing || !user) return
-    if (!phone || phone.length < 10) { setError('Enter a valid M-Pesa phone number'); return }
-    setLoading(true); setError('')
-    try {
-      const res = await fetch('/api/payments/stk-push', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listing_id: listing.id, phone }),
-      })
-      const data = await res.json()
-      if (!res.ok) setError(data.error || 'Failed to initiate payment')
-      else { setCheckoutRequestId(data.checkout_request_id); setStkSent(true) }
-    } catch { setError('Failed to initiate payment') } finally { setLoading(false) }
+  if (!listing) {
+    return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
   }
-
-  const handleStkConfirm = async () => {
-    if (!listing || !user || !checkoutRequestId) return
-    setLoading(true); setError('')
-    try {
-      const supabase = createClient()
-      const { data: tx } = await supabase.from('transactions')
-        .select('booking_id').eq('checkout_request_id', checkoutRequestId).single()
-      if (tx) {
-        const { data: eb } = await supabase.from('bookings').select('*, escrow_hold:escrow_holds(*)').eq('id', tx.booking_id).single()
-        if (eb?.status === 'confirmed') {
-          setBooking(eb as Booking)
-          if (eb.escrow_hold) setEscrowHold(eb.escrow_hold as unknown as EscrowHold)
-          setStep('dashboard')
-          setLoading(false)
-          return
-        }
-      }
-      setError('Payment not yet confirmed. Check M-Pesa and try again.')
-    } catch { setError('Failed to confirm payment') } finally { setLoading(false) }
-  }
-
-  const handleManualVerify = async () => {
-    if (!listing || !user) return
-    if (!phone || phone.length < 10) { setError('Enter your M-Pesa phone number'); return }
-    if (!mpesaMessage.trim()) { setError('Paste the M-Pesa confirmation message'); return }
-    setLoading(true); setError('')
-    try {
-      const res = await fetch('/api/payments/verify-manual', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ listing_id: listing.id, phone, mpesa_message: mpesaMessage }),
-      })
-      const data = await res.json()
-      if (!res.ok) setError(data.error || 'Verification failed')
-      else {
-        setManualTxId(data.transaction_id)
-        setManualVerifying(true)
-        setVerifyPollCount(0)
-      }
-    } catch { setError('Verification failed') } finally { setLoading(false) }
-  }
-
-  useEffect(() => {
-    if (!manualVerifying || !manualTxId) return
-    const poll = setInterval(async () => {
-      try {
-        const res = await fetch(`/api/payments/verify-status?transaction_id=${manualTxId}`)
-        const data = await res.json()
-        if (data.status === 'success') {
-          clearInterval(poll)
-          setManualVerifying(false)
-          if (data.booking) {
-            const supabase = createClient()
-            const { data: eb } = await supabase.from('bookings').select('*').eq('id', data.booking.id).single()
-            if (eb) {
-              setBooking(eb as Booking)
-              setStep('dashboard')
-              const { data: eh } = await supabase.from('escrow_holds').select('*').eq('booking_id', eb.id).maybeSingle()
-              if (eh) setEscrowHold(eh as EscrowHold)
-            }
-          }
-        } else if (data.status === 'failed') {
-          clearInterval(poll)
-          setManualVerifying(false)
-          setError(data.result_desc || 'Payment verification failed. The transaction code could not be confirmed.')
-        }
-        setVerifyPollCount((c) => c + 1)
-      } catch {
-        clearInterval(poll)
-        setManualVerifying(false)
-        setError('Failed to check verification status')
-      }
-    }, 3000)
-    return () => clearInterval(poll)
-  }, [manualVerifying, manualTxId])
-
-  const handleReleaseFunds = async () => {
-    if (!escrowHold || !booking || !listing || !user) return
-    setReleasing(true); setError('')
-    try {
-      const res = await fetch('/api/treasury/release', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ escrow_id: escrowHold.id }),
-      })
-      if (!res.ok) { const d = await res.json(); setError(d.error || 'Failed to release funds') }
-      else setEscrowHold({ ...escrowHold, status: 'released' })
-    } catch { setError('Failed to release funds') } finally { setReleasing(false) }
-  }
-
-  const handleSubmitReport = async () => {
-    if (!booking || !user || !listing || !escrowHold) return
-    if (reportReasons.length === 0) { setError('Please select at least one reason'); return }
-    setSubmitting(true); setError('')
-    try {
-      const supabase = createClient()
-      const refundAmount = Math.round(listing.price * 0.85)
-      const { data: report } = await supabase.from('reports').insert({
-        booking_id: booking.id, user_id: user.id, listing_id: listing.id,
-        reason: reportReasons.join(', '), custom_reason: reportDescription,
-      }).select().single()
-      if (report) {
-        await supabase.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrowHold.id)
-        await supabase.from('bookings').update({ release_status: 'refunded', refund_percentage: 85, refund_amount: refundAmount, report_id: report.id }).eq('id', booking.id)
-        await supabase.from('transactions').insert({
-          booking_id: booking.id, user_id: user.id, phone: booking.phone || '',
-          amount: refundAmount, mpesa_receipt: '', mpesa_message: 'User refund after report',
-          checkout_request_id: '', status: 'success',
-        })
-        setEscrowHold({ ...escrowHold, status: 'refunded' })
-        setShowRefundModal(false)
-      }
-    } catch { setError('Failed to process refund') } finally { setSubmitting(false) }
-  }
-
-  if (!listing) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
-
-  if (step === 'dashboard') {
-    const refundAmount = Math.round(listing.price * 0.85)
-    const isReleased = escrowHold?.status === 'released'
-    const isRefunded = escrowHold?.status === 'refunded'
-
-    return (
-      <div className="max-w-md mx-auto px-4 py-16">
-        <div className="text-center mb-8">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle className="w-8 h-8 text-green-600" />
-          </div>
-          <h1 className="text-2xl font-bold mb-2">Booking Confirmed!</h1>
-          <p className="text-gray-600">Your hunting fee for <strong>{listing.title}</strong> has been paid and is held securely.</p>
-        </div>
-
-        {isReleased ? (
-          <div className="bg-green-50 border border-green-200 rounded-xl p-4 text-sm text-green-800 mb-6">
-            <p className="font-medium">Funds Released ✓</p>
-            <p>The hunting fee has been released to the lister.</p>
-          </div>
-        ) : isRefunded ? (
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 mb-6">
-            <p className="font-medium">Refund Processed ✓</p>
-            <p>{formatPrice(refundAmount)} (85%) has been refunded. The remaining 15% covers platform costs.</p>
-          </div>
-        ) : (
-          <>
-            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 mb-6 space-y-3">
-              <div className="flex items-center gap-2 font-medium"><Clock className="w-4 h-4" /> Held in Escrow 🔒</div>
-              <div className="flex justify-between"><span>Amount Held</span><span className="font-semibold">{formatPrice(escrowHold?.amount || 0)}</span></div>
-              <div className="flex justify-between"><span>Time Remaining</span><span className="font-semibold">{countdown || 'Calculating...'}</span></div>
-              <hr className="border-blue-200" />
-              <p className="text-xs">Money auto-releases to the lister after 24hrs. You can release early or request a refund below.</p>
-            </div>
-
-            <div className="text-sm text-gray-600 mb-6 space-y-2">
-              <p className="font-medium text-gray-800">What would you like to do?</p>
-              <button onClick={handleReleaseFunds} disabled={releasing}
-                className="w-full bg-green-600 text-white rounded-xl py-3 font-semibold text-sm hover:bg-green-700 disabled:opacity-50 transition-colors">
-                {releasing ? 'Releasing...' : '✓ I Like the House — Release Funds'}
-              </button>
-              <button onClick={() => setShowRefundModal(true)}
-                className="w-full bg-white border border-red-200 text-red-600 rounded-xl py-3 font-semibold text-sm hover:bg-red-50 transition-colors">
-                ✕ I Don&apos;t Want It — Request 85% Refund
-              </button>
-            </div>
-
-            <p className="text-xs text-gray-400 text-center">85% refund policy: 15% covers listing costs and transaction fees.</p>
-          </>
-        )}
-
-        <div className="mt-6 text-center">
-          <button onClick={() => router.push('/')} className="text-sm text-blue-600 hover:underline">Back to Home</button>
-        </div>
-
-        {/* Refund / Report Modal */}
-        {showRefundModal && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-            <div className="bg-white w-full max-w-md rounded-2xl p-6 relative">
-              <button onClick={() => setShowRefundModal(false)} className="absolute right-4 top-4 text-gray-400 hover:text-gray-700"><X className="w-5 h-5" /></button>
-              <h2 className="text-lg font-bold mb-1">Before We Process Your Refund</h2>
-              <p className="text-sm text-gray-500 mb-4">Why are you returning this house? This won&apos;t be shared with the lister.</p>
-
-              <div className="space-y-3">
-                <div className="space-y-2">
-                  {REFUND_REASONS.map((r) => (
-                    <label key={r.id} className="flex items-start gap-3 p-3 rounded-xl border border-gray-200 hover:border-gray-300 cursor-pointer transition-colors has-[:checked]:border-red-400 has-[:checked]:bg-red-50">
-                      <input type="checkbox" checked={reportReasons.includes(r.id)} onChange={() => setReportReasons((prev) => prev.includes(r.id) ? prev.filter((x) => x !== r.id) : [...prev, r.id])}
-                        className="mt-0.5 w-4 h-4 accent-red-500 rounded" />
-                      <span className="text-sm text-gray-800">{r.label}</span>
-                    </label>
-                  ))}
-                </div>
-
-                <div className="space-y-1">
-                  <textarea value={reportDescription} onChange={(e) => setReportDescription(e.target.value)}
-                    placeholder="Tell us more about what happened (optional)..."
-                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={3} />
-                </div>
-
-                {error && <p className="text-sm text-red-600">{error}</p>}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
-                  <p><strong>Refund Amount:</strong> {formatPrice(Math.round(listing.price * 0.85))} (85%)</p>
-                  <p className="text-xs mt-1">15% deducted for listing removal and transaction costs.</p>
-                </div>
-                <Button onClick={handleSubmitReport} loading={submitting} className="w-full">Submit & Get Refund</Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    )
-  }
-
-  if (stkSent) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Smartphone className="w-8 h-8 text-blue-600" />
-        </div>
-        <h1 className="text-2xl font-bold mb-2">Check Your Phone</h1>
-        <p className="text-gray-600 mb-4">An M-Pesa STK push has been sent to <strong>{phone}</strong>. Enter your PIN to complete payment.</p>
-        <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800 mb-6">
-          <p className="font-medium mb-1">Didn&apos;t receive the prompt?</p>
-          <p>Make sure your phone is on and has enough M-Pesa balance. The prompt expires in 60 seconds.</p>
-        </div>
-        <div className="space-y-3">
-            <Button onClick={handleStkConfirm} loading={loading}>I&apos;ve Paid — Confirm</Button>
-          <Button variant="outline" onClick={() => { setStkSent(false); setLoading(false) }} className="w-full">Try Again</Button>
-        </div>
-      </div>
-    )
-  }
-
-  if (manualVerifying) {
-    return (
-      <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Clock className="w-8 h-8 text-amber-600" />
-        </div>
-        <h1 className="text-2xl font-bold mb-2">Verifying Payment</h1>
-        <p className="text-gray-600 mb-4">
-          We&apos;re confirming your M-Pesa transaction with Safaricom. This usually takes a few seconds.
-        </p>
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 mb-6">
-          <p className="font-medium mb-1">Receipt: <strong>{mpesaMessage.match(/([A-Z0-9]{10,})/)?.[0] || ''}</strong></p>
-          <p>Checking with Daraja... {verifyPollCount > 5 ? 'Still waiting, this may take a moment.' : ''}</p>
-        </div>
-        <div className="flex justify-center">
-          <div className="animate-spin w-8 h-8 border-2 border-amber-600 border-t-transparent rounded-full" />
-        </div>
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3 mt-4"><p className="text-sm text-red-600">{error}</p></div>}
-      </div>
-    )
-  }
-
-  const platformFee = Math.round(listing.price * 0.3)
-  const ownerPayout = Math.round(listing.price * 0.7)
 
   return (
     <div className="max-w-md mx-auto px-4 py-8">
+      <button onClick={() => router.back()} className="flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 mb-4">
+        <ArrowLeft className="w-4 h-4" /> Back
+      </button>
+
       <h1 className="text-2xl font-bold mb-6">Book Viewing</h1>
 
       <div className="bg-white border rounded-xl p-4 mb-6 space-y-3">
         <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-full h-40 rounded-lg object-cover" />
         <h2 className="font-semibold">{listing.title}</h2>
         <p className="text-sm text-gray-500">{listing.location}</p>
-        <p className="text-lg font-bold text-blue-600">{formatPrice(listing.price)}</p>
+        <div className="flex items-center justify-between">
+          <p className="text-lg font-bold text-blue-600">{formatPrice(listing.price)}</p>
+          <p className="text-sm text-gray-500">Rent: {formatPrice(listing.rent)}/mo</p>
+        </div>
       </div>
 
-      <div className="bg-gray-50 rounded-xl p-4 text-sm space-y-2 mb-6">
-        <div className="flex justify-between">
-          <span className="text-gray-500">Hunting Fee</span>
-          <span className="font-medium">{formatPrice(listing.price)}</span>
-        </div>
-        <div className="flex justify-between text-gray-500">
-          <span>{APP_NAME} Commission (30%)</span>
-          <span>-{formatPrice(platformFee)}</span>
-        </div>
-        <div className="flex justify-between text-gray-500">
-          <span>Owner Payout (70%)</span>
-          <span className="text-green-600">+{formatPrice(ownerPayout)}</span>
-        </div>
-        <hr />
-        <div className="flex justify-between font-semibold"><span>You Pay</span><span>{formatPrice(listing.price)}</span></div>
-      </div>
-
-      <div className="flex border rounded-lg mb-6 overflow-hidden">
-        <button onClick={() => setPaymentMethod('stk')}
-          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${paymentMethod === 'stk' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-          <Smartphone className="w-4 h-4 inline mr-1.5" /> STK Push
-        </button>
-        <button onClick={() => setPaymentMethod('manual')}
-          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${paymentMethod === 'manual' ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>
-          <MessageSquare className="w-4 h-4 inline mr-1.5" /> Pay to Till
-        </button>
-      </div>
-
-      <div className="space-y-4">
-        <Input label="M-Pesa Phone Number" id="phone" type="tel" placeholder="0712 345 678" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-
-        {paymentMethod === 'manual' && (
-          <div className="space-y-3">
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-sm text-amber-800 space-y-2">
-              <p className="font-medium">Pay via M-Pesa Till Number</p>
-              <p>1. Go to M-Pesa on your phone</p>
-              <p>2. Select <strong>Lipa na M-Pesa</strong> &gt; <strong>Buy Goods</strong></p>
-              <p>3. Enter Till Number: <strong className="text-lg">{process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER || 'N/A'}</strong></p>
-              <p>4. Enter Amount: <strong>{formatPrice(listing.price)}</strong></p>
-              <p>5. Enter your PIN and confirm</p>
-              <p>6. Copy the confirmation message and paste it below</p>
-            </div>
-            <div className="space-y-1">
-              <label htmlFor="mpesa-message" className="block text-sm font-medium text-gray-700">Paste M-Pesa Confirmation Message</label>
-              <textarea id="mpesa-message" rows={3} placeholder="Paste the full M-Pesa confirmation message here..." value={mpesaMessage}
-                onChange={(e) => setMpesaMessage(e.target.value)} className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
-            </div>
+      {/* Notice: payment being set up */}
+      <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+        <div className="flex items-start gap-3">
+          <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
+          <div className="text-sm text-amber-800 space-y-1">
+            <p className="font-semibold">Excuse the inconvenience</p>
+            <p>
+              Online payment is being set up right now. To book this house, use the <strong>WhatsApp</strong> option
+              below and we&apos;ll handle everything for you.
+            </p>
           </div>
-        )}
-
-        {error && <div className="bg-red-50 border border-red-200 rounded-lg p-3"><p className="text-sm text-red-600">{error}</p></div>}
-
-        {paymentMethod === 'stk' ? (
-          <Button onClick={handleStkPush} loading={loading} disabled={listing.price < MIN_BOOKING_FEE} className="w-full" size="lg">
-            <Smartphone className="w-4 h-4 mr-1.5" /> Pay {formatPrice(listing.price)} via M-Pesa
-          </Button>
-        ) : (
-          <Button onClick={handleManualVerify} loading={loading} disabled={listing.price < MIN_BOOKING_FEE} className="w-full" size="lg">
-            <MessageSquare className="w-4 h-4 mr-1.5" /> Verify Payment
-          </Button>
-        )}
+        </div>
       </div>
+
+      <Button onClick={() => setShowBooking(true)} className="w-full" size="lg">
+        <MessageCircle className="w-4 h-4 mr-1.5" /> Book via WhatsApp
+      </Button>
+
+      <div className="mt-4 space-y-2">
+        <a
+          href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
+            `Hi AseHanta! I'd like to book a viewing for ${listing.title} (${listing.location}).`
+          )}`}
+          target="_blank" rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full bg-green-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-700 transition-colors"
+        >
+          <MessageCircle className="w-4 h-4" /> Chat Directly on WhatsApp
+        </a>
+        <p className="text-xs text-gray-400 text-center">
+          Fill in your details and we&apos;ll get back to you to arrange the viewing.
+        </p>
+      </div>
+
+      {showBooking && listing && (
+        <HouseBookingModal listing={listing} onClose={() => setShowBooking(false)} />
+      )}
     </div>
   )
 }

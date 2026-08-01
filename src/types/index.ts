@@ -30,10 +30,10 @@ export interface Listing {
   payment_method: string
   lister_phone: string
   status: ListingStatus
+  taken_at: string | null
   uploader_id: string
   uploader_name: string
   taken_by_name: string
-  taken_at: string
   created_at: string
   updated_at: string
 }

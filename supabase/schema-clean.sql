@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.listings (
   payment_method TEXT NOT NULL DEFAULT '',
   lister_phone TEXT DEFAULT '',
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'published', 'booked', 'taken', 'rejected')),
+  taken_at TIMESTAMPTZ,
   uploader_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
   uploader_name TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -445,7 +446,7 @@ CREATE POLICY "Admins can view all profiles" ON public.profiles FOR SELECT USING
 
 -- LISTINGS
 DROP POLICY IF EXISTS "Anyone can view published listings" ON public.listings;
-CREATE POLICY "Anyone can view published listings" ON public.listings FOR SELECT USING (status = 'published');
+CREATE POLICY "Anyone can view published listings" ON public.listings FOR SELECT USING (status IN ('published', 'taken'));
 DROP POLICY IF EXISTS "Uploaders can view own listings" ON public.listings;
 CREATE POLICY "Uploaders can view own listings" ON public.listings FOR SELECT USING (auth.uid() = uploader_id);
 DROP POLICY IF EXISTS "Admins can view all listings" ON public.listings;
@@ -571,6 +572,22 @@ DROP POLICY IF EXISTS "Anyone can read lister_reviews" ON public.lister_reviews;
 CREATE POLICY "Anyone can read lister_reviews" ON public.lister_reviews FOR SELECT USING (true);
 DROP POLICY IF EXISTS "Authenticated users can insert lister_reviews" ON public.lister_reviews;
 CREATE POLICY "Authenticated users can insert lister_reviews" ON public.lister_reviews FOR INSERT WITH CHECK (auth.uid() = reviewer_id);
+
+-- AUTO-DELETE TAKEN LISTINGS AFTER 24 HOURS
+-- Schedule via Supabase pg_cron:
+--   select cron.schedule('cleanup-taken-listings', '0 * * * *', 'select public.delete_expired_taken_listings();');
+CREATE OR REPLACE FUNCTION public.delete_expired_taken_listings()
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  DELETE FROM public.listings
+  WHERE status = 'taken'
+    AND taken_at IS NOT NULL
+    AND taken_at < now() - interval '24 hours';
+END;
+$$;
 
 -- ============================================================
 -- SCHEMA-LEVEL GRANTS (required after DROP SCHEMA public CASCADE)

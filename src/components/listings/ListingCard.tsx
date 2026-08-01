@@ -47,6 +47,11 @@ export default function ListingCard({ listing }: ListingCardProps) {
         <div className="aspect-[4/3] relative">
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
+          {listing.status === 'taken' && (
+            <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+              TAKEN
+            </div>
+          )}
           <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full">
             {formatPrice(listing.price)}
           </div>

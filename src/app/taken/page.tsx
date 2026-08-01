@@ -31,7 +31,7 @@ export default function TakenHousesPage() {
       </Link>
 
       <div className="flex items-center gap-3 mb-6">
-        <Home className="w-6 h-6 text-purple-600" />
+        <Home className="w-6 h-6 text-red-600" />
         <h1 className="text-2xl font-bold">Taken Houses</h1>
       </div>
 

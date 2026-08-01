@@ -419,7 +419,7 @@ function AdminDashboardInner() {
             {statCard('Vacant Houses', stats.vacant, 'text-green-600', '/admin?tab=houses')}
             {statCard('Pending (Vacancy)', stats.vacancyPending, 'text-yellow-600', '/admin?tab=houses')}
             {statCard('Booked', stats.booked, 'text-blue-600', '/admin?tab=houses')}
-            {statCard('Taken', stats.taken, 'text-purple-600', '/admin?tab=houses')}
+            {statCard('Taken', stats.taken, 'text-red-600', '/admin?tab=houses')}
 
             {sectionTitle('People', '👥')}
             {statCard('Total Users', stats.totalUsers, 'text-gray-900', '/admin?tab=users')}
@@ -502,7 +502,7 @@ function AdminDashboardInner() {
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
                     listing.status === 'published' ? 'bg-green-100 text-green-700' :
                     listing.status === 'booked' ? 'bg-blue-100 text-blue-700' :
-                    listing.status === 'taken' ? 'bg-purple-100 text-purple-700' :
+                    listing.status === 'taken' ? 'bg-red-100 text-red-700' :
                     listing.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                     'bg-red-100 text-red-700'
                   }`}>{listing.status}</span>

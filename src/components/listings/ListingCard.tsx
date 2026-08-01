@@ -48,8 +48,8 @@ export default function ListingCard({ listing }: ListingCardProps) {
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
           {listing.status === 'taken' && (
-            <div className="absolute inset-0 bg-purple-900/20 flex items-center justify-center">
-              <div className="absolute top-2 left-2 bg-purple-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+            <div className="absolute inset-0 bg-red-900/20 flex items-center justify-center">
+              <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                 TAKEN
               </div>
             </div>
@@ -65,7 +65,7 @@ export default function ListingCard({ listing }: ListingCardProps) {
             <span className="truncate">{listing.location}</span>
           </div>
           {listing.status === 'taken' && (
-            <p className="text-xs text-purple-600 dark:text-purple-400 font-medium">View only — already taken</p>
+            <p className="text-xs text-red-600 dark:text-red-400 font-medium">View only — already taken</p>
           )}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-blue-600">

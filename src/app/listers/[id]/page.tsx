@@ -83,7 +83,7 @@ export default function ListerPage() {
 
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-3 dark:text-white">
-            <Key className="w-5 h-5 text-purple-600" /> Taken Houses ({taken.length})
+            <Key className="w-5 h-5 text-red-600" /> Taken Houses ({taken.length})
           </h2>
           {taken.length === 0 ? (
             <p className="text-gray-500 dark:text-gray-400 text-sm">No taken houses.</p>

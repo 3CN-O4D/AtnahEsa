@@ -186,7 +186,7 @@ export default function ListingDetailPage() {
         <Slideshow images={listing.images} className="w-full aspect-video mb-6" onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }} />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
         {listing.status === 'booked' && <div className="absolute top-4 right-4 bg-amber-500 text-white text-sm font-medium px-3 py-1 rounded-full">Booked</div>}
-        {listing.status === 'taken' && <div className="absolute top-4 right-4 bg-purple-600 text-white text-sm font-bold px-3 py-1 rounded-full">TAKEN</div>}
+        {listing.status === 'taken' && <div className="absolute top-4 right-4 bg-red-600 text-white text-sm font-bold px-3 py-1 rounded-full">TAKEN</div>}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -538,13 +538,13 @@ export default function ListingDetailPage() {
             </div>
 
             {listing.status === 'taken' ? (
-              <div className="bg-purple-50 border border-purple-200 rounded-xl p-3 text-center">
-                <p className="text-sm font-semibold text-purple-700">This house has been taken.</p>
-                <p className="text-xs text-purple-600 mt-1">
+              <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
+                <p className="text-sm font-semibold text-red-700">This house has been taken.</p>
+                <p className="text-xs text-red-600 mt-1">
                   Similar houses may be available &mdash; request one below and our agents will find it for you.
                 </p>
                 <Link href="/request-house">
-                  <Button className="w-full mt-3" variant="secondary">
+                  <Button className="w-full mt-3">
                     <Home className="w-4 h-4 mr-1.5" /> Request a House
                   </Button>
                 </Link>

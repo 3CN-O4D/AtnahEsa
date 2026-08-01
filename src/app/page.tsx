@@ -138,9 +138,9 @@ export default function HomePage() {
           <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{countPending}</p>
           <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium">Pending</p>
         </div>
-        <Link href="/taken" className="bg-purple-50 dark:bg-purple-900/30 border border-purple-200 dark:border-purple-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow" style={{ animationDelay: '0.2s' }}>
-          <p className="text-2xl font-bold text-purple-700 dark:text-purple-300">{countTaken}</p>
-          <p className="text-xs text-purple-600 dark:text-purple-300 font-medium">Taken Houses</p>
+        <Link href="/taken" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow" style={{ animationDelay: '0.2s' }}>
+          <p className="text-2xl font-bold text-red-700 dark:text-red-300">{countTaken}</p>
+          <p className="text-xs text-red-600 dark:text-red-300 font-medium">Taken Houses</p>
         </Link>
       </div>
 

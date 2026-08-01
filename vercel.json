@@ -1,0 +1,10 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "destination": "https://www.asehanta.com/:path*",
+      "has": [{ "type": "host", "value": "asehanta.vercel.app" }],
+      "permanent": true
+    }
+  ]
+}

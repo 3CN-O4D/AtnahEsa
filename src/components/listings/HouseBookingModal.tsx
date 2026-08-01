@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, MessageCircle, Phone, Check } from 'lucide-react'
-import { WHATSAPP_NUMBER, CONTACT_PHONE } from '@/lib/constants'
+import { WHATSAPP_NUMBER, CONTACT_PHONE, TILL_NUMBER } from '@/lib/constants'
 import { formatPrice } from '@/lib/utils'
 import type { Listing } from '@/types'
 
@@ -67,6 +67,11 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
                 <strong>Excuse the inconvenience.</strong> Online payment is being set up right now. For now, book your
                 viewing via <strong>WhatsApp</strong> and we&apos;ll arrange everything for you.
               </p>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-3 text-sm text-blue-800 mb-4">
+              <p className="font-semibold mb-1">Pay via M-Pesa Till: <span className="text-lg font-bold tracking-wider">{TILL_NUMBER}</span></p>
+              <p>Send {formatPrice(listing.price)} to the Till above, then WhatsApp us to confirm your booking.</p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">

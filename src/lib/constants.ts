@@ -14,6 +14,7 @@ export const SORT_OPTIONS = [
   { label: 'Most Issues', value: 'issues_desc' },
 ] as const
 
+export const TILL_NUMBER = '4376459'
 export const CONTACT_EMAIL = 'asehanta@gmail.com'
 export const CONTACT_PHONE = '+254748275079'
 export const CONTACT_PHONE_DISPLAY = '+254 748 275 079'

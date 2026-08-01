@@ -7,7 +7,7 @@ import Button from '@/components/ui/Button'
 import HouseBookingModal from '@/components/listings/HouseBookingModal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { WHATSAPP_NUMBER } from '@/lib/constants'
+import { WHATSAPP_NUMBER, TILL_NUMBER } from '@/lib/constants'
 import type { Listing } from '@/types'
 
 export default function BookingPage() {
@@ -56,6 +56,24 @@ export default function BookingPage() {
               Online payment is being set up right now. To book this house, use the <strong>WhatsApp</strong> option
               below and we&apos;ll handle everything for you.
             </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Pay via Till */}
+      <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
+        <p className="text-sm font-semibold text-blue-800 mb-1">Or Pay Directly via M-Pesa Till</p>
+        <p className="text-xs text-blue-700 mb-2">
+          Send the {formatPrice(listing.price)} hunting fee to the Till number below, then contact us on WhatsApp to confirm your booking.
+        </p>
+        <div className="flex items-center justify-between bg-white border border-blue-200 rounded-lg px-4 py-3">
+          <div>
+            <p className="text-xs text-gray-500">Till Number</p>
+            <p className="text-2xl font-bold tracking-wider text-blue-700">{TILL_NUMBER}</p>
+          </div>
+          <div className="text-right">
+            <p className="text-xs text-gray-500">Amount</p>
+            <p className="text-sm font-semibold">{formatPrice(listing.price)}</p>
           </div>
         </div>
       </div>

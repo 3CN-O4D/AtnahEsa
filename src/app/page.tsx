@@ -50,6 +50,7 @@ export default function HomePage() {
         .from('listings')
         .select('*')
         .in('status', ['published', 'taken'])
+        .order('status', { ascending: true })
         .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
 
       // Search by location or title

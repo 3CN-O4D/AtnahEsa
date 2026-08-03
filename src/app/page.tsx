@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
+import { Search } from 'lucide-react'
 import ListingGrid from '@/components/listings/ListingGrid'
 import SearchBar from '@/components/listings/SearchBar'
 import SortDropdown from '@/components/listings/SortDropdown'
@@ -124,9 +125,14 @@ export default function HomePage() {
             Browse verified listings, book, move in and get connected with ease.
           </p>
         </div>
-        <Link href={listAHouseLink} className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
-          + List a House
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+          <Link href="/request-house" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#30B54A] text-white rounded-lg text-sm font-semibold hover:bg-[#2a9c40] transition-colors self-start w-auto">
+            <Search className="w-4 h-4" /> Request a House
+          </Link>
+          <Link href={listAHouseLink} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
+            + List a House
+          </Link>
+        </div>
       </div>
 
       {/* Stats */}

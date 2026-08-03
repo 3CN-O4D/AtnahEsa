@@ -99,7 +99,7 @@ export default function AdminEditListingPage() {
       const removed = originalImages.filter((url) => !images.includes(url))
       await Promise.allSettled(
         removed.map((url) =>
-          fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url }) })
+          fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url, listing_id: id }) })
         )
       )
 

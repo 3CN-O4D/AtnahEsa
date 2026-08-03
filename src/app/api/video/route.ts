@@ -19,6 +19,7 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url)
     const key = searchParams.get('key')
     if (!key) return NextResponse.json({ error: 'Missing key' }, { status: 400 })
+    if (!key.startsWith('listings/')) return NextResponse.json({ error: 'Invalid key' }, { status: 403 })
 
     const command = new GetObjectCommand({ Bucket: BUCKET, Key: key })
     const url = await getSignedUrl(s3, command, { expiresIn: 3600 })

@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findValidOtp, recordOtpFailure } from '@/lib/otp'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
@@ -9,19 +11,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
+    const { allowed, retryAfter } = await checkRateLimit(`otp-verify:${getClientIp(req)}`, 10, 60)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many attempts. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    }
+
     const supabase = createAdminClient()
 
-    const { data, error } = await supabase
-      .from('otps')
-      .select('*')
-      .eq('email', email)
-      .eq('otp', otp)
-      .eq('type', type)
-      .eq('used', false)
-      .gte('expires_at', new Date().toISOString())
-      .single()
+    const data = await findValidOtp(supabase, email, otp, [type])
 
-    if (error || !data) {
+    if (!data) {
+      await recordOtpFailure(supabase, email, [type])
       return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 400 })
     }
 

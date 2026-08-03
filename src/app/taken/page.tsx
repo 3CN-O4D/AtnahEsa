@@ -15,7 +15,7 @@ export default function TakenHousesPage() {
     const supabase = createClient()
     supabase
       .from('listings')
-      .select('id, title, location, taken_by_name, uploader_name, created_at')
+      .select('id, title, location, taken_by_name, created_at')
       .eq('status', 'taken')
       .order('created_at', { ascending: false })
       .then(({ data }) => {
@@ -49,7 +49,7 @@ export default function TakenHousesPage() {
               <h3 className="font-semibold text-gray-900">{listing.title}</h3>
               <p className="text-sm text-gray-500 mt-1">{listing.location}</p>
               <p className="text-sm text-gray-700 mt-2">
-                Taken by <span className="font-medium">{listing.taken_by_name || listing.uploader_name || 'Unknown'}</span>
+                Taken by <span className="font-medium">{listing.taken_by_name || 'Unknown'}</span>
               </p>
             </div>
           ))}

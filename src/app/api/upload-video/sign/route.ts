@@ -13,8 +13,12 @@ export async function GET(req: Request) {
     const key = searchParams.get('key')
     if (!bucket || !key) return NextResponse.json({ error: 'Missing bucket or key' }, { status: 400 })
 
+    const expectedBucket = process.env.S3_BUCKET || 'videos'
+    if (bucket !== expectedBucket) return NextResponse.json({ error: 'Invalid bucket' }, { status: 403 })
+    if (!key.startsWith('listings/')) return NextResponse.json({ error: 'Invalid key' }, { status: 403 })
+
     const admin = createAdminClient()
-    const { data, error } = await admin.storage.from(bucket).createSignedUrl(key, 31536000)
+    const { data, error } = await admin.storage.from(bucket).createSignedUrl(key, 604800)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     return NextResponse.json({ url: data.signedUrl })

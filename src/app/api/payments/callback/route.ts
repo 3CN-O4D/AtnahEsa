@@ -22,7 +22,12 @@ export async function POST(req: Request) {
       ResultCode,
       ResultDesc,
       CallbackMetadata,
+      OriginatorConversationID,
     } = callbackData
+
+    if (typeof ResultCode !== 'number') {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Invalid ResultCode' })
+    }
 
     const supabase = createAdminClient()
 
@@ -40,7 +45,7 @@ export async function POST(req: Request) {
 
     const { data: tx } = await supabase
       .from('transactions')
-      .select('id, booking_id, status')
+      .select('id, booking_id, status, amount, raw_callback')
       .eq('checkout_request_id', checkoutRequestId)
       .maybeSingle()
 
@@ -50,6 +55,19 @@ export async function POST(req: Request) {
 
     if (tx.status === 'success') {
       return NextResponse.json({ ResultCode: 0, ResultDesc: 'Already processed' })
+    }
+
+    if (tx.status !== 'pending') {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Transaction not payable' })
+    }
+
+    if (typeof amount === 'number' && amount > 0 && tx.amount && amount !== tx.amount) {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Amount mismatch' })
+    }
+
+    const priorOriginator = (tx.raw_callback as { OriginatorConversationID?: string } | null)?.OriginatorConversationID
+    if (priorOriginator && OriginatorConversationID && OriginatorConversationID !== priorOriginator) {
+      return NextResponse.json({ ResultCode: 1, ResultDesc: 'Originator mismatch' })
     }
 
     await supabase.from('transactions').update({

@@ -24,7 +24,7 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !phone || !area) { setError('Fill in all required fields'); return }
+    if (!name || !phone || !area || !idNumber) { setError('Fill in all required fields'); return }
     setLoading(true); setError('')
 
     try {
@@ -78,8 +78,8 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
                 <input type="text" value={area} onChange={(e) => setArea(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">ID Number <span className="text-gray-400">(optional)</span></label>
-                <input type="text" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <label className="block text-sm font-medium text-gray-700 mb-1">ID Number <span className="text-red-500">*</span></label>
+                <input type="text" value={idNumber} onChange={(e) => setIdNumber(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}
@@ -122,7 +122,7 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
 
             <div className="flex gap-2 mt-4">
               <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-                `Hi AseHanta! I'm interested in the ${pkg.name} (${pkg.speed}) at ${formatPrice(pkg.price)}/month.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}${idNumber ? `\nID No: ${idNumber}` : ''}`
+                `Hi AseHanta! I'm interested in the ${pkg.name} (${pkg.speed}) at ${formatPrice(pkg.price)}/month.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}\nID No: ${idNumber}`
               )}`} target="_blank" rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-700 transition-colors">
                 <MessageCircle className="w-4 h-4" /> WhatsApp Now

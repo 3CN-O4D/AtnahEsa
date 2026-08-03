@@ -36,7 +36,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!name || !phone || !area) { setError('Fill in all required fields'); return }
+    if (!name || !phone || !area || !mpesaMessage) { setError('Fill in all required fields'); return }
     setLoading(true); setError('')
 
     try {
@@ -127,7 +127,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  M-Pesa Confirmation Message <span className="text-gray-400">(paste after paying)</span>
+                  M-Pesa Confirmation Message <span className="text-red-500">*</span>
                 </label>
                 <textarea
                   value={mpesaMessage}
@@ -135,12 +135,13 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
                   rows={3}
                   placeholder="Paste the M-Pesa confirmation message you received here..."
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  required
                 />
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}
 
-              <button type="submit" disabled={loading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              <button type="submit" disabled={loading || !mpesaMessage} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
                 {loading ? 'Submitting...' : 'Submit Booking'}
               </button>
             </form>

@@ -34,7 +34,10 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url)
     const name = searchParams.get('name') || 'video.mp4'
-    const ext = name.split('.').pop()
+    const ext = (name.split('.').pop() || '').toLowerCase()
+    if (!ext || !Object.keys(EXT_MIME).includes(ext)) {
+      return NextResponse.json({ error: `Unsupported format .${ext}` }, { status: 400 })
+    }
     const key = `listings/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
     const contentType = mimeFromName(name)
 

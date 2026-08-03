@@ -110,7 +110,7 @@ export async function POST(req: Request) {
       darajaResult = await transactionStatusQuery(receipt)
 
       if (darajaResult.OriginatorConversationID) {
-        await supabase.from('transactions').update({
+        await adminSupabase.from('transactions').update({
           originator_conversation_id: darajaResult.OriginatorConversationID,
         }).eq('id', tx.id)
       }

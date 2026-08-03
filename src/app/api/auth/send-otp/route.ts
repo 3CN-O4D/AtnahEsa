@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { sendOtpEmail } from '@/lib/email'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
@@ -10,13 +11,18 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
+    const { allowed, retryAfter } = await checkRateLimit(`otp-send:${getClientIp(req)}`, 10, 60)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again in a minute.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    }
+
     const supabase = createAdminClient()
 
     if (type === 'password_reset') {
       const { data: users } = await supabase.auth.admin.listUsers()
       const exists = users?.users.some((u) => u.email === email)
       if (!exists) {
-        return NextResponse.json({ error: 'No account found with this email' }, { status: 404 })
+        return NextResponse.json({ success: true, emailSent: false })
       }
     }
 

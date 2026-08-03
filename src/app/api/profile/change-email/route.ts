@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findValidOtp, recordOtpFailure } from '@/lib/otp'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
@@ -12,6 +14,11 @@ export async function POST(req: Request) {
 
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(new_email)) {
       return NextResponse.json({ error: 'Invalid email address' }, { status: 400 })
+    }
+
+    const { allowed, retryAfter } = await checkRateLimit(`otp-email-change:${getClientIp(req)}`, 10, 60)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many attempts. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
     }
 
     const supabase = await createClient()
@@ -26,17 +33,10 @@ export async function POST(req: Request) {
 
     const admin = createAdminClient()
 
-    const { data: otpData, error: otpErr } = await admin
-      .from('otps')
-      .select('id')
-      .eq('email', new_email)
-      .eq('otp', otp)
-      .eq('type', 'email_change')
-      .eq('used', false)
-      .gte('expires_at', new Date().toISOString())
-      .single()
+    const otpData = await findValidOtp(admin, new_email, otp, ['email_change'])
 
-    if (otpErr || !otpData) {
+    if (!otpData) {
+      await recordOtpFailure(admin, new_email, ['email_change'])
       return NextResponse.json({ error: 'Invalid or expired OTP' }, { status: 400 })
     }
 

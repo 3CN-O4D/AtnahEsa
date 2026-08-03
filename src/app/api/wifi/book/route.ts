@@ -1,19 +1,25 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
+    const { allowed, retryAfter } = await checkRateLimit(`wifi-book:${getClientIp(req)}`, 5, 300)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    }
+
     const { package_id, package_name, package_speed, package_price, package_provider, package_original_price, package_description, package_features, name, phone, area, id_number } = await req.json()
 
-    if (!name || !phone || !area) {
-      return NextResponse.json({ error: 'Name, phone, and area are required' }, { status: 400 })
+    if (!name || !phone || !area || !id_number) {
+      return NextResponse.json({ error: 'Name, phone, area, and ID number are required' }, { status: 400 })
     }
 
     const supabase = await createClient()
     const { error } = await supabase.from('wifi_bookings').insert({
       package_id, package_name, package_speed, package_price,
-      name, phone, area, id_number: id_number || '',
+      name, phone, area, id_number,
     })
 
     if (error) {
@@ -29,7 +35,7 @@ export async function POST(req: Request) {
         Name: name,
         Phone: phone,
         Area: area,
-        'ID Number': id_number || 'Not provided',
+        'ID Number': id_number,
         Package: package_name || 'N/A',
         Provider: package_provider || 'N/A',
         Speed: package_speed || 'N/A',

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyContactDetails } from '@/lib/contact-release'
 
 export async function POST(req: Request) {
   try {
@@ -52,11 +53,7 @@ export async function POST(req: Request) {
       status: 'success',
     })
 
-    fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/notify-contact`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ booking_id: booking.id }),
-    }).catch(() => {})
+    await notifyContactDetails(booking.id).catch(() => {})
 
     return NextResponse.json({ success: true, message: 'Funds released to lister' })
   } catch (err) {

@@ -1,9 +1,15 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 export async function POST(req: Request) {
   try {
+    const { allowed, retryAfter } = await checkRateLimit(`contact:${getClientIp(req)}`, 5, 300)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    }
+
     const body = await req.json()
     const { name, phone, email, id_number, location, message } = body
 

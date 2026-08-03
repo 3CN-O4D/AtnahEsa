@@ -16,18 +16,17 @@ export async function POST(req: Request) {
 
     const { url, listing_id } = await req.json()
     if (!url) return NextResponse.json({ error: 'No URL provided' }, { status: 400 })
+    if (!listing_id) return NextResponse.json({ error: 'listing_id required' }, { status: 400 })
 
-    if (listing_id) {
-      const { data: listing } = await supabase
-        .from('listings')
-        .select('uploader_id')
-        .eq('id', listing_id)
-        .single()
-      if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-      if (listing.uploader_id !== user.id && profile?.role !== 'admin') {
-        return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-      }
+    const { data: listing } = await supabase
+      .from('listings')
+      .select('uploader_id')
+      .eq('id', listing_id)
+      .single()
+    if (!listing) return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    if (listing.uploader_id !== user.id && profile?.role !== 'admin') {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const parts = url.split('/')

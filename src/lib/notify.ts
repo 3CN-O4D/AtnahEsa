@@ -10,8 +10,24 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-const ADMINS = ['asehanta@gmail.com', 'derrickom005@gmail.com']
+const ADMINS = (process.env.ADMIN_EMAILS || 'asehanta@gmail.com')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
 const BRAND = { name: 'AseHanta', blue: '#2563EB', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
+
+function esc(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+function sanitizeSubject(subject: string): string {
+  return String(subject).replace(/[\r\n\u0000-\u001F\u007F]/g, ' ').trim()
+}
 
 function baseHtml(body: string) {
   return `<!DOCTYPE html>
@@ -52,17 +68,17 @@ AseHanta &bull; Kenya &bull; <a href="https://asehanta.com" style="color:${BRAND
 
 function field(label: string, value: string) {
   return `<tr>
-<td style="padding:10px 0 4px;font-size:12px;font-weight:600;color:${BRAND.gray};text-transform:uppercase;letter-spacing:.5px">${label}</td>
+<td style="padding:10px 0 4px;font-size:12px;font-weight:600;color:${BRAND.gray};text-transform:uppercase;letter-spacing:.5px">${esc(label)}</td>
 </tr>
 <tr>
-<td style="padding:0 0 10px;font-size:15px;color:${BRAND.dark};border-bottom:1px solid ${BRAND.border}">${value}</td>
+<td style="padding:0 0 10px;font-size:15px;color:${BRAND.dark};border-bottom:1px solid ${BRAND.border}">${esc(value)}</td>
 </tr>`
 }
 
 function section(title: string, color: string, emoji: string, lines: [string, string][]) {
   return `
 <tr><td style="padding:24px 32px 8px">
-<span style="display:inline-block;background:${color}15;color:${color};font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">${emoji} ${title}</span>
+<span style="display:inline-block;background:${color}15;color:${color};font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">${esc(emoji)} ${esc(title)}</span>
 </td></tr>
 <tr><td style="padding:8px 32px 24px">
 <table width="100%" cellpadding="0" cellspacing="0">
@@ -72,7 +88,7 @@ ${lines.map(([l, v]) => field(l, v)).join('')}
 }
 
 function badge(text: string, bg: string, color: string) {
-  return `<span style="display:inline-block;background:${bg};color:${color};font-size:12px;font-weight:600;padding:3px 10px;border-radius:5px">${text}</span>`
+  return `<span style="display:inline-block;background:${bg};color:${color};font-size:12px;font-weight:600;padding:3px 10px;border-radius:5px">${esc(text)}</span>`
 }
 
 type Template = {
@@ -119,12 +135,13 @@ function statusBadge(status: string) {
 }
 
 export async function notifyUser(to: string, subject: string, title: string, fields: Record<string, string>) {
-  const body = render(subject, title, fields)
+  const safeSubject = sanitizeSubject(subject)
+  const body = render(safeSubject, title, fields)
   try {
     await transporter.sendMail({
       from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
       to,
-      subject: `[AseHanta] ${subject}`,
+      subject: `[AseHanta] ${safeSubject}`,
       html: body,
     })
   } catch (err) {
@@ -141,17 +158,18 @@ function render(subject: string, title: string, fields: Record<string, string>) 
 }
 
 export async function notifyAdmins(subject: string, title: string, fields: Record<string, string>) {
-  const body = render(subject, title, fields)
+  const safeSubject = sanitizeSubject(subject)
+  const body = render(safeSubject, title, fields)
 
   for (const to of ADMINS) {
     try {
       await transporter.sendMail({
         from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
         to,
-        subject: `[AseHanta] ${subject}`,
+        subject: `[AseHanta] ${safeSubject}`,
         html: body,
       })
-      console.log(`✅ Email sent to ${to}: ${subject}`)
+      console.log(`✅ Email sent to ${to}: ${safeSubject}`)
     } catch (err) {
       console.error(`❌ Failed to notify ${to}:`, err)
     }

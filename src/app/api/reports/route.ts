@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins, notifyUser } from '@/lib/notify'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import nodemailer from 'nodemailer'
 
 const BASE = process.env.NEXT_PUBLIC_SITE_URL || 'https://asehanta.com'
@@ -15,8 +16,20 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-const ADMINS = ['asehanta@gmail.com', 'derrickom005@gmail.com']
+const ADMINS = (process.env.ADMIN_EMAILS || 'asehanta@gmail.com')
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean)
 const BRAND = { name: 'AseHanta', blue: '#2563EB', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
+
+function esc(v: unknown): string {
+  return String(v ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
 
 function baseHtml(body: string) {
   return `<!DOCTYPE html>
@@ -66,6 +79,11 @@ function field(label: string, value: string) {
 
 export async function POST(req: Request) {
   try {
+    const { allowed, retryAfter } = await checkRateLimit(`report:${getClientIp(req)}`, 5, 300)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    }
+
     const { target_type, target_id, target_title, reasons, description } = await req.json()
 
     if (!target_type || !target_id || !reasons || !Array.isArray(reasons) || reasons.length === 0) {
@@ -93,34 +111,41 @@ export async function POST(req: Request) {
     }
 
     const lines: [string, string][] = [
-      ['Target Type', target_type],
-      ['Target', target_title || target_id],
-      ['Reasons', reasonStr],
-      ['Description', description || 'N/A'],
-      ['Reporter', user?.email || 'Anonymous'],
+      ['Target Type', esc(target_type)],
+      ['Target', esc(target_title || target_id)],
+      ['Reasons', esc(reasonStr)],
+      ['Description', esc(description || 'N/A')],
+      ['Reporter', esc(user?.email || 'Anonymous')],
     ]
 
     if (target_type === 'listing') {
       const { data: listing } = await supabase
         .from('listings')
-        .select('title, price, location, uploader_name, uploader_id, created_at')
+        .select('title, price, location, uploader_id, created_at')
         .eq('id', target_id)
         .maybeSingle()
 
       if (listing) {
         lines.push(['Price', `KSh ${(listing.price).toLocaleString()}`])
         lines.push(['Location', listing.location])
-        lines.push(['Listed By', listing.uploader_name || 'Unknown'])
-        lines.push(['Listing Link', `<a href="${BASE}/listings/${target_id}" style="color:${BRAND.blue}">${BASE}/listings/${target_id}</a>`])
-        lines.push(['Admin Listing Link', `<a href="${BASE}/admin?listing=${target_id}" style="color:${BRAND.blue}">Open in Admin</a>`])
         if (listing.uploader_id) {
-          lines.push(['Lister Profile', `<a href="${BASE}/listers/${listing.uploader_id}" style="color:${BRAND.blue}">${BASE}/listers/${listing.uploader_id}</a>`])
+          const { data: lister } = await supabase
+            .from('profiles_public')
+            .select('full_name, username')
+            .eq('id', listing.uploader_id)
+            .maybeSingle()
+          lines.push(['Listed By', lister?.full_name || lister?.username || 'Unknown'])
+        }
+        lines.push(['Listing Link', `<a href="${esc(`${BASE}/listings/${target_id}`)}" style="color:${BRAND.blue}">${esc(`${BASE}/listings/${target_id}`)}</a>`])
+        lines.push(['Admin Listing Link', `<a href="${esc(`${BASE}/admin?listing=${target_id}`)}" style="color:${BRAND.blue}">Open in Admin</a>`])
+        if (listing.uploader_id) {
+          lines.push(['Lister Profile', `<a href="${esc(`${BASE}/listers/${listing.uploader_id}`)}" style="color:${BRAND.blue}">${esc(`${BASE}/listers/${listing.uploader_id}`)}</a>`])
         }
       }
     }
 
     if (user?.id) {
-      lines.push(['Reporter Profile', `<a href="${BASE}/listers/${user.id}" style="color:${BRAND.blue}">${BASE}/listers/${user.id}</a>`])
+      lines.push(['Reporter Profile', `<a href="${esc(`${BASE}/listers/${user.id}`)}" style="color:${BRAND.blue}">${esc(`${BASE}/listers/${user.id}`)}</a>`])
     }
 
     const fieldsHtml = lines.map(([l, v]) => field(l, v)).join('')
@@ -128,16 +153,18 @@ export async function POST(req: Request) {
     const bodyHtml = `
 <tr><td style="padding:24px 32px;text-align:center">
 <span style="display:inline-block;background:#DC262615;color:#DC2626;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">🚩 New Report</span>
-<h1 style="margin:16px 0 0;font-size:20px;font-weight:700;color:${BRAND.dark}">${target_type} has been reported</h1>
+<h1 style="margin:16px 0 0;font-size:20px;font-weight:700;color:${BRAND.dark}">${esc(target_type)} has been reported</h1>
 <p style="margin:8px 0 0;font-size:15px;color:${BRAND.gray};line-height:1.5">A user has flagged this content for review. Inspect it below.</p>
 </td></tr>
 <tr><td style="padding:8px 32px 24px"><table width="100%" cellpadding="0" cellspacing="0">${fieldsHtml}</table></td></tr>`
+
+    const safeSubject = `Report: ${target_title || target_id} (${reasonStr})`.replace(/[\r\n\u0000-\u001F\u007F]/g, ' ').trim()
 
     for (const to of ADMINS) {
       await transporter.sendMail({
         from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
         to,
-        subject: `[AseHanta] Report: ${target_title || target_id} (${reasonStr})`,
+        subject: `[AseHanta] ${safeSubject}`,
         html: baseHtml(bodyHtml),
       })
     }

@@ -2,8 +2,14 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
+    const auth = req.headers.get('authorization')
+    const secret = process.env.CRON_SECRET
+    if (!secret || auth !== `Bearer ${secret}`) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+
     const supabase = createAdminClient()
     const now = new Date().toISOString()
 

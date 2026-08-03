@@ -159,7 +159,7 @@ function AdminDashboardInner() {
     if (listing?.images?.length) {
       await Promise.allSettled(
         listing.images.map((url: string) =>
-          fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url }) })
+          fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url, listing_id: id }) })
         )
       )
     }

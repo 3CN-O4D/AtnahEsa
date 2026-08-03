@@ -102,7 +102,7 @@ export default function EditListingPage() {
     try {
       const supabase = createClient()
       const removed = originalImages.filter((url) => !images.includes(url))
-      await Promise.allSettled(removed.map((url) => fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url }) })))
+      await Promise.allSettled(removed.map((url) => fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url, listing_id: id }) })))
 
       const updates: Record<string, unknown> = {
         title, description, price: fee, rent: parseInt(rent) || 0,

@@ -80,7 +80,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center p-4">
-      <div className="bg-white w-full max-w-md rounded-2xl p-6 relative">
+      <div className="bg-white w-full max-w-md rounded-2xl p-6 relative max-h-[90vh] overflow-y-auto">
         <button onClick={onClose} className="absolute right-4 top-4 text-gray-400 hover:text-gray-700">
           <X className="w-5 h-5" />
         </button>

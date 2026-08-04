@@ -8,7 +8,7 @@ import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
-import type { Listing, Booking, Transaction, Profile, HouseRequest } from '@/types'
+import type { Listing, Booking, Transaction, Profile, HouseRequest, WifiBooking, HouseBooking } from '@/types'
 import { getCached, setCache, clearCache } from '@/lib/data-cache'
 
 export default function AdminDashboard() {
@@ -31,6 +31,8 @@ function AdminDashboardInner() {
   const [users, setUsers] = useState<Profile[]>([])
   const [houseSearch, setHouseSearch] = useState('')
   const [requests, setRequests] = useState<HouseRequest[]>([])
+  const [wifiBookings, setWifiBookings] = useState<WifiBooking[]>([])
+  const [houseBookings, setHouseBookings] = useState<HouseBooking[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [stats, setStats] = useState({
     total: 0, published: 0, booked: 0, taken: 0, pending: 0, vacant: 0, vacancyPending: 0,
@@ -61,6 +63,7 @@ function AdminDashboardInner() {
     if (tab === 'transactions') loadTransactions()
     if (tab === 'users') loadUsers()
     if (tab === 'requests') loadRequests()
+    if (tab === 'bookings') loadBookings()
   }, [tab])
 
   async function loadAll() {
@@ -143,6 +146,32 @@ function AdminDashboardInner() {
     const reqData = requests.find((r) => r.id === id)
     if (reqData?.email) notifyUser(reqData.email, 'request_contacted', { name: reqData.name, location: reqData.location || 'N/A', status })
     clearCache('admin:'); loadRequests()
+  }
+
+  const loadBookings = async () => {
+    const supabase = createClient()
+    const [wifiRes, houseRes] = await Promise.all([
+      supabase.from('wifi_bookings').select('*').order('created_at', { ascending: false }),
+      supabase.from('house_bookings').select('*').order('created_at', { ascending: false }),
+    ])
+    setWifiBookings((wifiRes.data ?? []) as WifiBooking[])
+    setHouseBookings((houseRes.data ?? []) as HouseBooking[])
+  }
+
+  const handleUpdateWifiBookingStatus = async (id: string, status: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from('wifi_bookings').update({ status }).eq('id', id)
+    if (error) { showToast('error', error.message); return }
+    showToast('success', `WiFi booking marked as ${status}`)
+    loadBookings()
+  }
+
+  const handleUpdateHouseBookingStatus = async (id: string, status: string) => {
+    const supabase = createClient()
+    const { error } = await supabase.from('house_bookings').update({ status }).eq('id', id)
+    if (error) { showToast('error', error.message); return }
+    showToast('success', `House booking marked as ${status}`)
+    loadBookings()
   }
 
   const loadUsers = async () => {
@@ -383,6 +412,7 @@ function AdminDashboardInner() {
         {[
           { key: 'stats', label: 'Stats' },
           { key: 'houses', label: 'Houses' },
+          { key: 'bookings', label: 'Bookings' },
           { key: 'videos', label: 'Videos' },
           { key: 'transactions', label: 'Transactions' },
           { key: 'requests', label: 'Requests' },
@@ -532,28 +562,54 @@ function AdminDashboardInner() {
             <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-600 hover:underline">Download PDF</a>
           </div>
           {transactions.length === 0 && <p className="text-gray-500 text-center py-8">No transactions yet.</p>}
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead><tr className="bg-gray-50 border-b dark:border-gray-700">
-                <th className="text-left p-3 font-medium">Receipt</th><th className="text-left p-3 font-medium">Phone</th>
-                <th className="text-left p-3 font-medium">Amount</th><th className="text-left p-3 font-medium">Status</th>
-                <th className="text-left p-3 font-medium">Date</th>
-              </tr></thead>
-              <tbody>{transactions.map((tx) => (
-                <tr key={tx.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-200">
-                  <td className="p-3">{tx.mpesa_receipt || '-'}</td>
-                  <td className="p-3">{tx.phone}</td>
-                  <td className="p-3 font-medium">{formatPrice(tx.amount)}</td>
-                  <td className="p-3">
-                    <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                      tx.status === 'success' ? 'bg-green-100 text-green-700' :
-                      tx.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                    }`}>{tx.status}</span>
-                  </td>
-                  <td className="p-3 text-gray-500">{new Date(tx.created_at).toLocaleString()}</td>
-                </tr>
-              ))}</tbody>
-            </table>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {transactions.map((tx) => (
+              <div key={tx.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="font-mono text-sm font-semibold">{tx.mpesa_receipt || tx.checkout_request_id?.slice(0, 16) || '-'}</p>
+                    <p className="text-sm text-gray-500">{tx.phone}</p>
+                  </div>
+                  <select
+                    value={tx.status}
+                    onChange={async (e) => {
+                      const supabase = createClient()
+                      const { error } = await supabase.from('transactions').update({ status: e.target.value }).eq('id', tx.id)
+                      if (error) { showToast('error', error.message); return }
+                      showToast('success', `Transaction marked as ${e.target.value}`)
+                      clearCache('admin:transactions')
+                      loadTransactions()
+                    }}
+                    className={`text-xs border rounded px-2 py-1 font-medium ${
+                      tx.status === 'success' ? 'text-green-700 bg-green-50 border-green-200' :
+                      tx.status === 'failed' ? 'text-red-700 bg-red-50 border-red-200' :
+                      tx.status === 'verifying' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                      'text-amber-700 bg-amber-50 border-amber-200'
+                    }`}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="verifying">Verifying</option>
+                    <option value="success">Success</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                </div>
+                <p className="text-sm font-medium">{formatPrice(tx.amount)}</p>
+                {tx.mpesa_message && (
+                  <details className="text-xs text-gray-500">
+                    <summary className="cursor-pointer hover:text-gray-700">M-Pesa Message</summary>
+                    <p className="mt-1 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap break-words">{tx.mpesa_message}</p>
+                  </details>
+                )}
+                {tx.result_desc && <p className="text-xs text-gray-400 truncate" title={tx.result_desc}>Result: {tx.result_desc}</p>}
+                {tx.booking_id && (
+                  <p className="text-xs text-blue-600">
+                    Booking: {tx.booking_id.slice(0, 8)}…
+                  </p>
+                )}
+                <p className="text-xs text-gray-400">{new Date(tx.created_at).toLocaleString()}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -595,6 +651,107 @@ function AdminDashboardInner() {
               {r.description && <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-3">{r.description}</p>}
             </div>
           ))}
+        </div>
+      )}
+
+      {tab === 'bookings' && (
+        <div className="space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <span className="text-xl">📡</span> WiFi Bookings ({wifiBookings.length})
+            </h2>
+            {wifiBookings.length === 0 && <p className="text-gray-500 text-sm">No WiFi bookings yet.</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {wifiBookings.map((b) => (
+                <div key={b.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold">{b.name}</p>
+                      <p className="text-sm text-gray-500">{b.phone} &middot; {b.area}</p>
+                    </div>
+                    <select
+                      value={b.status}
+                      onChange={(e) => handleUpdateWifiBookingStatus(b.id, e.target.value)}
+                      className={`text-xs border rounded px-2 py-1 font-medium ${
+                        b.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                        b.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                        b.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                        'text-gray-700 bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <p className="text-sm"><strong>Package:</strong> {b.package_name} ({b.package_speed}) &mdash; {formatPrice(b.package_price)}/mo</p>
+                  {b.id_number && <p className="text-sm"><strong>ID:</strong> {b.id_number}</p>}
+                  <p className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString()}</p>
+                  <div className="flex gap-3 pt-1">
+                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
+                      📞 Call
+                    </a>
+                    <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} WiFi booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
+                      💬 WhatsApp
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <h2 className="text-lg font-semibold mb-3 flex items-center gap-2">
+              <span className="text-xl">🏠</span> House (Till) Bookings ({houseBookings.length})
+            </h2>
+            {houseBookings.length === 0 && <p className="text-gray-500 text-sm">No house bookings yet.</p>}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {houseBookings.map((b) => (
+                <div key={b.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <p className="font-semibold">{b.name}</p>
+                      <p className="text-sm text-gray-500">{b.phone} &middot; {b.area}</p>
+                    </div>
+                    <select
+                      value={b.status}
+                      onChange={(e) => handleUpdateHouseBookingStatus(b.id, e.target.value)}
+                      className={`text-xs border rounded px-2 py-1 font-medium ${
+                        b.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                        b.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                        b.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                        'text-gray-700 bg-gray-50 border-gray-200'
+                      }`}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="contacted">Contacted</option>
+                      <option value="completed">Completed</option>
+                      <option value="cancelled">Cancelled</option>
+                    </select>
+                  </div>
+                  <p className="text-sm"><strong>House:</strong> {b.listing_title || 'N/A'} &mdash; {b.listing_location || 'N/A'}</p>
+                  <p className="text-sm"><strong>Hunting Fee:</strong> {b.listing_price ? formatPrice(b.listing_price) : 'N/A'}</p>
+                  {b.id_number && <p className="text-sm"><strong>ID:</strong> {b.id_number}</p>}
+                  {b.mpesa_message && (
+                    <details className="text-xs text-gray-500">
+                      <summary className="cursor-pointer hover:text-gray-700">M-Pesa Message</summary>
+                      <p className="mt-1 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap break-words">{b.mpesa_message}</p>
+                    </details>
+                  )}
+                  <p className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString()}</p>
+                  <div className="flex gap-3 pt-1">
+                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
+                      📞 Call
+                    </a>
+                    <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your house booking at ${b.listing_title}.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
+                      💬 WhatsApp
+                    </a>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
       )}
 

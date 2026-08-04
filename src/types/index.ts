@@ -209,6 +209,21 @@ export interface WifiBooking {
   created_at: string
 }
 
+export interface HouseBooking {
+  id: string
+  listing_id: string
+  listing_title: string
+  listing_location: string
+  listing_price: number
+  name: string
+  phone: string
+  area: string
+  id_number: string
+  mpesa_message: string
+  status: 'pending' | 'contacted' | 'completed' | 'cancelled'
+  created_at: string
+}
+
 export interface HouseRequest {
   id: string
   name: string

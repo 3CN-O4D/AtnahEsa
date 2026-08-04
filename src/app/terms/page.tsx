@@ -12,7 +12,7 @@ export default function TermsPage() {
         <Link href="/" className="text-blue-600 hover:underline text-sm">&larr; Back to home</Link>
 
         <h1 className="text-3xl font-bold mt-6 mb-2">Terms &amp; Conditions</h1>
-        <p className="text-gray-500 text-sm mb-8">Last updated: July 2026</p>
+        <p className="text-gray-500 text-sm mb-8">Last updated: August 2026</p>
 
         {/* Tab selector */}
         <div className="flex gap-1 bg-gray-200 rounded-xl p-1 mb-8">
@@ -81,15 +81,29 @@ function HunterTerms() {
       </Section>
 
       <Section title="4. Your Data">
-        <p><strong>What happens:</strong> We collect your name, email, phone number, and usage data to operate the platform.</p>
-        <p><strong>Why:</strong> We need this information to create your account, connect you with listers, and improve the service. We do not sell your data to third parties.</p>
+        <p><strong>What we collect:</strong> Your name, email, phone number, and usage data to operate the platform.</p>
+        <p><strong>How we use it:</strong> We use your data to operate your account, process transactions, send booking and payment notifications, and improve our services. We may use aggregated, non-personally-identifying data for marketing and platform improvement.</p>
+        <p><strong>What we will never do:</strong> We will <strong>never</strong> share or sell your email address or personal name with third parties.</p>
         <ul>
           <li>Your phone number and email are shared with a lister only when you request a viewing of their property.</li>
-          <li>You can request deletion of your data at any time by contacting support.</li>
+          <li>Transaction-related messages (booking confirmations, payment receipts) are sent to you directly.</li>
+          <li>You can request full deletion of your data at any time by contacting support.</li>
         </ul>
       </Section>
 
-      <Section title="5. Prohibited Behaviour">
+      <Section title="5. Data Security &amp; Privacy">
+        <p><strong>How we protect you:</strong> We handle your personal data with care and follow privacy-oriented practices:</p>
+        <ul>
+          <li>Passwords are stored using industry-standard bcrypt hashing — they are never stored in plain text.</li>
+          <li>Database access is restricted by role-based row-level security; your private data is only visible to you and authorised staff.</li>
+          <li>All API endpoints enforce authentication and rate limiting to prevent abuse.</li>
+          <li>Payment data (M-Pesa messages, transaction codes) is used solely for verifying bookings and is not shared externally.</li>
+          <li>We do not track or sell your browsing behaviour to advertisers.</li>
+        </ul>
+        <p>If you suspect unauthorised access to your account, contact us immediately so we can secure it.</p>
+      </Section>
+
+      <Section title="6. Prohibited Behaviour">
         <p>You agree not to:</p>
         <ul>
           <li>Create fake accounts or misrepresent your identity.</li>
@@ -154,15 +168,28 @@ function ListerTerms() {
       </Section>
 
       <Section title="5. Your Data">
-        <p><strong>What happens:</strong> We collect your name, email, phone, and listing data to operate the platform.</p>
-        <p><strong>Why:</strong> This information is necessary to create and manage your account, display your listings, and process payouts. We do not sell your data.</p>
+        <p><strong>What we collect:</strong> We collect your name, email, phone, and listing data to operate the platform.</p>
+        <p><strong>How we use it:</strong> We use your data to manage your account, display your listings, process payouts, and send transaction notifications. We may use aggregated, non-personally-identifying data for marketing and platform improvement.</p>
+        <p><strong>What we will never do:</strong> We will <strong>never</strong> share or sell your email address or personal name with third parties.</p>
         <ul>
           <li>Your phone number and email are shared with a hunter only when they request a viewing of your property.</li>
-          <li>You can request data deletion at any time (note: this will remove all your active listings).</li>
+          <li>You can request full data deletion at any time (note: this will remove all your active listings).</li>
         </ul>
       </Section>
 
-      <Section title="6. Prohibited Behaviour">
+      <Section title="6. Data Security &amp; Privacy">
+        <p><strong>How we protect you:</strong> We handle your personal data with care and follow privacy-oriented practices:</p>
+        <ul>
+          <li>Passwords are stored using industry-standard bcrypt hashing — they are never stored in plain text.</li>
+          <li>Database access is restricted by role-based row-level security; your private data is only visible to you and authorised staff.</li>
+          <li>All API endpoints enforce authentication and rate limiting to prevent abuse.</li>
+          <li>Payment data (M-Pesa messages, transaction codes) is used solely for verifying bookings and is not shared externally.</li>
+          <li>We do not track or sell your browsing behaviour to advertisers.</li>
+        </ul>
+        <p>If you suspect unauthorised access to your account, contact us immediately so we can secure it.</p>
+      </Section>
+
+      <Section title="7. Prohibited Behaviour">
         <p>You agree not to:</p>
         <ul>
           <li>Post fake or duplicate listings for the same property.</li>

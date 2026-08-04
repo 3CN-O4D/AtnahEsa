@@ -1,5 +1,5 @@
 export const APP_NAME = 'AseHanta'
-export const MIN_BOOKING_FEE = 500
+export const MIN_BOOKING_FEE = 499
 export const PLATFORM_COMMISSION = 0.3 // 30%
 export const OWNER_SHARE = 0.7 // 70%
 export const ITEMS_PER_PAGE = 12

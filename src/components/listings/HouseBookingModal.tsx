@@ -18,6 +18,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
   const [area, setArea] = useState('')
   const [idNumber, setIdNumber] = useState('')
   const [mpesaMessage, setMpesaMessage] = useState('')
+  const [transactionCode, setTransactionCode] = useState('')
   const [copied, setCopied] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -34,9 +35,24 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
     }
   }
 
+  const extractTransactionCode = (message: string) => {
+    const match = message.match(/([A-Z][A-Z0-9]{3,})\s+Confirmed/i)
+    return match?.[1] || ''
+  }
+
+  const isMessageValid = (message: string) => /ASEHANTA\s+INVESTMENTS/i.test(message)
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !phone || !area || !mpesaMessage) { setError('Fill in all required fields'); return }
+    if (!transactionCode) {
+      setError('We could not find a transaction code. Paste the full M-Pesa confirmation message (e.g. "ABCDE12345 Confirmed. Ksh150.00 sent to ...")')
+      return
+    }
+    if (!isMessageValid(mpesaMessage)) {
+      setError('This does not appear to be a valid M-Pesa confirmation. The payment must be sent to ASEHANTA INVESTMENTS.')
+      return
+    }
     setLoading(true); setError('')
 
     try {
@@ -50,6 +66,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
           listing_price: listing.price,
           name, phone, area, id_number: idNumber,
           mpesa_message: mpesaMessage,
+          transaction_code: transactionCode,
         }),
       })
       const data = await res.json()
@@ -131,12 +148,23 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
                 </label>
                 <textarea
                   value={mpesaMessage}
-                  onChange={(e) => setMpesaMessage(e.target.value)}
+                  onChange={(e) => {
+                    const msg = e.target.value
+                    setMpesaMessage(msg)
+                    setTransactionCode(extractTransactionCode(msg))
+                  }}
                   rows={3}
-                  placeholder="Paste the M-Pesa confirmation message you received here..."
+                  placeholder="Paste the M-Pesa confirmation message you received here (e.g. &quot;ABCDE12345 Confirmed. Ksh150.00 sent to ...&quot;)"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                   required
                 />
+                {transactionCode ? (
+                  <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
+                    <Check className="w-3.5 h-3.5" /> Transaction code detected: <strong>{transactionCode}</strong>
+                  </p>
+                ) : mpesaMessage ? (
+                  <p className="text-xs text-amber-600 mt-1">Transaction code not found. Paste the full confirmation message.</p>
+                ) : null}
               </div>
 
               {error && <p className="text-sm text-red-600">{error}</p>}
@@ -179,7 +207,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
 
             <div className="flex gap-2 mt-4">
               <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-                `Hi AseHanta! I've paid the hunting fee for ${listing.title} (${listing.location}) via Till ${TILL_NUMBER}.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}${idNumber ? `\nID No: ${idNumber}` : ''}${mpesaMessage ? `\n\nM-Pesa Message:\n${mpesaMessage}` : ''}`
+                `Hi AseHanta! I've paid the hunting fee for ${listing.title} (${listing.location}) via Till ${TILL_NUMBER}.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}${idNumber ? `\nID No: ${idNumber}` : ''}\nTransaction Code: ${transactionCode}${mpesaMessage ? `\n\nM-Pesa Message:\n${mpesaMessage}` : ''}`
               )}`} target="_blank" rel="noopener noreferrer"
                 className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-700 transition-colors">
                 <MessageCircle className="w-4 h-4" /> WhatsApp Now

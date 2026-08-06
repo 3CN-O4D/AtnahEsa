@@ -79,6 +79,11 @@ export default function Header() {
               {label}
             </Link>
           ))}
+          {isLister && (
+            <Link href="/requests" className="text-sm font-medium text-green-600 hover:text-green-700 dark:hover:text-green-400 transition-colors whitespace-nowrap">
+              House Requests
+            </Link>
+          )}
           <ThemeToggle />
           {user && (
             <Link href="/upload">
@@ -168,6 +173,16 @@ export default function Header() {
               {label}
             </Link>
           ))}
+          {isLister && (
+            <Link
+              href="/requests"
+              onClick={() => setMenuOpen(false)}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30"
+            >
+              <BadgeCheck className="w-4 h-4" />
+              House Requests
+            </Link>
+          )}
           <hr className="my-2 dark:border-gray-700" />
           {user ? (
             <>

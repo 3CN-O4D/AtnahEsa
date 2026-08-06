@@ -78,11 +78,22 @@ export default function RequestsPage() {
   const loadRequests = async () => {
     setLoading(true)
     const supabase = createClient()
-    const { data } = await supabase
+    // Prefer the public-safe view. Fall back to the raw table (admin-only,
+    // since RLS blocks listers) if the view hasn't been created yet.
+    const { data: viewData, error: viewError } = await supabase
       .from('house_requests_public')
       .select('*')
       .order('created_at', { ascending: false })
-    setRequests((data ?? []) as PublicRequest[])
+
+    if (viewError) {
+      const { data: raw } = await supabase
+        .from('house_requests')
+        .select('id, location, min_rent, max_rent, token_options, water_options, house_designs, deposit_preference, deposit_refundable, building_type, house_type_requested, electric_bill, vacancy, description, status, claimed_by, claimed_at, created_at')
+        .order('created_at', { ascending: false })
+      setRequests((raw ?? []) as PublicRequest[])
+    } else {
+      setRequests((viewData ?? []) as PublicRequest[])
+    }
     setLoading(false)
   }
 

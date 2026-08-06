@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, MessageCircle, AlertTriangle, Copy, Check, CheckCircle } from 'lucide-react'
+import { ArrowLeft, MessageCircle, AlertTriangle, Copy, Check, CheckCircle, Smartphone, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import HouseBookingModal from '@/components/listings/HouseBookingModal'
 import { createClient } from '@/lib/supabase/client'
@@ -27,6 +27,14 @@ export default function BookingPage() {
   const [submitting, setSubmitting] = useState(false)
   const [formError, setFormError] = useState('')
   const [formSuccess, setFormSuccess] = useState(false)
+
+  // Tuma STK push payment state
+  const [tumaName, setTumaName] = useState('')
+  const [tumaPhone, setTumaPhone] = useState('')
+  const [tumaArea, setTumaArea] = useState('')
+  const [tumaError, setTumaError] = useState('')
+  const [tumaLoading, setTumaLoading] = useState(false)
+  const [tumaResult, setTumaResult] = useState<{ customer_message?: string; checkout_request_id?: string } | null>(null)
 
   const copyTill = async () => {
     try {
@@ -79,6 +87,34 @@ export default function BookingPage() {
     } finally { setSubmitting(false) }
   }
 
+  const handleTumaPay = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setTumaError('')
+    if (!listing) { setTumaError('House not found'); return }
+    if (!tumaName || !tumaPhone || !tumaArea) { setTumaError('Fill in your name, phone, and area'); return }
+
+    setTumaLoading(true)
+    try {
+      const res = await fetch('/api/payments/tuma-stk-push', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          listing_id: listing.id,
+          listing_location: listing.location,
+          listing_price: listing.price,
+          name: tumaName,
+          phone: tumaPhone,
+          area: tumaArea,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) { setTumaError(data.error || 'Failed to initiate payment'); setTumaLoading(false); return }
+      setTumaResult({ customer_message: data.customer_message, checkout_request_id: data.checkout_request_id })
+    } catch {
+      setTumaError('Something went wrong')
+    } finally { setTumaLoading(false) }
+  }
+
   useEffect(() => {
     const supabase = createClient()
     supabase.from('listings').select('*').eq('id', id).single().then(({ data }) => {
@@ -114,10 +150,10 @@ export default function BookingPage() {
         <div className="flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
           <div className="text-sm text-amber-800 space-y-1">
-            <p className="font-semibold">Excuse the inconvenience</p>
+            <p className="font-semibold">How to pay for this house</p>
             <p>
-              Online payment is being set up right now. To book this house, use the <strong>WhatsApp</strong> option
-              below and we&apos;ll handle everything for you.
+              Pay instantly via <strong>Tuma / M-Pesa</strong> below (auto-verified), or pay <strong>manually via
+              Till</strong> and paste your M-Pesa confirmation. WhatsApp us anytime and we&apos;ll handle it for you.
             </p>
           </div>
         </div>
@@ -149,6 +185,72 @@ export default function BookingPage() {
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Pay instantly via Tuma */}
+      <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-6">
+        <div className="flex items-center gap-2 mb-1">
+          <Smartphone className="w-4 h-4 text-green-700" />
+          <p className="text-sm font-semibold text-green-800">Or Pay Instantly via Tuma (M-Pesa)</p>
+        </div>
+        <p className="text-xs text-green-700 mb-3">
+          No Till needed. Enter your M-Pesa phone number and we&apos;ll send you a prompt to pay the{' '}
+          {formatPrice(listing.price)} hunting fee instantly. Your payment is verified automatically.
+        </p>
+
+        {tumaResult ? (
+          <div className="bg-white border border-green-200 rounded-lg p-3 text-sm">
+            <div className="flex items-start gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+              <div className="text-green-800 space-y-1">
+                <p className="font-semibold">M-Pesa prompt sent!</p>
+                <p>{tumaResult.customer_message || 'Check your phone and enter your PIN to complete payment.'}</p>
+                {tumaResult.checkout_request_id && (
+                  <p className="text-xs text-gray-500">Payment ref: {tumaResult.checkout_request_id}</p>
+                )}
+                <p className="text-xs text-green-700">
+                  Once you pay, we&apos;ll confirm automatically and contact you to arrange the viewing.
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <form onSubmit={handleTumaPay} className="space-y-3">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name <span className="text-red-500">*</span></label>
+              <input type="text" value={tumaName} onChange={(e) => setTumaName(e.target.value)} className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" required />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">M-Pesa Phone Number <span className="text-red-500">*</span></label>
+              <input
+                type="tel"
+                value={tumaPhone}
+                onChange={(e) => setTumaPhone(e.target.value)}
+                placeholder="0712 345 678"
+                className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Area / Location <span className="text-red-500">*</span></label>
+              <input type="text" value={tumaArea} onChange={(e) => setTumaArea(e.target.value)} className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500" required />
+            </div>
+
+            {tumaError && <p className="text-sm text-red-600">{tumaError}</p>}
+
+            <button
+              type="submit"
+              disabled={tumaLoading}
+              className="w-full bg-green-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {tumaLoading ? (
+                <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="w-4 h-4 animate-spin" /> Sending prompt...</span>
+              ) : (
+                <span className="inline-flex items-center justify-center gap-1.5"><Smartphone className="w-4 h-4" /> Pay {formatPrice(listing.price)} via M-Pesa</span>
+              )}
+            </button>
+          </form>
+        )}
       </div>
 
       {/* Verify payment — always visible on the page */}

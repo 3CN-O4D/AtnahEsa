@@ -141,7 +141,7 @@ export default function RequestsPage() {
       <div className="flex items-center justify-between flex-wrap gap-3 mb-2">
         <div>
           <h1 className="text-2xl font-bold dark:text-white">House Requests</h1>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 dark:text-white">
             People looking for houses. Claim a request when you have a matching house — we&apos;ll connect you.
           </p>
         </div>
@@ -155,14 +155,14 @@ export default function RequestsPage() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${filter === key ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'}`}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${filter === key ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:text-white dark:hover:text-white'}`}
           >
             {label}
           </button>
         ))}
       </div>
 
-      <div className="mb-4 flex items-start gap-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-xs text-gray-500">
+      <div className="mb-4 flex items-start gap-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-xs text-gray-500 dark:text-white">
         <ShieldCheck className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
         <p>For lister privacy, requesters&apos; names, phone numbers, and emails are hidden. When you claim a request, our team contacts the requester on your behalf.</p>
       </div>
@@ -170,7 +170,7 @@ export default function RequestsPage() {
       {error && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl p-3 mb-4">{error}</p>}
 
       {filtered.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-gray-400 dark:text-white">
           <HomeIcon className="w-10 h-10 mx-auto mb-2" />
           <p>No house requests here yet.</p>
         </div>
@@ -190,48 +190,48 @@ export default function RequestsPage() {
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${status.className}`}>{status.label}</span>
                     {claimedByMe && <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300"><CheckCircle2 className="w-3 h-3" /> Claimed by you</span>}
-                    {claimedByOther && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-300">Taken</span>}
+                    {claimedByOther && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-white">Taken</span>}
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3 text-sm mb-3">
                   <div className="flex items-center gap-1.5">
                     <Banknote className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500">Rent:</span>
+                    <span className="text-gray-500 dark:text-white">Rent:</span>
                     <span className="font-medium text-gray-900 dark:text-white">
                       {r.min_rent || r.max_rent ? `${formatPrice(r.min_rent || 0)} — ${formatPrice(r.max_rent || 0)}` : 'Any'}
                     </span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <HomeIcon className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500">Design:</span>
+                    <span className="text-gray-500 dark:text-white">Design:</span>
                     <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.house_designs) || 'Any'}</span>
                   </div>
                   <div className="flex items-center gap-1.5">
                     <Droplets className="w-4 h-4 text-gray-400" />
-                    <span className="text-gray-500">Water:</span>
+                    <span className="text-gray-500 dark:text-white">Water:</span>
                     <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.water_options) || 'Any'}</span>
                   </div>
                   {!!r.token_options?.length && (
-                    <div className="text-gray-500">Token: <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.token_options)}</span></div>
+                    <div className="text-gray-500 dark:text-white">Token: <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.token_options)}</span></div>
                   )}
                   {!!r.deposit_preference?.length && (
-                    <div className="text-gray-500">Deposit: <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.deposit_preference)}</span></div>
+                    <div className="text-gray-500 dark:text-white">Deposit: <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.deposit_preference)}</span></div>
                   )}
                   {!!r.building_type?.length && (
-                    <div className="text-gray-500">Type: <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.building_type)}</span></div>
+                    <div className="text-gray-500 dark:text-white">Type: <span className="font-medium text-gray-900 dark:text-white">{joinLabels(r.building_type)}</span></div>
                   )}
                 </div>
 
                 {r.description && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3 mb-3">{r.description}</p>
+                  <p className="text-sm text-gray-600 dark:text-white bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3 mb-3">{r.description}</p>
                 )}
 
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <p className="text-xs text-gray-400">Requested {new Date(r.created_at).toLocaleDateString()}</p>
+                  <p className="text-xs text-gray-400 dark:text-white">Requested {new Date(r.created_at).toLocaleDateString()}</p>
                   <div className="flex gap-2">
                     {claimedByOther ? (
-                      <span className="text-xs text-gray-400 px-3 py-2">Another lister has taken this</span>
+                      <span className="text-xs text-gray-400 dark:text-white px-3 py-2">Another lister has taken this</span>
                     ) : (
                       <>
                         <button

@@ -59,6 +59,7 @@ SELECT
   youtube_url,
   video_url,
   COALESCE(issues, ARRAY[]::text[]),
+  COALESCE(issues_count, 0),
   COALESCE(deposit, 0),
   electricity,
   water,

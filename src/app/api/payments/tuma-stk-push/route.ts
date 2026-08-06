@@ -12,10 +12,10 @@ import { notifyAdmins } from '@/lib/notify'
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { listing_id, listing_location, listing_price, name, phone, area, id_number } = body
+    const { listing_id, listing_location, listing_price, phone } = body
 
-    if (!listing_id || !name || !phone || !area) {
-      return NextResponse.json({ error: 'Name, phone, and area are required' }, { status: 400 })
+    if (!listing_id || !phone) {
+      return NextResponse.json({ error: 'Phone number is required' }, { status: 400 })
     }
 
     if (!normalizeKenyanPhone(phone)) {
@@ -52,10 +52,9 @@ export async function POST(req: Request) {
         listing_title: listing.title,
         listing_location: listing_location || '',
         listing_price: amount,
-        name,
+        name: '',
         phone: normalizedPhone,
-        area,
-        id_number: id_number || '',
+        area: '',
         status: 'pending',
       })
       .select()

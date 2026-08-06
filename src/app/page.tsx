@@ -14,6 +14,7 @@ import type { Listing } from '@/types'
 
 export default function HomePage() {
   const [user, setUser] = useState<{ id: string } | null>(null)
+  const [isLister, setIsLister] = useState(false)
   const [query, setQuery] = useState('')
   const [sort, setSort] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
@@ -22,7 +23,13 @@ export default function HomePage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(({ data }) => setUser(data.user ? { id: data.user.id } : null))
+    supabase.auth.getUser().then(async ({ data }) => {
+      setUser(data.user ? { id: data.user.id } : null)
+      if (data.user) {
+        const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
+        setIsLister(profile?.role === 'lister' || profile?.role === 'admin')
+      }
+    })
     Promise.all([
       supabase.from('listings').select('status'),
       supabase.from('listings').select('vacancy').eq('status', 'published'),
@@ -132,6 +139,11 @@ export default function HomePage() {
           <Link href={listAHouseLink} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
             + List a House
           </Link>
+          {isLister && (
+            <Link href="/requests" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-[#30B54A] text-[#2a9c40] rounded-lg text-sm font-semibold hover:bg-[#e8f8eb] transition-colors shrink-0 self-start w-auto">
+              House Requests
+            </Link>
+          )}
         </div>
       </div>
 

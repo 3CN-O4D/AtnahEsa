@@ -86,9 +86,7 @@ export async function POST(req: Request) {
       'STK Push Initiated',
       'Tuma Payment Request',
       {
-        Name: name,
-        Phone: phone,
-        Area: area,
+        Phone: normalizedPhone,
         Listing: listing.title,
         Amount: `KES ${amount}`,
         'Merchant Request ID': result.merchant_request_id || 'N/A',

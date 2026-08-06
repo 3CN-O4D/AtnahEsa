@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME } from '@/lib/constants'
 import Button from '@/components/ui/Button'
@@ -13,6 +13,7 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
+  const [isLister, setIsLister] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -24,6 +25,7 @@ export default function Header() {
       if (data.user) {
         const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', data.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
+        setIsLister(profile?.role === 'lister' || profile?.role === 'admin')
         setAvatarUrl(profile?.avatar_url || null)
         setDisplayName(profile?.full_name || data.user?.email || null)
       }
@@ -34,10 +36,12 @@ export default function Header() {
       if (session?.user) {
         const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', session.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
+        setIsLister(profile?.role === 'lister' || profile?.role === 'admin')
         setAvatarUrl(profile?.avatar_url || null)
         setDisplayName(profile?.full_name || session.user?.email || null)
       } else {
         setIsAdmin(false)
+        setIsLister(false)
         setAvatarUrl(null)
         setDisplayName(null)
       }
@@ -114,6 +118,11 @@ export default function Header() {
                   <Link href="/my-bookings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Calendar className="w-4 h-4" /> My Bookings
                   </Link>
+                  {isLister && (
+                    <Link href="/requests" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <BadgeCheck className="w-4 h-4" /> House Requests
+                    </Link>
+                  )}
                   {isAdmin && (
                     <Link href="/admin" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <Shield className="w-4 h-4" /> Admin Panel
@@ -171,6 +180,11 @@ export default function Header() {
               <Link href="/my-bookings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Calendar className="w-4 h-4" /> My Bookings
               </Link>
+              {isLister && (
+                <Link href="/requests" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <BadgeCheck className="w-4 h-4" /> House Requests
+                </Link>
+              )}
               <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
                 <Upload className="w-4 h-4" />
                 List House

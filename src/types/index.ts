@@ -244,6 +244,8 @@ export interface HouseRequest {
   description: string
   status: 'pending' | 'contacted' | 'fulfilled' | 'closed'
   admin_notes: string | null
+  claimed_by: string | null
+  claimed_at: string | null
   created_at: string
 }
 

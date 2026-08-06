@@ -54,10 +54,11 @@ export default function ImageUploader({ images, onChange, maxImages = 10 }: Imag
             <img src={url} alt={`Upload ${i + 1}`} className="w-full h-full object-cover" />
             <button
               type="button"
+              aria-label={`Remove image ${i + 1}`}
               onClick={() => removeImage(i)}
-              className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+              className="absolute top-1.5 right-1.5 p-1.5 bg-black/70 text-white rounded-full shadow-lg transition-colors hover:bg-red-600"
             >
-              <X className="w-3.5 h-3.5" />
+              <X className="w-4 h-4" />
             </button>
           </div>
         ))}

@@ -21,8 +21,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'A valid transaction code is required (e.g. ABCDE12345)' }, { status: 400 })
     }
 
-    if (!/ASEHANTA\s+INVESTMENTS/i.test(mpesa_message)) {
-      return NextResponse.json({ error: 'This does not appear to be a valid M-Pesa confirmation. The payment must be sent to ASEHANTA INVESTMENTS.' }, { status: 400 })
+    // Accept Till (ASEHANTA INVESTMENTS) and Tuma/I&M M-Pesa confirmation messages.
+    const isTillMessage = /ASEHANTA\s+INVESTMENTS/i.test(mpesa_message)
+    const isTumaMessage = /Tuma|I&M|I AND M|tinua/i.test(mpesa_message)
+    if (!isTillMessage && !isTumaMessage) {
+      return NextResponse.json({ error: 'We could not recognise this as a valid payment confirmation. If you paid via M-Pesa / Till or Tuma, paste the exact message you received.' }, { status: 400 })
     }
 
     const amountMatch = mpesa_message.match(/Ksh([\d,]+\.\d{2})/)

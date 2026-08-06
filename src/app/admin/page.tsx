@@ -623,6 +623,7 @@ function AdminDashboardInner() {
                 <div>
                   <h3 className="font-semibold text-gray-900">{r.name}</h3>
                   <p className="text-sm text-gray-500">{r.email} &middot; {r.phone}</p>
+                  {r.claimed_by && <p className="text-xs text-green-600 mt-1">Claimed by a lister</p>}
                 </div>
                 <select
                   value={r.status}

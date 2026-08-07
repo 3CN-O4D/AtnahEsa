@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS public.notifications (
 );
 
 ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+-- Broadcasts (user_id NULL) must be allowed; drop NOT NULL on the
+-- pre-existing prod table (created before this migration).
+ALTER TABLE public.notifications ALTER COLUMN user_id DROP NOT NULL;
 ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS role TEXT DEFAULT '';
 ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'system';
 ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';

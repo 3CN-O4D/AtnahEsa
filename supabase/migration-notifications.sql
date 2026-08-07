@@ -13,6 +13,8 @@
 -- ============================================================
 
 -- --- 1. notifications table ---
+-- NOTE: CREATE TABLE IF NOT EXISTS is a no-op if the table already
+-- exists, so we add missing columns explicitly to stay idempotent.
 CREATE TABLE IF NOT EXISTS public.notifications (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -26,6 +28,17 @@ CREATE TABLE IF NOT EXISTS public.notifications (
   read_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS role TEXT DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS category TEXT NOT NULL DEFAULT 'system';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS title TEXT NOT NULL DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS body TEXT DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS link TEXT DEFAULT '';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS data JSONB DEFAULT '{}';
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS is_broadcast BOOLEAN DEFAULT false;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS read_at TIMESTAMPTZ;
+ALTER TABLE public.notifications ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT now();
 
 ALTER TABLE public.notifications ENABLE ROW LEVEL SECURITY;
 

@@ -41,16 +41,25 @@ export default function ListingCard({ listing }: ListingCardProps) {
       })
   }, [listing.uploader_id, listing.uploader_name])
 
+  const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
+
   return (
-    <Link href={`/listings/${listing.id}`} aria-disabled={listing.status === 'taken'}>
+    <Link href={`/listings/${listing.id}`} aria-disabled={isUnavailable}>
       <Card hover>
-        <div className={`aspect-[4/3] relative ${listing.status === 'taken' ? 'grayscale-[0.4] brightness-90' : ''}`}>
+        <div className={`aspect-[4/3] relative ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
           {listing.status === 'taken' && (
             <div className="absolute inset-0 bg-red-900/20 flex items-center justify-center">
               <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
                 TAKEN
+              </div>
+            </div>
+          )}
+          {listing.status === 'booked' && (
+            <div className="absolute inset-0 bg-amber-900/20 flex items-center justify-center">
+              <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+                BOOKED
               </div>
             </div>
           )}
@@ -64,13 +73,13 @@ export default function ListingCard({ listing }: ListingCardProps) {
           </div>
         </div>
         <div className="p-3 space-y-2">
-          <h3 className={`font-semibold truncate ${listing.status === 'taken' ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900'}`}>{listing.title}</h3>
+          <h3 className={`font-semibold truncate ${isUnavailable ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900'}`}>{listing.title}</h3>
           <div className="flex items-center gap-1 text-sm text-gray-500">
             <MapPin className="w-3.5 h-3.5" />
             <span className="truncate">{listing.location}</span>
           </div>
-          {listing.status === 'taken' && (
-            <p className="text-xs text-red-600 dark:text-red-400 font-medium">View only — already taken</p>
+          {isUnavailable && (
+            <p className="text-xs text-red-600 dark:text-red-400 font-medium">View only — {listing.status === 'booked' ? 'booked' : 'already taken'}</p>
           )}
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-blue-600">

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
+import { createNotification } from '@/lib/notifications'
 import type { TumaCallback } from '@/lib/tuma'
 
 /**
@@ -87,6 +88,46 @@ export async function POST(req: Request) {
           .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma', release_status: 'held', held_until: heldUntil })
           .eq('listing_id', existing.listing_id || '')
           .eq('phone', existing.phone || '')
+      }
+
+      // In-app notifications: hunter gets linking details, lister gets paid alert.
+      const { data: houseBooking } = await supabase
+        .from('house_bookings')
+        .select('id, listing_id, user_id, phone, listing_price, listing_title, listing_location')
+        .eq('listing_id', existing.listing_id || '')
+        .eq('phone', existing.phone || '')
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+
+      if (houseBooking) {
+        const { data: listing } = await supabase
+          .from('listings')
+          .select('uploader_id, title')
+          .eq('id', houseBooking.listing_id)
+          .maybeSingle()
+
+        if (houseBooking.user_id) {
+          await createNotification({
+            userId: houseBooking.user_id,
+            category: 'transaction',
+            title: `Payment confirmed — KES ${body.amount ?? houseBooking.listing_price ?? 0}`,
+            body: `Receipt ${receipt || 'N/A'} for ${houseBooking.listing_title || 'your house'}. Funds are in 24h escrow.`,
+            link: `/my-bookings?tab=payments`,
+            data: { house_booking_id: houseBooking.id, amount: body.amount, receipt },
+          })
+        }
+
+        if (listing?.uploader_id) {
+          await createNotification({
+            userId: listing.uploader_id,
+            category: 'linking',
+            title: `A hunter paid for "${listing.title || 'your house'}"`,
+            body: `Phone ${houseBooking.phone || 'N/A'} · KES ${(body.amount ?? houseBooking.listing_price ?? 0).toLocaleString()} · Receipt ${receipt || 'N/A'}. Funds in 24h escrow — call the hunter to arrange the visit.`,
+            link: `/my-bookings?tab=payments`,
+            data: { house_booking_id: houseBooking.id, hunter_phone: houseBooking.phone, amount: body.amount, receipt },
+          })
+        }
       }
 
       // Public flow (no authenticated bookings row): mark the listing booked

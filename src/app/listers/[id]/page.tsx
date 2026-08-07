@@ -25,7 +25,7 @@ export default function ListerPage() {
     Promise.all([
       supabase.from('profiles_public').select('*').eq('id', id).maybeSingle(),
       supabase.from('listings').select('*').eq('uploader_id', id).eq('status', 'published').order('created_at', { ascending: false }),
-      supabase.from('listings').select('*').eq('uploader_id', id).eq('status', 'taken').order('created_at', { ascending: false }),
+      supabase.from('listings').select('*').eq('uploader_id', id).in('status', ['taken', 'booked']).order('created_at', { ascending: false }),
     ]).then(([profileRes, listingsRes, takenRes]) => {
       if (profileRes.data) setProfile(profileRes.data as Profile)
       setListings((listingsRes.data ?? []) as Listing[])
@@ -83,17 +83,21 @@ export default function ListerPage() {
 
         <div>
           <h2 className="text-lg font-semibold flex items-center gap-2 mb-3 dark:text-white">
-            <Key className="w-5 h-5 text-red-600" /> Taken Houses ({taken.length})
+            <Key className="w-5 h-5 text-red-600" /> Taken &amp; Booked ({taken.length})
           </h2>
           {taken.length === 0 ? (
-            <p className="text-gray-500 dark:text-gray-400 text-sm">No taken houses.</p>
+            <p className="text-gray-500 dark:text-gray-400 text-sm">No taken or booked houses.</p>
           ) : (
             <div className="space-y-2">
               {taken.map((l) => (
                 <div key={l.id} className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4">
                   <h3 className="font-semibold dark:text-white">{l.title}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{l.location}</p>
-                  {l.taken_by_name && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Taken by: {l.taken_by_name}</p>}
+                  {l.status === 'booked' ? (
+                    <p className="text-xs text-amber-600 mt-1">Booked — payment received</p>
+                  ) : (
+                    l.taken_by_name && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Taken by: {l.taken_by_name}</p>
+                  )}
                 </div>
               ))}
             </div>

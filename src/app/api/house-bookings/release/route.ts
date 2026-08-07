@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
+import { createNotification } from '@/lib/notifications'
 
 /**
  * Hunter-facing actions on a paid house booking (public Tuma flow):
@@ -68,6 +69,22 @@ export async function POST(req: Request) {
         }
       )
 
+      const { data: listing } = await admin
+        .from('listings')
+        .select('uploader_id, title')
+        .eq('id', booking.listing_id)
+        .maybeSingle()
+      if (listing?.uploader_id) {
+        await createNotification({
+          userId: listing.uploader_id,
+          category: 'transaction',
+          title: `Hunter confirmed "${listing.title || 'your house'}"`,
+          body: 'The hunter is pleased. Your payout can now be released.',
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id: booking.id },
+        })
+      }
+
       return NextResponse.json({ success: true, message: 'Booking confirmed. The lister can now be paid.' })
     }
 
@@ -113,6 +130,17 @@ export async function POST(req: Request) {
           'Action Required': 'Process the 85% refund to the hunter via M-Pesa/Tuma. The lister gets nothing.',
         }
       )
+
+      if (booking.user_id) {
+        await createNotification({
+          userId: booking.user_id,
+          category: 'transaction',
+          title: 'Refund requested',
+          body: `An 85% refund (KES ${refundAmount.toLocaleString()}) for ${booking.listing_title || 'your house'} has been recorded. Our team will process it.`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id: booking.id, amount: refundAmount },
+        })
+      }
 
       return NextResponse.json({ success: true, message: `85% refund (KES ${refundAmount.toLocaleString()}) recorded. Our team will process it.` })
     }

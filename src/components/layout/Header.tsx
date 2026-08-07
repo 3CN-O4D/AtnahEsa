@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME } from '@/lib/constants'
 import Button from '@/components/ui/Button'
@@ -17,6 +17,27 @@ export default function Header() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
+
+  useEffect(() => {
+    const supabase = createClient()
+    const loadUnread = async () => {
+      try {
+        const res = await fetch('/api/notifications')
+        if (!res.ok) return
+        const data = await res.json()
+        setUnreadCount(data.unreadCount || 0)
+      } catch {
+        // ignore
+      }
+    }
+    if (user) {
+      loadUnread()
+      const i = setInterval(loadUnread, 60000)
+      return () => clearInterval(i)
+    }
+    setUnreadCount(0)
+  }, [user])
 
   useEffect(() => {
     const supabase = createClient()
@@ -97,6 +118,16 @@ export default function Header() {
 
         {/* Right: Profile — flush to right edge */}
         <div className="hidden md:flex items-center pr-4 shrink-0">
+          {user && (
+            <Link href="/notifications" className="relative p-2 text-gray-600 hover:text-gray-900 dark:hover:text-white mr-1" aria-label="Notifications">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
           {user ? (
             <div className="relative">
               <button
@@ -153,6 +184,16 @@ export default function Header() {
         {/* Mobile: dark mode + hamburger — flush to right */}
         <div className="md:hidden flex items-center gap-1 pr-4 ml-auto">
           <ThemeToggle />
+          {user && (
+            <Link href="/notifications" className="relative p-2 text-gray-600 hover:text-gray-900 dark:hover:text-white" aria-label="Notifications">
+              <Bell className="w-5 h-5" />
+              {unreadCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                  {unreadCount > 99 ? '99+' : unreadCount}
+                </span>
+              )}
+            </Link>
+          )}
           <button className="p-2" onClick={() => setMenuOpen(!menuOpen)}>
             {menuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </button>
@@ -186,6 +227,12 @@ export default function Header() {
           <hr className="my-2 dark:border-gray-700" />
           {user ? (
             <>
+              <Link href="/notifications" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Bell className="w-4 h-4" /> Notifications
+                {unreadCount > 0 && (
+                  <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">{unreadCount > 99 ? '99+' : unreadCount}</span>
+                )}
+              </Link>
               <Link href="/profile" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Settings className="w-4 h-4" /> My Profile
               </Link>

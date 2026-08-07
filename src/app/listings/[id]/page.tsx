@@ -85,13 +85,14 @@ export default function ListingDetailPage() {
       const l = listingRes.data as Listing
       setListing(l)
 
-      const [profileRes, countRes, revsRes, lrRes, simRes, bookingCountRes] = await Promise.all([
+      const [profileRes, countRes, revsRes, lrRes, simRes, bookingCountRes, paidHouseCountRes] = await Promise.all([
         supabase.from('profiles_public').select('*').eq('id', l.uploader_id).single(),
         supabase.from('listings').select('*', { count: 'exact', head: true }).eq('uploader_id', l.uploader_id),
         supabase.from('reviews').select('*').eq('listing_id', id).order('created_at', { ascending: false }),
         l.uploader_id ? supabase.from('lister_reviews').select('*').eq('lister_id', l.uploader_id).order('created_at', { ascending: false }) : Promise.resolve({ data: null }),
         supabase.from('listings').select('*').eq('status', 'published').eq('location', l.location).neq('id', id).limit(10),
         currentUser ? supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).eq('release_status', 'released') : Promise.resolve({ count: null }),
+        currentUser ? supabase.from('house_bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).in('release_status', ['held', 'paid', 'refunded']) : Promise.resolve({ count: null }),
       ])
 
       if (profileRes.data) setLister({ ...profileRes.data as Profile, listing_count: countRes.count ?? 0 })
@@ -104,7 +105,7 @@ export default function ListingDetailPage() {
 
       setSimilar((simRes.data ?? []) as Listing[])
 
-      if (currentUser) setCanReview((bookingCountRes?.count ?? 0) > 0)
+      if (currentUser) setCanReview(((bookingCountRes?.count ?? 0) > 0) || ((paidHouseCountRes?.count ?? 0) > 0))
 
       const userIds = [...new Set(revs.map((r) => r.user_id))]
       const lrUserIds = [...new Set(lr.map((r) => r.reviewer_id))]
@@ -537,9 +538,9 @@ export default function ListingDetailPage() {
               <p><strong>House type:</strong> {listing.house_type || 'N/A'}</p>
             </div>
 
-            {listing.status === 'taken' ? (
+            {listing.status === 'taken' || listing.status === 'booked' ? (
               <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-center">
-                <p className="text-sm font-semibold text-red-700">This house has been taken.</p>
+                <p className="text-sm font-semibold text-red-700">This house is {listing.status === 'booked' ? 'booked' : 'taken'}.</p>
                 <p className="text-xs text-red-600 mt-1">
                   Similar houses may be available &mdash; request one below and our agents will find it for you.
                 </p>

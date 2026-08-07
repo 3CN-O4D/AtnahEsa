@@ -41,7 +41,7 @@ export default function HomePage() {
       let available = 0, pending = 0, taken = 0
       for (const row of statusData) {
         if (row.status === 'published') available++
-        else if (row.status === 'taken') taken++
+        else if (row.status === 'taken' || row.status === 'booked') taken++
       }
       if (vacancyData) {
         pending = vacancyData.filter((r) => r.vacancy === 'pending').length
@@ -57,7 +57,7 @@ export default function HomePage() {
       let q = supabase
         .from('listings')
         .select('*')
-        .in('status', ['published', 'taken'])
+        .in('status', ['published', 'booked', 'taken'])
         .order('status', { ascending: true })
         .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
 

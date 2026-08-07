@@ -15,8 +15,8 @@ export default function TakenHousesPage() {
     const supabase = createClient()
     supabase
       .from('listings')
-      .select('id, title, location, taken_by_name, created_at')
-      .eq('status', 'taken')
+      .select('id, title, location, taken_by_name, status, created_at')
+      .in('status', ['taken', 'booked'])
       .order('created_at', { ascending: false })
       .then(({ data }) => {
         setListings((data ?? []) as Listing[])
@@ -48,9 +48,13 @@ export default function TakenHousesPage() {
             <div key={listing.id} className="bg-white border border-gray-200 rounded-xl p-4">
               <h3 className="font-semibold text-gray-900">{listing.title}</h3>
               <p className="text-sm text-gray-500 mt-1">{listing.location}</p>
-              <p className="text-sm text-gray-700 mt-2">
-                Taken by <span className="font-medium">{listing.taken_by_name || 'Unknown'}</span>
-              </p>
+              {listing.status === 'booked' ? (
+                <p className="text-sm text-amber-600 font-medium mt-2">Booked — a hunter has paid, visit being arranged.</p>
+              ) : (
+                <p className="text-sm text-gray-700 mt-2">
+                  Taken by <span className="font-medium">{listing.taken_by_name || 'Unknown'}</span>
+                </p>
+              )}
             </div>
           ))}
         </div>

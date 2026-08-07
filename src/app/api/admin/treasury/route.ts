@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createNotification } from '@/lib/notifications'
 
 export async function GET() {
   const supabase = await createClient()
@@ -105,6 +106,34 @@ export async function POST(request: Request) {
         raw_callback: { house_booking_id: house_booking_id, admin_verified: true },
       })
 
+      const { data: listing } = await supabase
+        .from('listings')
+        .select('uploader_id, title')
+        .eq('id', hb.listing_id)
+        .maybeSingle()
+
+      const amount = hb.listing_price || 0
+      if (userId) {
+        await createNotification({
+          userId,
+          category: 'transaction',
+          title: `Payment verified — KES ${amount.toLocaleString()} now in escrow`,
+          body: `Your payment for ${hb.listing_title || 'your house'} is confirmed. Contact the lister to arrange the visit.`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id, amount },
+        })
+      }
+      if (listing?.uploader_id) {
+        await createNotification({
+          userId: listing.uploader_id,
+          category: 'linking',
+          title: `A hunter paid for "${listing.title || 'your house'}"`,
+          body: `Phone ${hb.phone || 'N/A'} · KES ${amount.toLocaleString()}. Verified by admin and placed in 24h escrow — call the hunter to arrange the visit.`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id, hunter_phone: hb.phone, amount },
+        })
+      }
+
       return NextResponse.json({ success: true, message: `Payment verified. KES ${(hb.listing_price || 0).toLocaleString()} placed in escrow for 24h.` })
     }
 
@@ -125,6 +154,32 @@ export async function POST(request: Request) {
         checkout_request_id: '', status: 'success', payment_method: hb.payment_method || 'tuma',
       })
 
+      const { data: listing } = await supabase
+        .from('listings')
+        .select('uploader_id, title')
+        .eq('id', hb.listing_id)
+        .maybeSingle()
+      if (listing?.uploader_id) {
+        await createNotification({
+          userId: listing.uploader_id,
+          category: 'transaction',
+          title: 'Payout released',
+          body: `KES ${(hb.listing_price || 0).toLocaleString()} for "${listing.title || 'your house'}" has been paid to you (70%).`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id, amount: hb.listing_price },
+        })
+      }
+      if (hb.user_id) {
+        await createNotification({
+          userId: hb.user_id,
+          category: 'transaction',
+          title: 'Your escrow was released',
+          body: `Funds for ${hb.listing_title || 'your house'} were released to the lister.`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id },
+        })
+      }
+
       return NextResponse.json({ success: true, message: 'Payout released to lister' })
     }
 
@@ -141,6 +196,17 @@ export async function POST(request: Request) {
       mpesa_receipt: '', mpesa_message: `Admin processed ${percentage}% refund (house booking)`,
       checkout_request_id: '', status: 'success', payment_method: hb.payment_method || 'tuma',
     })
+
+    if (hb.user_id) {
+      await createNotification({
+        userId: hb.user_id,
+        category: 'transaction',
+        title: `${percentage}% refund processed`,
+        body: `KES ${refundAmount.toLocaleString()} refunded for ${hb.listing_title || 'your house'}.`,
+        link: '/my-bookings?tab=payments',
+        data: { house_booking_id, amount: refundAmount },
+      })
+    }
 
     return NextResponse.json({ success: true, message: `${percentage}% refund (KES ${refundAmount.toLocaleString()}) processed` })
   }

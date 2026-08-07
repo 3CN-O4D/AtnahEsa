@@ -177,6 +177,18 @@ function AdminDashboardInner() {
     loadBookings()
   }
 
+  const handleVerifyHouseEscrow = async (id: string) => {
+    const res = await fetch('/api/admin/treasury', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'house_verify', house_booking_id: id }),
+    })
+    const data = await res.json()
+    if (!res.ok) { showToast('error', data.error || 'Verification failed'); return }
+    showToast('success', data.message || 'Payment verified and placed in escrow')
+    clearCache('admin:')
+    loadBookings()
+  }
+
   const loadUsers = async () => {
     const supabase = createClient()
     const { data } = await supabase.from('profiles').select('*').order('created_at', { ascending: false })
@@ -740,26 +752,38 @@ function AdminDashboardInner() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {houseBookings.map((b) => (
                 <div key={b.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
-                  <div className="flex items-start justify-between">
+                  <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold">{b.name}</p>
                       <p className="text-sm text-gray-500">{b.phone} &middot; {b.area}</p>
                     </div>
-                    <select
-                      value={b.status}
-                      onChange={(e) => handleUpdateHouseBookingStatus(b.id, e.target.value)}
-                      className={`text-xs border rounded px-2 py-1 font-medium ${
-                        b.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
-                        b.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
-                        b.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
-                        'text-gray-700 bg-gray-50 border-gray-200'
-                      }`}
-                    >
-                      <option value="pending">Pending</option>
-                      <option value="contacted">Contacted</option>
-                      <option value="completed">Completed</option>
-                      <option value="cancelled">Cancelled</option>
-                    </select>
+                    <div className="flex flex-col items-end gap-1.5">
+                      <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        b.release_status === 'held' ? 'bg-blue-100 text-blue-700' :
+                        b.release_status === 'paid' ? 'bg-green-100 text-green-700' :
+                        b.release_status === 'refunded' ? 'bg-amber-100 text-amber-700' :
+                        'bg-gray-100 text-gray-600'
+                      }`}>
+                        {b.release_status === 'held' ? 'In Escrow' : b.release_status === 'paid' ? 'Paid to Lister' : b.release_status === 'refunded' ? 'Refunded' : 'Not Verified'}
+                      </span>
+                      <select
+                        value={b.status}
+                        onChange={(e) => handleUpdateHouseBookingStatus(b.id, e.target.value)}
+                        className={`text-xs border rounded px-2 py-1 font-medium ${
+                          b.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
+                          b.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                          b.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                          b.status === 'confirmed' ? 'text-blue-700 bg-blue-50 border-blue-200' :
+                          'text-gray-700 bg-gray-50 border-gray-200'
+                        }`}
+                      >
+                        <option value="pending">Pending</option>
+                        <option value="contacted">Contacted</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                        <option value="cancelled">Cancelled</option>
+                      </select>
+                    </div>
                   </div>
                   <p className="text-sm"><strong>House:</strong> {b.listing_title || 'N/A'} &mdash; {b.listing_location || 'N/A'}</p>
                   <p className="text-sm"><strong>Hunting Fee:</strong> {b.listing_price ? formatPrice(b.listing_price) : 'N/A'}</p>
@@ -771,13 +795,18 @@ function AdminDashboardInner() {
                     </details>
                   )}
                   <p className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString()}</p>
-                  <div className="flex gap-3 pt-1">
+                  <div className="flex gap-3 pt-1 flex-wrap">
                     <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
                       📞 Call
                     </a>
                     <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your house booking at ${b.listing_title}.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
                       💬 WhatsApp
                     </a>
+                    {b.release_status !== 'held' && b.release_status !== 'paid' && b.release_status !== 'refunded' && (
+                      <Button size="sm" onClick={() => handleVerifyHouseEscrow(b.id)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-0.5">
+                        Verify & Set Escrow
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))}

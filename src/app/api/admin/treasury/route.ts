@@ -38,11 +38,11 @@ export async function GET() {
 
   return NextResponse.json({
     stats: {
-      total_escrows: escrows?.length || 0,
-      held: (escrows || []).filter((e) => e.status === 'held').length,
+      total_escrows: (escrows?.length || 0) + (houseBookings?.length || 0),
+      held: (escrows || []).filter((e) => e.status === 'held').length + heldHouse.length,
       released: (escrows || []).filter((e) => e.status === 'released').length,
-      refunded: (escrows || []).filter((e) => e.status === 'refunded').length,
-      total_held_amount: totalHeld,
+      refunded: (escrows || []).filter((e) => e.status === 'refunded').length + (houseBookings || []).filter((h) => h.release_status === 'refunded').length,
+      total_held_amount: totalHeld + pendingPayoutsAmount,
       total_released_amount: totalReleased,
       total_refunded_amount: totalRefunded,
       platform_revenue: platformRevenue,
@@ -70,11 +70,44 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'action required' }, { status: 400 })
   }
 
-  if (action === 'house_release' || action === 'house_refund') {
+  if (action === 'house_release' || action === 'house_refund' || action === 'house_verify') {
     if (!house_booking_id) return NextResponse.json({ error: 'house_booking_id required' }, { status: 400 })
 
     const { data: hb } = await supabase.from('house_bookings').select('*').eq('id', house_booking_id).single()
     if (!hb) return NextResponse.json({ error: 'House booking not found' }, { status: 404 })
+    if (hb.release_status === 'paid' || hb.release_status === 'refunded') {
+      return NextResponse.json({ error: 'House booking is already processed' }, { status: 400 })
+    }
+
+    if (action === 'house_verify') {
+      const method = (body.payment_method as string) || hb.payment_method || 'tuma'
+      const now = new Date().toISOString()
+      const heldUntil = new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+
+      let userId: string | null = hb.user_id || null
+      if (!userId && hb.phone) {
+        const digits = hb.phone.replace(/[^0-9]/g, '').slice(-9)
+        const { data: profiles } = await supabase.from('profiles').select('id, phone')
+        const match = (profiles || []).find((p) => p.phone && p.phone.replace(/[^0-9]/g, '').slice(-9) === digits)
+        if (match) userId = match.id
+      }
+
+      const { error: e1 } = await supabase
+        .from('house_bookings')
+        .update({ status: 'confirmed', release_status: 'held', held_until: heldUntil, payment_method: method, user_id: userId, confirmed_at: hb.confirmed_at ?? null })
+        .eq('id', house_booking_id)
+      if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+
+      await supabase.from('transactions').insert({
+        listing_id: hb.listing_id, phone: hb.phone || '', amount: hb.listing_price || 0,
+        mpesa_receipt: hb.mpesa_message || '', mpesa_message: 'Payment verified by admin, placed in escrow',
+        checkout_request_id: '', status: 'success', payment_method: method,
+        raw_callback: { house_booking_id: house_booking_id, admin_verified: true },
+      })
+
+      return NextResponse.json({ success: true, message: `Payment verified. KES ${(hb.listing_price || 0).toLocaleString()} placed in escrow for 24h.` })
+    }
+
     if (hb.release_status !== 'held') {
       return NextResponse.json({ error: 'House booking is not awaiting payout' }, { status: 400 })
     }

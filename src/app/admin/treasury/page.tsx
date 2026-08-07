@@ -298,6 +298,12 @@ export default function TreasuryPage() {
                     </p>
                   </div>
                   <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                    {hb.release_status !== 'held' && hb.release_status !== 'paid' && hb.release_status !== 'refunded' && (
+                      <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_verify', 'Verify payment & set escrow')} loading={actionLoading === hb.id}
+                        className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-1">
+                        <CheckCircle className="w-3 h-3 mr-1" /> Verify & Set Escrow
+                      </Button>
+                    )}
                     {isHeld && (
                       <>
                         <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === hb.id}
@@ -570,9 +576,11 @@ export default function TreasuryPage() {
                 <span className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
                   {confirmAction.action === 'house_refund'
                     ? `Hunter will receive 85% (${formatPrice(Math.round((confirmAction.houseBooking.listing_price || 0) * 0.85))}). The lister gets nothing.`
-                    : confirmAction.houseBooking.confirmed_at
-                      ? 'Hunter has confirmed they are pleased. Confirm you have paid the lister.'
-                      : 'Warning: the hunter has NOT confirmed yet. Only proceed if you verified satisfaction another way.'}
+                    : confirmAction.action === 'house_verify'
+                      ? 'This confirms the payment arrived and places the money in 24h escrow. The hunter will see it in My Bookings.'
+                      : confirmAction.houseBooking.confirmed_at
+                        ? 'Hunter has confirmed they are pleased. Confirm you have paid the lister.'
+                        : 'Warning: the hunter has NOT confirmed yet. Only proceed if you verified satisfaction another way.'}
                 </span>
               </p>
             ) : (

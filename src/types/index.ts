@@ -159,6 +159,7 @@ export interface Transaction {
   result_desc: string
   raw_callback: Record<string, unknown>
   status: 'pending' | 'verifying' | 'success' | 'failed'
+  payment_method: string
   created_at: string
 }
 
@@ -220,7 +221,16 @@ export interface HouseBooking {
   area: string
   id_number: string
   mpesa_message: string
-  status: 'pending' | 'contacted' | 'completed' | 'cancelled'
+  status: 'pending' | 'contacted' | 'completed' | 'cancelled' | 'confirmed'
+  user_id: string | null
+  release_status: 'pending' | 'held' | 'paid' | 'refunded'
+  held_until: string | null
+  rating: number | null
+  displeased_reason: string
+  confirmed_at: string | null
+  paid_at: string | null
+  refunded_at: string | null
+  payment_method: string
   created_at: string
 }
 

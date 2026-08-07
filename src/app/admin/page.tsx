@@ -41,6 +41,9 @@ function AdminDashboardInner() {
     totalMovers: 0, wifiPackages: 0, wifiBookings: 0,
     contactSubmissions: 0, houseRequests: 0, reports: 0,
     escrowHeld: 0, escrowHeldAmount: 0,
+    houseRevenue: 0, houseRevenueCount: 0, houseRefunded: 0, houseRefundedCount: 0,
+    pendingPayouts: 0, pendingPayoutsAmount: 0,
+    paymentsByMethod: [] as { method: string; count: number; amount: number }[],
   })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
 
@@ -122,7 +125,7 @@ function AdminDashboardInner() {
     const cached = getCached<Transaction[]>('admin:transactions')
     if (cached) { setTransactions(cached); return }
     const supabase = createClient()
-    const { data } = await supabase.from('transactions').select('id, booking_id, user_id, phone, amount, mpesa_receipt, mpesa_message, checkout_request_id, status, created_at').order('created_at', { ascending: false }).limit(100)
+    const { data } = await supabase.from('transactions').select('id, booking_id, user_id, phone, amount, mpesa_receipt, mpesa_message, checkout_request_id, status, payment_method, created_at').order('created_at', { ascending: false }).limit(100)
     const result = (data ?? []) as Transaction[]
     setCache('admin:transactions', result)
     setTransactions(result)
@@ -476,6 +479,26 @@ function AdminDashboardInner() {
             {sectionTitle('Treasury', '🏦')}
             {statCard('Escrow Held', stats.escrowHeld, 'text-blue-600', '/admin/treasury')}
             {statCard('Held Amount', formatPrice(stats.escrowHeldAmount), 'text-amber-600', '/admin/treasury')}
+            {statCard('House Payments', stats.houseRevenueCount, 'text-green-600', '/admin/treasury')}
+            {statCard('House Fee Revenue', formatPrice(stats.houseRevenue), 'text-green-600', '/admin/treasury')}
+            {statCard('Pending Payouts', stats.pendingPayouts, 'text-amber-600', '/admin/treasury')}
+            {statCard('Payout Value', formatPrice(stats.pendingPayoutsAmount), 'text-amber-600', '/admin/treasury')}
+            {statCard('House Refunds', stats.houseRefundedCount, 'text-red-600', '/admin/treasury')}
+            {statCard('Refund Value (85%)', formatPrice(stats.houseRefunded), 'text-red-600', '/admin/treasury')}
+
+            {stats.paymentsByMethod.length > 0 && (
+              <div className="col-span-full">
+                <p className="text-sm font-medium text-gray-500 mb-2">Payments by Method (successful)</p>
+                <div className="flex flex-wrap gap-2">
+                  {stats.paymentsByMethod.map((m) => (
+                    <span key={m.method} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 text-sm">
+                      <span className="capitalize font-medium">{m.method.replace(/_/g, ' ')}</span>
+                      <span className="text-gray-500">&middot; {m.count} &middot; {formatPrice(m.amount)}</span>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Quick Actions */}
             <div className="col-span-full mt-8">
@@ -571,7 +594,13 @@ function AdminDashboardInner() {
                     <p className="font-mono text-sm font-semibold">{tx.mpesa_receipt || tx.checkout_request_id?.slice(0, 16) || '-'}</p>
                     <p className="text-sm text-gray-500">{tx.phone}</p>
                   </div>
-                  <select
+                  <div className="flex flex-col items-end gap-1.5">
+                    {tx.payment_method && (
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-xs capitalize">
+                        {tx.payment_method.replace(/_/g, ' ')}
+                      </span>
+                    )}
+                    <select
                     value={tx.status}
                     onChange={async (e) => {
                       const supabase = createClient()
@@ -592,7 +621,8 @@ function AdminDashboardInner() {
                     <option value="verifying">Verifying</option>
                     <option value="success">Success</option>
                     <option value="failed">Failed</option>
-                  </select>
+                    </select>
+                  </div>
                 </div>
                 <p className="text-sm font-medium">{formatPrice(tx.amount)}</p>
                 {tx.mpesa_message && (

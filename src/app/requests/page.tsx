@@ -155,7 +155,7 @@ export default function RequestsPage() {
           <button
             key={key}
             onClick={() => setFilter(key)}
-            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${filter === key ? 'bg-white dark:bg-gray-700 shadow text-gray-900 dark:text-white' : 'text-gray-500 hover:text-gray-800 dark:text-white dark:hover:text-white'}`}
+            className={`px-3 py-1.5 rounded-lg font-medium transition-colors ${filter === key ? 'bg-blue-600 text-white shadow' : 'text-gray-600 hover:text-gray-900 dark:text-white dark:hover:text-white'}`}
           >
             {label}
           </button>
@@ -230,8 +230,10 @@ export default function RequestsPage() {
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <p className="text-xs text-gray-400 dark:text-white">Requested {new Date(r.created_at).toLocaleDateString()}</p>
                   <div className="flex gap-2">
-                    {claimedByOther ? (
-                      <span className="text-xs text-gray-400 dark:text-white px-3 py-2">Another lister has taken this</span>
+                    {claimedByOther || r.status === 'closed' || r.status === 'fulfilled' ? (
+                      <span className="text-xs text-gray-400 dark:text-white px-3 py-2">
+                        {r.status === 'closed' ? 'This request is closed' : r.status === 'fulfilled' ? 'This request has been fulfilled' : 'Another lister has taken this'}
+                      </span>
                     ) : (
                       <>
                         <button
@@ -242,7 +244,7 @@ export default function RequestsPage() {
                           {claimingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                           {claimedByMe ? 'Claimed — I have a house' : 'I have this house'}
                         </button>
-                        <Link href="/upload" className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                        <Link href="/upload" className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                           Upload House
                         </Link>
                       </>

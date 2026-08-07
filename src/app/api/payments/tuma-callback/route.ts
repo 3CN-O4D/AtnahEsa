@@ -74,21 +74,24 @@ export async function POST(req: Request) {
 
     if (success) {
       // Fix up the linked house_booking (public booking flow).
+      const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       const legacyBookingId = (existing.raw_callback as { house_booking_id?: string } | null)?.house_booking_id
       if (legacyBookingId) {
         await supabase
           .from('house_bookings')
-          .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma' })
+          .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma', release_status: 'held', held_until: heldUntil })
           .eq('id', legacyBookingId)
       } else {
         await supabase
           .from('house_bookings')
-          .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma' })
+          .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma', release_status: 'held', held_until: heldUntil })
           .eq('listing_id', existing.listing_id || '')
           .eq('phone', existing.phone || '')
       }
 
-      // Confirm the linked authenticated booking if present (embeds in transactions.booking_id).
+      // Public flow (no authenticated bookings row): mark the listing booked
+      // so it stops showing publicly and admins are alerted. Guard so a listing
+      // that's already taken isn't overwritten.
       const bookingId = existing.booking_id as string | undefined
       if (bookingId) {
         const { data: booking } = await supabase
@@ -106,6 +109,15 @@ export async function POST(req: Request) {
 
           await supabase.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)
         }
+      } else {
+        const { data: listing } = await supabase
+          .from('listings')
+          .select('status')
+          .eq('id', existing.listing_id || '')
+          .maybeSingle()
+        if (listing && listing.status === 'published') {
+          await supabase.from('listings').update({ status: 'booked' }).eq('id', existing.listing_id)
+        }
       }
 
       notifyAdmins(
@@ -118,6 +130,7 @@ export async function POST(req: Request) {
           'Merchant Request ID': merchantRequestId || 'N/A',
           'Checkout ID': checkoutRequestId || 'N/A',
           Timestamp: body.timestamp || 'N/A',
+          'Action Required': 'Payment confirmed and booking noted. Contact the customer to arrange the viewing.',
         }
       )
     } else {

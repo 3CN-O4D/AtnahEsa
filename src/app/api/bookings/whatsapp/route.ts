@@ -13,8 +13,8 @@ export async function POST(req: Request) {
 
     const { listing_id, listing_title, listing_location, listing_price, name, phone, area, id_number, mpesa_message, transaction_code } = await req.json()
 
-    if (!listing_id || !name || !phone || !area || !mpesa_message) {
-      return NextResponse.json({ error: 'Name, phone, area, and M-Pesa message are required' }, { status: 400 })
+    if (!listing_id || !phone || !mpesa_message) {
+      return NextResponse.json({ error: 'Phone number and M-Pesa message are required' }, { status: 400 })
     }
 
     if (!transaction_code || !/^[A-Z][A-Z0-9]{3,}$/.test(transaction_code)) {
@@ -37,11 +37,12 @@ export async function POST(req: Request) {
       listing_title: listing_title || '',
       listing_location: listing_location || '',
       listing_price: listing_price || 0,
-      name,
+      name: name || 'Registered user',
       phone,
-      area,
+      area: area || '',
       id_number: id_number || '',
       mpesa_message,
+      payment_method: isTumaMessage ? 'tuma' : 'daraja_till',
     })
 
     if (error) {
@@ -52,9 +53,9 @@ export async function POST(req: Request) {
       'Till Payment Received',
       'Till Payment House Booking',
       {
-        Name: name,
+        Name: name || 'Registered user',
         Phone: phone,
-        Area: area,
+        Area: area || 'Not provided',
         'ID Number': id_number || 'Not provided',
         'Transaction Code': transaction_code,
         'Amount Paid': amountPaid ? `Ksh ${amountPaid}` : 'N/A',

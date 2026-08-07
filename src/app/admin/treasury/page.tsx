@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw, Wallet, TrendingUp, Clock, CheckCircle, XCircle, Search, AlertTriangle, Calendar } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
-import type { EscrowHold, Transaction, Booking } from '@/types'
+import type { EscrowHold, Transaction, Booking, HouseBooking } from '@/types'
 
 type EscrowWithDetails = EscrowHold & {
   booking?: Booking
@@ -13,20 +13,23 @@ type EscrowWithDetails = EscrowHold & {
 
 type RefundModal = { escrow: EscrowWithDetails } | null
 type ExtendModal = { escrow: EscrowWithDetails } | null
-type ConfirmAction = { escrow: EscrowWithDetails; action: string; label: string } | null
+type ConfirmAction = { escrow?: EscrowWithDetails; houseBooking?: HouseBooking; action: string; label: string } | null
 
 export default function TreasuryPage() {
   const [stats, setStats] = useState({
     total_escrows: 0, held: 0, released: 0, refunded: 0,
     total_held_amount: 0, total_released_amount: 0, total_refunded_amount: 0, platform_revenue: 0,
+    pending_payouts: 0, pending_payouts_amount: 0,
   })
   const [escrows, setEscrows] = useState<EscrowWithDetails[]>([])
+  const [houseBookings, setHouseBookings] = useState<HouseBooking[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balance, setBalance] = useState<{ configured: boolean; result?: unknown; error?: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [escrowFilter, setEscrowFilter] = useState<string>('all')
+  const [payoutFilter, setPayoutFilter] = useState<string>('pending')
   const [txSearch, setTxSearch] = useState('')
   const [refundModal, setRefundModal] = useState<RefundModal>(null)
   const [extendModal, setExtendModal] = useState<ExtendModal>(null)
@@ -44,6 +47,7 @@ export default function TreasuryPage() {
     ]).then(([treasury, bal]) => {
       setStats(treasury.stats)
       setEscrows(treasury.escrows)
+      setHouseBookings(treasury.house_bookings || [])
       setTransactions(treasury.transactions)
       setBalance(bal)
       setLoading(false)
@@ -53,7 +57,7 @@ export default function TreasuryPage() {
   useEffect(() => { loadData() }, [])
 
   const postAction = async (body: Record<string, unknown>) => {
-    setActionLoading((body.escrow_id || body.transaction_id) as string)
+    setActionLoading((body.house_booking_id || body.escrow_id || body.transaction_id) as string)
     try {
       const res = await fetch('/api/admin/treasury', {
         method: 'POST',
@@ -66,6 +70,7 @@ export default function TreasuryPage() {
       const tres = await (await fetch('/api/admin/treasury')).json()
       setStats(tres.stats)
       setEscrows(tres.escrows)
+      setHouseBookings(tres.house_bookings || [])
       setTransactions(tres.transactions)
     } catch {
       showToast('error', 'Action failed')
@@ -77,9 +82,16 @@ export default function TreasuryPage() {
   const handleAction = (escrowId: string, action: string, label: string) =>
     setConfirmAction({ escrow: escrows.find((e) => e.id === escrowId)!, action, label })
 
+  const handleHouseAction = (hbId: string, action: string, label: string) =>
+    setConfirmAction({ houseBooking: houseBookings.find((h) => h.id === hbId)!, action, label })
+
   const executeConfirmedAction = () => {
     if (!confirmAction) return
-    postAction({ action: confirmAction.action, escrow_id: confirmAction.escrow.id })
+    if (confirmAction.houseBooking) {
+      postAction({ action: confirmAction.action, house_booking_id: confirmAction.houseBooking.id })
+    } else if (confirmAction.escrow) {
+      postAction({ action: confirmAction.action, escrow_id: confirmAction.escrow.id })
+    }
     setConfirmAction(null)
   }
 
@@ -135,6 +147,7 @@ export default function TreasuryPage() {
   if (loading) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
 
   const filteredEscrows = escrowFilter === 'all' ? escrows : escrows.filter((e) => e.status === escrowFilter)
+  const filteredPayouts = payoutFilter === 'all' ? houseBookings : houseBookings.filter((h) => h.release_status === payoutFilter)
   const filteredTxs = transactions.filter((tx) =>
     !txSearch || tx.mpesa_receipt?.toLowerCase().includes(txSearch.toLowerCase()) ||
     tx.mpesa_message?.toLowerCase().includes(txSearch.toLowerCase()) ||
@@ -216,6 +229,99 @@ export default function TreasuryPage() {
           <p className="text-2xl font-bold text-purple-600">{formatPrice(stats.platform_revenue)}</p>
           <p className="text-sm" style={{ color: 'var(--color-gray-500)' }}>30% of {stats.released} releases</p>
         </div>
+      </div>
+
+      {/* Pending Payouts */}
+      <div className="border rounded-xl mb-8" style={{ backgroundColor: 'var(--color-gray-50)', borderColor: 'var(--color-gray-200)' }}>
+        <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: 'var(--color-gray-200)' }}>
+          <h2 className="font-semibold flex items-center gap-2">
+            <Banknote className="w-4 h-4 text-green-600" /> Pending Payouts (House Payments)
+            {stats.pending_payouts > 0 && (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+                {stats.pending_payouts} &middot; {formatPrice(stats.pending_payouts_amount)}
+              </span>
+            )}
+          </h2>
+          <div className="flex gap-1">
+            {['pending', 'held', 'paid', 'refunded', 'all'].map((f) => (
+              <button key={f} onClick={() => setPayoutFilter(f)}
+                className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
+                  payoutFilter === f
+                    ? 'bg-blue-600 text-white'
+                    : 'border text-gray-600 hover:bg-gray-100'
+                }`}
+                style={payoutFilter !== f ? { borderColor: 'var(--color-gray-300)', color: 'var(--color-gray-600)' } : {}}>
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+        {filteredPayouts.length === 0 ? (
+          <p className="text-gray-500 text-sm text-center py-8">No house payments found.</p>
+        ) : (
+          <div className="divide-y" style={{ borderColor: 'var(--color-gray-200)' }}>
+            {filteredPayouts.map((hb) => {
+              const isHeld = hb.release_status === 'held'
+              const confirmed = !!hb.confirmed_at
+              const isOverdue = isHeld && hb.held_until && new Date(hb.held_until) < new Date()
+              return (
+                <div key={hb.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                        hb.release_status === 'held' ? (isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') :
+                        hb.release_status === 'paid' ? 'bg-green-100 text-green-700' :
+                        hb.release_status === 'refunded' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                      }`}>
+                        {isHeld && isOverdue ? <AlertTriangle className="w-3 h-3" /> :
+                         isHeld ? <Clock className="w-3 h-3" /> :
+                         hb.release_status === 'paid' ? <CheckCircle className="w-3 h-3" /> :
+                         hb.release_status === 'refunded' ? <RotateCcw className="w-3 h-3" /> :
+                         null}
+                        {hb.release_status}{isOverdue ? ' (overdue)' : ''}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium capitalize">{hb.payment_method || 'payment'}</span>
+                      {isHeld && !confirmed && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          <AlertTriangle className="w-3 h-3" /> Hunter not confirmed
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-sm font-medium truncate mt-1" style={{ color: 'var(--color-gray-900)' }}>{hb.listing_title || 'Unknown listing'}</p>
+                    <p className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
+                      {formatPrice(hb.listing_price || 0)} &middot; Hunter: {hb.phone || hb.name || 'N/A'}
+                      {hb.user_id && ' &middot; Linked account'}
+                      {isHeld && hb.held_until && <> &middot; Held until {new Date(hb.held_until).toLocaleDateString()}</>}
+                      {hb.release_status === 'paid' && hb.paid_at && <> &middot; Paid {new Date(hb.paid_at).toLocaleDateString()}</>}
+                      {hb.release_status === 'refunded' && hb.refunded_at && <> &middot; Refunded {new Date(hb.refunded_at).toLocaleDateString()}</>}
+                      {hb.confirmed_at && <> &middot; Hunter confirmed {new Date(hb.confirmed_at).toLocaleDateString()}</>}
+                    </p>
+                  </div>
+                  <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+                    {isHeld && (
+                      <>
+                        <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === hb.id}
+                          className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1">
+                          <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleHouseAction(hb.id, 'house_refund', 'Refund 85% to hunter')} loading={actionLoading === hb.id}
+                          className="text-xs px-2.5 py-1">
+                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund 85%
+                        </Button>
+                      </>
+                    )}
+                    {hb.release_status === 'paid' && (
+                      <span className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 font-medium">Paid to lister</span>
+                    )}
+                    {hb.release_status === 'refunded' && (
+                      <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">Refunded</span>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
       </div>
 
       {/* All Escrows */}
@@ -457,13 +563,27 @@ export default function TreasuryPage() {
           <div className="rounded-xl p-6 w-full max-w-sm mx-4 shadow-xl" onClick={(e) => e.stopPropagation()}
             style={{ backgroundColor: 'var(--color-gray-50)' }}>
             <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-gray-900)' }}>Confirm {confirmAction.label}</h3>
-            <p className="text-sm mb-4" style={{ color: 'var(--color-gray-600)' }}>
-              {confirmAction.escrow.listing?.title || 'Unknown listing'} &middot; {formatPrice(confirmAction.escrow.amount)}
-            </p>
+            {confirmAction.houseBooking ? (
+              <p className="text-sm mb-4" style={{ color: 'var(--color-gray-600)' }}>
+                {confirmAction.houseBooking.listing_title || 'Unknown listing'} &middot; {formatPrice(confirmAction.houseBooking.listing_price || 0)}
+                <br />
+                <span className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
+                  {confirmAction.action === 'house_refund'
+                    ? `Hunter will receive 85% (${formatPrice(Math.round((confirmAction.houseBooking.listing_price || 0) * 0.85))}). The lister gets nothing.`
+                    : confirmAction.houseBooking.confirmed_at
+                      ? 'Hunter has confirmed they are pleased. Confirm you have paid the lister.'
+                      : 'Warning: the hunter has NOT confirmed yet. Only proceed if you verified satisfaction another way.'}
+                </span>
+              </p>
+            ) : (
+              <p className="text-sm mb-4" style={{ color: 'var(--color-gray-600)' }}>
+                {confirmAction.escrow?.listing?.title || 'Unknown listing'} &middot; {formatPrice(confirmAction.escrow?.amount || 0)}
+              </p>
+            )}
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
               <Button onClick={() => { executeConfirmedAction() }}
-                className={`text-white ${confirmAction.action === 'release' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
+                className={`text-white ${confirmAction.action.includes('release') || confirmAction.action === 'house_release' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
                 Confirm {confirmAction.label}
               </Button>
             </div>

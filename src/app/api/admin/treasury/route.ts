@@ -14,6 +14,12 @@ export async function GET() {
     .select('*, booking:bookings(*), listing:listings(title)')
     .order('created_at', { ascending: false })
 
+  const { data: houseBookings } = await supabase
+    .from('house_bookings')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(100)
+
   const { data: recentTransactions } = await supabase
     .from('transactions')
     .select('*')
@@ -27,6 +33,9 @@ export async function GET() {
     .filter((e) => e.status === 'released')
     .reduce((s, e) => s + Math.round((e.amount || 0) * 0.3), 0)
 
+  const heldHouse = (houseBookings || []).filter((h) => h.release_status === 'held')
+  const pendingPayoutsAmount = heldHouse.reduce((s, h) => s + (h.listing_price || 0), 0)
+
   return NextResponse.json({
     stats: {
       total_escrows: escrows?.length || 0,
@@ -37,8 +46,11 @@ export async function GET() {
       total_released_amount: totalReleased,
       total_refunded_amount: totalRefunded,
       platform_revenue: platformRevenue,
+      pending_payouts: heldHouse.length,
+      pending_payouts_amount: pendingPayoutsAmount,
     },
     escrows: escrows || [],
+    house_bookings: houseBookings || [],
     transactions: recentTransactions || [],
   })
 }
@@ -52,10 +64,56 @@ export async function POST(request: Request) {
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
-  const { action, escrow_id } = body
+  const { action, escrow_id, house_booking_id } = body
 
-  if (!action || !escrow_id) {
-    return NextResponse.json({ error: 'action and escrow_id required' }, { status: 400 })
+  if (!action) {
+    return NextResponse.json({ error: 'action required' }, { status: 400 })
+  }
+
+  if (action === 'house_release' || action === 'house_refund') {
+    if (!house_booking_id) return NextResponse.json({ error: 'house_booking_id required' }, { status: 400 })
+
+    const { data: hb } = await supabase.from('house_bookings').select('*').eq('id', house_booking_id).single()
+    if (!hb) return NextResponse.json({ error: 'House booking not found' }, { status: 404 })
+    if (hb.release_status !== 'held') {
+      return NextResponse.json({ error: 'House booking is not awaiting payout' }, { status: 400 })
+    }
+
+    if (action === 'house_release') {
+      const { error } = await supabase
+        .from('house_bookings')
+        .update({ release_status: 'paid', paid_at: new Date().toISOString() })
+        .eq('id', house_booking_id)
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+      await supabase.from('transactions').insert({
+        listing_id: hb.listing_id, phone: hb.phone || '', amount: hb.listing_price || 0,
+        mpesa_receipt: '', mpesa_message: 'Payout released to lister (house booking)',
+        checkout_request_id: '', status: 'success', payment_method: hb.payment_method || 'tuma',
+      })
+
+      return NextResponse.json({ success: true, message: 'Payout released to lister' })
+    }
+
+    const percentage = body.percentage ?? 85
+    const refundAmount = Math.round((hb.listing_price || 0) * (percentage / 100))
+    const { error } = await supabase
+      .from('house_bookings')
+      .update({ release_status: 'refunded', refunded_at: new Date().toISOString() })
+      .eq('id', house_booking_id)
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
+
+    await supabase.from('transactions').insert({
+      listing_id: hb.listing_id, phone: hb.phone || '', amount: refundAmount,
+      mpesa_receipt: '', mpesa_message: `Admin processed ${percentage}% refund (house booking)`,
+      checkout_request_id: '', status: 'success', payment_method: hb.payment_method || 'tuma',
+    })
+
+    return NextResponse.json({ success: true, message: `${percentage}% refund (KES ${refundAmount.toLocaleString()}) processed` })
+  }
+
+  if (!escrow_id) {
+    return NextResponse.json({ error: 'escrow_id required' }, { status: 400 })
   }
 
   const { data: escrow } = await supabase.from('escrow_holds').select('*').eq('id', escrow_id).single()
@@ -123,5 +181,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, message: `Reversal logged for KES ${tx.amount.toLocaleString()}` })
   }
 
-  return NextResponse.json({ error: `Invalid action '${action}'. Use release, refund, extend_hold, or reverse_tx.` }, { status: 400 })
+  return NextResponse.json({ error: `Invalid action '${action}'. Use release, refund, extend_hold, reverse_tx, house_release, or house_refund.` }, { status: 400 })
 }

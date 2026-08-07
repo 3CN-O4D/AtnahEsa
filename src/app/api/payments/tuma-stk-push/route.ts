@@ -24,6 +24,10 @@ export async function POST(req: Request) {
 
     const supabase = await createClient()
 
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
     const { data: listing } = await supabase
       .from('listings')
       .select('id, title, price, status')
@@ -55,6 +59,8 @@ export async function POST(req: Request) {
         name: '',
         phone: normalizedPhone,
         area: '',
+        user_id: user?.id || null,
+        payment_method: 'tuma',
         status: 'pending',
       })
       .select()
@@ -79,6 +85,7 @@ export async function POST(req: Request) {
       checkout_request_id: result.checkout_request_id,
       merchant_request_id: result.merchant_request_id,
       status: 'pending',
+      payment_method: 'tuma',
       raw_callback: { house_booking_id: booking.id },
     })
 

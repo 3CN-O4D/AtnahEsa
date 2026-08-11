@@ -503,7 +503,7 @@ function AdminDashboardInner() {
                 <p className="text-sm font-medium text-gray-500 mb-2">Payments by Method (successful)</p>
                 <div className="flex flex-wrap gap-2">
                   {stats.paymentsByMethod.map((m) => (
-                    <span key={m.method} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 text-sm">
+                    <span key={m.method} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-50 dark:bg-slate-800 border dark:border-gray-700 text-sm">
                       <span className="capitalize font-medium">{m.method.replace(/_/g, ' ')}</span>
                       <span className="text-gray-500">&middot; {m.count} &middot; {formatPrice(m.amount)}</span>
                     </span>

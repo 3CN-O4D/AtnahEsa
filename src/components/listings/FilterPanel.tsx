@@ -39,7 +39,7 @@ export default function FilterPanel({ onApply }: FilterPanelProps) {
   }
 
   return (
-    <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 animate-fadeIn">
+    <div className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 animate-fadeIn">
       <Input
         label="Location"
         id="filter-location"

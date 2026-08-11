@@ -32,7 +32,7 @@ export default function Modal({ open, onClose, title, children, className }: Mod
       <div className="fixed inset-0 bg-black/50" onClick={onClose} />
       <div
         className={cn(
-          'relative bg-white dark:bg-gray-900 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto z-10',
+          'relative bg-white dark:bg-slate-900 rounded-xl shadow-xl max-w-lg w-full mx-4 max-h-[90vh] overflow-y-auto z-10',
           className
         )}
       >

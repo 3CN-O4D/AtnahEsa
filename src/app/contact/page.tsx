@@ -81,7 +81,7 @@ export default function ContactPage() {
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder="Tell us how we can help..."
-              className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
             />
           </div>
@@ -108,7 +108,7 @@ export default function ContactPage() {
         </form>
 
         <div className="space-y-6">
-          <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-5 space-y-4">
+          <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold dark:text-white">Other ways to reach us</h3>
             <div className="space-y-3 text-sm text-gray-600">
               <a href={`mailto:${CONTACT_EMAIL}`} className="flex items-start gap-3 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">

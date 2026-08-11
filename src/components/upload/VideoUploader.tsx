@@ -72,7 +72,7 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
       {videoUrls.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
           {videoUrls.map((url, i) => (
-            <div key={i} className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-gray-800 aspect-video group">
+            <div key={i} className="relative rounded-lg overflow-hidden bg-gray-100 dark:bg-slate-800 aspect-video group">
               <video src={url} className="w-full h-full object-cover" />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-1 opacity-0 group-hover:opacity-100">
                 <a href={url} target="_blank" rel="noopener noreferrer" download

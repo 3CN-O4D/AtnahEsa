@@ -180,7 +180,7 @@ export default function NotificationsPage() {
       </div>
 
       {isAdmin && composeOpen && (
-        <form onSubmit={sendNotification} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-5 mb-6 space-y-4">
+        <form onSubmit={sendNotification} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-5 mb-6 space-y-4">
           <h2 className="font-semibold text-sm flex items-center gap-2">
             <Shield className="w-4 h-4 text-purple-600" /> Send Notification
           </h2>
@@ -196,7 +196,7 @@ export default function NotificationsPage() {
               <select
                 value={form.category}
                 onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="advert">Advert</option>
                 <option value="new_house">New House</option>
@@ -212,7 +212,7 @@ export default function NotificationsPage() {
               <select
                 value={form.audience}
                 onChange={(e) => setForm({ ...form, audience: e.target.value })}
-                className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="everyone">Everyone</option>
                 <option value="hunters">Hunters only</option>
@@ -226,7 +226,7 @@ export default function NotificationsPage() {
               value={form.title}
               onChange={(e) => setForm({ ...form, title: e.target.value })}
               placeholder="e.g. New houses available in Ruiru"
-              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </label>
           <label className="block">
@@ -236,7 +236,7 @@ export default function NotificationsPage() {
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               placeholder="Optional details..."
               rows={3}
-              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </label>
           <label className="block">
@@ -245,7 +245,7 @@ export default function NotificationsPage() {
               value={form.link}
               onChange={(e) => setForm({ ...form, link: e.target.value })}
               placeholder="e.g. /listings/abc-123"
-              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </label>
           <button
@@ -263,13 +263,13 @@ export default function NotificationsPage() {
         <div className="flex border rounded-lg overflow-hidden">
           <button
             onClick={() => setFilter('all')}
-            className={`px-4 py-1.5 text-sm font-medium ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600'}`}
+            className={`px-4 py-1.5 text-sm font-medium ${filter === 'all' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600'}`}
           >
             All
           </button>
           <button
             onClick={() => setFilter('unread')}
-            className={`px-4 py-1.5 text-sm font-medium ${filter === 'unread' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600'}`}
+            className={`px-4 py-1.5 text-sm font-medium ${filter === 'unread' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600'}`}
           >
             Unread {unreadIds.length > 0 && `(${unreadIds.length})`}
           </button>
@@ -301,7 +301,7 @@ export default function NotificationsPage() {
                   markRead([n.id])
                   if (n.link) router.push(n.link)
                 }}
-                className={`bg-white dark:bg-gray-800 border rounded-xl overflow-hidden transition-colors ${unread ? 'border-blue-200 dark:border-blue-800 cursor-pointer hover:border-blue-400' : 'border-gray-200 dark:border-gray-700'}`}
+                className={`bg-white dark:bg-slate-800 border rounded-xl overflow-hidden transition-colors ${unread ? 'border-blue-200 dark:border-blue-800 cursor-pointer hover:border-blue-400' : 'border-gray-200 dark:border-gray-700'}`}
               >
                 <div className="flex gap-3 p-4">
                   <div className={`w-9 h-9 flex-shrink-0 rounded-full ${meta.className} flex items-center justify-center`}>

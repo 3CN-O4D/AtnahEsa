@@ -85,7 +85,7 @@ export default function Header() {
   ]
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
+    <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-gray-700">
       <div className="flex items-center h-16">
         {/* Left: Logo + Name — flush to left edge */}
         <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">
@@ -144,7 +144,7 @@ export default function Header() {
                   <span className="truncate max-w-[120px]">{displayName || user.email}</span>
               </button>
               {showUserMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl shadow-lg py-2 z-50">
+                <div className="absolute right-0 top-full mt-2 w-48 bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl shadow-lg py-2 z-50">
                   <Link href="/profile" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Settings className="w-4 h-4" /> My Profile
                   </Link>
@@ -202,7 +202,7 @@ export default function Header() {
 
       {/* Mobile nav */}
       {menuOpen && (
-        <div className="md:hidden border-t bg-white dark:bg-gray-900 dark:border-gray-700 px-4 py-3 space-y-2">
+        <div className="md:hidden border-t bg-white dark:bg-slate-900 dark:border-gray-700 px-4 py-3 space-y-2">
           {navLinks.map(({ href, label, icon: Icon }) => (
             <Link
               key={href}

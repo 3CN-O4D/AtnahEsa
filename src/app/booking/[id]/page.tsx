@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Smartphone, Landmark, Copy, Check, CheckCircle, Loader2, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Smartphone, Landmark, Copy, Check, CheckCircle, Loader2, ShieldCheck, Clock, AlertTriangle, Phone } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { TILL_NUMBER } from '@/lib/constants'
@@ -27,6 +27,14 @@ export default function BookingPage() {
   const [tumaError, setTumaError] = useState('')
   const [tumaLoading, setTumaLoading] = useState(false)
   const [tumaResult, setTumaResult] = useState<{ customer_message?: string; checkout_request_id?: string; booking_id?: string } | null>(null)
+  // Payment verification: pending | success | failed | timed_out
+  const [payStatus, setPayStatus] = useState<'pending' | 'success' | 'failed' | 'timed_out'>('pending')
+  const [payDetails, setPayDetails] = useState<{
+    held_until: string | null
+    release_status: string
+    listing_status: string
+    lister: { name: string; phone: string } | null
+  } | null>(null)
   const [contactSaved, setContactSaved] = useState(false)
   const [contactName, setContactName] = useState('')
   const [contactArea, setContactArea] = useState('')
@@ -84,10 +92,62 @@ export default function BookingPage() {
       const data = await res.json()
       if (!res.ok) { setTumaError(data.error || 'Failed to initiate payment'); setTumaLoading(false); return }
       setTumaResult({ customer_message: data.customer_message, checkout_request_id: data.checkout_request_id, booking_id: data.booking_id })
+      setPayStatus('pending')
+      setPayDetails(null)
     } catch {
       setTumaError('Something went wrong')
     } finally { setTumaLoading(false) }
   }
+
+  // Poll the transaction status until confirmed/failed, with a 15s timeout.
+  // The payment must be ASSERTED (verified via the Tuma callback) before we
+  // ever present the green "all set" state.
+  const VERIFY_TIMEOUT_MS = 15_000
+  const VERIFY_INTERVAL_MS = 3_000
+  useEffect(() => {
+    if (!tumaResult?.booking_id) return
+    let cancelled = false
+    let settled = false
+    const deadline = Date.now() + VERIFY_TIMEOUT_MS
+
+    const checkOnce = async (): Promise<boolean> => {
+      try {
+        const res = await fetch(`/api/payments/tuma-status?booking_id=${encodeURIComponent(tumaResult.booking_id!)}&phone=${encodeURIComponent(phone)}`)
+        const data = await res.json()
+        if (data.error) return false
+        if (data.status === 'success') {
+          if (!cancelled) {
+            setPayStatus('success')
+            setPayDetails({
+              held_until: data.held_until || null,
+              release_status: data.release_status || 'pending',
+              listing_status: data.listing_status || '',
+              lister: data.lister || null,
+            })
+          }
+          return true
+        }
+        if (data.status === 'failed') {
+          if (!cancelled) setPayStatus('failed')
+          return true
+        }
+      } catch {}
+      return false
+    }
+
+    const poll = async () => {
+      if (settled) return
+      settled = await checkOnce()
+      if (!settled && Date.now() >= deadline) {
+        if (!cancelled) setPayStatus('timed_out')
+        return
+      }
+      if (!settled) setTimeout(poll, VERIFY_INTERVAL_MS)
+    }
+    poll()
+
+    return () => { cancelled = true; settled = true }
+  }, [tumaResult?.booking_id, phone])
 
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -167,7 +227,7 @@ export default function BookingPage() {
         value={phone}
         onChange={(e) => setPhone(e.target.value)}
         placeholder="0712 345 678"
-        className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
         required
       />
       {phoneLoaded && phone && <p className="text-xs text-blue-500 mt-1">Prefilled from your profile — you can edit it.</p>}
@@ -182,7 +242,7 @@ export default function BookingPage() {
 
       <h1 className="text-2xl font-bold mb-6 dark:text-white">Pay &amp; Book — {listing.title}</h1>
 
-      <div className="bg-white border rounded-xl p-4 mb-6 space-y-3 dark:bg-gray-800 dark:border-gray-700">
+      <div className="bg-white border rounded-xl p-4 mb-6 space-y-3 dark:bg-slate-800 dark:border-gray-700">
         <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-full h-40 rounded-lg object-cover" />
         <h2 className="font-semibold dark:text-white">{listing.title}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-300">{listing.location}</p>
@@ -198,7 +258,7 @@ export default function BookingPage() {
       </div>
 
       {/* Payment method tabs */}
-      <div className="flex p-1 mb-6 bg-gray-100 dark:bg-gray-800 rounded-xl">
+      <div className="flex p-1 mb-6 bg-gray-100 dark:bg-slate-800 rounded-xl">
         <button
           onClick={() => setTab('tuma')}
           className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-medium transition-colors ${tab === 'tuma' ? 'bg-blue-600 text-white shadow' : 'text-gray-600 dark:text-white hover:text-gray-800'}`}
@@ -226,9 +286,9 @@ export default function BookingPage() {
 
           {tumaResult ? (
             <div className="space-y-3">
-              <div className="bg-white dark:bg-gray-800 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm">
+              <div className="bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm">
                 <div className="flex items-start gap-2">
-                  <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                  <CheckCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
                   <div className="text-blue-900 dark:text-blue-100 space-y-1">
                     <p className="font-semibold">Payment prompt sent!</p>
                     <p>{tumaResult.customer_message || 'Check your phone and enter your PIN to complete payment.'}</p>
@@ -239,28 +299,146 @@ export default function BookingPage() {
                 </div>
               </div>
 
-              {contactSaved ? (
-                <div className="bg-white dark:bg-gray-800 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
-                    <div className="text-green-900 dark:text-green-100 space-y-1">
-                      <p className="font-semibold">You&apos;re all set!</p>
-                      <p>We&apos;ll confirm your payment automatically and link you with the lister. Track your booking and release/refund in <strong>My Bookings</strong>.</p>
+              {/* Payment verification status — asserted before we ever show the green confirmation. */}
+              {payStatus === 'pending' && (
+                <div className="bg-white dark:bg-slate-800 border border-blue-200 dark:border-blue-800 rounded-lg p-3 text-sm flex items-start gap-2">
+                  <Loader2 className="w-5 h-5 animate-spin text-blue-600 mt-0.5 shrink-0" />
+                  <div className="space-y-1">
+                    <p className="font-semibold text-gray-900 dark:text-white">Verifying your payment…</p>
+                    <p className="text-gray-500 dark:text-gray-300">Enter your PIN when prompted. We&apos;re confirming your payment — this can take up to 15 seconds.</p>
+                  </div>
+                </div>
+              )}
+
+              {payStatus === 'timed_out' && (
+                <div className="bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-700 rounded-lg p-3 text-sm flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-amber-500 mt-0.5 shrink-0" />
+                  <div className="space-y-2">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white">Payment not yet confirmed</p>
+                      <p className="text-gray-600 dark:text-gray-300">We didn&apos;t confirm your payment within 15 seconds. If you completed it, tap &quot;Check again&quot; — otherwise try again or use Buy Goods Till.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setPayStatus('pending'); setPayDetails(null) }}
+                        className="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700"
+                      >
+                        Check again
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => { setTumaResult(null); setPayStatus('pending'); setPayDetails(null) }}
+                        className="rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-white px-3 py-1.5 text-xs font-medium hover:bg-gray-300 dark:hover:bg-gray-600"
+                      >
+                        Try again
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTab('till')}
+                        className="rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-green-700"
+                      >
+                        Pay via Till
+                      </button>
                     </div>
                   </div>
                 </div>
+              )}
+
+              {payStatus === 'failed' && (
+                <div className="bg-white dark:bg-slate-800 border border-red-300 dark:border-red-800 rounded-lg p-3 text-sm flex items-start gap-2">
+                  <AlertTriangle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+                  <div className="space-y-2">
+                    <div>
+                      <p className="font-semibold text-gray-900 dark:text-white">Payment failed</p>
+                      <p className="text-gray-600 dark:text-gray-300">We could not confirm your payment. Try again or use Buy Goods Till instead.</p>
+                    </div>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => { setTumaResult(null); setPayStatus('pending'); setPayDetails(null) }}
+                        className="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700"
+                      >
+                        Try again
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTab('till')}
+                        className="rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-green-700"
+                      >
+                        Pay via Till
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {payStatus === 'success' ? (
+                <div className="bg-white dark:bg-slate-800 border border-green-200 dark:border-green-800 rounded-lg p-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <CheckCircle className="w-5 h-5 text-green-600 shrink-0 mt-0.5" />
+                    <div className="text-green-900 dark:text-green-100 space-y-2">
+                      <p className="font-semibold">Payment confirmed!</p>
+                      <p>KES {formatPrice(listing.price)} paid — this house is now booked. Track it and confirm/refund in <strong>My Bookings</strong>.</p>
+
+                      {/* 24-hour escrow instructions */}
+                      <div className="rounded-lg bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-800 p-2.5 text-xs">
+                        <div className="flex items-center gap-1.5 font-medium mb-1">
+                          <Clock className="w-3.5 h-3.5 text-blue-600 dark:text-blue-300" />
+                          <span>24-hour escrow — you have 24h to view the house</span>
+                        </div>
+                        <p className="text-gray-700 dark:text-gray-200">
+                          Your money is held safely for the next 24h. Visit the house within that time. If you&apos;re satisfied, confirm the viewing in <strong>My Bookings</strong> and the lister gets paid. If you&apos;re displeased, request a refund for <strong>85%</strong> — otherwise the escrow auto-pays the lister.
+                        </p>
+                      </div>
+
+                      {/* Lister linking details */}
+                      {payDetails?.lister ? (
+                        <div className="rounded-lg bg-gray-50 dark:bg-gray-800 border dark:border-gray-700 p-2.5 text-xs">
+                          <p className="font-medium mb-1.5 text-gray-900 dark:text-white">Your lister is linked</p>
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="font-semibold text-gray-900 dark:text-white">{payDetails.lister.name}</p>
+                              <p className="text-gray-500 dark:text-gray-300 flex items-center gap-1"><Phone className="w-3 h-3" /> {payDetails.lister.phone || 'Number shared on call'}</p>
+                            </div>
+                            <a
+                              href={`tel:${(payDetails.lister.phone || '').replace(/[^0-9+]/g, '')}`}
+                              className="rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700"
+                            >
+                              Call lister
+                            </a>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-gray-500 dark:text-gray-300">We&apos;ll link you with the lister shortly.</p>
+                      )}
+
+                      <a href="/my-bookings?tab=payments" className="inline-block rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-green-700">
+                        View in My Bookings
+                      </a>
+                    </div>
+                  </div>
+                </div>
+              ) : contactSaved ? (
+                <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-lg p-3 text-sm flex items-start gap-2">
+                  <CheckCircle className="w-5 h-5 text-blue-600 shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-semibold text-gray-900 dark:text-white">Contact saved</p>
+                    <p className="text-gray-500 dark:text-gray-300">Waiting for your payment to be confirmed…</p>
+                  </div>
+                </div>
               ) : (
-                <form onSubmit={handleContactSubmit} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-lg p-3 space-y-3">
+                <form onSubmit={handleContactSubmit} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-lg p-3 space-y-3">
                   <p className="text-sm font-medium text-gray-900 dark:text-white">
                     Complete your booking — this links you with the lister.
                   </p>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Full Name <span className="text-red-500">*</span></label>
-                    <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                    <input type="text" value={contactName} onChange={(e) => setContactName(e.target.value)} className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Area / Location</label>
-                    <input type="text" value={contactArea} onChange={(e) => setContactArea(e.target.value)} placeholder="e.g. Eldoret, Langas" className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                    <input type="text" value={contactArea} onChange={(e) => setContactArea(e.target.value)} placeholder="e.g. Eldoret, Langas" className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
                   </div>
                   {contactError && <p className="text-sm text-red-600">{contactError}</p>}
                   <button type="submit" disabled={contactLoading} className="w-full bg-blue-600 text-white rounded-lg py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed">
@@ -300,7 +478,7 @@ export default function BookingPage() {
             <p className="text-xs text-green-700 dark:text-green-300 mb-3">
               Send the {formatPrice(listing.price)} hunting fee to the Till number below, then paste your M-Pesa confirmation to verify.
             </p>
-            <div className="flex items-center justify-between bg-white dark:bg-gray-800 border border-green-200 dark:border-green-800 rounded-lg px-4 py-3">
+            <div className="flex items-center justify-between bg-white dark:bg-slate-800 border border-green-200 dark:border-green-800 rounded-lg px-4 py-3">
               <div>
                 <p className="text-xs text-gray-500 dark:text-gray-400">Till Number</p>
                 <p className="text-2xl font-bold tracking-wider text-green-700 dark:text-green-300">{TILL_NUMBER}</p>
@@ -323,7 +501,7 @@ export default function BookingPage() {
           </div>
 
           {tillSuccess ? (
-            <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4 text-center py-6">
+            <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-4 text-center py-6">
               <div className="w-12 h-12 bg-green-100 dark:bg-green-900/40 rounded-full flex items-center justify-center mx-auto mb-3">
                 <CheckCircle className="w-6 h-6 text-green-600" />
               </div>
@@ -333,7 +511,7 @@ export default function BookingPage() {
               </p>
             </div>
           ) : (
-            <form onSubmit={handleTillSubmit} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-4 space-y-3">
+            <form onSubmit={handleTillSubmit} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-4 space-y-3">
               <h2 className="text-base font-semibold text-gray-900 dark:text-white">Confirm your payment</h2>
               {phoneInput}
               <div>
@@ -349,7 +527,7 @@ export default function BookingPage() {
                   }}
                   rows={3}
                   placeholder="Paste the M-Pesa confirmation message you received here (e.g. &quot;ABCDE12345 Confirmed. Ksh150.00 sent to ...&quot;)"
-                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+                  className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                   required
                 />
                 {tillCode ? (

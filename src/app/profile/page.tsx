@@ -546,7 +546,7 @@ export default function ProfilePage() {
       )}
 
       {/* Profile Card */}
-      <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 space-y-4 mb-6">
+      <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6 space-y-4 mb-6">
         <div className="flex items-start justify-between">
           <h1 className="text-2xl font-bold dark:text-white">My Profile</h1>
           {!editMode && (
@@ -651,7 +651,7 @@ export default function ProfilePage() {
 
       {/* Password Section */}
       {createStep === 'form' && isGoogleUser && !hasPassword && !editMode && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Create Password
           </h2>
@@ -684,7 +684,7 @@ export default function ProfilePage() {
       )}
 
       {createStep === 'otp' && isGoogleUser && !hasPassword && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Verify Code
           </h2>
@@ -721,7 +721,7 @@ export default function ProfilePage() {
       )}
 
       {step === 'form' && !(isGoogleUser && !hasPassword) && !editMode && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Change Password
           </h2>
@@ -760,7 +760,7 @@ export default function ProfilePage() {
       )}
 
       {step === 'otp' && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Lock className="w-5 h-5" /> Verify OTP
           </h2>
@@ -808,7 +808,7 @@ export default function ProfilePage() {
 
       {/* Email Change Section */}
       {emailStep === 'idle' && !editMode && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Mail className="w-5 h-5" /> Change Email
           </h2>
@@ -827,7 +827,7 @@ export default function ProfilePage() {
       )}
 
       {emailStep === 'otp' && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
           <h2 className="text-lg font-semibold mb-4 dark:text-white flex items-center gap-2">
             <Mail className="w-5 h-5" /> Verify New Email
           </h2>
@@ -864,7 +864,7 @@ export default function ProfilePage() {
       )}
 
       {emailStep === 'done' && (
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6 mt-6">
           <h2 className="text-lg font-semibold mb-2 dark:text-white flex items-center gap-2">
             <Mail className="w-5 h-5" /> Email Changed
           </h2>
@@ -877,7 +877,7 @@ export default function ProfilePage() {
 
       {/* Delete Account */}
       {deleteStep === 'confirm' && !editMode && (
-        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 rounded-xl p-6 mt-6">
+        <div className="bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 rounded-xl p-6 mt-6">
           <h2 className="text-lg font-semibold mb-2 dark:text-white flex items-center gap-2 text-red-600">
             Delete Account
           </h2>
@@ -890,7 +890,7 @@ export default function ProfilePage() {
       )}
 
       {deleteStep === 'otp' && (
-        <div className="bg-white dark:bg-gray-800 border border-red-200 dark:border-red-800 rounded-xl p-6 mt-6">
+        <div className="bg-white dark:bg-slate-800 border border-red-200 dark:border-red-800 rounded-xl p-6 mt-6">
           <h2 className="text-lg font-semibold mb-2 dark:text-white flex items-center gap-2 text-red-600">
             Confirm Deletion
           </h2>

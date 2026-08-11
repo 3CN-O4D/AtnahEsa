@@ -150,7 +150,7 @@ export default function RequestsPage() {
         </span>
       </div>
 
-      <div className="flex items-center gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 text-sm mb-5 w-fit">
+      <div className="flex items-center gap-1 bg-gray-100 dark:bg-slate-800 rounded-xl p-1 text-sm mb-5 w-fit">
         {([['all', 'All'], ['pending', 'Pending'], ['contacted', 'Contacted'], ['closed', 'Closed']] as const).map(([key, label]) => (
           <button
             key={key}
@@ -162,7 +162,7 @@ export default function RequestsPage() {
         ))}
       </div>
 
-      <div className="mb-4 flex items-start gap-2 bg-gray-50 dark:bg-gray-800/60 border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-xs text-gray-500 dark:text-white">
+      <div className="mb-4 flex items-start gap-2 bg-gray-50 dark:bg-slate-800/60 border border-gray-200 dark:border-gray-700 rounded-xl p-3 text-xs text-gray-500 dark:text-white">
         <ShieldCheck className="w-4 h-4 text-green-500 shrink-0 mt-0.5" />
         <p>For lister privacy, requesters&apos; names, phone numbers, and emails are hidden. When you claim a request, our team contacts the requester on your behalf.</p>
       </div>
@@ -181,7 +181,7 @@ export default function RequestsPage() {
             const claimedByOther = r.claimed_by && !claimedByMe
             const status = STATUS_CONFIG[r.status] || STATUS_CONFIG.pending
             return (
-              <div key={r.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-5">
+              <div key={r.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-5">
                 <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
                   <div className="flex items-center gap-2">
                     <MapPin className="w-4 h-4 text-blue-500" />
@@ -224,7 +224,7 @@ export default function RequestsPage() {
                 </div>
 
                 {r.description && (
-                  <p className="text-sm text-gray-600 dark:text-white bg-gray-50 dark:bg-gray-900/40 rounded-lg p-3 mb-3">{r.description}</p>
+                  <p className="text-sm text-gray-600 dark:text-white bg-gray-50 dark:bg-slate-900/40 rounded-lg p-3 mb-3">{r.description}</p>
                 )}
 
                 <div className="flex items-center justify-between gap-3 flex-wrap">

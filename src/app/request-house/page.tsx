@@ -81,7 +81,7 @@ function CheckboxGroup({ label, options, selected, onChange, hint }: {
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border transition-colors ${
                 active
                   ? 'bg-blue-600 text-white border-blue-600'
-                  : 'bg-white dark:bg-gray-800 text-gray-600 border-gray-300 dark:border-gray-600 hover:border-blue-400'
+                  : 'bg-white dark:bg-slate-800 text-gray-600 border-gray-300 dark:border-gray-600 hover:border-blue-400'
               }`}
             >
               {active && <Check className="w-3.5 h-3.5" />}
@@ -172,14 +172,14 @@ export default function RequestHousePage() {
       </p>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 space-y-4">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Contact Info</h2>
           <Input label="Full Name" id="name" value={form.name} onChange={(e) => update('name', e.target.value)} required />
           <Input label="Email" id="email" type="email" value={form.email} onChange={(e) => update('email', e.target.value)} required />
           <Input label="Phone Number" id="phone" type="tel" placeholder="0712 345 678" value={form.phone} onChange={(e) => update('phone', e.target.value)} required />
         </div>
 
-        <div className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl p-6 space-y-4">
+        <div className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl p-6 space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">What I&apos;m Looking For</h2>
 
           <Input label="Preferred Location" id="location" placeholder="e.g. Eldoret, Nairobi..." value={form.location} onChange={(e) => update('location', e.target.value)} required />

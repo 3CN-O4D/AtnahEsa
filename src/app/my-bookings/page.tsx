@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, Suspense } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, Home, Star, ThumbsUp, ThumbsDown, Loader2, Phone, MessageCircle } from 'lucide-react'
 import { SkeletonBooking } from '@/components/ui/Skeleton'
@@ -57,10 +57,20 @@ function Countdown({ held_until }: { held_until: string }) {
 }
 
 export default function MyBookingsPage() {
+  return (
+    <Suspense fallback={<SkeletonBooking />}>
+      <MyBookingsInner />
+    </Suspense>
+  )
+}
+
+function MyBookingsInner() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialTab = (searchParams.get('tab') as Tab) || 'hunter'
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [profileRole, setProfileRole] = useState<string | null>(null)
-  const [tab, setTab] = useState<Tab>('hunter')
+  const [tab, setTab] = useState<Tab>(initialTab)
   const [bookings, setBookings] = useState<BookingWithDetails[]>([])
   const [listerBookings, setListerBookings] = useState<BookingWithDetails[]>([])
   const [houseBookings, setHouseBookings] = useState<HouseBooking[]>([])
@@ -172,17 +182,17 @@ export default function MyBookingsPage() {
 
       <div className="flex border rounded-lg mb-6 overflow-hidden">
         <button onClick={() => setTab('hunter')}
-          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'hunter' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'hunter' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
           <Eye className="w-4 h-4 inline mr-1.5" /> My Viewings
         </button>
         {showListerTab && (
           <button onClick={() => setTab('lister')}
-            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'lister' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'lister' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
             <Home className="w-4 h-4 inline mr-1.5" /> Bookings on My Houses
           </button>
         )}
         <button onClick={() => setTab('payments')}
-          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'payments' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-gray-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'payments' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
           <Star className="w-4 h-4 inline mr-1.5" /> Payments
         </button>
       </div>
@@ -204,7 +214,7 @@ export default function MyBookingsPage() {
               const isHeld = hb.release_status === 'held'
               const isActing = acting?.id === hb.id
               return (
-                <div key={hb.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl overflow-hidden">
+                <div key={hb.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -257,7 +267,7 @@ export default function MyBookingsPage() {
                           onChange={(e) => setDispleasedReason(e.target.value)}
                           disabled={!!acting}
                           placeholder="Tell us what went wrong..."
-                          className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           rows={3}
                         />
                         <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
@@ -301,7 +311,7 @@ export default function MyBookingsPage() {
             <div className="space-y-3">
               <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-300">House payments on your listings</h2>
               {listerHouseBookings.map((hb) => (
-                <div key={hb.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl overflow-hidden">
+                <div key={hb.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0">
@@ -348,7 +358,7 @@ export default function MyBookingsPage() {
             </div>
           )}
           {currentBookings.map((b) => (
-            <div key={b.id} className="bg-white dark:bg-gray-800 border dark:border-gray-700 rounded-xl overflow-hidden">
+            <div key={b.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="flex gap-4 p-4">
                 <div className="w-24 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
                   <img src={b.listing.images?.[0] || '/placeholder.jpg'} alt="" className="w-full h-full object-cover" />
@@ -372,7 +382,7 @@ export default function MyBookingsPage() {
                   </div>
                 </div>
               </div>
-              <div className="border-t dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-gray-800/50 flex items-center justify-between">
+              <div className="border-t dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-slate-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   {b.escrow_hold?.status === 'held' && <><CheckCircle className="w-3 h-3 text-blue-500" /> Escrow active</>}
                   {b.escrow_hold?.status === 'released' && <><CheckCircle className="w-3 h-3 text-green-500" /> Funds released</>}

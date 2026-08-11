@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { Zap, Check, Phone, Mail, Clock, Layers, MessageCircle, Wifi, Star } from 'lucide-react'
+import Image from 'next/image'
 import Button from '@/components/ui/Button'
 import { SkeletonPage } from '@/components/ui/Skeleton'
 import WifiBookingModal from '@/components/wifi/WifiBookingModal'
@@ -69,12 +70,16 @@ export default function WifiPage() {
       <div style={{ backgroundColor: '#1a5c2a', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
         <div className="max-w-6xl mx-auto px-4 py-3 flex items-center justify-center gap-6">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center text-white text-xs font-bold">A</div>
+            <div className="relative w-10 h-10 rounded-full overflow-hidden bg-white/20">
+              <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" fill sizes="40px" className="object-cover" />
+            </div>
             <span className="text-sm font-semibold text-white/80">ASEHANTA</span>
           </div>
           <span className="text-white/30 text-xl font-light">+</span>
           <div className="flex items-center gap-2">
-            <Wifi className="w-5 h-5 text-green-300" />
+            <div className="relative w-10 h-10 rounded-full overflow-hidden bg-white/20">
+              <Image src="/images/jambonet-logo-big.jpeg" alt="Jambonet" fill sizes="40px" className="object-cover" />
+            </div>
             <span className="text-sm font-semibold text-white/80">JAMBO NET</span>
           </div>
         </div>

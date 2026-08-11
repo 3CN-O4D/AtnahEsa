@@ -346,7 +346,7 @@ export default function ListingDetailPage() {
           )}
 
           {/* House Details */}
-          <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
+          <div className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold flex items-center gap-2 text-gray-900 dark:text-white dark:text-white">
               <Home className="w-4 h-4 text-blue-500" /> House Details
             </h3>
@@ -409,19 +409,19 @@ export default function ListingDetailPage() {
           </div>
 
           {/* Reviews */}
-          <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
+          <div className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-5 space-y-4">
             <h3 className="font-semibold flex items-center gap-2 dark:text-white">
               <Star className="w-4 h-4 text-yellow-500" /> Reviews
               {avgRating > 0 && <span className="text-sm font-normal text-gray-500 dark:text-white dark:text-white">({avgRating} avg)</span>}
             </h3>
 
             {user && canReview && !alreadyReviewed && (
-              <div className="space-y-3 p-4 bg-gray-50 dark:bg-gray-800 rounded-xl">
+              <div className="space-y-3 p-4 bg-gray-50 dark:bg-slate-800 rounded-xl">
                 <p className="text-sm font-medium dark:text-white">Rate this property</p>
                 <Stars rating={myRating} interactive onChange={setMyRating} />
                 <textarea value={myComment} onChange={(e) => setMyComment(e.target.value)}
                   placeholder="Your comments (optional)..."
-                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
                 <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-white dark:text-white cursor-pointer">
                   <input type="checkbox" checked={myAnonymous} onChange={(e) => setMyAnonymous(e.target.checked)} className="rounded accent-gray-600" />
                   Post anonymously
@@ -435,7 +435,7 @@ export default function ListingDetailPage() {
                 <Stars rating={listerRating} interactive onChange={setListerRating} />
                 <textarea value={listerComment} onChange={(e) => setListerComment(e.target.value)}
                   placeholder="Share your experience with this lister (optional)..."
-                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
+                  className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-slate-800 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" rows={2} />
                 <label className="flex items-center gap-2 text-sm text-gray-500 dark:text-white dark:text-white cursor-pointer">
                   <input type="checkbox" checked={listerAnonymous} onChange={(e) => setListerAnonymous(e.target.checked)} className="rounded accent-gray-600" />
                   Post anonymously
@@ -507,7 +507,7 @@ export default function ListingDetailPage() {
 
         {/* Sidebar */}
         <div className="space-y-4">
-          <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 sticky top-24">
+          <div className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-4 space-y-4 sticky top-24">
             <div>
               <p className="text-sm text-gray-500 dark:text-white">Monthly Rent</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatPrice(listing.rent)}</p>

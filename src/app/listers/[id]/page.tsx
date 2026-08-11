@@ -45,7 +45,7 @@ export default function ListerPage() {
         <ArrowLeft className="w-4 h-4" /> Back
       </Link>
 
-      <div className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-6 mb-6">
+      <div className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-6 mb-6">
         <div className="flex items-center gap-3">
           <div className="w-12 h-12 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400 font-bold text-lg">
             {displayName.charAt(0).toUpperCase()}
@@ -71,7 +71,7 @@ export default function ListerPage() {
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {listings.map((l) => (
-                <Link key={l.id} href={`/listings/${l.id}`} className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow">
+                <Link key={l.id} href={`/listings/${l.id}`} className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-4 hover:shadow-md transition-shadow">
                   <h3 className="font-semibold truncate dark:text-white">{l.title}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{l.location}</p>
                   <p className="text-sm text-blue-600 dark:text-blue-400 font-medium mt-1">Rent: {formatPrice(l.rent)}/mo</p>
@@ -90,7 +90,7 @@ export default function ListerPage() {
           ) : (
             <div className="space-y-2">
               {taken.map((l) => (
-                <div key={l.id} className="bg-white dark:bg-gray-900 border dark:border-gray-700 rounded-xl p-4">
+                <div key={l.id} className="bg-white dark:bg-slate-900 border dark:border-gray-700 rounded-xl p-4">
                   <h3 className="font-semibold dark:text-white">{l.title}</h3>
                   <p className="text-sm text-gray-500 dark:text-gray-400">{l.location}</p>
                   {l.status === 'booked' ? (

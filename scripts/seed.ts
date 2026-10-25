@@ -51,18 +51,27 @@ async function downloadAndUpload(url: string, idx: number): Promise<string> {
 }
 
 async function createUser(email: string, password: string, fullName: string, username: string, role: 'hunter' | 'lister', phone: string) {
-  const { data, error } = await supabase.auth.admin.createUser({
+  let { data, error } = await supabase.auth.admin.createUser({
     email,
     password,
     email_confirm: true,
     user_metadata: { username, full_name: fullName, phone, role, terms_accepted: true },
   })
   if (error) {
-    console.error(`  Failed to create ${email}: ${error.message}`)
-    return null
+    // User may already exist (preserved accounts) — look them up instead of failing
+    const { data: users } = await supabase.auth.admin.listUsers()
+    const existing = users?.users.find((u: any) => u.email === email)
+    if (existing) {
+      data = { user: existing }
+      error = null
+      console.log(`  Existing user ${email} (${role}) — ID: ${existing.id}`)
+    } else {
+      console.error(`  Failed to create ${email}: ${error.message}`)
+      return null
+    }
   }
-  console.log(`  Created user ${email} (${role}) — ID: ${data.user.id}`)
-  return data.user.id
+  console.log(`  Created user ${email} (${role}) — ID: ${data.user!.id}`)
+  return data.user!.id
 }
 
 const LISTERS = [
@@ -242,30 +251,32 @@ async function main() {
   }
   console.log(`Created ${listerIds.length} listers\n`)
 
-  // Step 3: Create listings
+  // Step 3: Create listings (target exactly 26 taken/successful listings)
   console.log('Step 3: Creating listings...')
+  const TARGET_LISTINGS = 26
   let listingCount = 0
-  for (let i = 0; i < LISTINGS.length; i++) {
+  for (let i = 0; i < TARGET_LISTINGS; i++) {
+    const template = LISTINGS[i % LISTINGS.length]
     const listerId = listerIds[Math.floor(i / 3) % listerIds.length]
     // Each listing gets 1-3 images
     const imgCount = 1 + (i % 3)
-    const images = cloudinaryUrls.slice(i % 7, i % 7 + imgCount)
+    const images = cloudinaryUrls.slice(i % IMAGE_URLS.length, i % IMAGE_URLS.length + imgCount)
 
     const { error } = await supabase.from('listings').insert({
-      ...LISTINGS[i],
+      ...template,
       images,
       uploader_id: listerId,
-      uploader_name: LISTERS.find(l => l.phone === LISTINGS[i].lister_phone)?.name ?? 'Unknown',
-      status: 'published',
+      uploader_name: LISTERS.find(l => l.phone === template.lister_phone)?.name ?? 'Unknown',
+      status: 'taken',
     })
     if (error) {
       console.error(`  Failed to create listing ${i + 1}: ${error.message}`)
     } else {
       listingCount++
-      console.log(`  Created listing ${i + 1}: ${LISTINGS[i].title}`)
+      console.log(`  Created listing ${i + 1}: ${template.title}`)
     }
   }
-  console.log(`\nCreated ${listingCount} listings`)
+  console.log(`\nCreated ${listingCount} listings (target ${TARGET_LISTINGS})`)
 
   console.log('\n=== SEED COMPLETE ===')
   console.log('Users (password: AseHanta.1):')

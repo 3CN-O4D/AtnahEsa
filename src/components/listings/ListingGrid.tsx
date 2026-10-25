@@ -78,6 +78,16 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
 
   return (
     <div>
+      {listings.length > 0 && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="font-semibold text-gray-700 dark:text-gray-200">
+            {listings.length} home{listings.length !== 1 ? 's' : ''}
+          </span>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            &middot; {sort ? sort.replace(/_/g, ' ') : 'Newest first'}
+          </span>
+        </div>
+      )}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
         {listings.map((listing, i) => (
           <div key={listing.id} className="animate-fadeIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>

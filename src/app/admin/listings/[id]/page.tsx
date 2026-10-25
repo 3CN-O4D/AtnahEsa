@@ -32,6 +32,7 @@ export default function AdminEditListingPage() {
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
@@ -62,6 +63,7 @@ export default function AdminEditListingPage() {
       setDescriptiveLocation(l.descriptive_location)
       setLocation(l.location)
       setYoutubeUrl(l.youtube_url ?? '')
+      setTiktokUrl(l.tiktok_url ?? '')
       setVideoUrls(l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : []))
       setIssues(l.issues)
       setPaymentMethod(l.payment_method)
@@ -116,6 +118,7 @@ export default function AdminEditListingPage() {
         location,
         images,
         youtube_url: youtubeUrl || null,
+        tiktok_url: tiktokUrl || null,
         video_urls: videoUrls,
         issues,
         issues_count: issues.length,
@@ -180,6 +183,7 @@ export default function AdminEditListingPage() {
 
         <Input label="Location (Area)" id="location" placeholder="e.g. Nairobi, Westlands" value={location} onChange={(e) => setLocation(e.target.value)} required />
         <Input label="YouTube Video URL (optional)" id="youtube" type="url" placeholder="https://youtube.com/watch?v=..." value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
+        <Input label="TikTok Video URL (optional)" id="tiktok" type="url" placeholder="https://www.tiktok.com/@username/video/..." value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} />
         <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />
 
         <div className="space-y-1">

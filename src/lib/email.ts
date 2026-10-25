@@ -58,6 +58,34 @@ const typeConfig: Record<string, { emoji: string; color: string; badge: string }
   email_change: { emoji: '📧', color: '#0891B2', badge: 'Email Change' },
 }
 
+export async function sendBulkAnnouncementEmail(email: string) {
+  const subject = 'AseHanta is back – New listings coming Monday'
+
+  const body = `
+<tr><td style="padding:32px">
+  <table width="100%" cellpadding="0" cellspacing="0">
+    <tr><td style="padding-bottom:24px"><h1 style="margin:0;font-size:24px;font-weight:700;color:${BRAND.dark}">AseHanta is back</h1></td></tr>
+    <tr><td style="padding-bottom:16px"><p style="margin:0;font-size:15px;color:${BRAND.dark};line-height:1.7">Hello,</p></td></tr>
+    <tr><td style="padding-bottom:16px"><p style="margin:0;font-size:15px;color:${BRAND.dark};line-height:1.7">We're pleased to let you know that <strong>AseHanta</strong> is back from a short break.</p></td></tr>
+    <tr><td style="padding-bottom:16px"><p style="margin:0;font-size:15px;color:${BRAND.dark};line-height:1.7">New property listings are expected to go live starting <strong>Monday</strong>. We'll be adding fresh houses across Kenya for you to browse, book and connect with listers.</p></td></tr>
+    <tr><td style="padding-bottom:24px"><p style="margin:0;font-size:15px;color:${BRAND.dark};line-height:1.7">Thank you for your patience and continued trust in AseHanta.</p></td></tr>
+    <tr><td style="padding-bottom:32px">
+      <table cellpadding="0" cellspacing="0">
+        <tr><td style="background:${BRAND.blue};border-radius:8px"><a href="https://www.asehanta.com/listings" style="display:inline-block;padding:12px 28px;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px">Browse Listings</a></td></tr>
+      </table>
+    </td></tr>
+    <tr><td><p style="margin:0;font-size:15px;color:${BRAND.dark};line-height:1.7">Kind regards,<br><strong>The AseHanta Team</strong></p></td></tr>
+  </table>
+</td></tr>`
+
+  await transporter.sendMail({
+    from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
+    to: email,
+    subject,
+    html: baseHtml(body),
+  })
+}
+
 export async function sendOtpEmail(email: string, otp: string, type: string) {
   const cfg = typeConfig[type] || { emoji: '✉️', color: '#2563EB', badge: 'Verification' }
 

@@ -56,8 +56,8 @@ async function main() {
       electricity: 'metered', electric_bill: 'paid by tenant', water: 'borehole',
       payment_method: 'monthly', lister_phone: '+254711100003',
       images: [
-        'https://res.cloudinary.com/dnm5a2xvh/image/upload/v1784579127/asehanta/listings/seed-house-7.jpg',
-        'https://res.cloudinary.com/dnm5a2xvh/image/upload/v1784579129/asehanta/listings/seed-house-8.jpg',
+        `https://res.cloudinary.com/${env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/v1784579127/asehanta/listings/seed-house-7.jpg`,
+        `https://res.cloudinary.com/${env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload/v1784579129/asehanta/listings/seed-house-8.jpg`,
       ],
       uploader_id: lister3.id, uploader_name: 'Peter Ochieng', status: 'published',
       issues: [], issues_count: 0,

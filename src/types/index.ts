@@ -10,9 +10,11 @@ export interface Listing {
   location: string
   images: string[]
   youtube_url: string | null
+  tiktok_url: string | null
   video_url: string | null
   video_urls: string[]
   youtube_urls: string[]
+  tiktok_urls: string[]
   issues: string[]
   issues_count: number
   deposit: number

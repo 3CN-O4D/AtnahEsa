@@ -318,21 +318,34 @@ function AdminDashboardInner() {
     clearCache('admin:'); loadAll()
   }
 
-  const handleUpdateYoutubeUrl = async (listingId: string, youtubeUrls: string | string[]) => {
+  const handleUpdateVideoLinks = async (listingId: string, links: { youtube?: string | string[]; tiktok?: string | string[] }) => {
     const update: Record<string, unknown> = {}
-    if (typeof youtubeUrls === 'string') {
-      update.youtube_url = youtubeUrls
-      update.youtube_urls = [youtubeUrls]
-    } else {
-      update.youtube_urls = youtubeUrls
-      update.youtube_url = youtubeUrls[0] || null
+    if (links.youtube !== undefined) {
+      const yts = links.youtube
+      if (typeof yts === 'string') {
+        update.youtube_url = yts
+        update.youtube_urls = [yts]
+      } else {
+        update.youtube_urls = yts
+        update.youtube_url = yts[0] || null
+      }
+    }
+    if (links.tiktok !== undefined) {
+      const tts = links.tiktok
+      if (typeof tts === 'string') {
+        update.tiktok_url = tts
+        update.tiktok_urls = [tts]
+      } else {
+        update.tiktok_urls = tts
+        update.tiktok_url = tts[0] || null
+      }
     }
     const res = await fetch(`/api/admin/listings/${listingId}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(update),
     })
-    if (!res.ok) { showToast('error', 'Failed to save YouTube URL'); return }
-    showToast('success', 'YouTube URL saved')
+    if (!res.ok) { showToast('error', 'Failed to save video URLs'); return }
+    showToast('success', 'Video URLs saved')
     clearCache('admin:'); loadAll()
   }
 
@@ -819,17 +832,19 @@ function AdminDashboardInner() {
         <div className="space-y-4">
           <h2 className="text-lg font-semibold">Video Review</h2>
           {(() => {
+            const ytOf = (l: typeof allListings[number]) => l.youtube_urls?.length ? l.youtube_urls : (l.youtube_url ? [l.youtube_url] : [])
+            const ttOf = (l: typeof allListings[number]) => l.tiktok_urls?.length ? l.tiktok_urls : (l.tiktok_url ? [l.tiktok_url] : [])
             const hasVideo = (l: typeof allListings[number]) => {
               const urls = l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : [])
-              const ytUrls = l.youtube_urls?.length ? l.youtube_urls : (l.youtube_url ? [l.youtube_url] : [])
-              return urls.length > ytUrls.length
+              return urls.length > Math.max(ytOf(l).length, ttOf(l).length)
             }
             const videoListings = allListings.filter(hasVideo)
             if (videoListings.length === 0) return <p className="text-gray-500 text-center py-8">No videos awaiting review.</p>
             return videoListings.map((listing) => {
               const urls = listing.video_urls?.length ? listing.video_urls : (listing.video_url ? [listing.video_url] : [])
-              const ytUrls = listing.youtube_urls?.length ? listing.youtube_urls : (listing.youtube_url ? [listing.youtube_url] : [])
-              const pending = urls.filter((_, i) => !ytUrls[i])
+              const ytUrls = ytOf(listing)
+              const ttUrls = ttOf(listing)
+              const pending = urls.filter((_, i) => !ytUrls[i] && !ttUrls[i])
               return (
               <div key={listing.id} className="bg-white border dark:border-gray-700 rounded-xl p-4">
                 <div className="flex items-start gap-4 mb-3">
@@ -855,19 +870,30 @@ function AdminDashboardInner() {
                         id={`yt-${listing.id}-${vi}`}
                         className="w-64 rounded-lg border border-gray-300 dark:border-gray-600 bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
                       />
+                      <input
+                        type="text"
+                        placeholder="Paste TikTok URL..."
+                        id={`tt-${listing.id}-${vi}`}
+                        className="w-64 rounded-lg border border-gray-300 dark:border-gray-600 bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
                     </div>
                   ))}
                 </div>
                 <div className="mt-3 flex justify-end">
                   <Button size="sm" onClick={() => {
                     const yts: string[] = []
+                    const tts: string[] = []
                     for (let i = 0; i < pending.length; i++) {
-                      const input = document.getElementById(`yt-${listing.id}-${i}`) as HTMLInputElement
-                      yts.push(input?.value || '')
+                      const ytInput = document.getElementById(`yt-${listing.id}-${i}`) as HTMLInputElement
+                      const ttInput = document.getElementById(`tt-${listing.id}-${i}`) as HTMLInputElement
+                      yts.push(ytInput?.value || '')
+                      tts.push(ttInput?.value || '')
                     }
-                    const allYt = [...ytUrls, ...yts].filter(Boolean)
-                    handleUpdateYoutubeUrl(listing.id, allYt)
-                  }}>Save All YouTube URLs</Button>
+                    handleUpdateVideoLinks(listing.id, {
+                      youtube: [...ytUrls, ...yts].filter(Boolean),
+                      tiktok: [...ttUrls, ...tts].filter(Boolean),
+                    })
+                  }}>Save Video URLs</Button>
                 </div>
               </div>
             )})

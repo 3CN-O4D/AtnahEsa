@@ -14,7 +14,7 @@ export async function GET() {
 
   const { data: listings, error } = await adminSupabase
     .from('listings')
-    .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url, video_urls, youtube_urls, taken_by_name')
+    .select('id, title, price, rent, location, status, images, uploader_id, uploader_name, issues_count, created_at, lister_phone, video_url, youtube_url, tiktok_url, video_urls, youtube_urls, tiktok_urls, taken_by_name')
     .order('created_at', { ascending: false })
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })

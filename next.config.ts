@@ -29,7 +29,7 @@ const nextConfig: NextConfig = {
               "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com",
               "font-src 'self' data:",
               `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')}`,
-              "frame-src https://www.youtube.com",
+              "frame-src https://www.youtube.com https://www.tiktok.com https://tiktok.com",
               "media-src 'self' blob: https:",
               "base-uri 'self'",
               "form-action 'self'",

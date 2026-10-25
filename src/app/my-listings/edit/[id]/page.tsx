@@ -43,6 +43,7 @@ export default function EditListingPage() {
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
@@ -77,6 +78,7 @@ export default function EditListingPage() {
       setDescriptiveLocation(l.descriptive_location)
       setLocation(l.location)
       setYoutubeUrl(l.youtube_url ?? '')
+      setTiktokUrl(l.tiktok_url ?? '')
       setVideoUrls(l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : []))
       setIssues(l.issues)
       setPaymentMethod(l.payment_method)
@@ -111,7 +113,7 @@ export default function EditListingPage() {
         house_type: houseType === '3+ Bedroom' ? `3+ Bedroom (${bedroomCount})` : houseType === 'Other' ? customHouseType : houseType,
         building_type: buildingType, floor_number: floorNumber,
         descriptive_location: descriptiveLocation, location,
-        images, youtube_url: youtubeUrl || null, video_urls: videoUrls,
+        images, youtube_url: youtubeUrl || null, tiktok_url: tiktokUrl || null, video_urls: videoUrls,
         issues, issues_count: issues.length, payment_method: paymentMethod, lister_phone: listerPhone,
       }
       if (currentStatus === 'published') updates.status = 'pending'
@@ -215,6 +217,7 @@ export default function EditListingPage() {
 
         <Input label="Location (Area)" id="location" value={location} onChange={(e) => setLocation(e.target.value)} required />
         <Input label="YouTube Video URL" id="youtube" type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
+        <Input label="TikTok Video URL" id="tiktok" type="url" placeholder="https://www.tiktok.com/@username/video/..." value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} />
         <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />
 
         <div className="space-y-1">

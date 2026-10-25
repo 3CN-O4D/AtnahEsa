@@ -36,6 +36,7 @@ export default function UploadPage() {
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
   const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
@@ -99,6 +100,7 @@ export default function UploadPage() {
           location,
           images,
           youtube_url: youtubeUrl || null,
+          tiktok_url: tiktokUrl || null,
           video_urls: videoUrls,
           issues,
           issues_count: issues.length,
@@ -326,6 +328,15 @@ export default function UploadPage() {
           placeholder="https://youtube.com/watch?v=..."
           value={youtubeUrl}
           onChange={(e) => setYoutubeUrl(e.target.value)}
+        />
+
+        <Input
+          label="TikTok Video URL (optional)"
+          id="tiktok"
+          type="url"
+          placeholder="https://www.tiktok.com/@username/video/..."
+          value={tiktokUrl}
+          onChange={(e) => setTiktokUrl(e.target.value)}
         />
 
         <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />

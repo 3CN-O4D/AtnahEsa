@@ -61,6 +61,7 @@ export default function ListingDetailPage() {
   const [submitting, setSubmitting] = useState(false)
   const [showReport, setShowReport] = useState(false)
   const [canReview, setCanReview] = useState(false)
+  const [phoneUnlocked, setPhoneUnlocked] = useState(false)
   const [similar, setSimilar] = useState<Listing[]>([])
   const [listerReviews, setListerReviews] = useState<ListerReview[]>([])
   const [listerReviewProfiles, setListerReviewProfiles] = useState<Record<string, Profile>>({})
@@ -105,7 +106,11 @@ export default function ListingDetailPage() {
 
       setSimilar((simRes.data ?? []) as Listing[])
 
-      if (currentUser) setCanReview(((bookingCountRes?.count ?? 0) > 0) || ((paidHouseCountRes?.count ?? 0) > 0))
+      if (currentUser) {
+        const hasPaidBooking = ((bookingCountRes?.count ?? 0) > 0) || ((paidHouseCountRes?.count ?? 0) > 0)
+        setCanReview(hasPaidBooking)
+        setPhoneUnlocked(hasPaidBooking)
+      }
 
       const userIds = [...new Set(revs.map((r) => r.user_id))]
       const lrUserIds = [...new Set(lr.map((r) => r.reviewer_id))]
@@ -172,6 +177,10 @@ export default function ListingDetailPage() {
     ...((listing.youtube_urls?.length ? listing.youtube_urls : (listing.youtube_url ? [listing.youtube_url] : [])).map((u: string) => {
       const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
       return { type: 'youtube' as const, url: u, id: m?.[1] || '' }
+    }).filter((v) => v.id)),
+    ...((listing.tiktok_urls?.length ? listing.tiktok_urls : (listing.tiktok_url ? [listing.tiktok_url] : [])).map((u: string) => {
+      const m = u.match(/tiktok\.com\/(?:@[^/]+\/(?:video|photo)\/|embed\/(?:v2\/)?|v\/)(\d+)/)
+      return { type: 'tiktok' as const, url: u, id: m?.[1] || '' }
     }).filter((v) => v.id)),
   ]
 
@@ -273,6 +282,9 @@ export default function ListingDetailPage() {
                       <video controls className="w-full h-full" playsInline>
                         <source src={videoSrc(v.url)} />
                       </video>
+                    ) : v.type === 'tiktok' ? (
+                      <iframe src={`https://www.tiktok.com/embed/v2/${v.id}`} title={`Video ${i + 1}`}
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
                     ) : (
                       <iframe src={`https://www.youtube.com/embed/${v.id}`} title={`Video ${i + 1}`}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
@@ -318,15 +330,24 @@ export default function ListingDetailPage() {
                   <span className="font-bold text-blue-700 dark:text-white">{lister.listing_count}</span>
                   <span className="text-gray-500 dark:text-white dark:text-white ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
-                {lister.phone && canReview ? (
-                  <a href={`tel:${lister.phone}`} className="text-blue-600 dark:text-white hover:underline font-medium flex items-center gap-1">
-                    <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
-                  </a>
-                ) : lister.phone ? (
+                {lister.phone ? (
+                  phoneUnlocked ? (
+                    <a href={`tel:${lister.phone}`} className="text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1">
+                      <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
+                    </a>
+                  ) : (
+                    <button
+                      onClick={() => router.push(`/booking/${listing.id}`)}
+                      className="text-red-600 dark:text-red-400 hover:underline font-medium flex items-center gap-1"
+                    >
+                      <PhoneIcon className="w-3.5 h-3.5" /> Contact lister — book to reveal
+                    </button>
+                  )
+                ) : (
                   <span className="text-gray-400 dark:text-white text-sm flex items-center gap-1">
-                    <PhoneIcon className="w-3.5 h-3.5" /> Locked until booking
+                    <PhoneIcon className="w-3.5 h-3.5" /> No phone listed
                   </span>
-                ) : null}
+                )}
               </div>
             </div>
           )}

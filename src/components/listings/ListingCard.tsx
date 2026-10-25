@@ -50,24 +50,36 @@ export default function ListingCard({ listing }: ListingCardProps) {
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
           {listing.status === 'taken' && (
-            <div className="absolute inset-0 bg-red-900/20 flex items-center justify-center">
-              <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+            <div className="absolute inset-0 bg-red-900/35 flex items-center justify-center">
+              <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
                 TAKEN
               </div>
             </div>
           )}
+          {listing.status === 'published' && (
+            <div className="absolute top-2 left-2 bg-green-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+              AVAILABLE
+            </div>
+          )}
           {listing.status === 'booked' && (
-            <div className="absolute inset-0 bg-amber-900/20 flex items-center justify-center">
-              <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full">
+            <div className="absolute inset-0 bg-amber-900/35 flex items-center justify-center">
+              <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
                 BOOKED
               </div>
             </div>
           )}
-          {listing.status === 'published' && (
-            <div className="absolute top-2 left-2 bg-green-600 text-white text-xs font-bold px-2.5 py-1 rounded-full">
-              AVAILABLE
-            </div>
-          )}
+          {(() => {
+            const posted = new Date(listing.created_at)
+            const days = (Date.now() - posted.getTime()) / (1000 * 60 * 60 * 24)
+            if (days <= 7 && listing.status === 'published') {
+              return (
+                <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                  NEW
+                </div>
+              )
+            }
+            return null
+          })()}
           <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full">
             {formatPrice(listing.price)}
           </div>

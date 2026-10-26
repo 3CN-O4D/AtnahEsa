@@ -2,7 +2,6 @@
 
 import { useState, useRef } from 'react'
 import { X, Download, Film } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 
 interface VideoUploaderProps {
   videoUrls: string[]
@@ -27,26 +26,24 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
     setUploading(true)
 
     try {
-      const supabase = createClient()
       const results: string[] = []
       for (const file of toUpload) {
+        // 1. Get presigned PUT URL + public URL from our API
         const infoRes = await fetch(`/api/upload-video/info?name=${encodeURIComponent(file.name)}`)
-        const infoText = await infoRes.text()
-        let infoData
-        try { infoData = JSON.parse(infoText) } catch { throw new Error(`Upload failed: ${infoRes.status} ${infoText.slice(0, 200)}`) }
+        const infoData = await infoRes.json()
         if (!infoRes.ok || infoData.error) throw new Error(infoData.error || 'Upload failed')
 
-        const { bucket, key } = infoData
-        const { error: uploadError } = await supabase.storage.from(bucket).upload(key, file, { upsert: true })
-        if (uploadError) throw new Error(uploadError.message)
+        const { key, uploadUrl, publicUrl } = infoData
 
-        const signRes = await fetch(`/api/upload-video/sign?bucket=${encodeURIComponent(bucket)}&key=${encodeURIComponent(key)}`)
-        const signText = await signRes.text()
-        let signData
-        try { signData = JSON.parse(signText) } catch { throw new Error(`Sign failed: ${signRes.status} ${signText.slice(0, 200)}`) }
-        if (!signRes.ok || signData.error) throw new Error(signData.error || 'Sign failed')
+        // 2. Direct PUT to R2 from the browser
+        const putRes = await fetch(uploadUrl, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type },
+        })
+        if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
 
-        results.push(signData.url)
+        results.push(publicUrl)
       }
 
       onChange([...videoUrls, ...results])

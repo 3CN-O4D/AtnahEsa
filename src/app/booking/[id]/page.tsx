@@ -416,6 +416,14 @@ export default function BookingPage() {
                       <a href="/my-bookings?tab=payments" className="inline-block rounded-lg bg-green-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-green-700">
                         View in My Bookings
                       </a>
+                      <a
+                        href={`/api/bookings/${listing.id}/pdf`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block rounded-lg bg-blue-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-700 ml-1"
+                      >
+                        Download receipt (PDF)
+                      </a>
                     </div>
                   </div>
                 </div>

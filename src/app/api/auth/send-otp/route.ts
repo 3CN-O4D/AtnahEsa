@@ -1,7 +1,9 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
 import { sendOtpEmail } from '@/lib/email'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { randomInt } from 'crypto'
 
 export async function POST(req: Request) {
   try {
@@ -19,9 +21,8 @@ export async function POST(req: Request) {
     const supabase = createAdminClient()
 
     if (type === 'password_reset') {
-      const { data: users } = await supabase.auth.admin.listUsers()
-      const exists = users?.users.some((u) => u.email === email)
-      if (!exists) {
+      const user = await findAuthUserByEmail(email)
+      if (!user) {
         return NextResponse.json({ success: true, emailSent: false })
       }
     }
@@ -38,7 +39,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Too many requests. Try again in 5 minutes.' }, { status: 429 })
     }
 
-    const otp = String(Math.floor(100000 + Math.random() * 900000))
+    // Use crypto.randomInt instead of Math.random
+    const otp = String(randomInt(100000, 999999))
     const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
 
     const { error: dbError } = await supabase

@@ -1,13 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
 import { findValidOtp, recordOtpFailure } from '@/lib/otp'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+
+const PASSWORD_MIN = 8
 
 export async function POST(req: Request) {
   try {
     const { email, otp, password } = await req.json()
 
-    if (!email || !otp || !password || password.length < 6) {
+    if (!email || !otp || !password || password.length < PASSWORD_MIN) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
@@ -27,8 +30,7 @@ export async function POST(req: Request) {
 
     await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
 
-    const { data: users } = await supabase.auth.admin.listUsers()
-    const user = users?.users.find((u) => u.email === email)
+    const user = await findAuthUserByEmail(email)
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }

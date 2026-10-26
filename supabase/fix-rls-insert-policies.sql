@@ -1,5 +1,11 @@
--- Comprehensive RLS fix — run this in Supabase SQL editor
--- After running: LOG OUT and LOG BACK IN as admin
+-- DEPRECATED -- DO NOT RUN
+-- This file used auth.jwt() -> 'user_metadata' ->> 'role' for admin checks,
+-- which is client-controllable and insecure (C-A).
+--
+-- Use supabase/fix-admin-rls-identity.sql instead, which reads role from
+-- public.profiles.role (server-controlled, SECURITY DEFINER).
+--
+-- This file is kept for reference only. Running it will reintroduce the C-A flaw.
 
 -- ============================================================
 -- 1. PUBLIC FORMS — Allow anonymous inserts

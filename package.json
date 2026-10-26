@@ -16,7 +16,7 @@
     "@vercel/analytics": "^2.0.1",
     "cloudinary": "^2.10.0",
     "lucide-react": "^1.24.0",
-    "next": "16.2.10",
+    "next": "^16.4.3",
     "nodemailer": "^9.0.3",
     "pdfkit": "^0.20.2",
     "react": "19.2.4",

@@ -314,7 +314,8 @@ CREATE POLICY "Admins can read contact submissions"
   );
 
 -- 9. ADMIN ROLE FUNCTION & TRIGGER
--- Auto-create profile on user signup
+-- Auto-create profile on user signup. Role is server-controlled ('hunter' default);
+-- never trust client-supplied role from user_metadata.
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -324,13 +325,10 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'username', SPLIT_PART(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
     NEW.raw_user_meta_data->>'phone',
-    COALESCE(NEW.raw_user_meta_data->>'role', 'hunter'),
+    'hunter',
     NEW.email,
     COALESCE((NEW.raw_user_meta_data->>'terms_accepted')::boolean, false)
   );
-
-  -- Sync role to auth.users metadata so JWT-based RLS policies work (non-recursive)
-  UPDATE auth.users SET raw_user_meta_data = raw_user_meta_data || jsonb_build_object('role', COALESCE(NEW.raw_user_meta_data->>'role', 'hunter')) WHERE id = NEW.id;
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;

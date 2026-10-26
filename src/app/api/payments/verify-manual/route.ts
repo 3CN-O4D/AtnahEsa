@@ -3,11 +3,17 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { transactionStatusQuery } from '@/lib/daraja'
 import { notifyAdmins } from '@/lib/notify'
+import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
 const TILL_NUMBER = process.env.DARAJA_TILL_NUMBER || ''
 
 export async function POST(req: Request) {
   try {
+    const { allowed, retryAfter } = await checkRateLimit(`verify-manual:${getClientIp(req)}`, 5, 300)
+    if (!allowed) {
+      return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    }
+
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 

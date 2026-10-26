@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
 import { findValidOtp, recordOtpFailure } from '@/lib/otp'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 
@@ -28,11 +29,7 @@ export async function POST(req: Request) {
     if (type !== 'password_reset') {
       await supabase.from('otps').update({ used: true }).eq('id', data.id)
       if (type === 'signup') {
-        const { data: users, error: userError } = await supabase.auth.admin.listUsers()
-        if (userError) {
-          return NextResponse.json({ error: 'Failed to confirm user' }, { status: 500 })
-        }
-        const user = users.users.find((u) => u.email === email)
+        const user = await findAuthUserByEmail(email)
         if (user) {
           await supabase.auth.admin.updateUserById(user.id, { email_confirm: true })
         }

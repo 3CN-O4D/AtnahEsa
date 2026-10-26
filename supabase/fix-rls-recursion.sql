@@ -1,6 +1,11 @@
--- Fix RLS infinite recursion
--- Replaces the recursive subquery (SELECT id FROM profiles WHERE role = 'admin')
--- with a direct check on auth.users.raw_user_meta_data (no recursion)
+-- DEPRECATED -- DO NOT RUN
+-- This file used auth.jwt() -> 'user_metadata' ->> 'role' for admin checks,
+-- which is client-controllable and insecure (C-A).
+--
+-- Use supabase/fix-admin-rls-identity.sql instead, which reads role from
+-- public.profiles.role (server-controlled, SECURITY DEFINER).
+--
+-- This file is kept for reference only. Running it will reintroduce the C-A flaw.
 
 -- 1. Drop ALL old admin policies (they all used the recursive subquery)
 DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;

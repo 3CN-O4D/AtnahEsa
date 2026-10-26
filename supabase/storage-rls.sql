@@ -1,32 +1,42 @@
--- Storage RLS: allow authenticated users to upload/list/read objects
+-- Storage RLS: secure by default
 -- Run this in Supabase SQL Editor
 
--- Allow authenticated users to upload files to any bucket
-CREATE POLICY "Allow authenticated uploads"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (true);
+-- 1. Public buckets: read-only for everyone (listing images, etc.)
+--    Only bucket owner/service role can write
+CREATE POLICY "Public buckets read only"
+ON storage.objects FOR SELECT
+TO public
+USING (
+  bucket_id IN (
+    SELECT name FROM storage.buckets WHERE public = true
+  )
+);
 
--- Allow authenticated users to read files (signed URLs work regardless)
-CREATE POLICY "Allow authenticated reads"
+-- 2. Authenticated users can read objects in non-public buckets they own
+CREATE POLICY "Authenticated read own objects"
 ON storage.objects FOR SELECT
 TO authenticated
-USING (true);
+USING (auth.uid()::text = owner_id);
 
--- Allow authenticated users to update their own uploads
-CREATE POLICY "Allow authenticated updates"
+-- 3. Authenticated users can insert into specific buckets only (videos/avatars)
+CREATE POLICY "Authenticated insert videos/avatars"
+ON storage.objects FOR INSERT
+TO authenticated
+WITH CHECK (
+  bucket_id IN ('asehanta', 'avatars')
+  AND (auth.uid()::text = owner_id)
+);
+
+-- 4. Authenticated users can update/delete their own objects
+CREATE POLICY "Authenticated update own objects"
 ON storage.objects FOR UPDATE
 TO authenticated
 USING (auth.uid()::text = owner_id);
 
--- Allow authenticated users to delete their own uploads
-CREATE POLICY "Allow authenticated deletes"
+CREATE POLICY "Authenticated delete own objects"
 ON storage.objects FOR DELETE
 TO authenticated
 USING (auth.uid()::text = owner_id);
 
--- Public read access for signed URLs to work for unauthenticated users (hunters)
-CREATE POLICY "Allow public reads for signed URLs"
-ON storage.objects FOR SELECT
-TO public
-USING (bucket_id IN (SELECT name FROM storage.buckets WHERE public = false));
+-- 5. Service role has full access (bypasses RLS)
+--    (implicit: service role key bypasses RLS entirely)

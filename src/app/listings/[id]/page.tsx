@@ -77,7 +77,16 @@ export default function ListingDetailPage() {
 
     Promise.all([
       supabase.auth.getUser(),
-      supabase.from('listings').select('*').eq('id', id).single(),
+      // C-C: Never expose lister_phone to the public. Select only safe columns.
+      // Lister contact is revealed only after payment via /api/bookings/[id]/pdf
+      // and the tuma-status endpoint (which checks payment status).
+      supabase
+        .from('listings')
+        .select(
+          'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,uploader_name,created_at,updated_at'
+        )
+        .eq('id', id)
+        .single(),
     ]).then(async ([userRes, listingRes]) => {
       const currentUser = userRes.data.user
       setUser(currentUser ? { id: currentUser.id, email: currentUser.email } : null)

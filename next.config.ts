@@ -1,6 +1,8 @@
 import type { NextConfig } from 'next'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ewfyrnxwmqdhlzpcfxxg.supabase.co'
+const R2_ENDPOINT = process.env.R2_ENDPOINT || ''
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || ''
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
@@ -8,7 +10,8 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: 'img.youtube.com' },
-      { protocol: 'https', hostname: 'pub-*.r2.dev' }, // R2 public bucket videos
+      { protocol: 'https', hostname: 'pub-*.r2.dev' },
+      { protocol: 'https', hostname: new URL(R2_PUBLIC_URL).hostname || 'media.asehanta.com' },
     ],
   },
   async headers() {
@@ -25,13 +28,14 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline'",
+              // H-C: remove 'unsafe-inline'; use strict-dynamic + nonce-compatible sources
+              "script-src 'self' 'strict-dynamic' https:",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com",
+              "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com https:" + (R2_PUBLIC_URL ? ` ${R2_PUBLIC_URL}` : ''),
               "font-src 'self' data:",
-              `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')}`,
+              `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')}` + (R2_ENDPOINT ? ` ${R2_ENDPOINT}` : '') + (R2_PUBLIC_URL ? ` ${R2_PUBLIC_URL}` : ''),
               "frame-src https://www.youtube.com https://www.tiktok.com https://tiktok.com",
-              "media-src 'self' blob: https:",
+              "media-src 'self' blob: https:" + (R2_PUBLIC_URL ? ` ${R2_PUBLIC_URL}` : ''),
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",
@@ -43,6 +47,7 @@ const nextConfig: NextConfig = {
       },
     ]
   },
+  serverExternalPackages: ['pdfkit'],
 }
 
 export default nextConfig

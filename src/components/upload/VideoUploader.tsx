@@ -29,17 +29,19 @@ export default function VideoUploader({ videoUrls, onChange }: VideoUploaderProp
       const results: string[] = []
       for (const file of toUpload) {
         // 1. Get presigned PUT URL + public URL from our API
-        const infoRes = await fetch(`/api/upload-video/info?name=${encodeURIComponent(file.name)}`)
+        const infoRes = await fetch(
+          `/api/upload-video/info?name=${encodeURIComponent(file.name)}&content-length=${file.size}`
+        )
         const infoData = await infoRes.json()
         if (!infoRes.ok || infoData.error) throw new Error(infoData.error || 'Upload failed')
 
-        const { key, uploadUrl, publicUrl } = infoData
+        const { uploadUrl, publicUrl, contentType } = infoData
 
-        // 2. Direct PUT to R2 from the browser
+        // 2. Direct PUT to R2 from the browser using server-signed content type
         const putRes = await fetch(uploadUrl, {
           method: 'PUT',
           body: file,
-          headers: { 'Content-Type': file.type },
+          headers: { 'Content-Type': contentType },
         })
         if (!putRes.ok) throw new Error(`Upload failed: ${putRes.status}`)
 

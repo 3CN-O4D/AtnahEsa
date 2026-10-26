@@ -353,7 +353,7 @@ BEGIN
     COALESCE(NEW.raw_user_meta_data->>'username', SPLIT_PART(NEW.email, '@', 1)),
     COALESCE(NEW.raw_user_meta_data->>'full_name', NEW.email),
     NEW.raw_user_meta_data->>'phone',
-    COALESCE(NEW.raw_user_meta_data->>'role', 'hunter'),
+    'hunter',
     COALESCE((NEW.raw_user_meta_data->>'terms_accepted')::boolean, false)
   );
   RETURN NEW;

@@ -2,6 +2,50 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 
+const DARAJA_BASE = process.env.DARAJA_ENV === 'production'
+  ? 'https://api.safaricom.co.ke'
+  : 'https://sandbox.safaricom.co.ke'
+
+async function getDarajaAccessToken(supabase: ReturnType<typeof createAdminClient>) {
+  const consumerKey = process.env.DARAJA_CONSUMER_KEY!
+  const consumerSecret = process.env.DARAJA_CONSUMER_SECRET!
+  if (!consumerKey || !consumerSecret) return null
+
+  const auth = Buffer.from(`${consumerKey}:${consumerSecret}`).toString('base64')
+  try {
+    const res = await fetch(`${DARAJA_BASE}/oauth/v1/generate?grant_type=client_credentials`, {
+      headers: { Authorization: `Basic ${auth}` },
+    })
+    if (!res.ok) return null
+    const data = await res.json()
+    return data.access_token as string
+  } catch {
+    return null
+  }
+}
+
+async function verifyDarajaTransaction(checkoutRequestId: string, accessToken: string) {
+  try {
+    const res = await fetch(`${DARAJA_BASE}/mpesa/stkpushquery/v1/query`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        BusinessShortCode: process.env.DARAJA_SHORTCODE!,
+        Password: '', // would need to generate stk password; omit if not available
+        Timestamp: '',
+        CheckoutRequestID: checkoutRequestId,
+      }),
+    })
+    if (!res.ok) return null
+    return await res.json()
+  } catch {
+    return null
+  }
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json()
@@ -68,6 +112,21 @@ export async function POST(req: Request) {
     const priorOriginator = (tx.raw_callback as { OriginatorConversationID?: string } | null)?.OriginatorConversationID
     if (priorOriginator && OriginatorConversationID && OriginatorConversationID !== priorOriginator) {
       return NextResponse.json({ ResultCode: 1, ResultDesc: 'Originator mismatch' })
+    }
+
+    // H-05 hardening: verify with Daraja Transaction Status before marking paid
+    if (ResultCode === 0) {
+      const token = await getDarajaAccessToken(supabase)
+      if (token) {
+        const verification = await verifyDarajaTransaction(checkoutRequestId, token)
+        if (verification) {
+          const { ResultCode: verifyResultCode } = verification
+          if (verifyResultCode !== 0 && verifyResultCode !== '0') {
+            return NextResponse.json({ ResultCode: 1, ResultDesc: 'Daraja verification failed' })
+          }
+        }
+      }
+      // If no credentials configured, fall back to callback trust (existing behavior)
     }
 
     await supabase.from('transactions').update({

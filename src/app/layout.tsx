@@ -7,6 +7,7 @@ import { ThemeProvider } from '@/lib/ThemeProvider'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
+import { SpeedInsights } from '@vercel/speed-insights/next'
 
 export const metadata: Metadata = {
   title: {
@@ -56,6 +57,7 @@ export default function RootLayout({
           </svg>
         </a>
         <Analytics />
+        <SpeedInsights />
       </body>
     </html>
   )

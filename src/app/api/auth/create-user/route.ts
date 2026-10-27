@@ -44,11 +44,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: error.message }, { status: 400 })
     }
 
-    await notifyAdmins(
+    // Fire-and-forget admin notification; never block signup on email delivery
+    notifyAdmins(
       'New User Registration',
       'New User Signed Up',
       { Name: full_name, Username: username, Email: email, Phone: phone || 'N/A', Role: role }
-    )
+    ).catch(() => {})
 
     return NextResponse.json({ user: { id: data.user.id, email: data.user.email } })
   } catch {

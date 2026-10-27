@@ -78,26 +78,40 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
 
   return (
     <div>
-      {listings.length > 0 && (
-        <div className="mb-4 flex items-center gap-2">
-          <span className="font-semibold text-gray-700 dark:text-gray-200">
-            {listings.length} home{listings.length !== 1 ? 's' : ''}
-          </span>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            &middot; {sort ? sort.replace(/_/g, ' ') : 'Newest first'}
-          </span>
+      {loading && listings.length === 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-12">
+          {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+            <div key={i} className="animate-slideUp" style={{ animationDelay: `${(i % 4) * 0.1}s` }}>
+              <div className="skeleton h-96 w-full mb-3" />
+              <div className="skeleton h-4 w-3/4 mb-2" />
+              <div className="skeleton h-4 w-1/2" />
+            </div>
+          ))}
         </div>
       )}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {listings.map((listing, i) => (
-          <div key={listing.id} className="animate-fadeIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
-            <ListingCard listing={listing} />
+      {!loading && listings.length > 0 && (
+        <>
+          <div className="mb-4 flex items-center gap-2 animate-fadeIn">
+            <span className="font-semibold text-gray-700 dark:text-gray-200">
+              {listings.length} home{listings.length !== 1 ? 's' : ''}
+            </span>
+            <span className="text-xs text-gray-500 dark:text-gray-400">
+              &middot; {sort ? sort.replace(/_/g, ' ') : 'Newest first'}
+            </span>
           </div>
-        ))}
-      </div>
-      {!hasMore && listings.length === 0 && (
-        <div className="text-center py-12 space-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {listings.map((listing, i) => (
+              <div key={listing.id} className="animate-slideUp animate-fadeIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
+                <ListingCard listing={listing} />
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+      {!hasMore && listings.length === 0 && !loading && (
+        <div className="text-center py-12 space-y-6 animate-fadeIn animate-slideUp">
           <div className="space-y-2">
+            <div className="animate-bounce-slow inline-block text-4xl mb-3">🏠</div>
             <h2 className="text-xl font-bold text-gray-900">All Houses Are Currently Taken</h2>
             <p className="text-gray-600 max-w-md mx-auto">
               Every available house has been snapped up. We take every request seriously &mdash; tell us what

@@ -123,7 +123,7 @@ export default function HomePage() {
   return (
     <div className="max-w-7xl mx-auto px-4 py-6">
       {/* Hero section */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeIn animate-slideUp" style={{ animationDelay: '0.1s' }}>
         <div>
           <h1 className="text-3xl font-bold dark:text-white mb-2">
             Find Your Perfect Home and <span className="text-[#30B54A]">Get Connected</span>
@@ -133,14 +133,14 @@ export default function HomePage() {
           </p>
         </div>
         <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-          <Link href="/request-house" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#30B54A] text-white rounded-lg text-sm font-semibold hover:bg-[#2a9c40] transition-colors self-start w-auto">
+          <Link href="/request-house" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#30B54A] text-white rounded-lg text-sm font-semibold hover:bg-[#2a9c40] transition-colors self-start w-auto active:scale-95">
             <Search className="w-4 h-4" /> Request a House
           </Link>
-          <Link href={listAHouseLink} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto">
+          <Link href={listAHouseLink} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto animate-float active:scale-95">
             + List a House
           </Link>
           {isLister && (
-            <Link href="/requests" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-[#30B54A] text-[#2a9c40] rounded-lg text-sm font-semibold hover:bg-[#e8f8eb] transition-colors shrink-0 self-start w-auto">
+            <Link href="/requests" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-[#30B54A] text-[#2a9c40] rounded-lg text-sm font-semibold hover:bg-[#e8f8eb] transition-colors shrink-0 self-start w-auto active:scale-95">
               House Requests
             </Link>
           )}
@@ -148,16 +148,16 @@ export default function HomePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
-        <div className="bg-[#e8f8eb] dark:bg-[#30B54A]/20 border border-[#30B54A] dark:border-[#30B54A]/50 rounded-xl p-4 text-center">
+      <div className="grid grid-cols-3 gap-4 mb-8 animate-fadeIn animate-slideUp" style={{ animationDelay: '0.2s' }}>
+        <div className="bg-[#e8f8eb] dark:bg-[#30B54A]/20 border border-[#30B54A] dark:border-[#30B54A]/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.1s' }}>
           <p className="text-2xl font-bold text-[#30B54A] dark:text-[#6fdc84]">{countAvailable}</p>
           <p className="text-xs text-[#30B54A] dark:text-[#6fdc84] font-medium">Available Houses</p>
         </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center" style={{ animationDelay: '0.1s' }}>
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.2s' }}>
           <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{countPending}</p>
           <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium">Pending</p>
         </div>
-        <Link href="/taken" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow" style={{ animationDelay: '0.2s' }}>
+        <Link href="/taken" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow animate-scaleIn" style={{ animationDelay: '0.3s' }}>
           <p className="text-2xl font-bold text-red-700 dark:text-red-300">{countTaken}</p>
           <p className="text-xs text-red-600 dark:text-red-300 font-medium">Taken Houses</p>
         </Link>

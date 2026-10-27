@@ -45,19 +45,19 @@ export default function ListingCard({ listing }: ListingCardProps) {
 
   return (
     <Link href={`/listings/${listing.id}`} aria-disabled={isUnavailable}>
-      <Card hover>
-        <div className={`aspect-[4/3] relative ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
-          <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none" />
+      <Card className="transition-all duration-300 hover:-translate-y-2 hover:shadow-xl hover:border-blue-500/50">
+        <div className={`aspect-[4/3] relative overflow-hidden group ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
+          <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-105" />
           <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300" />
           {listing.status === 'taken' && (
             <div className="absolute inset-0 bg-red-900/35 flex items-center justify-center">
-              <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+              <div className="absolute top-2 left-2 bg-red-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg animate-shake">
                 TAKEN
               </div>
             </div>
           )}
           {listing.status === 'published' && (
-            <div className="absolute top-2 left-2 bg-green-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+            <div className="absolute top-2 left-2 bg-green-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg animate-scaleIn">
               AVAILABLE
             </div>
           )}
@@ -73,14 +73,14 @@ export default function ListingCard({ listing }: ListingCardProps) {
             const days = (Date.now() - posted.getTime()) / (1000 * 60 * 60 * 24)
             if (days <= 7 && listing.status === 'published') {
               return (
-                <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg animate-pulse-slow">
                   NEW
                 </div>
               )
             }
             return null
           })()}
-          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full">
+          <div className="absolute top-2 right-2 bg-blue-600 text-white text-xs font-medium px-2 py-1 rounded-full animate-scaleIn">
             {formatPrice(listing.price)}
           </div>
         </div>

@@ -3,27 +3,25 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Home, Users, CalendarCheck, Building } from 'lucide-react'
-import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 
 export default function StatsPage() {
   const [stats, setStats] = useState({ houses: 0, bookings: 0, hunters: 0, listers: 0 })
 
   useEffect(() => {
-    const supabase = createClient()
-    Promise.all([
-      supabase.from('listings').select('*', { count: 'exact', head: true }),
-      supabase.from('bookings').select('*', { count: 'exact', head: true }),
-      supabase.from('profiles_public').select('*', { count: 'exact', head: true }).eq('role', 'hunter'),
-      supabase.from('profiles_public').select('*', { count: 'exact', head: true }).eq('role', 'lister'),
-    ]).then(([h, b, hu, li]) => {
-      setStats({
-        houses: h.count ?? 0,
-        bookings: b.count ?? 0,
-        hunters: hu.count ?? 0,
-        listers: li.count ?? 0,
+    fetch('/api/stats')
+      .then((r) => r.json())
+      .then((data) => {
+        setStats({
+          houses: data.houses ?? 0,
+          bookings: data.bookings ?? 0,
+          hunters: data.hunters ?? 0,
+          listers: data.listers ?? 0,
+        })
       })
-    })
+      .catch(() => {
+        // Stats will remain 0 on failure
+      })
   }, [])
 
   const items = [

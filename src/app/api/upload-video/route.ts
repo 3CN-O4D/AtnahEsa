@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3'
 import { createClient } from '@/lib/supabase/server'
+import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 
 const s3 = new S3Client({
   endpoint: process.env.S3_ENDPOINT,
@@ -20,34 +21,52 @@ const EXT_MIME: Record<string, string> = {
   ogv: 'video/ogg', '3gp': 'video/3gpp',
 }
 
-function mimeFromName(name: string): string {
-  const ext = name.split('.').pop()?.toLowerCase()
-  return EXT_MIME[ext || ''] || 'video/mp4'
+const ALLOWED_EXTENSIONS = Object.keys(EXT_MIME)
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024 // 100MB
+
+function generateVideoKey(userId: string, ext: string): string {
+  const timestamp = Date.now().toString(36)
+  const random = Math.random().toString(36).slice(2, 8)
+  return `listings/${userId}/${timestamp}-${random}.${ext}`
 }
 
-const ALLOWED_EXTENSIONS = Object.keys(EXT_MIME)
-
 export async function POST(req: Request) {
+  const { allowed, headers } = await withRateLimit(req, 'upload')
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many uploads. Try again shortly.' }, { status: 429, headers })
+  }
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user) {
+      const resp = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return addSecurityHeaders(resp)
+    }
 
     const { searchParams } = new URL(req.url)
     const fileName = searchParams.get('name') || 'video.mp4'
     const ext = fileName.split('.').pop()?.toLowerCase()
     if (!ext || !ALLOWED_EXTENSIONS.includes(ext)) {
-      return NextResponse.json({ error: `Unsupported format .${ext}. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` }, { status: 400 })
+      const resp = NextResponse.json({ error: `Unsupported format .${ext}. Allowed: ${ALLOWED_EXTENSIONS.join(', ')}` }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
-    const contentType = req.headers.get('content-type') || mimeFromName(fileName)
+    const contentType = req.headers.get('content-type') || EXT_MIME[ext]
 
     const bytes = await req.arrayBuffer()
     if (!bytes.byteLength) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      const resp = NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
-    const key = `listings/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`
+    if (bytes.byteLength > MAX_VIDEO_SIZE) {
+      const resp = NextResponse.json({ error: 'Video must be under 100MB' }, { status: 400 })
+      return addSecurityHeaders(resp)
+    }
+
+    // Generate secure key without original filename
+    const key = generateVideoKey(user.id, ext)
 
     await s3.send(new PutObjectCommand({
       Bucket: BUCKET,
@@ -59,8 +78,10 @@ export async function POST(req: Request) {
     const projectRef = process.env.S3_ENDPOINT!.match(/https?:\/\/([^.]+)/)?.[1] || ''
     const publicUrl = `https://${projectRef}.supabase.co/storage/v1/object/public/${BUCKET}/${key}`
 
-    return NextResponse.json({ url: publicUrl })
+    const resp = NextResponse.json({ url: publicUrl })
+    return addSecurityHeaders(resp)
   } catch (err) {
-    return NextResponse.json({ error: err instanceof Error ? err.message : 'Upload failed' }, { status: 500 })
+    const resp = NextResponse.json({ error: err instanceof Error ? err.message : 'Upload failed' }, { status: 500 })
+    return addSecurityHeaders(resp)
   }
 }

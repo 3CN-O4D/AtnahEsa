@@ -5,6 +5,17 @@ import type { NextRequest } from 'next/server'
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
 
+  // Skip middleware for RSC payload prefetch requests
+  const isRscPrefetch = 
+    req.headers.get('next-router-prefetch') === '1' ||
+    req.headers.get('next-router-state-tree') !== null ||
+    req.headers.get('purpose') === 'prefetch' ||
+    req.nextUrl.searchParams.has('_rsc')
+
+  if (isRscPrefetch) {
+    return res
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

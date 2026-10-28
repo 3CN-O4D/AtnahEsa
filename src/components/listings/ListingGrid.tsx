@@ -18,6 +18,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
   const [page, setPage] = useState(1)
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const loaderRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
 
@@ -38,7 +39,8 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
         })
         setPage((p) => p + 1)
       }
-    } catch {
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to load listings')
     } finally {
       setLoading(false)
       loadingRef.current = false

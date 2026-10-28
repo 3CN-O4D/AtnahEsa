@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
 import { notifyAdmins } from '@/lib/notify'
 
@@ -16,7 +17,7 @@ export async function GET(req: Request) {
     const maxPrice = searchParams.get('maxPrice') || ''
     const issues = searchParams.get('issues') || ''
 
-    const supabase = await createClient()
+    const supabase = createAdminClient()
 
     const PUBLIC_COLUMNS =
       'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,created_at,updated_at'

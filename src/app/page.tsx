@@ -52,63 +52,24 @@ export default function HomePage() {
 
   const fetchListings = useCallback(
     async (page: number): Promise<Listing[]> => {
-      const supabase = createClient()
-
-      let q = supabase
-        .from('listings')
-        .select('*')
-        .in('status', ['published', 'booked', 'taken'])
-        .order('status', { ascending: true })
-        .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
-
-      // Search by location or title
-      if (query) {
-        const conditions = [`location.ilike.*${query}*`, `title.ilike.*${query}*`]
-        const num = parseInt(query)
-        if (!isNaN(num)) {
-          conditions.push(`price.eq.${num}`, `rent.eq.${num}`)
-        }
-        q = q.or(conditions.join(','))
-      }
-
-      // Filters
-      if (filters.location) {
-        q = q.ilike('location', `%${filters.location}%`)
-      }
-      if (filters.minRent) {
-        q = q.gte('rent', parseInt(filters.minRent))
-      }
-      if (filters.maxRent) {
-        q = q.lte('rent', parseInt(filters.maxRent))
-      }
-      if (filters.minPrice) {
-        q = q.gte('price', parseInt(filters.minPrice))
-      }
-      if (filters.maxPrice) {
-        q = q.lte('price', parseInt(filters.maxPrice))
-      }
+      const params = new URLSearchParams()
+      params.set('page', String(page))
+      if (query) params.set('query', query)
+      if (sort) params.set('sort', sort)
+      if (filters.location) params.set('location', filters.location)
+      if (filters.minRent) params.set('minRent', filters.minRent)
+      if (filters.maxRent) params.set('maxRent', filters.maxRent)
+      if (filters.minPrice) params.set('minPrice', filters.minPrice)
+      if (filters.maxPrice) params.set('maxPrice', filters.maxPrice)
       if (filters.issues !== undefined && filters.issues !== '') {
-        q = q.eq('issues_count', parseInt(filters.issues))
+        params.set('issues', filters.issues)
       }
 
-      // Sort
-      if (sort) {
-        const sortMap: Record<string, { column: string; ascending: boolean }> = {
-          rent_asc: { column: 'rent', ascending: true },
-          rent_desc: { column: 'rent', ascending: false },
-          price_asc: { column: 'price', ascending: true },
-          price_desc: { column: 'price', ascending: false },
-          location: { column: 'location', ascending: true },
-          issues_asc: { column: 'issues_count', ascending: true },
-          issues_desc: { column: 'issues_count', ascending: false },
-        }
-        const s = sortMap[sort]
-        if (s) q = q.order(s.column, { ascending: s.ascending })
-      } else {
-        q = q.order('created_at', { ascending: false })
-      }
-
-      const { data } = await q
+      const res = await fetch(`/api/listings?${params.toString()}`, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) throw new Error(`Failed to load listings: ${res.status}`)
+      const data = await res.json()
       return (data ?? []) as Listing[]
     },
     [query, sort, filters]

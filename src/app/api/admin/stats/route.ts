@@ -20,7 +20,7 @@ export async function GET() {
 
   const [
     total, published, booked, taken, pending,
-    vacant, vacancyPending, withIssues,
+    vacant, vacancyPending, withIssues, rejected,
     completed, refunded, listers, hunters, totalUsers,
     movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
   ] = await Promise.all([
@@ -32,6 +32,7 @@ export async function GET() {
     adminSupabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'vacant').then((r) => r.count ?? 0),
     adminSupabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'pending').then((r) => r.count ?? 0),
     adminSupabase.from('listings').select('id', { count: 'exact', head: true }).gt('issues_count', 0).then((r) => r.count ?? 0),
+    c('listings', 'status', 'rejected'),
     c('bookings', 'visit_status', 'completed'),
     c('bookings', 'visit_status', 'refunded'),
     c('profiles', 'role', 'lister'),
@@ -80,7 +81,7 @@ export async function GET() {
 
   return NextResponse.json({
     total, published, booked, taken, pending,
-    vacant, vacancyPending, withIssues,
+    vacant, vacancyPending, withIssues, rejected,
     completed, refunded, listers, hunters, totalUsers,
     movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
     totalRevenue, totalRefunded, escrowHeld, escrowHeldAmount,

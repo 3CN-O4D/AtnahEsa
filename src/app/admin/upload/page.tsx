@@ -8,6 +8,7 @@ import ImageUploader from '@/components/upload/ImageUploader'
 import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { normalizeTikTokUrl } from '@/lib/utils'
 import type { User } from '@supabase/supabase-js'
 
 export default function AdminUploadPage() {
@@ -83,6 +84,9 @@ export default function AdminUploadPage() {
     setError('')
 
     try {
+      // Normalize TikTok URL
+      const normalizedTikTokUrl = tiktokUrl ? normalizeTikTokUrl(tiktokUrl) : null
+
       const supabase = createClient()
 
       const { error: err } = await supabase.from('listings').insert({
@@ -98,7 +102,7 @@ export default function AdminUploadPage() {
         location,
         images,
         youtube_url: youtubeUrl || null,
-        tiktok_url: tiktokUrl || null,
+        tiktok_url: normalizedTikTokUrl,
         video_urls: videoUrls,
         issues,
         issues_count: issues.length,

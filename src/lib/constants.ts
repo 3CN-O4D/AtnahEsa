@@ -1,8 +1,18 @@
 export const APP_NAME = 'AseHanta'
 export const MIN_BOOKING_FEE = 499
-export const PLATFORM_COMMISSION = 0.3 // 30%
-export const OWNER_SHARE = 0.7 // 70%
+export const PLATFORM_COMMISSION = 0.5 // 50% - platform takes 50%, lister gets 50%
+export const OWNER_SHARE = 0.5 // 50% - lister gets 50% when house is taken
 export const ITEMS_PER_PAGE = 12
+
+export const WIFI_INSTALLATION_FEE = 2000 // KSH 2000 installation fee
+
+export const REFUND_PERCENTAGES = {
+  FAKE_NO_SHOW: 1.0,      // 100% refund if fake listing or no-show
+  VIEWED_CHANGED_MIND: 0.85, // 85% refund if viewed but changed mind
+} as const
+
+export const VIEW_WINDOW_HOURS = 24 // 24 hours to view house
+export const REFUND_PROCESSING_HOURS = 24 // Refund processed within 24 hours
 
 export const SORT_OPTIONS = [
   { label: 'Rent: Low to High', value: 'rent_asc' },

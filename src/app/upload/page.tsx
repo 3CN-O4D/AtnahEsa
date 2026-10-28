@@ -8,6 +8,7 @@ import ImageUploader from '@/components/upload/ImageUploader'
 import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { normalizeTikTokUrl } from '@/lib/utils'
 import type { User } from '@supabase/supabase-js'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
@@ -79,6 +80,9 @@ export default function UploadPage() {
     setError('')
 
     try {
+      // Normalize TikTok URL
+      const normalizedTikTokUrl = tiktokUrl ? normalizeTikTokUrl(tiktokUrl) : null
+
       const res = await fetch('/api/listings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -100,7 +104,7 @@ export default function UploadPage() {
           location,
           images,
           youtube_url: youtubeUrl || null,
-          tiktok_url: tiktokUrl || null,
+          tiktok_url: normalizedTikTokUrl,
           video_urls: videoUrls,
           issues,
           issues_count: issues.length,

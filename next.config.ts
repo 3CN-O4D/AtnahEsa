@@ -1,7 +1,6 @@
 import type { NextConfig } from 'next'
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ewfyrnxwmqdhlzpcfxxg.supabase.co'
-const R2_ENDPOINT = process.env.R2_ENDPOINT || ''
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || ''
 
 const nextConfig: NextConfig = {
@@ -11,7 +10,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: 'img.youtube.com' },
       { protocol: 'https', hostname: 'pub-*.r2.dev' },
-      { protocol: 'https', hostname: new URL(R2_PUBLIC_URL).hostname || 'media.asehanta.com' },
+      ...(R2_PUBLIC_URL ? [{ protocol: 'https' as const, hostname: new URL(R2_PUBLIC_URL).hostname }] : []),
     ],
   },
   async headers() {
@@ -28,14 +27,13 @@ const nextConfig: NextConfig = {
             key: 'Content-Security-Policy',
             value: [
               "default-src 'self'",
-              // H-C: remove 'unsafe-inline'; use strict-dynamic + nonce-compatible sources
-              "script-src 'self' 'strict-dynamic' https:",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
               "style-src 'self' 'unsafe-inline'",
-              "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com https:" + (R2_PUBLIC_URL ? ` ${R2_PUBLIC_URL}` : ''),
+              "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com https:",
               "font-src 'self' data:",
-              `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')}` + (R2_ENDPOINT ? ` ${R2_ENDPOINT}` : '') + (R2_PUBLIC_URL ? ` ${R2_PUBLIC_URL}` : ''),
+              `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')} https:`,
               "frame-src https://www.youtube.com https://www.tiktok.com https://tiktok.com",
-              "media-src 'self' blob: https:" + (R2_PUBLIC_URL ? ` ${R2_PUBLIC_URL}` : ''),
+              "media-src 'self' blob: https:",
               "base-uri 'self'",
               "form-action 'self'",
               "frame-ancestors 'none'",

@@ -6,11 +6,11 @@ const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || ''
 // CSP that works with Next.js and Supabase auth
 const csp = [
   "default-src 'self'",
-  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.clarity.ms",
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com https:",
   "font-src 'self' data:",
-  `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')} https:`,
+  `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')} https://www.clarity.ms https:`,
   "frame-src https://www.youtube.com https://www.tiktok.com https://tiktok.com",
   "media-src 'self' blob: https:",
   "base-uri 'self'",

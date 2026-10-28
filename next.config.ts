@@ -3,12 +3,11 @@ import type { NextConfig } from 'next'
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://ewfyrnxwmqdhlzpcfxxg.supabase.co'
 const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || ''
 
-// Stricter CSP for production
-const isProd = process.env.NODE_ENV === 'production'
+// CSP that works with Next.js and Supabase auth
 const csp = [
   "default-src 'self'",
-  isProd ? "script-src 'self'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-  isProd ? "style-src 'self'" : "style-src 'self' 'unsafe-inline'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https://res.cloudinary.com https://img.youtube.com https:",
   "font-src 'self' data:",
   `connect-src 'self' ${SUPABASE_URL} wss://${SUPABASE_URL.replace('https://', '')} https:`,
@@ -41,8 +40,9 @@ const nextConfig: NextConfig = {
           { key: 'X-XSS-Protection', value: '1; mode=block' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
           { key: 'Content-Security-Policy', value: csp },
-          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin' },
-          { key: 'Cross-Origin-Resource-Policy', value: 'same-origin' },
+          // COOP/COEP can break OAuth flows - use same-origin-allow-popups instead
+          { key: 'Cross-Origin-Opener-Policy', value: 'same-origin-allow-popups' },
+          { key: 'Cross-Origin-Resource-Policy', value: 'cross-origin' },
           { key: 'Access-Control-Allow-Origin', value: 'https://www.asehanta.com' },
         ],
       },

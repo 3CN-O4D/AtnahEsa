@@ -32,39 +32,25 @@ export default function HomePage() {
         } catch {}
       }
     })
-    fetch('/api/stats')
-      .then((r) => r.json())
-      .then((data) => {
-        // /api/stats returns different shape; use listings counts if possible
-      })
-      .catch(() => {})
-    // Compute from listings API
+    // Fetch stats for all statuses
     Promise.all([
-      fetch('/api/listings?page=1').then((r) => r.json()).catch(() => []),
-      fetch('/api/listings?page=1&status=all').then((r) => r.json()).catch(() => null),
-    ]).catch(() => {}).finally(() => {
-      // fallback: try to get counts another way
-    })
-    // simpler: fetch all published/taken via API pages? but easier to just set from what we know
-    fetch('/api/listings?page=1')
-      .then((r) => r.json())
-      .then((data: any[]) => {
-        if (!Array.isArray(data)) return
-        let available = 0, pending = 0, taken = 0
-        // We can't tell pending from this API easily, but show counts
-        for (const row of data) {
-          if (row.status === 'published') available++
-          else if (row.status === 'taken' || row.status === 'booked') taken++
-        }
-        setStats((s) => ({ ...s, available, taken }))
+      fetch('/api/listings?page=1&status=published').then((r) => r.json()).catch(() => []),
+      fetch('/api/listings?page=1&status=taken').then((r) => r.json()).catch(() => []),
+      fetch('/api/listings?page=1&status=booked').then((r) => r.json()).catch(() => []),
+    ]).then(([published, taken, booked]) => {
+      setStats({
+        available: published.length,
+        pending: 0,
+        taken: taken.length + booked.length,
       })
-      .catch(() => {})
+    }).catch(() => {})
   }, [])
 
   const fetchListings = useCallback(
     async (page: number): Promise<Listing[]> => {
       const params = new URLSearchParams()
       params.set('page', String(page))
+      params.set('status', 'published')
       if (query) params.set('query', query)
       if (sort) params.set('sort', sort)
       if (filters.location) params.set('location', filters.location)

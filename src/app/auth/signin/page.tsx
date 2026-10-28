@@ -55,9 +55,10 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError('')
+    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/auth/callback`
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo },
     })
     if (err) setError(err.message)
     setLoading(false)

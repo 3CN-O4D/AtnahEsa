@@ -1,34 +1,31 @@
 import { NextResponse } from 'next/server'
 import cloudinary from 'cloudinary'
 import { createClient } from '@/lib/supabase/server'
+import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 
 cloudinary.v2.config({
-  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
-  api_key: process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
+  cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!,
+  api_key: process.env.CLOUDINARY_API_KEY!,
+  api_secret: process.env.CLOUDINARY_API_SECRET!,
 })
 
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp']
+const MAX_SIZE = 5 * 1024 * 1024
+
 export async function POST(req: Request) {
+  const { allowed, headers } = await withRateLimit(req, 'upload')
+  if (!allowed) return NextResponse.json({ error: 'Too many uploads' }, { status: 429, headers })
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    if (!user) return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null
-    if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
-    }
-
-    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Only JPEG, PNG, WebP, and AVIF images are allowed' }, { status: 400 })
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      return NextResponse.json({ error: 'Avatar must be under 5MB' }, { status: 400 })
-    }
+    if (!file) return addSecurityHeaders(NextResponse.json({ error: 'No file' }, { status: 400 }))
+    if (!ALLOWED_TYPES.includes(file.type)) return addSecurityHeaders(NextResponse.json({ error: 'Invalid type' }, { status: 400 }))
+    if (file.size > MAX_SIZE) return addSecurityHeaders(NextResponse.json({ error: 'Max 5MB' }, { status: 400 }))
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
@@ -37,20 +34,14 @@ export async function POST(req: Request) {
 
     const result = await cloudinary.v2.uploader.upload(dataUri, {
       folder: 'asehanta/avatars',
-      transformation: [{ width: 200, height: 200, crop: 'fill' }],
+      public_id: `avatar-${user.id}-${Date.now()}`,
+      transformation: [{ width: 400, height: 400, crop: 'fill', gravity: 'face' }],
     })
 
-    const { error: profileErr } = await supabase
-      .from('profiles')
-      .update({ avatar_url: result.secure_url, updated_at: new Date().toISOString() })
-      .eq('id', user.id)
+    await supabase.from('profiles').update({ avatar_url: result.secure_url }).eq('id', user.id)
 
-    if (profileErr) {
-      return NextResponse.json({ error: profileErr.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ url: result.secure_url })
+    return addSecurityHeaders(NextResponse.json({ url: result.secure_url }))
   } catch {
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    return addSecurityHeaders(NextResponse.json({ error: 'Upload failed' }, { status: 500 }))
   }
 }

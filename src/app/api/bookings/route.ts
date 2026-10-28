@@ -1,75 +1,86 @@
 import { NextResponse } from 'next/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
-import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { notifyAdmins } from '@/lib/notify'
 
 export async function POST(req: Request) {
-  try {
-    const supabase = await createClient()
-    const { data: { user } } = await supabase.auth.getUser()
+  const { allowed, headers } = await withRateLimit(req, 'payments')
+  if (!allowed) return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers })
 
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  try {
+    const { listing_id, amount, phone, email } = await req.json()
+    if (!listing_id || !amount || !phone || !email) {
+      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
     }
 
-    const { listing_id } = await req.json()
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-    const { data: listing, error: listingError } = await supabase
+    const admin = createAdminClient()
+
+    const { data: listing } = await admin
       .from('listings')
-      .select('title, price, location, status, uploader_id')
+      .select('id, title, price, status, uploader_id')
       .eq('id', listing_id)
       .single()
 
-    if (listingError || !listing) {
-      return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
+    if (!listing || listing.status !== 'published') {
+      return NextResponse.json({ error: 'Listing not available' }, { status: 400 })
     }
 
     if (listing.uploader_id === user.id) {
-      return NextResponse.json({ error: 'You cannot book your own listing' }, { status: 400 })
+      return NextResponse.json({ error: 'Cannot book your own listing' }, { status: 400 })
     }
 
-    if (listing.status !== 'published') {
-      return NextResponse.json({ error: 'Listing is not available for booking' }, { status: 400 })
-    }
+    // Create booking
+    const { data: booking, error: bookingError } = await admin
+      .from('house_bookings')
+      .insert({
+        listing_id: listing.id,
+        listing_title: listing.title,
+        listing_price: amount,
+        phone,
+        email,
+        user_id: user.id,
+        payment_method: 'paywave',
+        status: 'pending',
+      })
+      .select()
+      .single()
 
-    const { data: existing } = await supabase
-      .from('bookings')
-      .select('id')
-      .eq('listing_id', listing_id)
-      .eq('user_id', user.id)
-      .in('status', ['pending', 'confirmed'])
-      .maybeSingle()
+    if (bookingError) throw bookingError
 
-    if (existing) {
-      return NextResponse.json({ error: 'You already have a pending booking for this listing' }, { status: 400 })
-    }
+    // Initiate PayWave STK Push
+    const { initiateStkPush } = await import('@/lib/paywave')
+    const stkResult = await initiateStkPush({ email, amount, msisdn: phone, reference: booking.id })
 
-    if (listing.price < MIN_BOOKING_FEE) {
-      return NextResponse.json(
-        { error: `Minimum booking fee is ${MIN_BOOKING_FEE}` },
-        { status: 400 }
-      )
-    }
-
-    const { error } = await supabase.from('bookings').insert({
-      listing_id,
-      user_id: user.id,
-      amount: listing.price,
-      status: 'pending',
+    // Create escrow hold
+    const { createEscrowHold } = await import('@/lib/escrow')
+    await createEscrowHold({
+      bookingId: booking.id,
+      hunterId: user.id,
+      listerId: listing.uploader_id,
+      amount: amount,
+      listingTitle: listing.title,
     })
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 400 })
-    }
+    // Notify
+    await import('@/lib/notify').then(({ notifyAdmins }) => notifyAdmins(
+      'New Booking Request',
+      'PayWave Payment Initiated',
+      { Hunter: user.email || 'N/A', Listing: listing.title, Amount: `KES ${amount}`, Phone: phone }
+    ))
 
-    notifyAdmins(
-      'New House Booking',
-      'Booking Request',
-      { User: user.email || 'N/A', Listing: listing.title || 'N/A', Location: listing.location || 'N/A', Amount: `KES ${listing.price}` }
-    )
-
-    return NextResponse.json({ success: true })
-  } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return NextResponse.json({
+      success: true,
+      checkoutRequestID: stkResult.checkoutRequestID,
+      merchantRequestID: stkResult.merchantRequestID,
+      customerMessage: stkResult.customerMessage,
+      bookingId: booking.id,
+    })
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 })
   }
 }

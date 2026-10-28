@@ -1,75 +1,65 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { NextResponse, NextRequest } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { withRateLimit, addSecurityHeaders, validateRequest, VALIDATION_SCHEMAS } from '@/lib/security'
+import { createNotification } from '@/lib/notifications'
+import { moveMediaToTaken, moveMediaBackToListings } from '@/lib/move-media'
+import { releaseToLister, refundHunter } from '@/lib/escrow'
+import { addSecurityHeaders } from '@/lib/security'
+import { createClient } from '@/lib/supabase/server'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { allowed, headers } = await withRateLimit(req, 'api')
-  if (!allowed) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers })
-  }
-
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    const resp = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    return addSecurityHeaders(resp)
-  }
+  
+  if (!user) return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
-    const resp = NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    return addSecurityHeaders(resp)
-  }
+  if (profile?.role !== 'admin') return addSecurityHeaders(NextResponse.json({ error: 'Forbidden' }, { status: 403 }))
 
   const body = await req.json()
-  const validation = validateRequest(VALIDATION_SCHEMAS.listingUpdate, body)
-  if (!validation.success) {
-    const resp = validation.error
-    return addSecurityHeaders(resp)
+  const { status, ...updates } = body
+
+  const admin = createAdminClient()
+  const { data: existing } = await admin.from('listings').select('*').eq('id', id).single()
+  if (!existing) return addSecurityHeaders(NextResponse.json({ error: 'Not found' }, { status: 404 }))
+
+  // Handle status transitions with media management
+  if (status && status !== existing.status) {
+    // Taken -> Published (reversal within 48h)
+    if (existing.status === 'taken' && status === 'published') {
+      try {
+        await moveMediaBackToListings(id)
+      } catch (err) {
+        return addSecurityHeaders(NextResponse.json({ error: err instanceof Error ? err.message : 'Reversal failed' }, { status: 400 }))
+      }
+    }
+    
+    // Published -> Taken
+    if (existing.status === 'published' && status === 'taken') {
+      await moveMediaToTaken(id)
+    }
   }
 
-  const adminSupabase = createAdminClient()
+  const { error } = await admin.from('listings').update({ ...updates, status: status || existing.status }).eq('id', id)
+  if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 
-  const { error } = await adminSupabase.from('listings').update(validation.data).eq('id', id)
-  if (error) {
-    const resp = NextResponse.json({ error: error.message }, { status: 500 })
-    return addSecurityHeaders(resp)
-  }
-
-  const { data: updated } = await adminSupabase.from('listings').select('*').eq('id', id).single()
-  const resp = NextResponse.json(updated)
-  return addSecurityHeaders(resp)
+  const { data: updated } = await admin.from('listings').select('*').eq('id', id).single()
+  return addSecurityHeaders(NextResponse.json(updated))
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const { allowed, headers } = await withRateLimit(req, 'api')
-  if (!allowed) {
-    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers })
-  }
-
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) {
-    const resp = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    return addSecurityHeaders(resp)
-  }
+  
+  if (!user) return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') {
-    const resp = NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-    return addSecurityHeaders(resp)
-  }
+  if (profile?.role !== 'admin') return addSecurityHeaders(NextResponse.json({ error: 'Forbidden' }, { status: 403 }))
 
-  const adminSupabase = createAdminClient()
-  const { error } = await adminSupabase.from('listings').delete().eq('id', id)
-  if (error) {
-    const resp = NextResponse.json({ error: error.message }, { status: 500 })
-    return addSecurityHeaders(resp)
-  }
+  const admin = createAdminClient()
+  const { error } = await admin.from('listings').delete().eq('id', id)
+  if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 
-  const resp = NextResponse.json({ success: true })
-  return addSecurityHeaders(resp)
+  return addSecurityHeaders(NextResponse.json({ success: true }))
 }

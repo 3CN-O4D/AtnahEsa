@@ -1,56 +1,59 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { addSecurityHeaders } from '@/lib/security'
 
 export async function GET() {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-
-  const adminSupabase = createAdminClient()
-
-  const c = async (table: string, field?: string, value?: string | number) => {
-    let q = adminSupabase.from(table as any).select('*', { count: 'exact', head: true })
-    if (field && value !== undefined) q = (q as any).eq(field, value)
-    return (await q).count ?? 0
-  }
+  const admin = createAdminClient()
 
   const [
-    total, published, booked, taken, pending,
-    vacant, vacancyPending, withIssues, rejected,
-    completed, refunded, listers, hunters, totalUsers,
-    movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
+    { count: total },
+    { count: published },
+    { count: booked },
+    { count: taken },
+    { count: pending },
+    { count: rejected },
+    { count: vacant },
+    { count: vacancyPending },
+    { count: withIssues },
+    { count: completed },
+    { count: refunded },
+    { count: listers },
+    { count: hunters },
+    { count: totalUsers },
+    { count: movers },
+    { count: wifiPkgs },
+    { count: wifiBkgs },
+    { count: contacts },
+    { count: houseReqs },
+    { count: reports },
   ] = await Promise.all([
-    c('listings'),
-    c('listings', 'status', 'published'),
-    c('listings', 'status', 'booked'),
-    c('listings', 'status', 'taken'),
-    c('listings', 'status', 'pending'),
-    adminSupabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'vacant').then((r) => r.count ?? 0),
-    adminSupabase.from('listings').select('id', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'pending').then((r) => r.count ?? 0),
-    adminSupabase.from('listings').select('id', { count: 'exact', head: true }).gt('issues_count', 0).then((r) => r.count ?? 0),
-    c('listings', 'status', 'rejected'),
-    c('bookings', 'visit_status', 'completed'),
-    c('bookings', 'visit_status', 'refunded'),
-    c('profiles', 'role', 'lister'),
-    c('profiles', 'role', 'hunter'),
-    c('profiles'),
-    c('movers'),
-    c('wifi_packages'),
-    c('wifi_bookings'),
-    c('contact_submissions'),
-    c('house_requests'),
-    c('reports'),
+    admin.from('listings').select('*', { count: 'exact', head: true }),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'booked'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'taken'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'vacant'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'published').eq('vacancy', 'pending'),
+    admin.from('listings').select('*', { count: 'exact', head: true }).gt('issues_count', 0),
+    admin.from('bookings').select('*', { count: 'exact', head: true }).eq('visit_status', 'completed'),
+    admin.from('bookings').select('*', { count: 'exact', head: true }).eq('visit_status', 'refunded'),
+    admin.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'lister'),
+    admin.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'hunter'),
+    admin.from('profiles').select('*', { count: 'exact', head: true }),
+    admin.from('movers').select('*', { count: 'exact', head: true }),
+    admin.from('wifi_packages').select('*', { count: 'exact', head: true }),
+    admin.from('wifi_bookings').select('*', { count: 'exact', head: true }),
+    admin.from('contact_submissions').select('*', { count: 'exact', head: true }),
+    admin.from('house_requests').select('*', { count: 'exact', head: true }),
+    admin.from('reports').select('*', { count: 'exact', head: true }),
   ])
 
   const [{ data: bookings }, { data: escrows }, { data: txns }, { data: houseBkgs }] = await Promise.all([
-    adminSupabase.from('bookings').select('amount, refund_amount, status'),
-    adminSupabase.from('escrow_holds').select('amount, status'),
-    adminSupabase.from('transactions').select('amount, status, payment_method'),
-    adminSupabase.from('house_bookings').select('listing_price, release_status, payment_method'),
+    admin.from('bookings').select('amount, refund_amount, status'),
+    admin.from('escrow_holds').select('amount, status'),
+    admin.from('transactions').select('amount, status, payment_method'),
+    admin.from('house_bookings').select('listing_price, release_status, payment_method'),
   ])
 
   const totalRevenue = (bookings || []).filter((b: any) => b.status === 'confirmed').reduce((s: number, b: any) => s + (b.amount || 0), 0)
@@ -72,7 +75,7 @@ export async function GET() {
   const methodMap: Record<string, { count: number; amount: number }> = {}
   for (const t of (txns || []) as any[]) {
     if (t.status !== 'success' || !(t.amount > 0)) continue
-    const m = String(t.payment_method || 'daraja_till').toLowerCase()
+    const m = String(t.payment_method || 'paywave').toLowerCase()
     methodMap[m] = methodMap[m] || { count: 0, amount: 0 }
     methodMap[m].count += 1
     methodMap[m].amount += t.amount
@@ -80,8 +83,8 @@ export async function GET() {
   const paymentsByMethod = Object.entries(methodMap).map(([method, v]) => ({ method, ...v }))
 
   return NextResponse.json({
-    total, published, booked, taken, pending,
-    vacant, vacancyPending, withIssues, rejected,
+    total, published, booked, taken, pending, rejected,
+    vacant, vacancyPending, withIssues,
     completed, refunded, listers, hunters, totalUsers,
     movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
     totalRevenue, totalRefunded, escrowHeld, escrowHeldAmount,

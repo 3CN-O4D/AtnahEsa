@@ -33,10 +33,20 @@ export default function HomePage() {
       }
     })
     // Fetch stats for all statuses
+    const fetchStatus = async (status: string) => {
+      try {
+        const res = await fetch(`/api/listings?page=1&status=${status}`)
+        if (!res.ok) return []
+        const data = await res.json()
+        return Array.isArray(data) ? data : []
+      } catch {
+        return []
+      }
+    }
     Promise.all([
-      fetch('/api/listings?page=1&status=published').then((r) => r.json()).catch(() => []),
-      fetch('/api/listings?page=1&status=taken').then((r) => r.json()).catch(() => []),
-      fetch('/api/listings?page=1&status=booked').then((r) => r.json()).catch(() => []),
+      fetchStatus('published'),
+      fetchStatus('taken'),
+      fetchStatus('booked'),
     ]).then(([published, taken, booked]) => {
       setStats({
         available: published.length,

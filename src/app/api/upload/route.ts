@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import cloudinary from 'cloudinary'
 import { createClient } from '@/lib/supabase/server'
+import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 
 cloudinary.v2.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -12,25 +13,40 @@ const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
 const MAX_SIZE = 10 * 1024 * 1024
 
 export async function POST(req: Request) {
+  const { allowed, headers } = await withRateLimit(req, 'upload')
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many uploads. Try again shortly.' }, { status: 429, headers })
+  }
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    if (!user) {
+      const resp = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return addSecurityHeaders(resp)
+    }
 
     const formData = await req.formData()
     const file = formData.get('file') as File | null
 
     if (!file) {
-      return NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      const resp = NextResponse.json({ error: 'No file provided' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Only JPEG, PNG, WebP, and AVIF images are allowed' }, { status: 400 })
+      const resp = NextResponse.json({ error: 'Only JPEG, PNG, WebP, and AVIF images are allowed' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     if (file.size > MAX_SIZE) {
-      return NextResponse.json({ error: 'Image must be under 10MB' }, { status: 400 })
+      const resp = NextResponse.json({ error: 'Image must be under 10MB' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
+
+    // Sanitize filename
+    const originalName = file.name
+    const safeName = originalName.replace(/[^a-zA-Z0-9.-]/g, '_').replace(/\.+/g, '.').slice(0, 255)
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
@@ -39,10 +55,14 @@ export async function POST(req: Request) {
 
     const result = await cloudinary.v2.uploader.upload(dataUri, {
       folder: 'asehanta/listings',
+      public_id: `asehanta-${Date.now()}-${safeName.replace(/\.[^.]+$/, '')}`,
+      resource_type: 'image',
     })
 
-    return NextResponse.json({ url: result.secure_url, public_id: result.public_id })
+    const resp = NextResponse.json({ url: result.secure_url, public_id: result.public_id })
+    return addSecurityHeaders(resp)
   } catch {
-    return NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    const resp = NextResponse.json({ error: 'Upload failed' }, { status: 500 })
+    return addSecurityHeaders(resp)
   }
 }

@@ -2,30 +2,36 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
 import { TILL_NUMBER } from '@/lib/constants'
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { withRateLimit, addSecurityHeaders, validateRequest, VALIDATION_SCHEMAS } from '@/lib/security'
 
 export async function POST(req: Request) {
+  const { allowed, headers } = await withRateLimit(req, 'contact')
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429, headers })
+  }
+
   try {
-    const { allowed, retryAfter } = await checkRateLimit(`house-book:${getClientIp(req)}`, 5, 300)
-    if (!allowed) {
-      return NextResponse.json({ error: 'Too many requests. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+    const body = await req.json()
+    const validation = validateRequest(VALIDATION_SCHEMAS.contactSubmit, body)
+    if (!validation.success) {
+      const resp = validation.error
+      return addSecurityHeaders(resp)
     }
 
-    const { listing_id, listing_title, listing_location, listing_price, name, phone, area, id_number, mpesa_message, transaction_code } = await req.json()
+    const { listing_id, listing_title, listing_location, listing_price, name, phone, area, id_number, mpesa_message, transaction_code } = body
 
-    if (!listing_id || !phone || !mpesa_message) {
-      return NextResponse.json({ error: 'Phone number and M-Pesa message are required' }, { status: 400 })
-    }
-
+    // Additional validation for payment confirmation
     if (!transaction_code || !/^[A-Z][A-Z0-9]{3,}$/.test(transaction_code)) {
-      return NextResponse.json({ error: 'A valid transaction code is required (e.g. ABCDE12345)' }, { status: 400 })
+      const resp = NextResponse.json({ error: 'A valid transaction code is required (e.g. ABCDE12345)' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     // Accept Till (ASEHANTA INVESTMENTS) and Tuma/I&M M-Pesa confirmation messages.
     const isTillMessage = /ASEHANTA\s+INVESTMENTS/i.test(mpesa_message)
     const isTumaMessage = /Tuma|I&M|I AND M|tinua/i.test(mpesa_message)
     if (!isTillMessage && !isTumaMessage) {
-      return NextResponse.json({ error: 'We could not recognise this as a valid payment confirmation. If you paid via M-Pesa / Till or Tuma, paste the exact message you received.' }, { status: 400 })
+      const resp = NextResponse.json({ error: 'We could not recognise this as a valid payment confirmation. If you paid via M-Pesa / Till or Tuma, paste the exact message you received.' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     const amountMatch = mpesa_message.match(/Ksh([\d,]+\.\d{2})/)
@@ -46,7 +52,8 @@ export async function POST(req: Request) {
     })
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      const resp = NextResponse.json({ error: error.message }, { status: 500 })
+      return addSecurityHeaders(resp)
     }
 
     await notifyAdmins(
@@ -68,8 +75,10 @@ export async function POST(req: Request) {
       }
     )
 
-    return NextResponse.json({ success: true })
+    const resp = NextResponse.json({ success: true })
+    return addSecurityHeaders(resp)
   } catch {
-    return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+    const resp = NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
+    return addSecurityHeaders(resp)
   }
 }

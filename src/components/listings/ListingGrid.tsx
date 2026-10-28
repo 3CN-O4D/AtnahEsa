@@ -3,7 +3,7 @@
 import { useRef, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import ListingCard from './ListingCard'
-import { Home, Wifi, Search } from 'lucide-react'
+import { Home, Wifi, Search, Sparkles } from 'lucide-react'
 import type { Listing } from '@/types'
 
 interface ListingGridProps {
@@ -19,6 +19,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
   const [loading, setLoading] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [showSuccess, setShowSuccess] = useState(false)
   const loaderRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
 
@@ -35,6 +36,10 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
         setListings((prev) => {
           const existing = new Set(prev.map((l) => l.id))
           const unique = data.filter((l) => !existing.has(l.id))
+          if (unique.length > 0 && prev.length > 0) {
+            setShowSuccess(true)
+            setTimeout(() => setShowSuccess(false), 1500)
+          }
           return [...prev, ...unique]
         })
         setPage((p) => p + 1)
@@ -83,7 +88,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
       {loading && listings.length === 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-12">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-            <div key={i} className="animate-slideUp" style={{ animationDelay: `${(i % 4) * 0.1}s` }}>
+            <div key={i} className="animate-slideUp animate-fadeIn" style={{ animationDelay: `${(i % 4) * 0.1}s` }}>
               <div className="skeleton h-96 w-full mb-3" />
               <div className="skeleton h-4 w-3/4 mb-2" />
               <div className="skeleton h-4 w-1/2" />
@@ -93,17 +98,23 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
       )}
       {!loading && listings.length > 0 && (
         <>
-          <div className="mb-4 flex items-center gap-2 animate-fadeIn">
+          <div className="mb-4 flex items-center gap-2 animate-fadeIn animate-slideUp">
             <span className="font-semibold text-gray-700 dark:text-gray-200">
               {listings.length} home{listings.length !== 1 ? 's' : ''}
             </span>
             <span className="text-xs text-gray-500 dark:text-gray-400">
               &middot; {sort ? sort.replace(/_/g, ' ') : 'Newest first'}
             </span>
+            {showSuccess && (
+              <span className="ml-auto flex items-center gap-1 text-xs text-green-600 dark:text-green-400 animate-scaleIn animate-fadeIn">
+                <Sparkles className="w-3.5 h-3.5" />
+                New listings loaded!
+              </span>
+            )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {listings.map((listing, i) => (
-              <div key={listing.id} className="animate-slideUp animate-fadeIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
+              <div key={listing.id} className="animate-slideUp animate-fadeIn animate-elasticIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
                 <ListingCard listing={listing} />
               </div>
             ))}
@@ -123,18 +134,18 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
 
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Link href="/request-house">
-              <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors">
+              <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors tap-scale hover:-translate-y-0.5 hover:shadow-lg">
                 <Home className="w-4 h-4" /> Request a House
               </span>
             </Link>
             <Link href="/wifi">
-              <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors">
+              <span className="inline-flex items-center gap-2 px-5 py-2.5 bg-gray-100 text-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-200 transition-colors tap-scale hover:-translate-y-0.5 hover:shadow-lg">
                 <Wifi className="w-4 h-4" /> Browse WiFi Packages
               </span>
             </Link>
           </div>
 
-          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 max-w-md mx-auto text-left">
+          <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 max-w-md mx-auto text-left animate-fadeInUp">
             <p className="text-sm font-semibold text-blue-800 flex items-center gap-2 mb-2">
               <Wifi className="w-4 h-4" /> While You Wait — Get Internet Ready
             </p>
@@ -142,7 +153,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
               Moving into a new home? Compare the latest WiFi packages from top providers and pick a plan.
               Packages start as low as KES 1,000/month.
             </p>
-            <Link href="/wifi" className="text-xs text-blue-600 hover:underline mt-2 inline-block font-medium">
+            <Link href="/wifi" className="text-xs text-blue-600 hover:underline mt-2 inline-block font-medium transition-colors hover:translate-x-1">
               View packages →
             </Link>
           </div>
@@ -156,7 +167,10 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
       {hasMore && (
         <div ref={loaderRef} className="flex justify-center py-8">
           {loading && (
-            <div className="animate-spin w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full" />
+            <div className="flex flex-col items-center gap-3 animate-fadeIn">
+              <div className="animate-spin w-8 h-8 border-3 border-blue-600 border-t-transparent rounded-full" />
+              <span className="text-sm text-gray-500 animate-pulse-slow">Loading more homes...</span>
+            </div>
           )}
         </div>
       )}

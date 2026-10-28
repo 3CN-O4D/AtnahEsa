@@ -1,37 +1,43 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { ITEMS_PER_PAGE } from '@/lib/constants'
+import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { notifyAdmins } from '@/lib/notify'
 
 export async function GET(req: Request) {
+  const { allowed, headers } = await withRateLimit(req, 'search')
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
-    const page = parseInt(searchParams.get('page') || '1')
-    const query = searchParams.get('query') || ''
-    const sort = searchParams.get('sort') || ''
-    const location = searchParams.get('location') || ''
-    const minRent = searchParams.get('minRent') || ''
-    const maxRent = searchParams.get('maxRent') || ''
-    const minPrice = searchParams.get('minPrice') || ''
-    const maxPrice = searchParams.get('maxPrice') || ''
-    const issues = searchParams.get('issues') || ''
+    const validation = validateRequest(VALIDATION_SCHEMAS.searchQuery, Object.fromEntries(searchParams))
+    if (!validation.success) {
+      const resp = validation.error
+      return addSecurityHeaders(resp)
+    }
+
+    const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, status } = validation.data
 
     const supabase = createAdminClient()
 
     const PUBLIC_COLUMNS =
       'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,created_at,updated_at'
 
+    const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
+
     let q = supabase
       .from('listings')
       .select(PUBLIC_COLUMNS)
-      .in('status', ['published', 'taken'])
-      .range((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE - 1)
+      .in('status', statusFilter)
+      .range((page ? parseInt(page) : 1 - 1) * 12, (page ? parseInt(page) : 1) * 12 - 1)
 
     if (query) {
-      q = q.or(`location.ilike.*${query}*,title.ilike.*${query}*`)
+      const sanitized = query.replace(/[%_]/g, '').slice(0, 100)
+      q = q.or(`location.ilike.*${sanitized}*,title.ilike.*${sanitized}*`)
     }
-    if (location) q = q.ilike('location', `%${location}%`)
+    if (location) q = q.ilike('location', `%${location.replace(/[%_]/g, '').slice(0, 100)}%`)
     if (minRent) q = q.gte('rent', parseInt(minRent))
     if (maxRent) q = q.lte('rent', parseInt(maxRent))
     if (minPrice) q = q.gte('price', parseInt(minPrice))
@@ -57,54 +63,68 @@ export async function GET(req: Request) {
     const { data, error } = await q
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
+      const resp = NextResponse.json({ error: error.message }, { status: 500 })
+      return addSecurityHeaders(resp)
     }
 
-    return NextResponse.json(data)
+    const resp = NextResponse.json(data)
+    return addSecurityHeaders(resp)
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const resp = NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return addSecurityHeaders(resp)
   }
 }
 
 export async function POST(req: Request) {
+  const { allowed, headers } = await withRateLimit(req, 'api')
+  if (!allowed) {
+    return NextResponse.json({ error: 'Too many requests' }, { status: 429, headers })
+  }
+
   try {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      const resp = NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      return addSecurityHeaders(resp)
     }
 
     const body = await req.json()
+    const validation = validateRequest(VALIDATION_SCHEMAS.listingCreate, body)
+    if (!validation.success) {
+      const resp = validation.error
+      return addSecurityHeaders(resp)
+    }
 
     const { data: profile } = await supabase.from('profiles').select('role, username, full_name').eq('id', user.id).single()
     const isAdmin = profile?.role === 'admin'
     const displayName = profile?.full_name || profile?.username || ''
 
     const allowedFields = {
-      title: body.title,
-      description: body.description,
-      price: body.price,
-      rent: body.rent,
-      deposit: body.deposit || 0,
-      deposit_refundable: body.deposit_refundable ?? true,
-      electric_bill: body.electric_bill || '',
-      water: body.water || '',
-      vacancy: body.vacancy || 'vacant',
-      why_vacant: body.why_vacant || '',
-      house_type: body.house_type || '',
-      building_type: body.building_type || '',
-      floor_number: body.floor_number || '',
-      descriptive_location: body.descriptive_location || '',
-      location: body.location,
-      images: body.images || [],
-      youtube_url: body.youtube_url || null,
-      tiktok_url: body.tiktok_url || null,
-      video_urls: body.video_urls || [],
-      issues: body.issues || [],
-      issues_count: body.issues?.length || 0,
-      payment_method: body.payment_method || '',
-      lister_phone: body.lister_phone || '',
+      title: validation.data.title,
+      description: validation.data.description,
+      price: validation.data.price,
+      rent: validation.data.rent,
+      deposit: validation.data.deposit || 0,
+      deposit_refundable: validation.data.deposit_refundable ?? true,
+      electric_bill: validation.data.electric_bill || '',
+      water: validation.data.water || '',
+      vacancy: validation.data.vacancy || 'vacant',
+      why_vacant: validation.data.why_vacant || '',
+      house_type: validation.data.house_type || '',
+      building_type: validation.data.building_type || '',
+      floor_number: validation.data.floor_number || '',
+      descriptive_location: validation.data.descriptive_location || '',
+      location: validation.data.location,
+      images: validation.data.images,
+      youtube_url: validation.data.youtube_url || null,
+      tiktok_url: validation.data.tiktok_url || null,
+      video_urls: validation.data.video_urls || [],
+      issues: validation.data.issues || [],
+      issues_count: validation.data.issues_count || validation.data.issues?.length || 0,
+      payment_method: validation.data.payment_method || '',
+      lister_phone: validation.data.lister_phone || '',
       uploader_id: user.id,
       uploader_name: displayName,
       status: isAdmin ? 'published' : 'pending',
@@ -113,17 +133,20 @@ export async function POST(req: Request) {
     const { error: insertError } = await supabase.from('listings').insert(allowedFields)
 
     if (insertError) {
-      return NextResponse.json({ error: insertError.message, details: insertError.details, code: insertError.code }, { status: 400 })
+      const resp = NextResponse.json({ error: insertError.message, details: insertError.details, code: insertError.code }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     notifyAdmins(
       'New Listing Uploaded',
       'New House Listing',
-      { Title: body.title || 'N/A', Location: body.location || 'N/A', Price: body.price ? `KES ${body.price}` : 'N/A', Rent: body.rent ? `KES ${body.rent}` : 'N/A', Uploader: user.email || 'N/A' }
+      { Title: validation.data.title, Location: validation.data.location, Price: `KES ${validation.data.price}`, Rent: `KES ${validation.data.rent}`, Uploader: user.email || 'N/A' }
     )
 
-    return NextResponse.json({ success: true })
+    const resp = NextResponse.json({ success: true })
+    return addSecurityHeaders(resp)
   } catch {
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    const resp = NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+    return addSecurityHeaders(resp)
   }
 }

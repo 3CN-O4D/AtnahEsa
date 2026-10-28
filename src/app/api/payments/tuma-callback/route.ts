@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 import { createNotification } from '@/lib/notifications'
 import type { TumaCallback } from '@/lib/tuma'
+import { addSecurityHeaders } from '@/lib/security'
 
 /**
  * Tuma (I&M Bank) payment callback.
@@ -15,7 +16,8 @@ export async function POST(req: Request) {
     const body = (await req.json()) as TumaCallback
 
     if (!body || !body.status) {
-      return NextResponse.json({ success: false, message: 'Invalid callback' }, { status: 400 })
+      const resp = NextResponse.json({ success: false, message: 'Invalid callback' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     const supabase = createAdminClient()
@@ -27,7 +29,8 @@ export async function POST(req: Request) {
     const success = body.status === 'completed' && (resultCode === 0 || resultCode === undefined)
 
     if (!merchantRequestId && !checkoutRequestId) {
-      return NextResponse.json({ success: false, message: 'Missing request id' }, { status: 400 })
+      const resp = NextResponse.json({ success: false, message: 'Missing request id' }, { status: 400 })
+      return addSecurityHeaders(resp)
     }
 
     // Locate the transaction by whichever id we have.
@@ -45,7 +48,8 @@ export async function POST(req: Request) {
     const { data: existing } = await query.maybeSingle()
 
     if (existing && existing.status === 'success') {
-      return NextResponse.json({ success: true, message: 'Already processed' })
+      const resp = NextResponse.json({ success: true, message: 'Already processed' })
+      return addSecurityHeaders(resp)
     }
 
     if (!existing) {
@@ -60,7 +64,8 @@ export async function POST(req: Request) {
           Receipt: receipt || 'N/A',
         }
       )
-      return NextResponse.json({ success: true, message: 'No matching transaction' })
+      const resp = NextResponse.json({ success: true, message: 'No matching transaction' })
+      return addSecurityHeaders(resp)
     }
 
     const txId = existing.id
@@ -188,13 +193,16 @@ export async function POST(req: Request) {
       )
     }
 
-    return NextResponse.json({ success: true })
+    const resp = NextResponse.json({ success: true })
+    return addSecurityHeaders(resp)
   } catch {
     // Tuma expects a 2xx; never throw so callbacks aren't retried forever.
-    return NextResponse.json({ success: true })
+    const resp = NextResponse.json({ success: true })
+    return addSecurityHeaders(resp)
   }
 }
 
 export async function GET() {
-  return NextResponse.json({ success: true })
+  const resp = NextResponse.json({ success: true })
+  return addSecurityHeaders(resp)
 }

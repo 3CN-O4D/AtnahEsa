@@ -19,7 +19,7 @@ export default function HomePage() {
   const [sort, setSort] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [showFilters, setShowFilters] = useState(false)
-  const [stats, setStats] = useState({ available: 0, pending: 0, taken: 0 })
+  const [stats, setStats] = useState({ available: 0, total: 0, pending: 0, taken: 0 })
 
   useEffect(() => {
     const supabase = createClient()
@@ -40,6 +40,7 @@ export default function HomePage() {
     ]).then(([published, taken, booked]) => {
       setStats({
         available: published.length,
+        total: published.length + taken.length + booked.length,
         pending: 0,
         taken: taken.length + booked.length,
       })
@@ -75,6 +76,7 @@ export default function HomePage() {
   const listAHouseLink = user ? '/upload' : '/auth/signup?role=lister'
 
   const countAvailable = useCountUp(stats.available)
+  const countTotal = useCountUp(stats.total)
   const countPending = useCountUp(stats.pending)
   const countTaken = useCountUp(stats.taken)
 
@@ -106,10 +108,14 @@ export default function HomePage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-3 gap-4 mb-8 animate-fadeIn animate-slideUp" style={{ animationDelay: '0.2s' }}>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fadeIn animate-slideUp" style={{ animationDelay: '0.2s' }}>
         <div className="bg-[#e8f8eb] dark:bg-[#30B54A]/20 border border-[#30B54A] dark:border-[#30B54A]/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.1s' }}>
           <p className="text-2xl font-bold text-[#30B54A] dark:text-[#6fdc84]">{countAvailable}</p>
           <p className="text-xs text-[#30B54A] dark:text-[#6fdc84] font-medium">Available Houses</p>
+        </div>
+        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.15s' }}>
+          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{countTotal}</p>
+          <p className="text-xs text-blue-600 dark:text-blue-300 font-medium">Total Listings</p>
         </div>
         <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.2s' }}>
           <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{countPending}</p>

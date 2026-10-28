@@ -46,6 +46,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load listings')
+      setHasMore(false)
     } finally {
       setLoading(false)
       loadingRef.current = false
@@ -63,7 +64,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
 
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (page === 1 && hasMore) {
+    if (page === 1 && hasMore && !loadingRef.current) {
       loadMore()
     }
   }, [page, hasMore, loadMore])
@@ -75,13 +76,15 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting) loadMore()
+        if (entries[0].isIntersecting && hasMore && !loadingRef.current) {
+          loadMore()
+        }
       },
-      { threshold: 0.1 }
+      { threshold: 0.1, rootMargin: '100px' }
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [loadMore])
+  }, [loadMore, hasMore])
 
   return (
     <div>

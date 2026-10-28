@@ -1,15 +1,20 @@
 'use client'
 
-import { Suspense, useState, useRef } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
+import { useState, useRef, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { KeyRound, Eye, EyeOff } from 'lucide-react'
 import Button from '@/components/ui/Button'
 
+function getParam(name: string): string {
+  if (typeof window === 'undefined') return ''
+  return new URLSearchParams(window.location.search).get(name) || ''
+}
+
 function ResetPasswordForm() {
   const router = useRouter()
-  const searchParams = useSearchParams()
-  const email = searchParams.get('email') || ''
+  const [emailParam, setEmailParam] = useState(getParam('email'))
+  const email = emailParam || ''
   const [step, setStep] = useState<'otp' | 'password'>(email ? 'otp' : 'password')
   const [localEmail, setLocalEmail] = useState(email)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
@@ -150,9 +155,5 @@ function ResetPasswordForm() {
 }
 
 export default function ResetPasswordPage() {
-  return (
-    <Suspense fallback={<div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>}>
-      <ResetPasswordForm />
-    </Suspense>
-  )
+  return <ResetPasswordForm />
 }

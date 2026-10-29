@@ -107,7 +107,9 @@ export async function POST(req: Request) {
       bookingId: booking.id,
     }))
   } catch (err) {
-    console.error('house-bookings error:', err)
-    return addSecurityHeaders(NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 }))
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('house-bookings error:', msg)
+    console.error('house-bookings error full:', err)
+    return addSecurityHeaders(NextResponse.json({ error: msg, debug: process.env.NODE_ENV === 'development' ? err : undefined }, { status: 500 }))
   }
 }

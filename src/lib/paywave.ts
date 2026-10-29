@@ -2,8 +2,8 @@ import { z } from 'zod'
 
 export const PayWaveConfig = {
   baseUrl: process.env.PAYWAVE_BASE_URL || 'https://paywavexpress.co.ke',
-  apiKey: process.env.PAYWAVE_API_KEY!,
-  email: process.env.PAYWAVE_EMAIL!,
+  apiKey: process.env.PAYWAVE_API_KEY || '',
+  email: process.env.PAYWAVE_EMAIL || '',
 } as const
 
 export const StkPushRequest = z.object({

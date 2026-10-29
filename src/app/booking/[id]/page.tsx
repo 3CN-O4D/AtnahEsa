@@ -68,6 +68,7 @@ export default function BookingPage() {
 
   const handlePay = useCallback(async (e: React.FormEvent) => {
     e.preventDefault()
+    console.log('[Booking] handlePay called', { listingId: listing?.id, phone, email, amount: listing?.price })
     setError('')
     if (!listing) { setError('House not found'); return }
     if (!user) { setError('Please log in'); return }
@@ -79,11 +80,12 @@ export default function BookingPage() {
     const amount = listing.price || 0
     if (!amount || amount < 1) { setError('Invalid listing price'); return }
 
+    console.log('[Booking] setting loading=true, step=initiating')
     setPayStep('initiating')
     setLoading(true)
 
-    try {
-      const res = await fetch('/api/house-bookings', {
+    console.log('[Booking] calling /api/house-bookings')
+    const res = await fetch('/api/house-bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -94,7 +96,9 @@ export default function BookingPage() {
         }),
       })
 
-      let data: any = {}
+    console.log('[Booking] response status', res.status)
+
+    let data: any = {}
       try {
         data = await res.json()
       } catch {

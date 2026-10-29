@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Smartphone, ShieldCheck, Loader2, CheckCircle, AlertTriangle, Clock, Phone, Calendar, RefreshCw } from 'lucide-react'
+import { ArrowLeft, Smartphone, ShieldCheck, Loader2, CheckCircle, AlertTriangle, Phone, Calendar } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { isValidMpesaMessage, extractTransactionCode, extractAmountFromMessage, verifyTransaction } from '@/lib/paywave'
@@ -43,16 +43,19 @@ export default function BookingPage() {
   const [transactionRequestID, setTransactionRequestID] = useState<string | null>(null)
   const [verifying, setVerifying] = useState(false)
   const [payStep, setPayStep] = useState<'idle' | 'initiating' | 'pending' | 'confirmed' | 'failed'>('idle')
-
+  const mountedRef = useRef(true)
 
   useEffect(() => {
+    mountedRef.current = true
     const supabase = createClient()
     supabase.from('listings').select('*').eq('id', id).single().then(({ data }) => {
+      if (!mountedRef.current) return
       if (!data || data.status !== 'published') { router.push('/'); return }
       setListing(data as Listing)
     })
 
     supabase.auth.getUser().then(async ({ data: { user: u } }) => {
+      if (!mountedRef.current) return
       if (!u) { router.push(`/auth/signin?callbackUrl=/booking/${id}`); return }
       setUser({ id: u.id, email: u.email })
       const { data: profile } = await supabase
@@ -60,10 +63,13 @@ export default function BookingPage() {
         .select('phone, email')
         .eq('id', u.id)
         .maybeSingle()
-      if (profile?.phone) setPhone(profile.phone)
-      if (profile?.email) setEmail(profile.email)
-      setLoading(false)
+      if (mountedRef.current) {
+        if (profile?.phone) setPhone(profile.phone)
+        if (profile?.email) setEmail(profile.email || '')
+        setLoading(false)
+      }
     })
+    return () => { mountedRef.current = false }
   }, [id, router])
 
   const handlePay = useCallback(async (e: React.FormEvent) => {
@@ -122,10 +128,8 @@ export default function BookingPage() {
       setError(msg)
       setPayStep('idle')
       setLoading(false)
-    } finally {
-      if (payStep === 'initiating') setLoading(false)
     }
-  }, [listing, user, phone, email, payStep])
+  }, [listing, user, phone, email])
 
   const confirmPayment = async () => {
     if (!bookingId || !transactionRequestID) return
@@ -252,7 +256,7 @@ export default function BookingPage() {
       <h1 className="text-2xl font-bold mb-6 dark:text-white">Pay &amp; Book — {listing.title}</h1>
 
       <div className="bg-white border rounded-xl p-4 mb-6 space-y-3 dark:bg-slate-800 dark:border-gray-700">
-        <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-full h-40 rounded-lg object-cover" />
+        <img src={listing.images?.[0] || '/placeholder.jpg'} alt="" className="w-full h-40 rounded-lg object-cover" />
         <h2 className="font-semibold dark:text-white">{listing.title}</h2>
         <p className="text-sm text-gray-500 dark:text-gray-300">{listing.location}</p>
         <div className="flex items-center justify-between">
@@ -291,7 +295,7 @@ export default function BookingPage() {
           {email && (
             <div className="flex items-center gap-2 text-xs text-gray-500">
               <Smartphone className="w-3 h-3" />
-              <span>Receipt will be sent to {email}</span>
+              <span>Receipt will be sent to {String(email)}</span>
             </div>
           )}
           {error && <p className="text-sm text-red-600">{error}</p>}
@@ -395,7 +399,7 @@ export default function BookingPage() {
           </p>
           <button
             onClick={goToMyBookings}
-            className="w-full rounded-lg bg-green-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-green-700"
+            className="w-full rounded-lg bg-green-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
           >
             <Phone className="w-3.5 h-3.5 mr-1.5" /> Go to My Bookings
           </button>
@@ -409,7 +413,7 @@ export default function BookingPage() {
           <p className="text-xs text-gray-500 dark:text-gray-400">Your payment could not be confirmed. No money was taken.</p>
           <button
             onClick={() => setPayStep('idle')}
-            className="w-full rounded-lg bg-red-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-red-700"
+            className="w-full rounded-lg bg-red-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700"
           >
             Try again
           </button>

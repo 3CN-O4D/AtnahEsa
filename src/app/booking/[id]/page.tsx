@@ -93,7 +93,14 @@ export default function BookingPage() {
           email,
         }),
       })
-      const data = await res.json()
+
+      let data: any = {}
+      try {
+        data = await res.json()
+      } catch {
+        data = { error: `Server returned ${res.status} (non-JSON response)` }
+      }
+
       if (!res.ok) {
         setError(errStr(data.error) || 'Failed to initiate payment')
         setPayStep('idle')
@@ -104,8 +111,8 @@ export default function BookingPage() {
       setTransactionRequestID(data.transactionRequestID || null)
       setPayStep('pending')
       setLoading(false)
-    } catch {
-      setError('Something went wrong')
+    } catch (err: any) {
+      setError(errStr(err) || 'Something went wrong')
       setPayStep('idle')
       setLoading(false)
     } finally {

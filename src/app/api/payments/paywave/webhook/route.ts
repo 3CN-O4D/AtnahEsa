@@ -2,44 +2,41 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
 import { moveMediaToTaken } from '@/lib/move-media'
-import { releaseToLister, refundHunter } from '@/lib/escrow'
-import { verifyWebhookSignature } from '@/lib/paywave'
+import { parseWebhookPayload } from '@/lib/paywave'
 import { addSecurityHeaders } from '@/lib/security'
 
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text()
-    const signature = req.headers.get('x-paywave-signature') || ''
+    const payload = parseWebhookPayload(rawBody)
 
-    if (!verifyWebhookSignature(rawBody, signature)) {
-      return addSecurityHeaders(NextResponse.json({ error: 'Invalid signature' }, { status: 401 }))
+    if (!payload) {
+      return addSecurityHeaders(NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 }))
     }
 
-    const payload = JSON.parse(rawBody)
-    const { event, data } = payload
+    const { ResponseCode, ResponseDescription, MerchantRequestID, CheckoutRequestID,
+      TransactionID, TransactionAmount, TransactionReceipt, TransactionDate,
+      TransactionReference, Msisdn } = payload
 
     const admin = createAdminClient()
 
-    // --- IDEMPOTENCY CHECK (C4) ---
-    // Track processed checkoutRequestIDs to prevent duplicate processing
+    // Idempotency check
     const { data: existingWebhook } = await admin
       .from('paywave_webhook_events')
       .select('id')
-      .eq('checkout_request_id', data.checkoutRequestID)
+      .eq('checkout_request_id', CheckoutRequestID)
       .maybeSingle()
 
     if (existingWebhook) {
-      // Already processed this webhook — return success without side effects
       return addSecurityHeaders(NextResponse.json({ success: true, message: 'Already processed' }))
     }
 
-    // Record this webhook event BEFORE processing (idempotency)
     await admin
       .from('paywave_webhook_events')
       .insert({
-        checkout_request_id: data.checkoutRequestID,
-        event,
-        amount: data.amount,
+        checkout_request_id: CheckoutRequestID,
+        event: ResponseCode === 0 ? 'stkpush.success' : 'stkpush.failed',
+        amount: TransactionAmount,
         received_at: new Date().toISOString(),
         payload: rawBody,
       })
@@ -47,17 +44,16 @@ export async function POST(req: Request) {
     const { data: booking } = await admin
       .from('house_bookings')
       .select('*')
-      .eq('id', data.reference)
+      .eq('id', TransactionReference)
       .single()
 
     if (!booking) {
-      console.error('Booking not found for reference:', data.reference)
+      console.error('Booking not found for reference:', TransactionReference)
       return addSecurityHeaders(NextResponse.json({ error: 'Booking not found' }, { status: 404 }))
     }
 
-    // --- AMOUNT VERIFICATION (C3) ---
-    // Ensure the webhook amount matches the booking amount
-    const webhookAmount = parseInt(data.amount)
+    // Amount verification
+    const webhookAmount = parseInt(String(TransactionAmount || 0))
     if (isNaN(webhookAmount) || webhookAmount !== booking.listing_price) {
       console.error(
         `Amount mismatch for booking ${booking.id}: webhook=${webhookAmount}, booking=${booking.listing_price}`
@@ -70,7 +66,7 @@ export async function POST(req: Request) {
     const { data: escrow } = await admin
       .from('escrow_holds')
       .select('*')
-      .eq('house_booking_id', booking.id) // Use house_booking_id column
+      .eq('booking_id', booking.id)
       .single()
 
     if (!escrow) {
@@ -78,19 +74,18 @@ export async function POST(req: Request) {
       return addSecurityHeaders(NextResponse.json({ error: 'Escrow not found' }, { status: 404 }))
     }
 
-    // --- STATE CHECK (H4) ---
-    // Don't process if already confirmed/refunded
+    // State check
     if (booking.status === 'confirmed' || booking.status === 'refunded') {
       console.log(`Booking ${booking.id} already in status ${booking.status}, skipping`)
       return addSecurityHeaders(NextResponse.json({ success: true, message: 'Already processed' }))
     }
 
-    if (event === 'stkpush.success') {
+    if (ResponseCode === 0) {
       await admin.from('house_bookings').update({
         status: 'confirmed',
-        mpesa_receipt: data.mpesaReceiptNumber,
+        mpesa_receipt: TransactionReceipt,
         release_status: 'held',
-        confirmed_at: new Date().toISOString(),
+        confirmed_at: TransactionDate || new Date().toISOString(),
       }).eq('id', booking.id)
 
       await admin.from('escrow_holds').update({
@@ -105,19 +100,18 @@ export async function POST(req: Request) {
           userId: booking.user_id,
           category: 'transaction',
           title: 'Payment Confirmed',
-          body: `Payment of KES ${data.amount} confirmed. 24-hour view window started.`,
+          body: `Payment of KES ${TransactionAmount} confirmed. 24-hour view window started.`,
           link: '/my-bookings?tab=payments',
         }),
         createNotification({
           userId: booking.uploader_id || booking.listing_id,
           category: 'transaction',
           title: 'New Booking Payment',
-          body: `Hunter paid KES ${data.amount}. 24-hour view window started.`,
+          body: `Hunter paid KES ${TransactionAmount}. 24-hour view window started.`,
           link: '/my-bookings?tab=payments',
         }),
       ])
-
-    } else if (event === 'stkpush.failed' || event === 'stkpush.timeout') {
+    } else {
       await admin.from('house_bookings').update({
         status: 'failed',
         release_status: 'failed',
@@ -132,7 +126,7 @@ export async function POST(req: Request) {
         userId: booking.user_id,
         category: 'transaction',
         title: 'Payment Failed',
-        body: `Payment of KES ${data.amount} failed. Please try again.`,
+        body: `Payment of KES ${TransactionAmount} failed. Please try again.`,
         link: '/my-bookings?tab=payments',
       })
     }
@@ -140,7 +134,6 @@ export async function POST(req: Request) {
     return addSecurityHeaders(NextResponse.json({ success: true }))
   } catch (err) {
     console.error('PayWave webhook error:', err)
-    // Return proper error so PayWave retries, instead of silently swallowing
     return addSecurityHeaders(NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 }))
   }
 }

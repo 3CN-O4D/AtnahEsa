@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { ArrowLeft, Smartphone, ShieldCheck, Loader2, CheckCircle, AlertTriangle, Clock, Phone, Calendar } from 'lucide-react'
+import { ArrowLeft, Smartphone, ShieldCheck, Loader2, CheckCircle, AlertTriangle, Clock, Phone, Calendar, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import type { Listing } from '@/types'
@@ -27,6 +27,8 @@ export default function BookingPage() {
   const [error, setError] = useState('')
   const [payStep, setPayStep] = useState<'idle' | 'initiating' | 'pending' | 'confirmed' | 'failed'>('idle')
   const [bookingId, setBookingId] = useState<string | null>(null)
+  const [transactionRequestID, setTransactionRequestID] = useState<string | null>(null)
+  const [verifying, setVerifying] = useState(false)
 
 
   useEffect(() => {
@@ -86,6 +88,7 @@ export default function BookingPage() {
         return
       }
       setBookingId(data.bookingId || null)
+      setTransactionRequestID(data.transactionRequestID || null)
       setPayStep('pending')
       setLoading(false)
     } catch {
@@ -96,6 +99,40 @@ export default function BookingPage() {
       if (payStep === 'initiating') setLoading(false)
     }
   }, [listing, user, phone, email, payStep])
+
+  const verifyPayment = async () => {
+    if (!bookingId || !transactionRequestID) return
+    setVerifying(true)
+    setError('')
+    try {
+      const res = await fetch('/api/payments/paywave', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'verify',
+          booking_id: bookingId,
+          transaction_request_id: transactionRequestID,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || 'Verification failed')
+        setVerifying(false)
+        return
+      }
+      if (data.status === 'Completed') {
+        setPayStep('confirmed')
+      } else if (data.status === 'Failed') {
+        setPayStep('failed')
+      } else {
+        setError(`Payment still ${data.status}. Try again shortly.`)
+      }
+    } catch {
+      setError('Something went wrong')
+    } finally {
+      setVerifying(false)
+    }
+  }
 
   if (loading) {
     return (
@@ -193,18 +230,24 @@ export default function BookingPage() {
           <p className="text-xs text-gray-500 dark:text-gray-400">Enter your PIN on your phone to complete payment.</p>
           <div className="flex gap-2">
             <button
+              onClick={verifyPayment}
+              disabled={verifying}
+              className="flex-1 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {verifying ? (
+                <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking...</span>
+              ) : (
+                <span className="inline-flex items-center justify-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" /> Check Payment</span>
+              )}
+            </button>
+            <button
               onClick={goToMyBookings}
-              className="flex-1 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700"
+              className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
             >
               <Calendar className="w-3.5 h-3.5 mr-1.5" /> View in My Bookings
             </button>
-            <button
-              onClick={() => setPayStep('idle')}
-              className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              Try again
-            </button>
           </div>
+          {error && <p className="text-xs text-red-600">{error}</p>}
         </div>
       )}
 

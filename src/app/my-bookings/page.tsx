@@ -79,6 +79,7 @@ function MyBookingsInner() {
   const [displeasedFor, setDispleasedFor] = useState<string | null>(null)
   const [displeasedReason, setDispleasedReason] = useState('')
   const [displeasedRating, setDispleasedRating] = useState(0)
+  const [displeasedMpesaMessage, setDispleasedMpesaMessage] = useState('')
   const [paymentsError, setPaymentsError] = useState('')
   const [loading, setLoading] = useState(true)
 
@@ -152,13 +153,20 @@ function MyBookingsInner() {
   async function handleDispleased(hb: HouseBooking) {
     if (!displeasedReason.trim()) { setPaymentsError('Please tell us what went wrong'); return }
     if (displeasedRating < 1) { setPaymentsError('Please rate your experience'); return }
+    if (!displeasedMpesaMessage.trim()) { setPaymentsError('Please paste your M-Pesa confirmation message'); return }
     setActing({ id: hb.id, action: 'displeased' })
     setPaymentsError('')
     try {
-      const res = await fetch('/api/house-bookings/release', {
+      const res = await fetch('/api/payments/paywave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'displeased', booking_id: hb.id, reason: displeasedReason, rating: displeasedRating }),
+        body: JSON.stringify({
+          action: 'manual_refund',
+          booking_id: hb.id,
+          escrow_id: hb.id,
+          mpesa_message: displeasedMpesaMessage,
+          reason: hb.release_status === 'held' ? 'viewed_changed_mind' : 'fake_listing',
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setPaymentsError(data.error || 'Something went wrong'); return }
@@ -166,6 +174,7 @@ function MyBookingsInner() {
       setDispleasedFor(null)
       setDispleasedReason('')
       setDispleasedRating(0)
+      setDispleasedMpesaMessage('')
     } finally {
       setActing(null)
     }
@@ -269,6 +278,14 @@ function MyBookingsInner() {
                           placeholder="Tell us what went wrong..."
                           className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           rows={3}
+                        />
+                        <textarea
+                          value={displeasedMpesaMessage}
+                          onChange={(e) => setDispleasedMpesaMessage(e.target.value)}
+                          disabled={!!acting}
+                          placeholder="Paste your M-Pesa confirmation message (e.g. ABCDE12345 Confirmed. Ksh150.00 sent to ASEHANTA INVESTMENTS...)"
+                          className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          rows={2}
                         />
                         <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
                           <AlertTriangle className="w-3.5 h-3.5" /> 85% of the fee will be refunded to you and the lister gets nothing.

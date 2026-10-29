@@ -1,10 +1,16 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { moveMediaToTaken } from '@/lib/move-media'
-import { createEscrowHold, releaseToLister, refundHunter } from '@/lib/escrow'
-import { initiateStkPush, verifyWebhookSignature } from '@/lib/paywave'
-import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { createClient } from '@/lib/supabase/server'
+import {
+  initiateStkPush,
+  verifyTransaction,
+  parseWebhookPayload,
+  extractTransactionCode,
+  isValidMpesaMessage,
+  extractAmountFromMessage,
+} from '@/lib/paywave'
+import { releaseToLister, refundHunter, createEscrowHold } from '@/lib/escrow'
+import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { createNotification } from '@/lib/notifications'
 
 export async function POST(req: Request) {
@@ -16,8 +22,8 @@ export async function POST(req: Request) {
 
   try {
     const { action, ...params } = await req.json()
-    const admin = createAdminClient()
     const supabase = await createClient()
+    const admin = createAdminClient()
 
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) {
@@ -44,7 +50,11 @@ export async function POST(req: Request) {
           return addSecurityHeaders(response)
         }
 
-        // --- H2: VALIDATE AMOUNT AGAINST LISTING PRICE ---
+        if (listing.uploader_id === user.id) {
+          const response = NextResponse.json({ error: 'Cannot book your own listing' }, { status: 400 })
+          return addSecurityHeaders(response)
+        }
+
         const listingPrice = listing.price || 0
         if (!amount || amount < 1) {
           const response = NextResponse.json({ error: 'Invalid booking fee' }, { status: 400 })
@@ -66,6 +76,7 @@ export async function POST(req: Request) {
             user_id: user.id,
             payment_method: 'paywave',
             status: 'pending',
+            release_status: 'pending',
           })
           .select()
           .single()
@@ -83,21 +94,35 @@ export async function POST(req: Request) {
           bookingId: booking.id,
           hunterId: user.id,
           listerId: listing.uploader_id,
-          amount: amount,
+          amount,
           listingTitle: listing.title,
+        })
+
+        await createNotification({
+          userId: listing.uploader_id,
+          category: 'transaction',
+          title: 'New Booking Request',
+          body: `Hunter initiated payment for "${listing.title}". Awaiting payment confirmation.`,
+          link: '/my-bookings?tab=payments',
         })
 
         return addSecurityHeaders(NextResponse.json({
           success: true,
-          checkoutRequestID: stkResult.checkoutRequestID,
+          transactionRequestID: stkResult.transactionRequestID,
           merchantRequestID: stkResult.merchantRequestID,
+          checkoutRequestID: stkResult.checkoutRequestID,
           customerMessage: stkResult.customerMessage,
           bookingId: booking.id,
         }))
       }
 
-      case 'confirm': {
-        const { booking_id, escrow_id } = params
+      case 'verify': {
+        const { booking_id, transaction_request_id } = params
+        if (!booking_id || !transaction_request_id) {
+          const response = NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+          return addSecurityHeaders(response)
+        }
+
         const { data: booking } = await admin
           .from('house_bookings')
           .select('*')
@@ -109,20 +134,59 @@ export async function POST(req: Request) {
           return addSecurityHeaders(response)
         }
 
-        await releaseToLister({
-          escrowId: params.escrow_id,
-          action: 'hunter_confirm',
-          actorId: user.id,
-          reason: 'Hunter confirmed satisfaction',
-        })
+        const status = await verifyTransaction(transaction_request_id)
+        const isCompleted = status.TransactionStatus === 'Completed'
 
-        await admin.from('house_bookings').update({ release_status: 'released' }).eq('id', booking_id)
+        if (isCompleted) {
+          const webhookAmount = parseInt(status.TransactionAmount || '0')
+          if (isNaN(webhookAmount) || webhookAmount !== booking.listing_price) {
+            const response = NextResponse.json({ error: 'Amount mismatch' }, { status: 400 })
+            return addSecurityHeaders(response)
+          }
 
-        return addSecurityHeaders(NextResponse.json({ success: true, message: 'Funds released to lister' }))
+          await admin.from('house_bookings').update({
+            status: 'confirmed',
+            mpesa_receipt: status.TransactionReceipt,
+            release_status: 'held',
+            confirmed_at: new Date().toISOString(),
+          }).eq('id', booking.id)
+
+          await admin.from('escrow_holds').update({
+            status: 'held',
+            held_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+          }).eq('booking_id', booking.id)
+
+          await createNotification({
+            userId: booking.user_id,
+            category: 'transaction',
+            title: 'Payment Confirmed',
+            body: `Payment of KES ${status.TransactionAmount} confirmed. 24-hour view window started.`,
+            link: '/my-bookings?tab=payments',
+          })
+          await createNotification({
+            userId: booking.listing_id || '',
+            category: 'transaction',
+            title: 'New Booking Payment',
+            body: `Hunter paid KES ${status.TransactionAmount}. 24-hour view window started.`,
+            link: '/my-bookings?tab=payments',
+          })
+        }
+
+        return addSecurityHeaders(NextResponse.json({
+          success: true,
+          status: status.TransactionStatus,
+          receipt: status.TransactionReceipt,
+          amount: status.TransactionAmount,
+        }))
       }
 
-      case 'displeased': {
-        const { booking_id, escrow_id, reason } = params
+      case 'manual_refund': {
+        const { booking_id, escrow_id, mpesa_message, reason } = params
+        if (!booking_id || !mpesa_message) {
+          const response = NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
+          return addSecurityHeaders(response)
+        }
+
         const { data: booking } = await admin
           .from('house_bookings')
           .select('*')
@@ -134,46 +198,58 @@ export async function POST(req: Request) {
           return addSecurityHeaders(response)
         }
 
-        if (!params.reason?.trim()) {
-          const response = NextResponse.json({ error: 'Reason required' }, { status: 400 })
+        if (!isValidMpesaMessage(mpesa_message)) {
+          const response = NextResponse.json({ error: 'Invalid M-Pesa confirmation message' }, { status: 400 })
           return addSecurityHeaders(response)
         }
 
-        await refundHunter({
-          escrowId: params.escrow_id,
-          reason: 'viewed_changed_mind',
-          actorId: user.id,
-          customReason: params.reason,
-        })
+        const transactionCode = extractTransactionCode(mpesa_message)
+        const refundAmount = extractAmountFromMessage(mpesa_message) || booking.listing_price
 
-        await admin.from('house_bookings').update({ release_status: 'refunded' }).eq('id', booking_id)
-
-        return addSecurityHeaders(NextResponse.json({ success: true, message: '85% refund initiated' }))
-      }
-
-      case 'fake_no_show': {
-        const { booking_id, escrow_id, reason } = params
-        const { data: booking } = await admin
-          .from('house_bookings')
-          .select('*')
-          .eq('id', booking_id)
-          .single()
-
-        if (!booking || booking.user_id !== user.id) {
-          const response = NextResponse.json({ error: 'Not your booking' }, { status: 403 })
+        if (!transactionCode) {
+          const response = NextResponse.json({ error: 'Could not find transaction code in message' }, { status: 400 })
           return addSecurityHeaders(response)
         }
 
+        const isFullRefund = ['fake_listing', 'no_show'].includes(reason)
+        const refundPercent = isFullRefund ? 1.0 : 0.85
+        const refundAmt = Math.round(refundAmount * refundPercent)
+
         await refundHunter({
-          escrowId: params.escrow_id,
-          reason: 'fake_listing',
+          escrowId: escrow_id || '',
+          reason: isFullRefund ? 'fake_listing' : 'viewed_changed_mind',
           actorId: user.id,
-          customReason: params.reason,
+          customReason: reason,
         })
 
-        await admin.from('house_bookings').update({ release_status: 'refunded' }).eq('id', booking_id)
+        await admin.from('house_bookings').update({
+          release_status: 'refunded',
+          mpesa_message,
+          refunded_at: new Date().toISOString(),
+        }).eq('id', booking.id)
 
-        return addSecurityHeaders(NextResponse.json({ success: true, message: '100% refund initiated' }))
+        await createNotification({
+          userId: booking.user_id,
+          category: 'transaction',
+          title: 'Refund Processed',
+          body: `Manual refund of KES ${refundAmt.toLocaleString()} processed.`,
+          link: '/my-bookings?tab=refunds',
+        })
+
+        await createNotification({
+          userId: booking.listing_id || '',
+          category: 'transaction',
+          title: 'Booking Refunded',
+          body: `A booking for "${booking.listing_title}" was manually refunded (${reason}).`,
+          link: '/my-bookings?tab=payments',
+        })
+
+        return addSecurityHeaders(NextResponse.json({
+          success: true,
+          message: isFullRefund ? '100% refund initiated' : '85% refund initiated',
+          refundAmount: refundAmt,
+          transactionCode,
+        }))
       }
 
       default:

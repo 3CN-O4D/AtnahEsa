@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { X, MessageCircle, Phone, Check, PhoneOff } from 'lucide-react'
-import { WHATSAPP_NUMBER, CONTACT_PHONE } from '@/lib/constants'
+import { WHATSAPP_NUMBER, CONTACT_PHONE, WIFI_INSTALLATION_FEE } from '@/lib/constants'
 import { formatPrice } from '@/lib/utils'
 import type { WifiPackage } from '@/types'
 
@@ -63,6 +63,21 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
           <>
             <h2 className="text-lg font-bold mb-1">{pkg.name}</h2>
             <p className="text-sm text-gray-500 mb-4">{pkg.speed} &mdash; {formatPrice(pkg.price)}/month</p>
+
+            <div className="bg-gray-50 rounded-xl p-3 mb-4 border border-gray-100">
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Package price</span>
+                <span>{formatPrice(pkg.price)}/month</span>
+              </div>
+              <div className="flex justify-between text-sm mb-1">
+                <span className="text-gray-600">Installation fee</span>
+                <span>KES {WIFI_INSTALLATION_FEE.toLocaleString()}</span>
+              </div>
+              <div className="flex justify-between text-sm font-bold text-blue-600">
+                <span>Total due today</span>
+                <span>KES {(pkg.price + WIFI_INSTALLATION_FEE).toLocaleString()}</span>
+              </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-3">
               <div>

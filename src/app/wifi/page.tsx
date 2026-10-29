@@ -8,7 +8,7 @@ import { SkeletonPage } from '@/components/ui/Skeleton'
 import WifiBookingModal from '@/components/wifi/WifiBookingModal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { WHATSAPP_NUMBER, CONTACT_EMAIL, CONTACT_PHONE } from '@/lib/constants'
+import { WHATSAPP_NUMBER, CONTACT_EMAIL, CONTACT_PHONE, WIFI_INSTALLATION_FEE } from '@/lib/constants'
 import type { WifiPackage, WifiCategory, WifiPackageCategory } from '@/types'
 
 export default function WifiPage() {
@@ -93,10 +93,10 @@ export default function WifiPage() {
             <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
               Fixed Home Wi-Fi <span style={{ color: '#86efac' }}>Solutions</span>
             </h1>
-            <p className="text-green-100/80 text-lg max-w-2xl mx-auto leading-relaxed">
-              High-speed internet for your home. Installation is FREE and within 48hrs of booking with 24/7 Customer Care.
-              Payment can be done after or before installation.
-            </p>
+              <p className="text-green-100/80 text-lg max-w-2xl mx-auto leading-relaxed">
+                High-speed internet for your home. Installation fee KES {WIFI_INSTALLATION_FEE.toLocaleString()} applies. Installed within 48hrs of booking with 24/7 Customer Care.
+                Payment can be done after or before installation.
+              </p>
           </div>
         </div>
       </section>

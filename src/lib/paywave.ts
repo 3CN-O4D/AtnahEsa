@@ -10,7 +10,7 @@ export const StkPushRequest = z.object({
   api_key: z.string(),
   email: z.string().email(),
   amount: z.string().regex(/^\d+$/),
-  msisdn: z.string().regex(/^(0[17]\d{8}|254[17]\d{8})$/),
+  msisdn: z.string().min(9).max(15),
   reference: z.string().min(1).max(100),
   account_number: z.string().optional(),
 })
@@ -65,9 +65,18 @@ export type WebhookPayload = z.infer<typeof WebhookPayload>
 
 export function normalizeMsisdn(phone: string): string {
   const cleaned = phone.replace(/\D/g, '')
-  if (cleaned.startsWith('254')) return cleaned
-  if (cleaned.startsWith('0')) return '254' + cleaned.slice(1)
-  if (cleaned.startsWith('7') || cleaned.startsWith('1')) return '254' + cleaned
+  if (cleaned.startsWith('254')) {
+    if (cleaned.length !== 12) throw new Error('Invalid Kenyan phone number')
+    return cleaned
+  }
+  if (cleaned.startsWith('0')) {
+    if (cleaned.length !== 10) throw new Error('Invalid Kenyan phone number')
+    return '254' + cleaned.slice(1)
+  }
+  if (cleaned.startsWith('7') || cleaned.startsWith('1')) {
+    if (cleaned.length !== 9) throw new Error('Invalid Kenyan phone number')
+    return '254' + cleaned
+  }
   throw new Error('Invalid Kenyan phone number')
 }
 

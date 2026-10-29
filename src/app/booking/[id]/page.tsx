@@ -7,13 +7,15 @@ import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import type { Listing } from '@/types'
 
-const MIN_PHONE = 10
+const MIN_PHONE = 9
 const MAX_PHONE = 12
 
 function isValidKenyanPhone(phone: string): boolean {
   const cleaned = phone.replace(/\D/g, '')
-  if (!/^0[17]\d{8}$/.test(cleaned)) return false
-  return cleaned.length >= MIN_PHONE && cleaned.length <= MAX_PHONE
+  if (cleaned.startsWith('254')) return cleaned.length === 12
+  if (cleaned.startsWith('0')) return cleaned.length === 10 && /^0[17]\d{8}$/.test(cleaned)
+  if (cleaned.startsWith('7') || cleaned.startsWith('1')) return cleaned.length === 9
+  return false
 }
 
 export default function BookingPage() {

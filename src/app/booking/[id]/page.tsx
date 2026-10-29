@@ -112,7 +112,9 @@ export default function BookingPage() {
       setPayStep('pending')
       setLoading(false)
     } catch (err: any) {
-      setError(errStr(err) || 'Something went wrong')
+      const msg = errStr(err) || 'Something went wrong'
+      console.error('booking API error:', msg, err)
+      setError(msg)
       setPayStep('idle')
       setLoading(false)
     } finally {

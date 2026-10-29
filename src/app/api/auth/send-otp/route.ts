@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
 import { sendOtpEmail } from '@/lib/email'
-import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { randomInt } from 'crypto'
 
 export async function POST(req: Request) {
@@ -13,9 +13,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const { allowed, retryAfter } = await checkRateLimit(`otp-send:${getClientIp(req)}`, 10, 60)
+    const { allowed, retryAfter } = await checkRateLimit(`otp-send:${email}`, 20, 300)
     if (!allowed) {
-      return NextResponse.json({ error: 'Too many requests. Try again in a minute.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+      return NextResponse.json({ error: 'Too many reset code requests for this email. Try again in 5 minutes.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
     }
 
     const supabase = createAdminClient()

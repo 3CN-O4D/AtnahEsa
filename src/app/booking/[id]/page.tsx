@@ -5,6 +5,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Smartphone, ShieldCheck, Loader2, CheckCircle, AlertTriangle, Clock, Phone, Calendar, RefreshCw } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
+import { isValidMpesaMessage, extractTransactionCode, extractAmountFromMessage, verifyTransaction } from '@/lib/paywave'
 import type { Listing } from '@/types'
 
 const MIN_PHONE = 9
@@ -34,10 +35,14 @@ export default function BookingPage() {
   const [email, setEmail] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [payStep, setPayStep] = useState<'idle' | 'initiating' | 'pending' | 'confirmed' | 'failed'>('idle')
+  const [mpesaMessage, setMpesaMessage] = useState('')
+  const [parsedTxCode, setParsedTxCode] = useState('')
+  const [parsedAmount, setParsedAmount] = useState(0)
+  const [showParsedInfo, setShowParsedInfo] = useState(false)
   const [bookingId, setBookingId] = useState<string | null>(null)
   const [transactionRequestID, setTransactionRequestID] = useState<string | null>(null)
   const [verifying, setVerifying] = useState(false)
+  const [payStep, setPayStep] = useState<'idle' | 'initiating' | 'pending' | 'confirmed' | 'failed'>('idle')
 
 
   useEffect(() => {
@@ -99,11 +104,6 @@ export default function BookingPage() {
       setTransactionRequestID(data.transactionRequestID || null)
       setPayStep('pending')
       setLoading(false)
-
-      // Auto-verify after a short delay
-      setTimeout(() => {
-        verifyPayment()
-      }, 3000)
     } catch {
       setError('Something went wrong')
       setPayStep('idle')
@@ -113,11 +113,63 @@ export default function BookingPage() {
     }
   }, [listing, user, phone, email, payStep])
 
-  const verifyPayment = async () => {
+  const confirmPayment = async () => {
     if (!bookingId || !transactionRequestID) return
-    setVerifying(true)
+    if (!mpesaMessage.trim()) { setError('Paste your M-Pesa confirmation message'); return }
+
     setError('')
+    setVerifying(true)
+
+    // PRIMARY: validate SMS mentions ASEHANTA INVESTMENTS
+    if (!isValidMpesaMessage(mpesaMessage)) {
+      setVerifying(false)
+      setError('Message must be from ASEHANTA INVESTMENTS (M-Pesa confirmation SMS)')
+      return
+    }
+
+    // Extract transaction code and amount from SMS
+    const txCode = extractTransactionCode(mpesaMessage)
+    const smsAmount = extractAmountFromMessage(mpesaMessage)
+
+    if (!txCode) {
+      setVerifying(false)
+      setError('Could not find transaction code in M-Pesa message')
+      return
+    }
+
+    setParsedTxCode(txCode)
+    if (smsAmount) setParsedAmount(smsAmount)
+
+    // Validate amount matches listing price
+    const listingPrice = listing?.price || 0
+    if (smsAmount && smsAmount !== listingPrice) {
+      setVerifying(false)
+      setError(`Amount mismatch: SMS shows KES ${smsAmount}, listing is KES ${listingPrice}`)
+      return
+    }
+
+    setShowParsedInfo(true)
+
+    // SECONDARY: verify transaction ID against PayWave API
     try {
+      const status = await verifyTransaction(transactionRequestID)
+      const isCompleted = status.TransactionStatus === 'Completed'
+
+      if (!isCompleted) {
+        setVerifying(false)
+        setError(`Payment still ${status.TransactionStatus}. Try again shortly.`)
+        return
+      }
+
+      // Amount verification from PayWave
+      const paywaveAmount = parseInt(status.TransactionAmount || '0')
+      if (!isNaN(paywaveAmount) && paywaveAmount !== listingPrice) {
+        setVerifying(false)
+        setError(`Amount mismatch: PayWave shows KES ${paywaveAmount}, listing is KES ${listingPrice}`)
+        return
+      }
+
+      // Confirm booking
       const res = await fetch('/api/payments/paywave', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -129,22 +181,40 @@ export default function BookingPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(errStr(data.error) || 'Verification failed')
         setVerifying(false)
+        setError(errStr(data.error) || 'Verification failed')
         return
       }
       if (data.status === 'Completed') {
         setPayStep('confirmed')
-      } else if (data.status === 'Failed') {
-        setPayStep('failed')
       } else {
-        setError(`Payment still ${data.status}. Try again shortly.`)
+        setPayStep('failed')
       }
     } catch {
+      setVerifying(false)
       setError('Something went wrong')
     } finally {
       setVerifying(false)
     }
+  }
+
+  const parseMpesaMessage = () => {
+    if (!mpesaMessage.trim()) return
+    const txCode = extractTransactionCode(mpesaMessage)
+    const smsAmount = extractAmountFromMessage(mpesaMessage)
+    setParsedTxCode(txCode || '')
+    setParsedAmount(smsAmount || 0)
+    setShowParsedInfo(true)
+    const listingPrice = listing?.price || 0
+    if (!isValidMpesaMessage(mpesaMessage)) {
+      setError('Message must be from ASEHANTA INVESTMENTS')
+      return
+    }
+    if (txCode && smsAmount && smsAmount !== listingPrice) {
+      setError(`Amount mismatch: SMS shows KES ${smsAmount}, listing is KES ${listingPrice}`)
+      return
+    }
+    setError('')
   }
 
   if (loading) {
@@ -237,30 +307,68 @@ export default function BookingPage() {
       )}
 
       {payStep === 'pending' && (
-        <div className="bg-white border border-blue-200 rounded-xl p-4 text-center space-y-3">
-          <Smartphone className="w-8 h-8 text-blue-600 mx-auto" />
-          <p className="text-sm font-medium text-gray-900 dark:text-white">STK push sent</p>
-          <p className="text-xs text-gray-500 dark:text-gray-400">Enter your PIN on your phone to complete payment.</p>
-          <div className="flex gap-2">
+        <div className="bg-white border border-blue-200 rounded-xl p-4 space-y-4 dark:bg-slate-800 dark:border-gray-700">
+          <div className="text-center">
+            <Smartphone className="w-8 h-8 text-blue-600 mx-auto" />
+            <p className="text-sm font-medium text-gray-900 dark:text-white">STK push sent</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">Enter your PIN on your phone to complete payment.</p>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+              Paste M-Pesa Confirmation SMS
+            </label>
+            <textarea
+              value={mpesaMessage}
+              onChange={(e) => setMpesaMessage(e.target.value)}
+              placeholder="ABCDE12345 Confirmed. Ksh100.00 sent to ASEHANTA INVESTMENTS..."
+              rows={3}
+              className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
             <button
-              onClick={verifyPayment}
-              disabled={verifying}
-              className="flex-1 rounded-lg bg-blue-600 text-white px-4 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={parseMpesaMessage}
+              className="w-full rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 px-4 py-2 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600"
             >
-              {verifying ? (
-                <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Checking...</span>
-              ) : (
-                <span className="inline-flex items-center justify-center gap-1.5"><RefreshCw className="w-3.5 h-3.5" /> Check Payment</span>
-              )}
-            </button>
-            <button
-              onClick={goToMyBookings}
-              className="flex-1 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
-            >
-              <Calendar className="w-3.5 h-3.5 mr-1.5" /> View in My Bookings
+              Parse Message
             </button>
           </div>
-          {error && <p className="text-xs text-red-600">{error}</p>}
+
+          {showParsedInfo && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-3">
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-400 mb-1">Parsed from SMS:</p>
+              {parsedTxCode && (
+                <p className="text-xs text-gray-700 dark:text-gray-300">
+                  <span className="font-semibold">Transaction ID:</span> {parsedTxCode}
+                </p>
+              )}
+              {parsedAmount > 0 && (
+                <p className="text-xs text-gray-700 dark:text-gray-300">
+                  <span className="font-semibold">Amount:</span> KES {parsedAmount.toLocaleString()}
+                </p>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={confirmPayment}
+            disabled={verifying || !mpesaMessage.trim()}
+            className="w-full rounded-lg bg-blue-600 text-white px-4 py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {verifying ? (
+              <span className="inline-flex items-center justify-center gap-1.5"><Loader2 className="w-3.5 h-3.5 animate-spin" /> Verifying...</span>
+            ) : (
+              <span className="inline-flex items-center justify-center gap-1.5"><CheckCircle className="w-3.5 h-3.5" /> Confirm Payment</span>
+            )}
+          </button>
+
+          <button
+            onClick={goToMyBookings}
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-white px-4 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <Calendar className="w-3.5 h-3.5 mr-1.5" /> View in My Bookings
+          </button>
+
+          {error && <p className="text-xs text-red-600 text-center">{error}</p>}
         </div>
       )}
 

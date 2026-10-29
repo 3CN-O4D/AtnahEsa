@@ -75,7 +75,6 @@ export default function BookingPage() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'stkpush',
           listing_id: listing.id,
           amount,
           phone,

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
+import { releaseToLister } from '@/lib/escrow'
 
 export async function GET(req: Request) {
   try {
@@ -25,29 +26,18 @@ export async function GET(req: Request) {
 
     let processed = 0
     for (const escrow of expired) {
-      if (escrow.booking?.release_status === 'released') continue
-
-      await supabase.from('escrow_holds').update({
-        status: 'released',
-        released_at: now,
-      }).eq('id', escrow.id)
-
-      await supabase.from('bookings').update({
-        release_status: 'released',
-      }).eq('id', escrow.booking_id)
-
-      await supabase.from('transactions').insert({
-        booking_id: escrow.booking_id,
-        user_id: escrow.user_id,
-        phone: '',
-        amount: escrow.amount,
-        mpesa_receipt: '',
-        mpesa_message: 'Auto-released after 24h hold expiry (hunter took no action)',
-        checkout_request_id: '',
-        status: 'success',
-      })
-
-      processed++
+      // Use releaseToLister to enforce audit trail (H6)
+      try {
+        await releaseToLister({
+          escrowId: escrow.id,
+          action: 'auto_release',
+          actorId: 'system',
+          reason: '24-hour hold expiry - auto-released to lister',
+        })
+        processed++
+      } catch (err) {
+        console.error(`Auto-release failed for escrow ${escrow.id}:`, err)
+      }
     }
 
     if (processed > 0) {

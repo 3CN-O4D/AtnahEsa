@@ -34,7 +34,7 @@ export async function POST(req: Request) {
 
     const { data: listing } = await supabase
       .from('listings')
-      .select('id, title, price, status')
+      .select('id, title, price, status, uploader_id')
       .eq('id', listing_id)
       .single()
 
@@ -101,6 +101,16 @@ export async function POST(req: Request) {
       status: 'pending',
       payment_method: 'tuma',
       raw_callback: { house_booking_id: booking.id },
+    })
+
+    // --- H3: CREATE ESCROW HOLD FOR TUM PAYMENTS ---
+    const { createEscrowHold } = await import('@/lib/escrow')
+    await createEscrowHold({
+      bookingId: booking.id,
+      hunterId: user?.id || '',
+      listerId: listing.uploader_id,
+      amount,
+      listingTitle: listing.title,
     })
 
     notifyAdmins(

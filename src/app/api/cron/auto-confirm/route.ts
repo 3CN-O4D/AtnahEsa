@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 import { createNotification } from '@/lib/notifications'
+import { releaseToLister } from '@/lib/escrow'
 import { VIEW_WINDOW_HOURS } from '@/lib/constants'
 
 /**
@@ -45,10 +46,31 @@ export async function GET(req: Request) {
 
     for (const booking of bookings) {
       // Auto-confirm: hunter didn't respond in 24hrs, assume house is taken
+      // Use releaseToLister to enforce escrow audit trail (H5)
+      const { data: escrow } = await admin
+        .from('escrow_holds')
+        .select('*')
+        .eq('house_booking_id', booking.id)
+        .single()
+
+      if (escrow) {
+        try {
+          await releaseToLister({
+            escrowId: escrow.id,
+            action: 'auto_release',
+            actorId: 'system',
+            reason: '24-hour view window elapsed - auto-released to lister',
+          })
+        } catch (releaseErr) {
+          console.error(`Failed to release escrow for booking ${booking.id}:`, releaseErr)
+          continue
+        }
+      }
+
       const { error } = await admin
         .from('house_bookings')
         .update({
-          release_status: 'paid', // Auto-pay to lister
+          release_status: 'paid',
           confirmed_at: new Date().toISOString(),
         })
         .eq('id', booking.id)

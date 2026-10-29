@@ -80,6 +80,15 @@ export async function releaseToLister(params: {
   if (fetchError || !escrow) throw new Error('Escrow not found')
   if (escrow.status !== 'held') throw new Error('Escrow not in held state')
 
+  // --- H1: ENFORCE 24-HOUR VIEW WINDOW ---
+  // Hunter cannot release funds before 24 hours have elapsed since hold creation
+  const heldUntil = new Date(escrow.held_until).getTime()
+  const now = Date.now()
+  if (now < heldUntil) {
+    const hoursRemaining = Math.ceil((heldUntil - now) / (1000 * 60 * 60))
+    throw new Error(`Escrow not yet releasable. ${hoursRemaining} hour(s) remaining in view window.`)
+  }
+
   const expectedHash = crypto
     .createHmac('sha256', process.env.ESCROW_AUDIT_SECRET!)
     .update(JSON.stringify(escrow.audit_data))
@@ -91,14 +100,14 @@ export async function releaseToLister(params: {
 
   const listerAmount = Math.round(escrow.amount * 0.5)
   const platformAmount = escrow.amount - listerAmount
-  const now = new Date().toISOString()
+  const releasedAt = new Date().toISOString()
 
   const { error } = await admin
     .from('escrow_holds')
     .update({
       status: 'released',
       action: params.action,
-      released_at: now,
+      released_at: releasedAt,
     })
     .eq('id', params.escrowId)
 
@@ -194,6 +203,15 @@ export async function refundHunter(params: {
     title: 'Refund Processed',
     body: `Refund processed. Processed within 24 hours.`,
     link: '/my-bookings?tab=refunds',
+  })
+
+  // --- M2: NOTIFY LISTER ON REFUND ---
+  await createNotification({
+    userId: escrow.lister_id,
+    category: 'transaction',
+    title: 'Booking Refunded',
+    body: `A booking for "${escrow.listing_id}" was refunded (${params.reason}). You will not receive payment for this booking.`,
+    link: '/my-bookings?tab=payments',
   })
 
   return Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))

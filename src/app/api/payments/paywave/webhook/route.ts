@@ -12,13 +12,37 @@ export async function POST(req: Request) {
     const signature = req.headers.get('x-paywave-signature') || ''
 
     if (!verifyWebhookSignature(rawBody, signature)) {
-      return addSecurityHeaders(NextResponse.json({ error: 'Invalid signature' }, { status: 400 }))
+      return addSecurityHeaders(NextResponse.json({ error: 'Invalid signature' }, { status: 401 }))
     }
 
     const payload = JSON.parse(rawBody)
     const { event, data } = payload
 
     const admin = createAdminClient()
+
+    // --- IDEMPOTENCY CHECK (C4) ---
+    // Track processed checkoutRequestIDs to prevent duplicate processing
+    const { data: existingWebhook } = await admin
+      .from('paywave_webhook_events')
+      .select('id')
+      .eq('checkout_request_id', data.checkoutRequestID)
+      .maybeSingle()
+
+    if (existingWebhook) {
+      // Already processed this webhook — return success without side effects
+      return addSecurityHeaders(NextResponse.json({ success: true, message: 'Already processed' }))
+    }
+
+    // Record this webhook event BEFORE processing (idempotency)
+    await admin
+      .from('paywave_webhook_events')
+      .insert({
+        checkout_request_id: data.checkoutRequestID,
+        event,
+        amount: data.amount,
+        received_at: new Date().toISOString(),
+        payload: rawBody,
+      })
 
     const { data: booking } = await admin
       .from('house_bookings')
@@ -28,18 +52,37 @@ export async function POST(req: Request) {
 
     if (!booking) {
       console.error('Booking not found for reference:', data.reference)
-      return addSecurityHeaders(NextResponse.json({ success: true }))
+      return addSecurityHeaders(NextResponse.json({ error: 'Booking not found' }, { status: 404 }))
+    }
+
+    // --- AMOUNT VERIFICATION (C3) ---
+    // Ensure the webhook amount matches the booking amount
+    const webhookAmount = parseInt(data.amount)
+    if (isNaN(webhookAmount) || webhookAmount !== booking.listing_price) {
+      console.error(
+        `Amount mismatch for booking ${booking.id}: webhook=${webhookAmount}, booking=${booking.listing_price}`
+      )
+      return addSecurityHeaders(
+        NextResponse.json({ error: 'Amount mismatch' }, { status: 400 })
+      )
     }
 
     const { data: escrow } = await admin
       .from('escrow_holds')
       .select('*')
-      .eq('booking_id', booking.id)
+      .eq('house_booking_id', booking.id) // Use house_booking_id column
       .single()
 
     if (!escrow) {
       console.error('Escrow not found for booking:', booking.id)
-      return addSecurityHeaders(NextResponse.json({ success: true }))
+      return addSecurityHeaders(NextResponse.json({ error: 'Escrow not found' }, { status: 404 }))
+    }
+
+    // --- STATE CHECK (H4) ---
+    // Don't process if already confirmed/refunded
+    if (booking.status === 'confirmed' || booking.status === 'refunded') {
+      console.log(`Booking ${booking.id} already in status ${booking.status}, skipping`)
+      return addSecurityHeaders(NextResponse.json({ success: true, message: 'Already processed' }))
     }
 
     if (event === 'stkpush.success') {
@@ -66,7 +109,7 @@ export async function POST(req: Request) {
           link: '/my-bookings?tab=payments',
         }),
         createNotification({
-          userId: booking.uploader_id,
+          userId: booking.uploader_id || booking.listing_id,
           category: 'transaction',
           title: 'New Booking Payment',
           body: `Hunter paid KES ${data.amount}. 24-hour view window started.`,
@@ -97,7 +140,8 @@ export async function POST(req: Request) {
     return addSecurityHeaders(NextResponse.json({ success: true }))
   } catch (err) {
     console.error('PayWave webhook error:', err)
-    return addSecurityHeaders(NextResponse.json({ success: true }))
+    // Return proper error so PayWave retries, instead of silently swallowing
+    return addSecurityHeaders(NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 }))
   }
 }
 

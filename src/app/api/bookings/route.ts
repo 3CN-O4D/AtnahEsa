@@ -34,7 +34,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Cannot book your own listing' }, { status: 400 })
     }
 
-    // Create booking
+    // --- H2: VALIDATE AMOUNT AGAINST LISTING PRICE ---
+    const listingPrice = listing.price || 0
+    if (!amount || amount < 1) {
+      return NextResponse.json({ error: 'Invalid booking fee' }, { status: 400 })
+    }
+    if (amount !== listingPrice) {
+      return NextResponse.json({ error: `Amount must be exactly KES ${listingPrice}` }, { status: 400 })
+    }
     const { data: booking, error: bookingError } = await admin
       .from('house_bookings')
       .insert({

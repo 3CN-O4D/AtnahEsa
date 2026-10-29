@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Search } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { formatPrice } from '@/lib/utils'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
@@ -152,7 +153,7 @@ function AdminDashboardInner() {
   }
 
   const loadBookings = async () => {
-    const supabase = createClient()
+    const supabase = createAdminClient()
     const [wifiRes, houseRes] = await Promise.all([
       supabase.from('wifi_bookings').select('*').order('created_at', { ascending: false }),
       supabase.from('house_bookings').select('*').order('created_at', { ascending: false }),
@@ -170,7 +171,7 @@ function AdminDashboardInner() {
   }
 
   const handleUpdateHouseBookingStatus = async (id: string, status: string) => {
-    const supabase = createClient()
+    const supabase = createAdminClient()
     const { error } = await supabase.from('house_bookings').update({ status }).eq('id', id)
     if (error) { showToast('error', error.message); return }
     showToast('success', `House booking marked as ${status}`)

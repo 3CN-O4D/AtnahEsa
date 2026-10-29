@@ -27,7 +27,7 @@ export async function POST(req: Request) {
 
     const { data: listing } = await admin
       .from('listings')
-      .select('id, title, price, status, uploader_id')
+      .select('id, title, price, status, uploader_id, location')
       .eq('id', listing_id)
       .single()
 

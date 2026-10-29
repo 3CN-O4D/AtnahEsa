@@ -13,19 +13,24 @@ export async function GET(req: Request) {
     const validation = validateRequest(VALIDATION_SCHEMAS.searchQuery, Object.fromEntries(searchParams))
     if (!validation.success) return addSecurityHeaders(validation.error)
 
-    const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, status } = validation.data
+    const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, status, count } = validation.data
     const supabase = createAdminClient()
 
     const PUBLIC_COLUMNS = 'id,title,description,price,rent,location,images,images,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,created_at,updated_at'
 
     const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
 
-    const pageNum = page ? parseInt(page) : 1
+    const wantCount = count === '1'
+
     let q = supabase
       .from('listings')
-      .select(PUBLIC_COLUMNS)
+      .select(wantCount ? '*' : PUBLIC_COLUMNS, wantCount ? { count: 'exact', head: true } : undefined)
       .in('status', statusFilter)
-      .range((pageNum - 1) * 12, pageNum * 12 - 1)
+
+    if (!wantCount) {
+      const pageNum = page ? parseInt(page) : 1
+      q = q.range((pageNum - 1) * 12, pageNum * 12 - 1)
+    }
 
     if (query) {
       const sanitized = query.replace(/[%_]/g, '').slice(0, 100)
@@ -54,9 +59,13 @@ export async function GET(req: Request) {
       q = q.order('created_at', { ascending: false })
     }
 
-    const { data, error } = await q
+    const { data, error, count: queryCount } = await q
 
     if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
+
+    if (wantCount) {
+      return addSecurityHeaders(NextResponse.json({ count: queryCount ?? 0 }))
+    }
 
     return addSecurityHeaders(NextResponse.json(data))
   } catch {

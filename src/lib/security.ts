@@ -87,6 +87,7 @@ export const VALIDATION_SCHEMAS = {
     issues: z.string().regex(/^\d+$/).optional(),
     page: z.string().regex(/^\d+$/).optional(),
     status: z.enum(['published', 'taken', 'booked', 'all']).optional(),
+    count: z.string().optional(),
   }),
 
   profileUpdate: z.object({

@@ -32,27 +32,27 @@ export default function HomePage() {
         } catch {}
       }
     })
-    // Fetch stats for all statuses
-    const fetchStatus = async (status: string) => {
+    // Fetch stats for all statuses using count endpoint (avoids 12-item page cap)
+    const fetchStatusCount = async (status: string): Promise<number> => {
       try {
-        const res = await fetch(`/api/listings?page=1&status=${status}`)
-        if (!res.ok) return []
+        const res = await fetch(`/api/listings?count=1&status=${status}`)
+        if (!res.ok) return 0
         const data = await res.json()
-        return Array.isArray(data) ? data : []
+        return typeof data?.count === 'number' ? data.count : 0
       } catch {
-        return []
+        return 0
       }
     }
     Promise.all([
-      fetchStatus('published'),
-      fetchStatus('taken'),
-      fetchStatus('booked'),
+      fetchStatusCount('published'),
+      fetchStatusCount('taken'),
+      fetchStatusCount('booked'),
     ]).then(([published, taken, booked]) => {
       setStats({
-        available: published.length,
-        total: published.length + taken.length + booked.length,
+        available: published,
+        total: published + taken + booked,
         pending: 0,
-        taken: taken.length + booked.length,
+        taken: taken + booked,
       })
     }).catch(() => {})
   }, [])

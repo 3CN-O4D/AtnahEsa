@@ -35,7 +35,7 @@ function AdminDashboardInner() {
   const [houseBookings, setHouseBookings] = useState<HouseBooking[]>([])
   const [userSearch, setUserSearch] = useState('')
   const [stats, setStats] = useState({
-    total: 0, published: 0, booked: 0, taken: 0, pending: 0, vacant: 0, vacancyPending: 0,
+    total: 0, published: 0, booked: 0, taken: 0, pending: 0, rejected: 0, vacant: 0, vacancyPending: 0,
     completed: 0, refunded: 0, withIssues: 0,
     totalRevenue: 0, totalRefunded: 0, totalListers: 0, totalHunters: 0, totalUsers: 0,
     totalMovers: 0, wifiPackages: 0, wifiBookings: 0,
@@ -407,6 +407,7 @@ function AdminDashboardInner() {
     : listingsFilter === 'pending' ? allListings.filter((l) => l.status === 'pending')
     : listingsFilter === 'published' ? allListings.filter((l) => l.status === 'published')
     : listingsFilter === 'taken' ? allListings.filter((l) => l.status === 'taken')
+    : listingsFilter === 'rejected' ? allListings.filter((l) => l.status === 'rejected')
     : listingsFilter === 'issues' ? allListings.filter((l) => l.issues_count > 0)
     : allListings
   ).filter((l) => {
@@ -470,7 +471,8 @@ function AdminDashboardInner() {
             {sectionTitle('Approval Stats', '📋')}
             {statCard('Awaiting Approval', stats.pending, 'text-amber-600', '/admin?tab=houses')}
             {statCard('Published', stats.published, 'text-green-600', '/admin?tab=houses')}
-            {statCard('Rejected / Issues', stats.withIssues, 'text-red-600', '/admin?tab=houses')}
+            {statCard('Rejected', stats.rejected, 'text-red-600', '/admin?tab=houses')}
+            {statCard('Has Issues', stats.withIssues, 'text-orange-600', '/admin?tab=houses')}
 
             {sectionTitle('Vacancy Stats', '🏠')}
             {statCard('Total Houses', stats.total, 'text-gray-900', '/admin?tab=houses')}
@@ -545,7 +547,7 @@ function AdminDashboardInner() {
       {tab === 'houses' && (
         <div className="space-y-4">
           <div className="flex gap-2 flex-wrap">
-            {['all', 'pending', 'published', 'booked', 'taken', 'issues'].map((f) => (
+            {['all', 'pending', 'published', 'booked', 'taken', 'rejected', 'issues'].map((f) => (
               <button
                 key={f}
                 onClick={() => setListingsFilter(f)}

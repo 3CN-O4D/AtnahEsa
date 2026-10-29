@@ -19,6 +19,7 @@ export default function ForgotPasswordPage() {
   const [loading, setLoading] = useState(false)
   const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
+  const [resendCooldown, setResendCooldown] = useState(0)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const handleSendOtp = async (e: React.FormEvent) => {
@@ -33,8 +34,23 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email, type: 'password_reset' }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); return }
+      if (!res.ok) {
+        if (res.status === 429) {
+          setError('Too many reset code requests. Please wait a minute before trying again.')
+        } else {
+          setError(data.error)
+        }
+        return
+      }
       setStep('otp')
+      // Start 60-second cooldown before allowing resend
+      let seconds = 60
+      setResendCooldown(seconds)
+      const timer = setInterval(() => {
+        seconds -= 1
+        setResendCooldown(seconds)
+        if (seconds <= 0) clearInterval(timer)
+      }, 1000)
     } catch {
       setError('Something went wrong')
     } finally {
@@ -101,7 +117,22 @@ export default function ForgotPasswordPage() {
         body: JSON.stringify({ email, type: 'password_reset' }),
       })
       const data = await res.json()
-      if (!res.ok) setError(data.error)
+      if (!res.ok) {
+        if (res.status === 429) {
+          setError('Too many reset code requests. Please wait a minute before trying again.')
+        } else {
+          setError(data.error)
+        }
+        return
+      }
+      // Restart cooldown
+      let seconds = 60
+      setResendCooldown(seconds)
+      const timer = setInterval(() => {
+        seconds -= 1
+        setResendCooldown(seconds)
+        if (seconds <= 0) clearInterval(timer)
+      }, 1000)
     } catch {
       setError('Failed to resend')
     } finally {
@@ -172,11 +203,17 @@ export default function ForgotPasswordPage() {
           </Button>
         </form>
 
-        <p className="text-center mt-4">
-          <button onClick={handleResend} disabled={resending} className="text-sm text-blue-600 hover:underline disabled:opacity-50">
-            {resending ? 'Sending...' : 'Resend code'}
-          </button>
-        </p>
+          <p className="text-center mt-4">
+            {resendCooldown > 0 ? (
+              <button disabled className="text-sm text-gray-400 cursor-not-allowed">
+                Resend code ({resendCooldown}s)
+              </button>
+            ) : (
+              <button onClick={handleResend} disabled={resending} className="text-sm text-blue-600 hover:underline disabled:opacity-50">
+                {resending ? 'Sending...' : 'Resend code'}
+              </button>
+            )}
+          </p>
       </div>
     )
   }
@@ -258,8 +295,8 @@ export default function ForgotPasswordPage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <Button type="submit" loading={loading} className="w-full">
-          Send Reset Code
+        <Button type="submit" loading={loading} disabled={resendCooldown > 0} className="w-full">
+          {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Send Reset Code'}
         </Button>
       </form>
 

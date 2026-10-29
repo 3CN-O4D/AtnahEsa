@@ -174,11 +174,11 @@ export async function withRateLimit(
 
 export function sanitizeHtml(input: string): string {
   return input
-    .replace(/&/g, '&')
-    .replace(/</g, '<')
-    .replace(/>/g, '>')
-    .replace(/"/g, '"')
-    .replace(/'/g, "'")
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
     .replace(/\//g, '&#x2F;')
 }
 

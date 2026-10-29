@@ -44,6 +44,17 @@ export async function POST(req: Request) {
           return addSecurityHeaders(response)
         }
 
+        // --- H2: VALIDATE AMOUNT AGAINST LISTING PRICE ---
+        const listingPrice = listing.price || 0
+        if (!amount || amount < 1) {
+          const response = NextResponse.json({ error: 'Invalid booking fee' }, { status: 400 })
+          return addSecurityHeaders(response)
+        }
+        if (amount !== listingPrice) {
+          const response = NextResponse.json({ error: `Amount must be exactly KES ${listingPrice}` }, { status: 400 })
+          return addSecurityHeaders(response)
+        }
+
         const { data: booking, error: bookingError } = await admin
           .from('house_bookings')
           .insert({

@@ -13,9 +13,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const { allowed, retryAfter } = await checkRateLimit(`otp-send:${email}`, 20, 300)
+    const { allowed, retryAfter } = await checkRateLimit(`otp-send:${email}`, 1000, 3600)
     if (!allowed) {
-      return NextResponse.json({ error: 'Too many reset code requests for this email. Try again in 5 minutes.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
+      return NextResponse.json({ error: 'Too many reset code requests for this email. Try again later.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
     }
 
     const supabase = createAdminClient()

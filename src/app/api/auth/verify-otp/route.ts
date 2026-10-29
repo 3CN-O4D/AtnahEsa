@@ -12,7 +12,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 
-    const { allowed, retryAfter } = await checkRateLimit(`otp-verify:${email}`, 20, 300)
+    const { allowed, retryAfter } = await checkRateLimit(`otp-verify:${email}`, 1000, 3600)
     if (!allowed) {
       return NextResponse.json({ error: 'Too many attempts. Try again shortly.' }, { status: 429, headers: { 'Retry-After': String(retryAfter) } })
     }

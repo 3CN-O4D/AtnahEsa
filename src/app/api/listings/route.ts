@@ -20,11 +20,12 @@ export async function GET(req: Request) {
 
     const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
 
+    const pageNum = page ? parseInt(page) : 1
     let q = supabase
       .from('listings')
       .select(PUBLIC_COLUMNS)
       .in('status', statusFilter)
-      .range((page ? parseInt(page) : 1 - 1) * 12, (page ? parseInt(page) : 1) * 12 - 1)
+      .range((pageNum - 1) * 12, pageNum * 12 - 1)
 
     if (query) {
       const sanitized = query.replace(/[%_]/g, '').slice(0, 100)

@@ -1,47 +1,24 @@
 'use client'
 
 import Link from 'next/link'
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { MapPin, AlertTriangle, BadgeCheck, Heart } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Slideshow from '@/components/ui/Slideshow'
 import { formatPrice } from '@/lib/utils'
-import { createClient } from '@/lib/supabase/client'
 import type { Listing } from '@/types'
 
 interface ListingCardProps {
   listing: Listing
+  listerName?: string
+  isAdmin?: boolean
+  verified?: boolean
 }
 
-export default function ListingCard({ listing }: ListingCardProps) {
-  const [listerName, setListerName] = useState(listing.uploader_name || '')
-  const [verified, setVerified] = useState(false)
-  const [isAdmin, setIsAdmin] = useState(false)
+export default function ListingCard({ listing, listerName, isAdmin, verified }: ListingCardProps) {
   const [showVerifyTip, setShowVerifyTip] = useState(false)
   const [isFavorite, setIsFavorite] = useState(false)
   const [showHeart, setShowHeart] = useState(false)
-
-  useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('profiles_public')
-      .select('role, verified, full_name')
-      .eq('id', listing.uploader_id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (data) {
-          if (data.role === 'admin') {
-            setListerName('AseHanta')
-            setVerified(true)
-            setIsAdmin(true)
-          } else {
-            setListerName(data.full_name || listing.uploader_name || '')
-            setVerified(!!data.verified)
-            setIsAdmin(false)
-          }
-        }
-      })
-  }, [listing.uploader_id, listing.uploader_name])
 
   const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
 

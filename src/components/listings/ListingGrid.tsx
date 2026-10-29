@@ -4,6 +4,7 @@ import { useRef, useCallback, useEffect, useState } from 'react'
 import Link from 'next/link'
 import ListingCard from './ListingCard'
 import { Home, Wifi, Search, Sparkles } from 'lucide-react'
+import { createClient } from '@/lib/supabase/client'
 import type { Listing } from '@/types'
 
 interface ListingGridProps {
@@ -13,6 +14,12 @@ interface ListingGridProps {
   query?: string
 }
 
+interface ListerInfo {
+  full_name: string | null
+  role: string | null
+  verified: boolean | null
+}
+
 export default function ListingGrid({ fetchListings, sort, filters, query }: ListingGridProps) {
   const [listings, setListings] = useState<Listing[]>([])
   const [page, setPage] = useState(1)
@@ -20,6 +27,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [listerInfo, setListerInfo] = useState<Map<string, ListerInfo>>(new Map())
   const loaderRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
   const mountedRef = useRef(false)
@@ -91,6 +99,32 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
     return () => observer.disconnect()
   }, [loadMore, hasMore, error])
 
+  // Batch-fetch lister profiles for all loaded listings (avoids N+1 per-card fetches)
+  useEffect(() => {
+    if (!mountedRef.current || listings.length === 0) return
+
+    const uniqueIds = [...new Set(listings.map(l => l.uploader_id).filter(Boolean))] as string[]
+    if (uniqueIds.length === 0) return
+
+    const supabase = createClient()
+    supabase
+      .from('profiles_public')
+      .select('id, role, verified, full_name')
+      .in('id', uniqueIds)
+      .then(({ data }) => {
+        if (!mountedRef.current) return
+        const map = new Map<string, ListerInfo>()
+        for (const p of (data ?? [])) {
+          map.set(p.id, {
+            full_name: p.full_name ?? null,
+            role: p.role ?? null,
+            verified: !!p.verified,
+          })
+        }
+        setListerInfo(map)
+      })
+  }, [listings])
+
   const retry = () => {
     setError(null)
     setLoading(true)
@@ -140,11 +174,19 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
             )}
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {listings.map((listing, i) => (
-              <div key={listing.id} className="animate-slideUp animate-fadeIn animate-elasticIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
-                <ListingCard listing={listing} />
-              </div>
-            ))}
+            {listings.map((listing, i) => {
+              const info = listerInfo.get(listing.uploader_id)
+              return (
+                <div key={listing.id} className="animate-slideUp animate-fadeIn animate-elasticIn" style={{ animationDelay: `${(i % 8) * 0.06}s` }}>
+                  <ListingCard
+                    listing={listing}
+                    listerName={info?.full_name ?? listing.uploader_name ?? ''}
+                    isAdmin={info?.role === 'admin'}
+                    verified={info?.verified ?? false}
+                  />
+                </div>
+              )
+            })}
           </div>
         </>
       )}

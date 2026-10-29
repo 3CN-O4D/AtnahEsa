@@ -1,6 +1,8 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
+import { extractTransactionCode, extractAmountFromMessage, isValidMpesaMessage } from '@/lib/paywave'
 
 export async function GET() {
   const supabase = await createClient()
@@ -27,12 +29,12 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(50)
 
-  const totalHeld = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
+    const totalHeld = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
   const totalReleased = (escrows || []).filter((e) => e.status === 'released').reduce((s, e) => s + (e.amount || 0), 0)
   const totalRefunded = (escrows || []).filter((e) => e.status === 'refunded').reduce((s, e) => s + (e.amount || 0), 0)
   const platformRevenue = (escrows || [])
     .filter((e) => e.status === 'released')
-    .reduce((s, e) => s + Math.round((e.amount || 0) * 0.3), 0)
+    .reduce((s, e) => s + Math.round((e.amount || 0) * 0.5), 0)
 
   const heldHouse = (houseBookings || []).filter((h) => h.release_status === 'held')
   const pendingPayoutsAmount = heldHouse.reduce((s, h) => s + (h.listing_price || 0), 0)
@@ -65,7 +67,7 @@ export async function POST(request: Request) {
   if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
   const body = await request.json()
-  const { action, escrow_id, house_booking_id } = body
+  const { action, escrow_id, house_booking_id, mpesa_message } = body
 
   if (!action) {
     return NextResponse.json({ error: 'action required' }, { status: 400 })
@@ -85,6 +87,19 @@ export async function POST(request: Request) {
       const now = new Date().toISOString()
       const heldUntil = new Date(Date.now() + 24 * 3600 * 1000).toISOString()
 
+      // Extract M-Pesa details from pasted message if provided
+      let extractedReceipt = ''
+      let extractedAmount = hb.listing_price || 0
+      let mpesaValid = false
+
+      if (mpesa_message) {
+        mpesaValid = isValidMpesaMessage(mpesa_message)
+        const code = extractTransactionCode(mpesa_message)
+        const amt = extractAmountFromMessage(mpesa_message)
+        if (code) extractedReceipt = code
+        if (amt) extractedAmount = amt
+      }
+
       let userId: string | null = hb.user_id || null
       if (!userId && hb.phone) {
         const digits = hb.phone.replace(/[^0-9]/g, '').slice(-9)
@@ -95,15 +110,28 @@ export async function POST(request: Request) {
 
       const { error: e1 } = await supabase
         .from('house_bookings')
-        .update({ status: 'confirmed', release_status: 'held', held_until: heldUntil, payment_method: method, user_id: userId, confirmed_at: hb.confirmed_at ?? null })
+        .update({
+          status: 'confirmed',
+          release_status: 'held',
+          held_until: heldUntil,
+          payment_method: method,
+          user_id: userId,
+          confirmed_at: hb.confirmed_at ?? null,
+          mpesa_message: mpesa_message || hb.mpesa_message,
+        })
         .eq('id', house_booking_id)
       if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
 
       await supabase.from('transactions').insert({
-        listing_id: hb.listing_id, phone: hb.phone || '', amount: hb.listing_price || 0,
-        mpesa_receipt: hb.mpesa_message || '', mpesa_message: 'Payment verified by admin, placed in escrow',
-        checkout_request_id: '', status: 'success', payment_method: method,
-        raw_callback: { house_booking_id: house_booking_id, admin_verified: true },
+        listing_id: hb.listing_id,
+        phone: hb.phone || '',
+        amount: extractedAmount,
+        mpesa_receipt: extractedReceipt,
+        mpesa_message: mpesa_message || 'Payment verified by admin, placed in escrow',
+        checkout_request_id: '',
+        status: mpesaValid ? 'success' : 'verifying',
+        payment_method: method,
+        raw_callback: { house_booking_id, admin_verified: true, mpesa_message, extracted_receipt: extractedReceipt, extracted_amount: extractedAmount },
       })
 
       const { data: listing } = await supabase
@@ -134,7 +162,13 @@ export async function POST(request: Request) {
         })
       }
 
-      return NextResponse.json({ success: true, message: `Payment verified. KES ${(hb.listing_price || 0).toLocaleString()} placed in escrow for 24h.` })
+      return NextResponse.json({
+        success: true,
+        message: `Payment verified. KES ${(hb.listing_price || 0).toLocaleString()} placed in escrow for 24h.`,
+        extracted_receipt: extractedReceipt,
+        extracted_amount: extractedAmount,
+        mpesa_valid: mpesaValid,
+      })
     }
 
     if (hb.release_status !== 'held') {
@@ -164,7 +198,7 @@ export async function POST(request: Request) {
           userId: listing.uploader_id,
           category: 'transaction',
           title: 'Payout released',
-          body: `KES ${(hb.listing_price || 0).toLocaleString()} for "${listing.title || 'your house'}" has been paid to you (70%).`,
+          body: `KES ${(hb.listing_price || 0).toLocaleString()} for "${listing.title || 'your house'}" has been paid to you (50%).`,
           link: '/my-bookings?tab=payments',
           data: { house_booking_id, amount: hb.listing_price },
         })

@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
+import { notifyUser, notifyAdmins } from '@/lib/notify'
 import crypto from 'crypto'
 
 const ESCROW_HOURS = 24
@@ -121,6 +122,16 @@ export async function releaseToLister(params: {
     initiated_at: now,
   })
 
+  // Fetch emails for 3-way notification
+  const { data: profiles } = await admin
+    .from('profiles')
+    .select('id, email, full_name')
+    .in('id', [escrow.lister_id, escrow.hunter_id])
+  const emailById: Record<string, { email: string; full_name: string }> = {}
+  for (const p of (profiles ?? [])) {
+    emailById[p.id] = { email: p.email || '', full_name: p.full_name || '' }
+  }
+
   await Promise.all([
     createNotification({
       userId: escrow.lister_id,
@@ -137,6 +148,42 @@ export async function releaseToLister(params: {
       link: '/my-bookings?tab=payments',
     }),
   ])
+
+  // --- 3-WAY EMAIL NOTIFICATIONS ---
+  const listerEmail = emailById[escrow.lister_id]?.email
+  const hunterEmail = emailById[escrow.hunter_id]?.email
+  const listerName = emailById[escrow.lister_id]?.full_name || 'Lister'
+  const hunterName = emailById[escrow.hunter_id]?.full_name || 'Hunter'
+
+  if (listerEmail) {
+    await notifyUser(listerEmail, 'Funds Released to You', 'Payment Released', {
+      Listing: escrow.listing_id || escrow.booking_id,
+      Amount: `KES ${Math.round(escrow.amount * 0.5).toLocaleString()}`,
+      Recipient: listerName,
+      Status: 'Paid to Lister (50%)',
+      Date: new Date().toLocaleString(),
+    })
+  }
+  if (hunterEmail) {
+    await notifyUser(hunterEmail, 'Booking Confirmed — Lister Paid', 'Payment Confirmed', {
+      Listing: escrow.listing_id || escrow.booking_id,
+      Amount: `KES ${escrow.amount.toLocaleString()}`,
+      Hunter: hunterName,
+      Lister: listerName,
+      Status: 'Funds released to lister',
+      Date: new Date().toLocaleString(),
+    })
+  }
+  await notifyAdmins('Lister Paid — Escrow Released', 'Escrow Release', {
+    Listing: escrow.listing_id || escrow.booking_id,
+    Amount: `KES ${escrow.amount.toLocaleString()}`,
+    ListerShare: `KES ${Math.round(escrow.amount * 0.5).toLocaleString()} (50%)`,
+    PlatformShare: `KES ${Math.round(escrow.amount * 0.5).toLocaleString()} (50%)`,
+    Lister: `${listerName} (${listerEmail || 'N/A'})`,
+    Hunter: `${hunterName} (${hunterEmail || 'N/A'})`,
+    Status: 'Released to lister',
+    Date: new Date().toLocaleString(),
+  })
 
   return { listerAmount: Math.round(escrow.amount * 0.5), platformAmount: Math.round(escrow.amount * 0.5) }
 }
@@ -188,10 +235,27 @@ export async function refundHunter(params: {
 
   if (error) throw error
 
+  // Fetch emails for 3-way notification
+  const { data: profiles } = await admin
+    .from('profiles')
+    .select('id, email, full_name')
+    .in('id', [escrow.lister_id, escrow.hunter_id])
+  const emailById: Record<string, { email: string; full_name: string }> = {}
+  for (const p of (profiles ?? [])) {
+    emailById[p.id] = { email: p.email || '', full_name: p.full_name || '' }
+  }
+
+  const listerEmail = emailById[escrow.lister_id]?.email
+  const hunterEmail = emailById[escrow.hunter_id]?.email
+  const listerName = emailById[escrow.lister_id]?.full_name || 'Lister'
+  const hunterName = emailById[escrow.hunter_id]?.full_name || 'Hunter'
+  const refundDisplayPercent = isFullRefund ? 100 : 85
+  const refundAmt = Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))
+
   await admin.from('refunds').insert({
     escrow_id: params.escrowId,
     hunter_id: escrow.hunter_id,
-    amount: Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85)),
+    amount: refundAmt,
     reason: params.reason,
     custom_reason: params.customReason,
     processed_at: new Date().toISOString(),
@@ -212,6 +276,40 @@ export async function refundHunter(params: {
     title: 'Booking Refunded',
     body: `A booking for "${escrow.listing_id}" was refunded (${params.reason}). You will not receive payment for this booking.`,
     link: '/my-bookings?tab=payments',
+  })
+
+  // --- 3-WAY EMAIL NOTIFICATIONS ON REFUND ---
+  if (hunterEmail) {
+    await notifyUser(hunterEmail, `Refund Processed — ${refundPercent}%`, 'Refund Processed', {
+      Listing: escrow.listing_id || escrow.booking_id,
+      Amount: `KES ${refundAmt.toLocaleString()}`,
+      Percentage: `${refundDisplayPercent}%`,
+      Reason: params.customReason || params.reason,
+      Hunter: hunterName,
+      Status: `${refundDisplayPercent}% refund initiated`,
+      Date: new Date().toLocaleString(),
+    })
+  }
+  if (listerEmail) {
+    await notifyUser(listerEmail, 'Booking Refunded — No Payment', 'Refund Notice', {
+      Listing: escrow.listing_id || escrow.booking_id,
+      Amount: `KES ${escrow.amount.toLocaleString()}`,
+      Lister: listerName,
+      Reason: params.customReason || params.reason,
+      Status: 'No payment — booking refunded',
+      Date: new Date().toLocaleString(),
+    })
+  }
+  await notifyAdmins('Booking Refunded', 'Escrow Refund', {
+    Listing: escrow.listing_id || escrow.booking_id,
+    Amount: `KES ${escrow.amount.toLocaleString()}`,
+    RefundAmount: `KES ${refundAmt.toLocaleString()}`,
+    Percentage: `${refundDisplayPercent}%`,
+    Reason: params.customReason || params.reason,
+    Hunter: `${hunterName} (${hunterEmail || 'N/A'})`,
+    Lister: `${listerName} (${listerEmail || 'N/A'})`,
+    Status: 'Refunded to hunter',
+    Date: new Date().toLocaleString(),
   })
 
   return Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))

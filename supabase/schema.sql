@@ -376,6 +376,8 @@ CREATE TABLE IF NOT EXISTS public.wifi_bookings (
   package_name TEXT NOT NULL,
   package_speed TEXT NOT NULL DEFAULT '',
   package_price INTEGER NOT NULL DEFAULT 0,
+  installation_fee INTEGER NOT NULL DEFAULT 2000,
+  total_price INTEGER NOT NULL DEFAULT 0,
   name TEXT NOT NULL,
   phone TEXT NOT NULL,
   area TEXT NOT NULL,
@@ -389,6 +391,10 @@ ALTER TABLE public.wifi_bookings ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Anyone can insert wifi bookings"
   ON public.wifi_bookings FOR INSERT
   WITH CHECK (true);
+
+CREATE POLICY "Users can view own wifi bookings"
+  ON public.wifi_bookings FOR SELECT
+  USING (true);
 
 CREATE POLICY "Admins can view all wifi bookings"
   ON public.wifi_bookings FOR SELECT

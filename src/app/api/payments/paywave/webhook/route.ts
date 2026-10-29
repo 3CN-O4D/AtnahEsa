@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
+import { notifyUser, notifyAdmins } from '@/lib/notify'
 import { moveMediaToTaken } from '@/lib/move-media'
 import { parseWebhookPayload } from '@/lib/paywave'
 import { addSecurityHeaders } from '@/lib/security'
@@ -95,6 +96,21 @@ export async function POST(req: Request) {
 
       await moveMediaToTaken(booking.listing_id)
 
+      // Fetch emails for 3-way notification
+      const { data: profiles } = await admin
+        .from('profiles')
+        .select('id, email, full_name')
+        .in('id', [booking.user_id, booking.listing_id || booking.uploader_id])
+      const emailById: Record<string, { email: string; full_name: string }> = {}
+      for (const p of (profiles ?? [])) {
+        emailById[p.id] = { email: p.email || '', full_name: p.full_name || '' }
+      }
+      const hunterEmail = emailById[booking.user_id]?.email
+      const hunterName = emailById[booking.user_id]?.full_name || 'Hunter'
+      const listerId = booking.listing_id || booking.uploader_id || ''
+      const listerEmail = emailById[listerId]?.email
+      const listerName = emailById[listerId]?.full_name || 'Lister'
+
       await Promise.all([
         createNotification({
           userId: booking.user_id,
@@ -111,6 +127,38 @@ export async function POST(req: Request) {
           link: '/my-bookings?tab=payments',
         }),
       ])
+
+      // --- 3-WAY EMAIL NOTIFICATIONS ON PAYMENT CONFIRMED ---
+      if (hunterEmail) {
+        await notifyUser(hunterEmail, 'Payment Confirmed — Money in Escrow', 'Payment Received', {
+          Listing: booking.listing_id,
+          Amount: `KES ${TransactionAmount ?? 0}`,
+          Hunter: hunterName,
+          Status: 'Payment confirmed, held in 24h escrow',
+          ViewWindow: '24 hours to view the house',
+          Date: new Date().toLocaleString(),
+        })
+      }
+      if (listerEmail) {
+        await notifyUser(listerEmail, 'New Booking Payment Received', 'New Booking', {
+          Listing: booking.listing_id,
+          Amount: `KES ${TransactionAmount ?? 0}`,
+          Hunter: hunterName,
+          Lister: listerName,
+          Status: 'Payment in 24h escrow — contact hunter to arrange visit',
+          Date: new Date().toLocaleString(),
+        })
+      }
+      await notifyAdmins('Payment Confirmed — Booking Created', 'Booking Created', {
+        Listing: booking.listing_id,
+        Amount: `KES ${TransactionAmount ?? 0}`,
+        Hunter: `${hunterName} (${hunterEmail || 'N/A'})`,
+        Lister: `${listerName} (${listerEmail || 'N/A'})`,
+        Status: 'Payment confirmed, held in escrow for 24h',
+        PlatformShare: `KES ${Math.round((TransactionAmount ?? 0) * 0.5).toLocaleString()} (50%)`,
+        ListerShare: `KES ${Math.round((TransactionAmount ?? 0) * 0.5).toLocaleString()} (50%)`,
+        Date: new Date().toLocaleString(),
+      })
     } else {
       await admin.from('house_bookings').update({
         status: 'failed',

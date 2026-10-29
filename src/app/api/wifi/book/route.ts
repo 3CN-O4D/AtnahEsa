@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
 
 export async function POST(req: Request) {
   try {
@@ -17,8 +18,12 @@ export async function POST(req: Request) {
     }
 
     const supabase = await createClient()
+    const totalPrice = (package_price || 0) + WIFI_INSTALLATION_FEE
+
     const { error } = await supabase.from('wifi_bookings').insert({
       package_id, package_name, package_speed, package_price,
+      installation_fee: WIFI_INSTALLATION_FEE,
+      total_price: totalPrice,
       name, phone, area, id_number,
     })
 
@@ -39,7 +44,9 @@ export async function POST(req: Request) {
         Package: package_name || 'N/A',
         Provider: package_provider || 'N/A',
         Speed: package_speed || 'N/A',
-        Price: package_price ? `KES ${package_price.toLocaleString()}/month` : 'N/A',
+        'Monthly Price': package_price ? `KES ${package_price.toLocaleString()}/month` : 'N/A',
+        'Installation Fee': `KES ${WIFI_INSTALLATION_FEE.toLocaleString()}`,
+        'Total First Payment': `KES ${totalPrice.toLocaleString()}`,
         'Original Price': original || 'N/A',
         Discount: original && package_price ? `${Math.round((1 - package_price / package_original_price) * 100)}% off` : 'N/A',
         Description: package_description || 'N/A',
@@ -47,7 +54,7 @@ export async function POST(req: Request) {
       }
     )
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({ success: true, total_price: totalPrice, installation_fee: WIFI_INSTALLATION_FEE })
   } catch {
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }

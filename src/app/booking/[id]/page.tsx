@@ -99,6 +99,11 @@ export default function BookingPage() {
       setTransactionRequestID(data.transactionRequestID || null)
       setPayStep('pending')
       setLoading(false)
+
+      // Auto-verify after a short delay
+      setTimeout(() => {
+        verifyPayment()
+      }, 3000)
     } catch {
       setError('Something went wrong')
       setPayStep('idle')

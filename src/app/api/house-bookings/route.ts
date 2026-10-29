@@ -58,30 +58,46 @@ export async function POST(req: Request) {
     if (bookingError) throw bookingError
 
     // Initiate PayWave STK Push
-    const stkResult = await initiateStkPush({
-      email,
-      amount,
-      msisdn: phone,
-      reference: booking.id,
-    })
+    let stkResult
+    try {
+      stkResult = await initiateStkPush({
+        email,
+        amount,
+        msisdn: phone,
+        reference: booking.id,
+      })
+    } catch (stkErr) {
+      console.error('STK push failed:', stkErr)
+      // Still return error but with details
+      throw stkErr
+    }
 
     // Create escrow hold
-    await createEscrowHold({
-      bookingId: booking.id,
-      hunterId: user.id,
-      listerId: listing.uploader_id,
-      amount: amount,
-      listingTitle: listing.title,
-    })
+    try {
+      await createEscrowHold({
+        bookingId: booking.id,
+        hunterId: user.id,
+        listerId: listing.uploader_id,
+        amount: amount,
+        listingTitle: listing.title,
+      })
+    } catch (escrowErr) {
+      console.error('Escrow hold failed:', escrowErr)
+      throw escrowErr
+    }
 
     // Notify lister
-    await createNotification({
-      userId: listing.uploader_id,
-      category: 'transaction',
-      title: 'New Booking Request',
-      body: `Hunter initiated payment for "${listing.title}". Awaiting payment confirmation.`,
-      link: '/my-bookings?tab=payments',
-    })
+    try {
+      await createNotification({
+        userId: listing.uploader_id,
+        category: 'transaction',
+        title: 'New Booking Request',
+        body: `Hunter initiated payment for "${listing.title}". Awaiting payment confirmation.`,
+        link: '/my-bookings?tab=payments',
+      })
+    } catch (notifErr) {
+      console.error('Notification failed:', notifErr)
+    }
 
     return addSecurityHeaders(NextResponse.json({
       success: true,

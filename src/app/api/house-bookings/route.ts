@@ -45,8 +45,12 @@ export async function POST(req: Request) {
       .insert({
         listing_id: listing.id,
         listing_title: listing.title,
+        listing_location: listing.location || '',
         listing_price: amount,
+        name: user.email || user.id,
         phone,
+        area: listing.location || '',
+        id_number: '',
         email,
         user_id: user.id,
         payment_method: 'paywave',

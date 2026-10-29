@@ -30,6 +30,15 @@ export async function POST(req: Request) {
 
     await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
 
+    // Invalidate any other unused OTPs for this email+type
+    await supabase
+      .from('otps')
+      .update({ used: true })
+      .eq('email', email)
+      .eq('type', 'password_reset')
+      .eq('used', false)
+      .neq('id', otpRow.id)
+
     const user = await findAuthUserByEmail(email)
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 })

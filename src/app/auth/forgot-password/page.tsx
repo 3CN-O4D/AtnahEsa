@@ -42,6 +42,10 @@ export default function ForgotPasswordPage() {
         }
         return
       }
+      if (!data.emailSent) {
+        setError('Could not send reset code. Please check your email and try again.')
+        return
+      }
       setStep('otp')
       // Start 60-second cooldown before allowing resend
       let seconds = 60

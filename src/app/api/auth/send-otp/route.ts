@@ -35,9 +35,17 @@ export async function POST(req: Request) {
       .eq('type', type)
       .gte('created_at', fiveMinAgo)
 
-    if (count && count >= 3) {
-      return NextResponse.json({ error: 'Too many requests. Try again in 5 minutes.' }, { status: 429 })
+    if (count && count >= 5) {
+      return NextResponse.json({ error: 'Too many codes sent. Try again in 5 minutes.' }, { status: 429 })
     }
+
+    // Invalidate any previous unused OTPs for this email+type
+    await supabase
+      .from('otps')
+      .update({ used: true })
+      .eq('email', email)
+      .eq('type', type)
+      .eq('used', false)
 
     // Use crypto.randomInt instead of Math.random
     const otp = String(randomInt(100000, 999999))
@@ -57,6 +65,7 @@ export async function POST(req: Request) {
       emailSent = true
     } catch (emailErr) {
       console.error('Failed to send OTP email:', emailErr)
+      return NextResponse.json({ error: 'Failed to send verification email. Please try again.' }, { status: 500 })
     }
 
     return NextResponse.json({ success: true, emailSent })

@@ -73,12 +73,21 @@ export default function HomePage() {
         params.set('issues', filters.issues)
       }
 
-      const res = await fetch(`/api/listings?${params.toString()}`, {
-        headers: { 'Content-Type': 'application/json' },
-      })
-      if (!res.ok) throw new Error(`Failed to load listings: ${res.status}`)
-      const data = await res.json()
-      return (data ?? []) as Listing[]
+      try {
+        const res = await fetch(`/api/listings?${params.toString()}`, {
+          headers: { 'Content-Type': 'application/json' },
+        })
+        if (!res.ok) {
+          console.error(`API error: ${res.status} ${res.statusText}`)
+          throw new Error(`Failed to load listings: ${res.status}`)
+        }
+        const data = await res.json()
+        console.log(`Fetched page ${page}:`, data?.length || 0, 'listings')
+        return (data ?? []) as Listing[]
+      } catch (err) {
+        console.error('fetchListings error:', err)
+        return []
+      }
     },
     [query, sort, filters]
   )
@@ -127,7 +136,7 @@ export default function HomePage() {
           <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{countTotal}</p>
           <p className="text-xs text-blue-600 dark:text-blue-300 font-medium">Total Listings</p>
         </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.2s' }}>
+        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.15s' }}>
           <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{countPending}</p>
           <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium">Pending</p>
         </div>
@@ -154,3 +163,4 @@ export default function HomePage() {
     </div>
   )
 }
+EOF

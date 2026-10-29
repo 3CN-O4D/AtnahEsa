@@ -20,10 +20,12 @@ export default function ForgotPasswordPage() {
   const [resending, setResending] = useState(false)
   const [error, setError] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
+  const [sendCooldown, setSendCooldown] = useState(0)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
   const handleSendOtp = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (sendCooldown > 0) return
     setLoading(true)
     setError('')
 
@@ -54,6 +56,14 @@ export default function ForgotPasswordPage() {
         seconds -= 1
         setResendCooldown(seconds)
         if (seconds <= 0) clearInterval(timer)
+      }, 1000)
+      // 30-second cooldown before sending another code
+      let sendSeconds = 30
+      setSendCooldown(sendSeconds)
+      const sendTimer = setInterval(() => {
+        sendSeconds -= 1
+        setSendCooldown(sendSeconds)
+        if (sendSeconds <= 0) clearInterval(sendTimer)
       }, 1000)
     } catch {
       setError('Something went wrong')
@@ -299,8 +309,8 @@ export default function ForgotPasswordPage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <Button type="submit" loading={loading} disabled={resendCooldown > 0} className="w-full">
-          {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Send Reset Code'}
+        <Button type="submit" loading={loading} disabled={sendCooldown > 0 || resendCooldown > 0 || loading} className="w-full">
+          {sendCooldown > 0 ? `Send code again (${sendCooldown}s)` : resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Send Reset Code'}
         </Button>
       </form>
 

@@ -91,6 +91,7 @@ export async function POST(req: Request) {
       bookingId: booking.id,
     }))
   } catch (err) {
+    console.error('house-bookings error:', err)
     return addSecurityHeaders(NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 }))
   }
 }

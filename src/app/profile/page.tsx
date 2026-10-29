@@ -57,6 +57,11 @@ export default function ProfilePage() {
   const createOtpRefs = useRef<(HTMLInputElement | null)[]>([])
   const [success, setSuccess] = useState('')
   const [error, setError] = useState('')
+  const [profileError, setProfileError] = useState('')
+  const [passwordError, setPasswordError] = useState('')
+  const [emailError, setEmailError] = useState('')
+  const [createPasswordError, setCreatePasswordError] = useState('')
+  const [deleteError, setDeleteError] = useState('')
   const [resendCooldown, setResendCooldown] = useState(0)
   const profileOtpRefs = useRef<(HTMLInputElement | null)[]>([])
   const passwordOtpRefs = useRef<(HTMLInputElement | null)[]>([])
@@ -84,7 +89,7 @@ export default function ProfilePage() {
           .single()
         if (createError || !created) {
           console.error('Profile create error:', createError)
-          setError('Failed to create profile. Please contact support.')
+          setProfileError('Failed to create profile. Please contact support.')
           setProfileLoaded(true)
           return
         }
@@ -96,7 +101,7 @@ export default function ProfilePage() {
       setProfileLoaded(true)
     }).catch((err) => {
       console.error('Profile load error:', err)
-      setError('Failed to load profile')
+      setProfileError('Failed to load profile')
       setProfileLoaded(true)
     })
   }, [router])
@@ -106,7 +111,7 @@ export default function ProfilePage() {
     setEditing({ full_name: profile.full_name, username: profile.username, phone: profile.phone || '' })
     setProfileOtpSent(false)
     setProfileOtp(['', '', '', '', '', ''])
-    setError('')
+    setProfileError('')
     setSuccess('')
     setEditMode(true)
   }
@@ -116,15 +121,15 @@ export default function ProfilePage() {
     setEditing({ full_name: profile.full_name, username: profile.username, phone: profile.phone || '' })
     setProfileOtpSent(false)
     setProfileOtp(['', '', '', '', '', ''])
-    setError('')
+    setProfileError('')
     setEditMode(false)
   }
 
   const handleSendProfileOtp = async () => {
-    setError('')
+    setProfileError('')
     setSuccess('')
     if (!editing.full_name.trim() || !editing.username.trim()) {
-      setError('Name and username are required')
+      setProfileError('Name and username are required')
       return
     }
 
@@ -136,21 +141,21 @@ export default function ProfilePage() {
         body: JSON.stringify({ email: userEmail, type: 'profile_update' }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setProfileOtpLoading(false); return }
+      if (!res.ok) { setProfileError(data.error || 'Failed to send OTP'); setProfileOtpLoading(false); return }
       setProfileOtpSent(true)
       setTimeout(() => profileOtpRefs.current[0]?.focus(), 100)
     } catch {
-      setError('Failed to send OTP')
+      setProfileError('Failed to send OTP')
     } finally {
       setProfileOtpLoading(false)
     }
   }
 
   const handleVerifyProfileOtp = async () => {
-    setError('')
+    setProfileError('')
     setSuccess('')
     const code = profileOtp.join('')
-    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    if (code.length !== 6) { setProfileError('Enter the full 6-digit code'); return }
 
     setProfileOtpLoading(true)
     try {
@@ -160,7 +165,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ ...editing, otp: code }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setProfileOtpLoading(false); return }
+      if (!res.ok) { setProfileError(data.error || 'Failed to update profile'); setProfileOtpLoading(false); return }
 
       const supabase = createClient()
       const { data: fresh } = await supabase.from('profiles').select('*').eq('id', profile!.id).maybeSingle()
@@ -173,7 +178,7 @@ export default function ProfilePage() {
       setProfileOtp(['', '', '', '', '', ''])
       setSuccess('Profile updated successfully!')
     } catch {
-      setError('Something went wrong')
+      setProfileError('Something went wrong')
     } finally {
       setProfileOtpLoading(false)
     }
@@ -212,7 +217,7 @@ export default function ProfilePage() {
     const file = e.target.files?.[0]
     if (!file) return
     setAvatarUploading(true)
-    setError('')
+    setProfileError('')
     setSuccess('')
 
     try {
@@ -220,14 +225,14 @@ export default function ProfilePage() {
       formData.append('file', file)
       const res = await fetch('/api/upload-avatar', { method: 'POST', body: formData })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setAvatarUploading(false); return }
+      if (!res.ok) { setProfileError(data.error || 'Upload failed'); setAvatarUploading(false); return }
 
       const supabase = createClient()
       const { data: fresh } = await supabase.from('profiles').select('*').eq('id', profile!.id).maybeSingle()
       if (fresh) setProfile(fresh as Profile)
       setSuccess('Profile picture updated!')
     } catch {
-      setError('Upload failed')
+      setProfileError('Upload failed')
     } finally {
       setAvatarUploading(false)
     }
@@ -235,10 +240,10 @@ export default function ProfilePage() {
 
   // Email change handlers
   const handleSendEmailOtp = async () => {
-    setError(''); setSuccess('')
-    if (!newEmail.trim()) { setError('Enter a new email address'); return }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { setError('Invalid email address'); return }
-    if (newEmail === userEmail) { setError('New email is the same as current email'); return }
+    setEmailError(''); setSuccess('')
+    if (!newEmail.trim()) { setEmailError('Enter a new email address'); return }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { setEmailError('Invalid email address'); return }
+    if (newEmail === userEmail) { setEmailError('New email is the same as current email'); return }
     setEmailOtpLoading(true)
     try {
       const res = await fetch('/api/auth/send-otp', {
@@ -247,20 +252,21 @@ export default function ProfilePage() {
         body: JSON.stringify({ email: newEmail, type: 'email_change' }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setEmailOtpLoading(false); return }
+      if (!res.ok) { setEmailError(data.error || 'Failed to send OTP'); setEmailOtpLoading(false); return }
       setEmailStep('otp')
+      setEmailOtp(['', '', '', '', '', ''])
       setTimeout(() => emailOtpRefs.current[0]?.focus(), 100)
     } catch {
-      setError('Failed to send OTP')
+      setEmailError('Failed to send OTP')
     } finally {
       setEmailOtpLoading(false)
     }
   }
 
   const handleVerifyEmailOtp = async () => {
-    setError(''); setSuccess('')
+    setEmailError(''); setSuccess('')
     const code = emailOtp.join('')
-    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    if (code.length !== 6) { setEmailError('Enter the full 6-digit code'); return }
     setEmailOtpLoading(true)
     try {
       const res = await fetch('/api/profile/change-email', {
@@ -269,13 +275,13 @@ export default function ProfilePage() {
         body: JSON.stringify({ new_email: newEmail, otp: code }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setEmailOtpLoading(false); return }
+      if (!res.ok) { setEmailError(data.error || 'Invalid or expired code'); setEmailOtpLoading(false); return }
       setUserEmail(newEmail)
       setNewEmail('')
       setEmailStep('done')
       setSuccess('Email address updated successfully!')
     } catch {
-      setError('Something went wrong')
+      setEmailError('Something went wrong')
     } finally {
       setEmailOtpLoading(false)
     }
@@ -306,7 +312,7 @@ export default function ProfilePage() {
 
   // Delete account handlers
   const handleDeleteSendOtp = async () => {
-    setError(''); setSuccess('')
+    setDeleteError(''); setSuccess('')
     setDeleteOtpLoading(true)
     try {
       const res = await fetch('/api/auth/send-otp', {
@@ -315,20 +321,21 @@ export default function ProfilePage() {
         body: JSON.stringify({ email: userEmail, type: 'delete_account' }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setDeleteOtpLoading(false); return }
+      if (!res.ok) { setDeleteError(data.error || 'Failed to send OTP'); setDeleteOtpLoading(false); return }
       setDeleteStep('otp')
+      setDeleteOtp(['', '', '', '', '', ''])
       setTimeout(() => deleteOtpRefs.current[0]?.focus(), 100)
     } catch {
-      setError('Failed to send OTP')
+      setDeleteError('Failed to send OTP')
     } finally {
       setDeleteOtpLoading(false)
     }
   }
 
   const handleVerifyDeleteOtp = async () => {
-    setError(''); setSuccess('')
+    setDeleteError(''); setSuccess('')
     const code = deleteOtp.join('')
-    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    if (code.length !== 6) { setDeleteError('Enter the full 6-digit code'); return }
     setDeleteOtpLoading(true)
     try {
       const res = await fetch('/api/profile/delete-account', {
@@ -337,7 +344,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ otp: code }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setDeleteOtpLoading(false); return }
+      if (!res.ok) { setDeleteError(data.error || 'Invalid or expired code'); setDeleteOtpLoading(false); return }
       setDeleteStep('done')
       setSuccess('Account deleted. Redirecting...')
       setTimeout(() => {
@@ -346,7 +353,7 @@ export default function ProfilePage() {
         window.location.href = '/'
       }, 2000)
     } catch {
-      setError('Something went wrong')
+      setDeleteError('Something went wrong')
     } finally {
       setDeleteOtpLoading(false)
     }
@@ -406,9 +413,9 @@ export default function ProfilePage() {
   // Create password handlers (Google users - OTP verified)
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(''); setSuccess('')
-    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return }
-    if (newPassword.length < 6) { setError('Password must be at least 6 characters'); return }
+    setCreatePasswordError(''); setSuccess('')
+    if (newPassword !== confirmPassword) { setCreatePasswordError('Passwords do not match'); return }
+    if (newPassword.length < 6) { setCreatePasswordError('Password must be at least 6 characters'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/auth/send-otp', {
@@ -417,20 +424,21 @@ export default function ProfilePage() {
         body: JSON.stringify({ email: userEmail, type: 'password_create' }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setLoading(false); return }
+      if (!res.ok) { setCreatePasswordError(data.error || 'Failed to send OTP'); setLoading(false); return }
       setCreateStep('otp')
+      setCreateOtp(['', '', '', '', '', ''])
       setTimeout(() => createOtpRefs.current[0]?.focus(), 100)
     } catch {
-      setError('Failed to send OTP')
+      setCreatePasswordError('Failed to send OTP')
     } finally {
       setLoading(false)
     }
   }
 
   const handleVerifyCreateOtp = async () => {
-    setError(''); setSuccess('')
+    setCreatePasswordError(''); setSuccess('')
     const code = createOtp.join('')
-    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    if (code.length !== 6) { setCreatePasswordError('Enter the full 6-digit code'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/auth/update-password', {
@@ -439,7 +447,7 @@ export default function ProfilePage() {
         body: JSON.stringify({ email: userEmail, password: newPassword, otp: code }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error); setLoading(false); return }
+      if (!res.ok) { setCreatePasswordError(data.error || 'Invalid or expired code'); setLoading(false); return }
       const supabase = createClient()
       await supabase.from('profiles').update({ has_password: true }).eq('id', profile!.id)
       setHasPassword(true)
@@ -447,7 +455,7 @@ export default function ProfilePage() {
       setSuccess('Password created successfully!')
       setNewPassword(''); setConfirmPassword(''); setCreateOtp(['', '', '', '', '', ''])
     } catch {
-      setError('Something went wrong')
+      setCreatePasswordError('Something went wrong')
     } finally {
       setLoading(false)
     }
@@ -478,20 +486,26 @@ export default function ProfilePage() {
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(''); setSuccess('')
-    if (newPassword !== confirmPassword) { setError('Passwords do not match'); return }
-    if (newPassword.length < 6) { setError('Password must be at least 6 characters'); return }
-    if (!oldPassword) { setError('Enter your current password'); return }
+    setPasswordError(''); setSuccess('')
+    if (newPassword !== confirmPassword) { setPasswordError('Passwords do not match'); return }
+    if (newPassword.length < 6) { setPasswordError('Password must be at least 6 characters'); return }
+    if (!oldPassword) { setPasswordError('Enter your current password'); return }
     setLoading(true)
     try {
       const supabase = createClient()
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: oldPassword })
-      if (signInErr) { setError('Current password is incorrect'); setLoading(false); return }
-      const { error: reauthErr } = await supabase.auth.reauthenticate()
-      if (reauthErr) { setError(reauthErr.message); setLoading(false); return }
+      if (signInErr) { setPasswordError('Current password is incorrect'); setLoading(false); return }
+      try {
+        const { error: reauthErr } = await supabase.auth.reauthenticate()
+        if (reauthErr && !reauthErr.message?.toLowerCase().includes('rate') && !reauthErr.message?.toLowerCase().includes('too many')) {
+          setPasswordError(reauthErr.message)
+          setLoading(false)
+          return
+        }
+      } catch {}
       setStep('otp')
     } catch {
-      setError('Something went wrong')
+      setPasswordError('Something went wrong')
     } finally {
       setLoading(false)
     }
@@ -499,23 +513,23 @@ export default function ProfilePage() {
 
   const handleVerifyPasswordOtp = async (e: React.FormEvent) => {
     e.preventDefault()
-    setError(''); setSuccess('')
+    setPasswordError(''); setSuccess('')
     const code = passwordOtp.join('')
-    if (code.length !== 6) { setError('Enter the full 6-digit code'); return }
+    if (code.length !== 6) { setPasswordError('Enter the full 6-digit code'); return }
     setLoading(true)
     try {
       const supabase = createClient()
       const { error: verifyErr } = await supabase.auth.verifyOtp({ email: userEmail, token: code, type: 'email' })
-      if (verifyErr) { setError(verifyErr.message); setLoading(false); return }
+      if (verifyErr) { setPasswordError(verifyErr.message); setLoading(false); return }
       const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
-      if (updateErr) { setError(updateErr.message); setLoading(false); return }
+      if (updateErr) { setPasswordError(updateErr.message); setLoading(false); return }
       await supabase.from('profiles').update({ has_password: true }).eq('id', profile!.id)
       setHasPassword(true)
       setStep('done')
       setSuccess('Password changed successfully!')
       setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp(['', '', '', '', '', ''])
     } catch {
-      setError('Something went wrong')
+      setPasswordError('Something went wrong')
     } finally {
       setLoading(false)
     }
@@ -528,7 +542,7 @@ export default function ProfilePage() {
   if (!profile) {
     return (
       <div className="max-w-md mx-auto px-4 py-20 text-center">
-        {error && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4">{error}</p>}
+        {profileError && <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-xl p-3 mb-4">{profileError}</p>}
         {!error && <p className="text-gray-500 text-sm mb-4">Profile not found. Try signing out and back in.</p>}
         <button onClick={() => { const s = createClient(); s.auth.signOut() }} className="text-sm text-blue-600 dark:text-blue-400 hover:underline">Sign Out</button>
       </div>
@@ -611,10 +625,12 @@ export default function ProfilePage() {
                     />
                   ))}
                 </div>
-                <div className="flex gap-2">
+            {profileError && <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>}
+            <div className="flex gap-2">
                   <Button onClick={() => { setProfileOtpSent(false); setProfileOtp(['', '', '', '', '', '']) }} variant="outline" className="flex-1">Back</Button>
                   <Button onClick={handleVerifyProfileOtp} loading={profileOtpLoading} className="flex-1">Confirm</Button>
                 </div>
+                {profileError && <p className="text-sm text-red-600 dark:text-red-400">{profileError}</p>}
                 <button type="button" onClick={() => handleResendOtp(userEmail, 'profile_update')} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
                   {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
                 </button>
@@ -677,8 +693,9 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
-            <Button type="submit" loading={loading} className="w-full">Send Verification Code</Button>
+            {passwordError && <p className="text-sm text-red-600 dark:text-red-400">{passwordError}</p>}
+            {createPasswordError && <p className="text-sm text-red-600 dark:text-red-400">{createPasswordError}</p>}
+            <Button type="submit" loading={loading} className="w-full sm:w-auto">Send Verification Code</Button>
           </form>
         </div>
       )}
@@ -820,7 +837,7 @@ export default function ProfilePage() {
               <label htmlFor="new-email" className="block text-sm font-medium text-gray-700">New Email</label>
               <input id="new-email" type="email" placeholder="Enter new email address" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" />
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {emailError && <p className="text-sm text-red-600 dark:text-red-400">{emailError}</p>}
             <Button onClick={handleSendEmailOtp} loading={emailOtpLoading} className="w-full">Send OTP</Button>
           </div>
         </div>
@@ -851,9 +868,9 @@ export default function ProfilePage() {
                 />
               ))}
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
+            {emailError && <p className="text-sm text-red-600 dark:text-red-400 text-center">{emailError}</p>}
             <div className="flex gap-2">
-              <Button onClick={() => { setEmailStep('idle'); setEmailOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Back</Button>
+              <Button onClick={() => { setEmailStep('idle'); setEmailOtp(['', '', '', '', '', '']); setEmailError('') }} variant="outline" className="flex-1">Back</Button>
               <Button onClick={handleVerifyEmailOtp} loading={emailOtpLoading} className="flex-1">Confirm</Button>
             </div>
             <button type="button" onClick={() => handleResendOtp(newEmail, 'email_change')} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
@@ -884,7 +901,7 @@ export default function ProfilePage() {
           <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
             This will permanently delete your account and all associated data. A verification code will be sent to <strong className="dark:text-white">{userEmail}</strong>.
           </p>
-          {error && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{error}</p>}
+            {deleteError && <p className="text-sm text-red-600 dark:text-red-400 mb-3">{deleteError}</p>}
           <Button onClick={handleDeleteSendOtp} loading={deleteOtpLoading} variant="danger" className="w-full">Delete My Account</Button>
         </div>
       )}
@@ -914,9 +931,9 @@ export default function ProfilePage() {
                 />
               ))}
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
+            {deleteError && <p className="text-sm text-red-600 dark:text-red-400 text-center">{deleteError}</p>}
             <div className="flex gap-2">
-              <Button onClick={() => { setDeleteStep('confirm'); setDeleteOtp(['', '', '', '', '', '']); setError('') }} variant="outline" className="flex-1">Cancel</Button>
+              <Button onClick={() => { setDeleteStep('confirm'); setDeleteOtp(['', '', '', '', '', '']); setDeleteError('') }} variant="outline" className="flex-1">Cancel</Button>
               <Button onClick={handleVerifyDeleteOtp} loading={deleteOtpLoading} variant="danger" className="flex-1">Permanently Delete</Button>
             </div>
           </div>

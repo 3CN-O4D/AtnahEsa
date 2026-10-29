@@ -84,8 +84,9 @@ export default function BookingPage() {
     setPayStep('initiating')
     setLoading(true)
 
-    console.log('[Booking] calling /api/house-bookings')
-    const res = await fetch('/api/house-bookings', {
+    try {
+      console.log('[Booking] calling /api/house-bookings')
+      const res = await fetch('/api/house-bookings', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -96,9 +97,9 @@ export default function BookingPage() {
         }),
       })
 
-    console.log('[Booking] response status', res.status)
+      console.log('[Booking] response status', res.status)
 
-    let data: any = {}
+      let data: any = {}
       try {
         data = await res.json()
       } catch {

@@ -16,20 +16,24 @@ interface ListingGridProps {
 export default function ListingGrid({ fetchListings, sort, filters, query }: ListingGridProps) {
   const [listings, setListings] = useState<Listing[]>([])
   const [page, setPage] = useState(1)
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const loaderRef = useRef<HTMLDivElement>(null)
   const loadingRef = useRef(false)
+  const mountedRef = useRef(false)
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMore) return
     loadingRef.current = true
     setLoading(true)
+    setError(null)
 
     try {
       const data = await fetchListings(page)
+      if (!mountedRef.current) return
+
       if (data.length === 0) {
         setHasMore(false)
       } else {
@@ -45,30 +49,31 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
         setPage((p) => p + 1)
       }
     } catch (err) {
+      if (!mountedRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load listings')
       setHasMore(false)
     } finally {
-      setLoading(false)
-      loadingRef.current = false
+      if (mountedRef.current) {
+        setLoading(false)
+        loadingRef.current = false
+      }
     }
   }, [page, hasMore, fetchListings])
 
-  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    mountedRef.current = true
+    loadMore()
+    return () => { mountedRef.current = false }
+  }, [loadMore])
+
   useEffect(() => {
     setListings([])
     setPage(1)
     setHasMore(true)
+    setError(null)
+    setLoading(true)
     loadingRef.current = false
   }, [sort, filters, query])
-  /* eslint-enable react-hooks/set-state-in-effect */
-
-  /* eslint-disable react-hooks/set-state-in-effect */
-  useEffect(() => {
-    if (page === 1 && hasMore && !loadingRef.current) {
-      loadMore()
-    }
-  }, [page, hasMore, loadMore])
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   useEffect(() => {
     const el = loaderRef.current
@@ -76,7 +81,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
 
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !loadingRef.current) {
+        if (entries[0].isIntersecting && hasMore && !loadingRef.current && !error) {
           loadMore()
         }
       },
@@ -84,11 +89,30 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [loadMore, hasMore])
+  }, [loadMore, hasMore, error])
+
+  const retry = () => {
+    setError(null)
+    setLoading(true)
+    loadMore()
+  }
 
   return (
     <div>
-      {loading && listings.length === 0 && (
+      {error && !loading && listings.length === 0 && (
+        <div className="text-center py-12 space-y-4 animate-fadeIn animate-slideUp">
+          <div className="text-4xl mb-3">⚠️</div>
+          <h2 className="text-xl font-bold text-gray-900">Failed to load listings</h2>
+          <p className="text-gray-600 max-w-md mx-auto">{error}</p>
+          <button
+            onClick={retry}
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+      {loading && listings.length === 0 && !error && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-12">
           {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
             <div key={i} className="animate-slideUp animate-fadeIn" style={{ animationDelay: `${(i % 4) * 0.1}s` }}>
@@ -124,7 +148,7 @@ export default function ListingGrid({ fetchListings, sort, filters, query }: Lis
           </div>
         </>
       )}
-      {!hasMore && listings.length === 0 && !loading && (
+      {!hasMore && listings.length === 0 && !loading && !error && (
         <div className="text-center py-12 space-y-6 animate-fadeIn animate-slideUp">
           <div className="space-y-2">
             <div className="animate-bounce-slow inline-block text-4xl mb-3">🏠</div>

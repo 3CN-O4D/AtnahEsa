@@ -10,6 +10,13 @@ import type { Listing } from '@/types'
 const MIN_PHONE = 9
 const MAX_PHONE = 12
 
+const errStr = (v: unknown): string => {
+  if (typeof v === 'string') return v
+  if (v instanceof Error) return v.message
+  if (v === null || v === undefined) return ''
+  try { return JSON.stringify(v) } catch { return String(v) }
+}
+
 function isValidKenyanPhone(phone: string): boolean {
   const cleaned = phone.replace(/\D/g, '')
   if (cleaned.startsWith('254')) return cleaned.length === 12
@@ -83,7 +90,7 @@ export default function BookingPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Failed to initiate payment')
+        setError(errStr(data.error) || 'Failed to initiate payment')
         setPayStep('idle')
         setLoading(false)
         return
@@ -117,7 +124,7 @@ export default function BookingPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setError(data.error || 'Verification failed')
+        setError(errStr(data.error) || 'Verification failed')
         setVerifying(false)
         return
       }

@@ -22,10 +22,9 @@ export default function Header() {
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [unreadCountState, setUnreadCount] = useState(0)
 
   useEffect(() => {
-    const supabase = createClient()
     const loadUnread = async () => {
       try {
         const res = await fetch('/api/notifications')
@@ -41,8 +40,10 @@ export default function Header() {
       const i = setInterval(loadUnread, 60000)
       return () => clearInterval(i)
     }
-    setUnreadCount(0)
   }, [user])
+
+  // Signing out hides the badge without writing state inside the effect above.
+  const unreadCount = user ? unreadCountState : 0
 
   useEffect(() => {
     const supabase = createClient()
@@ -100,7 +101,7 @@ export default function Header() {
   ]
 
   return (
-    <header className="sticky top-0 z-40 bg-white dark:bg-slate-900 border-b border-gray-200 dark:border-gray-700">
+    <header className="sticky top-0 z-40 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl dark:border-gray-700/80 dark:bg-slate-900/80">
       <div className="flex items-center h-16">
         {/* Left: Logo + Name — flush to left edge */}
         <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">

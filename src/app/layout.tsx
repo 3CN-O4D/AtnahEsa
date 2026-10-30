@@ -3,6 +3,7 @@ import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import CookieBanner from '@/components/layout/CookieBanner'
+import RouteProgress from '@/components/layout/RouteProgress'
 import { ThemeProvider } from '@/lib/ThemeProvider'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import Script from 'next/script'
@@ -37,6 +38,7 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col">
         <ThemeProvider>
+          <RouteProgress />
           <Header />
           <main className="flex-1">{children}</main>
           <Footer />

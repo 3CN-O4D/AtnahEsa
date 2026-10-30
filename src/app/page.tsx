@@ -2,14 +2,74 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import {
+  ArrowRight,
+  BadgeCheck,
+  CheckCircle2,
+  KeyRound,
+  MapPin,
+  MessageCircle,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Wallet,
+  Zap,
+} from 'lucide-react'
 import ListingGrid from '@/components/listings/ListingGrid'
 import SearchBar from '@/components/listings/SearchBar'
 import SortDropdown from '@/components/listings/SortDropdown'
 import FilterPanel from '@/components/listings/FilterPanel'
+import Reveal from '@/components/ui/Reveal'
 import { createClient } from '@/lib/supabase/client'
 import { useCountUp } from '@/hooks/useCountUp'
 import type { Listing } from '@/types'
+
+const HOW_IT_WORKS = [
+  {
+    icon: Search,
+    title: 'Find a home that fits',
+    body: 'Filter by location, rent and budget. Every listing shows real photos, videos and honest costs before you commit.',
+  },
+  {
+    icon: ShieldCheck,
+    title: 'Book safely',
+    body: 'Your booking fee is held securely. View the house first, then confirm — with a clear refund policy if it is not what was promised.',
+  },
+  {
+    icon: KeyRound,
+    title: 'Move in, get connected',
+    body: 'Once you confirm, the lister is revealed and we help you sort movers and WiFi so day one feels effortless.',
+  },
+]
+
+const TRUST_POINTS = [
+  { icon: BadgeCheck, label: 'Verified listings' },
+  { icon: Wallet, label: 'Protected booking fee' },
+  { icon: MessageCircle, label: 'Direct WhatsApp support' },
+]
+
+const FEATURES = [
+  {
+    icon: BadgeCheck,
+    title: 'No more fake listings',
+    body: 'Homes are checked before they go live, with real photos, videos and the actual bills you will pay.',
+  },
+  {
+    icon: Wallet,
+    title: 'Money held safely',
+    body: 'Booking fees sit in escrow until you have viewed the house. If it is not as described, you can request a refund.',
+  },
+  {
+    icon: MessageCircle,
+    title: 'Talk to a human',
+    body: 'Questions about a house, a booking or a move? Reach us on WhatsApp and get an answer from the team.',
+  },
+  {
+    icon: Zap,
+    title: 'Everything in one place',
+    body: 'Houses, movers and WiFi packages — lined up together so moving day does not turn into a scavenger hunt.',
+  },
+]
 
 export default function HomePage() {
   const [user, setUser] = useState<{ id: string } | null>(null)
@@ -100,73 +160,268 @@ export default function HomePage() {
   const countTaken = useCountUp(stats.taken)
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-6">
-      {/* Hero section */}
-      <div className="mb-8 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 animate-fadeIn animate-slideUp" style={{ animationDelay: '0.1s' }}>
-        <div>
-          <h1 className="text-3xl font-bold dark:text-white mb-2">
-            Find Your Perfect Home and <span className="text-[#30B54A]">Get Connected</span>
-          </h1>
-          <p className="text-gray-600 dark:text-gray-300">
-            Browse verified listings, book, move in and get connected with ease.
-          </p>
-        </div>
-        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
-          <Link href="/request-house" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-[#30B54A] text-white rounded-lg text-sm font-semibold hover:bg-[#2a9c40] transition-colors self-start w-auto active:scale-95">
-            <Search className="w-4 h-4" /> Request a House
-          </Link>
-          <Link href={listAHouseLink} className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 transition-colors shrink-0 self-start w-auto animate-float active:scale-95">
-            + List a House
-          </Link>
-          {isLister && (
-            <Link href="/requests" className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-white border-2 border-[#30B54A] text-[#2a9c40] rounded-lg text-sm font-semibold hover:bg-[#e8f8eb] transition-colors shrink-0 self-start w-auto active:scale-95">
-              House Requests
+    <div>
+      {/* Hero */}
+      <section className="mesh-hero relative overflow-hidden border-b border-gray-100 dark:border-slate-800">
+        <div className="grid-lines absolute inset-0 opacity-80" aria-hidden="true" />
+        <div className="hero-orb -left-24 top-10 h-64 w-64 bg-[#30B54A]/35" aria-hidden="true" />
+        <div className="hero-orb -right-16 top-0 h-72 w-72 bg-blue-500/25" style={{ animationDelay: '1.5s' }} aria-hidden="true" />
+        <div className="hero-orb bottom-0 left-1/3 h-52 w-52 bg-yellow-300/25" style={{ animationDelay: '2.5s' }} aria-hidden="true" />
+
+        <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-12 sm:pt-16">
+          <div className="max-w-3xl">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#30B54A]/25 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-[#2a9c40] shadow-sm backdrop-blur dark:border-[#30B54A]/30 dark:bg-slate-900/70 dark:text-[#6fdc84] animate-fadeInDown">
+              <Sparkles className="h-3.5 w-3.5" />
+              Verified homes across Kenya
+              <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-[#30B54A] animate-pulse-slow" />
+            </span>
+
+            <h1 className="mt-5 text-[2.15rem] font-extrabold leading-[1.05] tracking-tight text-gray-900 dark:text-white sm:text-5xl lg:text-[3.6rem] animate-fadeInUp">
+              Find a home you&apos;ll love.
+              <br />
+              <span className="text-gradient">Move in without the stress.</span>
+            </h1>
+
+            <p className="mt-5 max-w-2xl text-base leading-relaxed text-gray-600 dark:text-gray-300 sm:text-lg animate-fadeInUp" style={{ animationDelay: '0.1s' }}>
+              Browse real homes with real prices, book a viewing safely, then get your movers and WiFi sorted in the
+              same place. House hunting, minus the guesswork.
+            </p>
+
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center animate-fadeInUp" style={{ animationDelay: '0.18s' }}>
+              <a
+                href="#homes"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#30B54A] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+              >
+                Explore homes
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
+              </a>
+              <Link
+                href="/request-house"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300/80 bg-white/80 px-6 py-3 text-sm font-semibold text-gray-800 shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:border-[#30B54A]/50 hover:text-[#2a9c40] hover:shadow-md active:scale-95 dark:border-slate-700 dark:bg-slate-900/70 dark:text-gray-100 dark:hover:text-[#6fdc84]"
+              >
+                <Search className="h-4 w-4" /> Request a house
+              </Link>
+              <Link
+                href={listAHouseLink}
+                className="text-sm font-semibold text-blue-600 underline-offset-4 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400"
+              >
+                or list your house
+              </Link>
+              {isLister && (
+                <Link
+                  href="/requests"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#30B54A]/40 bg-[#e8f8eb]/80 px-5 py-2.5 text-sm font-semibold text-[#2a9c40] transition-all hover:-translate-y-0.5 hover:bg-[#e8f8eb] dark:bg-[#30B54A]/15 dark:text-[#6fdc84]"
+                >
+                  House requests
+                </Link>
+              )}
+            </div>
+
+            <div className="mt-7 flex flex-wrap items-center gap-x-6 gap-y-2 text-xs font-medium text-gray-600 dark:text-gray-400 animate-fadeIn" style={{ animationDelay: '0.28s' }}>
+              {TRUST_POINTS.map(({ icon: Icon, label }) => (
+                <span key={label} className="inline-flex items-center gap-1.5">
+                  <Icon className="h-4 w-4 text-[#30B54A]" />
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Stats */}
+          <div className="mt-10 grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-4">
+            <div className="glass rounded-2xl p-4 text-center animate-fadeInUp" style={{ animationDelay: '0.15s' }}>
+              <p className="text-2xl font-extrabold text-[#30B54A] sm:text-3xl">{countAvailable}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Available homes</p>
+            </div>
+            <div className="glass rounded-2xl p-4 text-center animate-fadeInUp" style={{ animationDelay: '0.22s' }}>
+              <p className="text-2xl font-extrabold text-blue-600 dark:text-blue-400 sm:text-3xl">{countTotal}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Homes listed</p>
+            </div>
+            <div className="glass rounded-2xl p-4 text-center animate-fadeInUp" style={{ animationDelay: '0.29s' }}>
+              <p className="text-2xl font-extrabold text-amber-500 sm:text-3xl">{countPending}</p>
+              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Awaiting review</p>
+            </div>
+            <Link
+              href="/taken"
+              className="glass group rounded-2xl p-4 text-center transition-all duration-300 hover:-translate-y-1 hover:shadow-xl animate-fadeInUp"
+              style={{ animationDelay: '0.36s' }}
+            >
+              <p className="text-2xl font-extrabold text-rose-500 sm:text-3xl">{countTaken}</p>
+              <p className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                Homes taken
+                <ArrowRight className="h-3 w-3 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
+              </p>
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Search + listings */}
+      <section id="homes" className="relative mx-auto max-w-7xl scroll-mt-20 px-4">
+        <div className="glass relative z-10 -mt-7 rounded-2xl p-4 sm:p-5 animate-scaleIn">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+            <div className="flex-1">
+              <SearchBar onSearch={setQuery} onToggleFilters={() => setShowFilters(!showFilters)} />
+            </div>
+            <SortDropdown value={sort} onChange={setSort} />
+          </div>
+          {showFilters && (
+            <div className="mt-4 animate-fadeIn">
+              <FilterPanel onApply={setFilters} />
+            </div>
           )}
         </div>
-      </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8 animate-fadeIn animate-slideUp" style={{ animationDelay: '0.2s' }}>
-        <div className="bg-[#e8f8eb] dark:bg-[#30B54A]/20 border border-[#30B54A] dark:border-[#30B54A]/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.1s' }}>
-          <p className="text-2xl font-bold text-[#30B54A] dark:text-[#6fdc84]">{countAvailable}</p>
-          <p className="text-xs text-[#30B54A] dark:text-[#6fdc84] font-medium">Available Houses</p>
-        </div>
-        <div className="bg-blue-50 dark:bg-blue-900/30 border border-blue-200 dark:border-blue-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.15s' }}>
-          <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{countTotal}</p>
-          <p className="text-xs text-blue-600 dark:text-blue-300 font-medium">Total Listings</p>
-        </div>
-        <div className="bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-700/50 rounded-xl p-4 text-center animate-scaleIn" style={{ animationDelay: '0.15s' }}>
-          <p className="text-2xl font-bold text-yellow-700 dark:text-yellow-300">{countPending}</p>
-          <p className="text-xs text-yellow-600 dark:text-yellow-300 font-medium">Pending</p>
-        </div>
-        <Link href="/taken" className="bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-700/50 rounded-xl p-4 text-center hover:shadow-md transition-shadow animate-scaleIn" style={{ animationDelay: '0.3s' }}>
-          <p className="text-2xl font-bold text-red-700 dark:text-red-300">{countTaken}</p>
-          <p className="text-xs text-red-600 dark:text-red-300 font-medium">Taken Houses</p>
-        </Link>
-      </div>
-
-      {/* Search + Sort + Filters */}
-      <div className="space-y-4 mb-6">
-        <div className="flex items-center gap-3">
-          <div className="flex-1">
-            <SearchBar onSearch={setQuery} onToggleFilters={() => setShowFilters(!showFilters)} />
+        <div className="pb-12 pt-9">
+          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#2a9c40] dark:text-[#6fdc84]">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#30B54A] opacity-60" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#30B54A]" />
+                </span>
+                Live listings
+              </p>
+              <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+                Available homes
+              </h2>
+            </div>
+            <p className="max-w-sm text-sm text-gray-500 dark:text-gray-400">
+              New homes are added regularly. Book a viewing before someone else does.
+            </p>
           </div>
-          <SortDropdown value={sort} onChange={setSort} />
+
+          <ListingGrid
+            key={`${query}|${sort}|${JSON.stringify(filters)}`}
+            fetchListings={fetchListings}
+            sort={sort}
+            filters={filters}
+            query={query}
+          />
         </div>
+      </section>
 
-        {showFilters && <div className="animate-fadeIn"><FilterPanel onApply={setFilters} /></div>}
-      </div>
+      {/* How it works */}
+      <section className="border-y border-gray-100 bg-white py-16 dark:border-slate-800 dark:bg-slate-950/60">
+        <div className="mx-auto max-w-7xl px-4">
+          <Reveal className="mx-auto max-w-2xl text-center">
+            <p className="text-xs font-semibold uppercase tracking-wider text-[#2a9c40] dark:text-[#6fdc84]">Simple by design</p>
+            <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+              From browsing to keys in three steps
+            </h2>
+            <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+              We keep the process short and transparent, so you always know what happens next.
+            </p>
+          </Reveal>
 
-      {/* Listing grid with infinite scroll. Remounting on every new search
-          keeps pagination state clean (no stale page/filter responses). */}
-      <ListingGrid
-        key={`${query}|${sort}|${JSON.stringify(filters)}`}
-        fetchListings={fetchListings}
-        sort={sort}
-        filters={filters}
-        query={query}
-      />
+          <div className="mt-10 grid gap-4 md:grid-cols-3">
+            {HOW_IT_WORKS.map(({ icon: Icon, title, body }, index) => (
+              <Reveal key={title} delay={index * 90}>
+                <div className="card-sheen group relative h-full overflow-hidden rounded-2xl border border-gray-200 bg-gray-50/70 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-[#30B54A]/40 hover:bg-white hover:shadow-xl dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-[#30B54A]/40 dark:hover:bg-slate-900">
+                  <div className="flex items-center justify-between">
+                    <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#e8f8eb] text-[#2a9c40] transition-transform duration-300 group-hover:scale-110 dark:bg-[#30B54A]/15 dark:text-[#6fdc84]">
+                      <Icon className="h-5 w-5" />
+                    </div>
+                    <span className="text-3xl font-black text-gray-200 dark:text-slate-800">0{index + 1}</span>
+                  </div>
+                  <h3 className="mt-5 text-base font-bold text-gray-900 dark:text-white">{title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-gray-600 dark:text-gray-400">{body}</p>
+                </div>
+              </Reveal>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Why AseHanta */}
+      <section className="py-16">
+        <div className="mx-auto max-w-7xl px-4">
+          <div className="grid gap-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <Reveal>
+              <p className="text-xs font-semibold uppercase tracking-wider text-[#2a9c40] dark:text-[#6fdc84]">Why AseHanta</p>
+              <h2 className="mt-2 text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+                House hunting should feel exciting, not risky.
+              </h2>
+              <p className="mt-3 text-sm leading-relaxed text-gray-600 dark:text-gray-400">
+                We built AseHanta to remove the parts people dread: fake photos, surprise costs and sending money to a
+                stranger. What is left is the good part — finding a place to call home.
+              </p>
+              <div className="mt-6 flex flex-wrap gap-2">
+                {['Real photos & videos', 'Clear monthly costs', 'Escrow protection', 'Human support'].map((item) => (
+                  <span
+                    key={item}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-700 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-[#30B54A]" />
+                    {item}
+                  </span>
+                ))}
+              </div>
+              <div className="mt-7 flex flex-wrap items-center gap-4">
+                <Link
+                  href="/request-house"
+                  className="inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+                >
+                  Tell us what you need <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link href="/contact" className="text-sm font-semibold text-gray-700 underline-offset-4 hover:text-[#2a9c40] hover:underline dark:text-gray-300 dark:hover:text-[#6fdc84]">
+                  Talk to the team
+                </Link>
+              </div>
+            </Reveal>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              {FEATURES.map(({ icon: Icon, title, body }, index) => (
+                <Reveal key={title} delay={index * 70}>
+                  <div className="h-full rounded-2xl border border-gray-200 bg-white p-5 transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-800">
+                    <Icon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+                    <h3 className="mt-3 text-sm font-bold text-gray-900 dark:text-white">{title}</h3>
+                    <p className="mt-1.5 text-xs leading-relaxed text-gray-600 dark:text-gray-400">{body}</p>
+                  </div>
+                </Reveal>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* CTA band */}
+      <section className="px-4 pb-16">
+        <Reveal className="mx-auto max-w-7xl">
+          <div className="relative overflow-hidden rounded-3xl bg-slate-900 px-6 py-10 sm:px-10 sm:py-12 dark:border dark:border-slate-800">
+            <div className="hero-orb -right-10 -top-16 h-56 w-56 bg-[#30B54A]/30" aria-hidden="true" />
+            <div className="hero-orb -bottom-20 left-10 h-56 w-56 bg-blue-500/25" style={{ animationDelay: '2s' }} aria-hidden="true" />
+            <div className="relative flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+              <div className="max-w-xl">
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#6fdc84]">
+                  <MapPin className="h-3.5 w-3.5" /> Kenya-wide
+                </p>
+                <h2 className="mt-2 text-2xl font-bold tracking-tight text-white sm:text-3xl">
+                  Can&apos;t find the right house yet?
+                </h2>
+                <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                  Tell us your budget, preferred area and move-in date. Our agents will look for matching homes and
+                  contact you on WhatsApp.
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+                <Link
+                  href="/request-house"
+                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#30B54A] px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40]"
+                >
+                  Request a house <ArrowRight className="h-4 w-4" />
+                </Link>
+                <Link
+                  href={listAHouseLink}
+                  className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
+                >
+                  List your house
+                </Link>
+              </div>
+            </div>
+          </div>
+        </Reveal>
+      </section>
     </div>
   )
 }

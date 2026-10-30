@@ -32,12 +32,12 @@ function CardSkeleton({ delay = 0 }: { delay?: number }) {
       className="animate-fadeIn"
       style={{ animationDelay: `${delay}s` }}
     >
-      <div className="overflow-hidden rounded-xl border border-gray-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="overflow-hidden rounded-2xl border border-gray-100 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="relative aspect-[4/3] w-full animate-shimmer">
-          <div className="absolute left-2 top-2 h-5 w-16 rounded-full bg-white/60 dark:bg-white/10 animate-pulse-slow" />
-          <div className="absolute bottom-2 right-2 h-5 w-20 rounded-full bg-white/60 dark:bg-white/10 animate-pulse-slow" />
+          <div className="absolute left-2.5 top-2.5 h-5 w-16 rounded-full bg-white/60 dark:bg-white/10 animate-pulse-slow" />
+          <div className="absolute bottom-2.5 right-2.5 h-5 w-20 rounded-full bg-white/60 dark:bg-white/10 animate-pulse-slow" />
         </div>
-        <div className="space-y-2 p-3">
+        <div className="space-y-2 p-3.5">
           <div className="h-4 w-3/4 rounded bg-gray-200 animate-pulse-slow dark:bg-slate-700" />
           <div className="h-3.5 w-1/2 rounded bg-gray-200 animate-pulse-slow dark:bg-slate-700" />
           <div className="h-3.5 w-2/5 rounded bg-gray-200 animate-pulse-slow dark:bg-slate-700" />

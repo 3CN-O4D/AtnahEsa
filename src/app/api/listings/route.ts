@@ -3,6 +3,49 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { notifyAdmins } from '@/lib/notify'
 import { createClient } from '@/lib/supabase/server'
+import { ITEMS_PER_PAGE } from '@/lib/constants'
+
+/** Columns the public cards actually read. Keeping this list tight makes each
+ *  page noticeably smaller over the wire and avoids leaking private fields. */
+const PUBLIC_COLUMNS = [
+  'id',
+  'title',
+  'description',
+  'price',
+  'rent',
+  'location',
+  'images',
+  'issues',
+  'issues_count',
+  'deposit',
+  'deposit_refundable',
+  'electricity',
+  'electric_bill',
+  'water',
+  'why_vacant',
+  'vacancy',
+  'vacancy_type',
+  'house_type',
+  'building_type',
+  'floor_number',
+  'descriptive_location',
+  'payment_method',
+  'status',
+  'taken_at',
+  'taken_by_name',
+  'uploader_id',
+  'uploader_name',
+  'created_at',
+  'updated_at',
+].join(',')
+
+/** Public, non-personalised payloads can be reused by the CDN briefly while
+ *  still picking up new listings within half a minute. */
+function cachedJson(body: unknown) {
+  const res = addSecurityHeaders(NextResponse.json(body))
+  res.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300')
+  return res
+}
 
 export async function GET(req: Request) {
   const { allowed, headers } = await withRateLimit(req, 'search')
@@ -16,8 +59,6 @@ export async function GET(req: Request) {
     const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, status, count } = validation.data
     const supabase = createAdminClient()
 
-    const PUBLIC_COLUMNS = 'id,title,description,price,rent,location,images,images,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,created_at,updated_at'
-
     const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
 
     const wantCount = count === '1'
@@ -28,8 +69,9 @@ export async function GET(req: Request) {
       .in('status', statusFilter)
 
     if (!wantCount) {
-      const pageNum = page ? parseInt(page) : 1
-      q = q.range((pageNum - 1) * 12, pageNum * 12 - 1)
+      const pageNum = Math.max(1, page ? parseInt(page, 10) : 1)
+      const from = (pageNum - 1) * ITEMS_PER_PAGE
+      q = q.range(from, from + ITEMS_PER_PAGE - 1)
     }
 
     if (query) {
@@ -64,10 +106,10 @@ export async function GET(req: Request) {
     if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 
     if (wantCount) {
-      return addSecurityHeaders(NextResponse.json({ count: queryCount ?? 0 }))
+      return cachedJson({ count: queryCount ?? 0 })
     }
 
-    return addSecurityHeaders(NextResponse.json(data))
+    return cachedJson(data)
   } catch {
     return addSecurityHeaders(NextResponse.json({ error: 'Internal server error' }, { status: 500 }))
   }

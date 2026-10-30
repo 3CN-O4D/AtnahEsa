@@ -45,6 +45,7 @@ export default function UploadPage() {
   const [listerPhone, setListerPhone] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
+  const [mediaUploading, setMediaUploading] = useState(false)
   const [error, setError] = useState('')
 
   useEffect(() => {
@@ -69,6 +70,15 @@ export default function UploadPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!user) return
+
+    if (mediaUploading) {
+      setError('Please wait for the photos and videos to finish uploading.')
+      return
+    }
+    if (images.length === 0) {
+      setError('Add at least one photo so hunters can see the house.')
+      return
+    }
 
     const fee = parseInt(price)
     if (fee < MIN_BOOKING_FEE) {
@@ -343,7 +353,7 @@ export default function UploadPage() {
           onChange={(e) => setTiktokUrl(e.target.value)}
         />
 
-        <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />
+        <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} onUploadingChange={setMediaUploading} />
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">House Issues</label>
@@ -392,9 +402,12 @@ export default function UploadPage() {
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">Photos</label>
-          <ImageUploader images={images} onChange={setImages} />
+          <ImageUploader images={images} onChange={setImages} onUploadingChange={setMediaUploading} />
         </div>
 
+        {mediaUploading && (
+          <p className="text-sm text-blue-600">Uploading media… the submit button unlocks when everything finishes.</p>
+        )}
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1">
@@ -402,8 +415,8 @@ export default function UploadPage() {
           <p><strong>Note:</strong> Your listing will be reviewed by admin before it goes live.</p>
         </div>
 
-        <Button type="submit" loading={loading} className="w-full" size="lg">
-          Submit for Review
+        <Button type="submit" loading={loading} disabled={mediaUploading} className="w-full" size="lg">
+          {mediaUploading ? 'Uploading media…' : 'Submit for Review'}
         </Button>
       </form>
     </div>

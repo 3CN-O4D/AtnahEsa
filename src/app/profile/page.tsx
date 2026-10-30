@@ -215,17 +215,29 @@ export default function ProfilePage() {
 
   const handleAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
+    e.target.value = ''
     if (!file) return
-    setAvatarUploading(true)
     setProfileError('')
     setSuccess('')
+
+    const allowed = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+    if (!allowed.includes(file.type)) {
+      setProfileError('Use a JPG, PNG, WebP or AVIF image.')
+      return
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setProfileError('Profile pictures must be 4MB or smaller.')
+      return
+    }
+
+    setAvatarUploading(true)
 
     try {
       const formData = new FormData()
       formData.append('file', file)
       const res = await fetch('/api/upload-avatar', { method: 'POST', body: formData })
-      const data = await res.json()
-      if (!res.ok) { setProfileError(data.error || 'Upload failed'); setAvatarUploading(false); return }
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) { setProfileError(data.error || 'Upload failed'); return }
 
       const supabase = createClient()
       const { data: fresh } = await supabase.from('profiles').select('*').eq('id', profile!.id).maybeSingle()
@@ -581,7 +593,7 @@ export default function ProfilePage() {
             {editMode && (
               <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-blue-600 text-white rounded-full flex items-center justify-center cursor-pointer hover:bg-blue-700 transition-colors">
                 <Camera className="w-3.5 h-3.5" />
-                <input type="file" accept="image/*" className="hidden" onChange={handleAvatarUpload} disabled={avatarUploading} />
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/avif" className="hidden" onChange={handleAvatarUpload} disabled={avatarUploading} />
               </label>
             )}
           </div>

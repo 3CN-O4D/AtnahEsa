@@ -21,6 +21,7 @@ export default function EditListingPage() {
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [mediaUploading, setMediaUploading] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [currentStatus, setCurrentStatus] = useState('')
@@ -97,6 +98,8 @@ export default function EditListingPage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(''); setSuccess('')
+    if (mediaUploading) { setError('Please wait for the photos and videos to finish uploading.'); return }
+    if (images.length === 0) { setError('Add at least one photo so hunters can see the house.'); return }
     const fee = parseInt(price)
     if (fee < MIN_BOOKING_FEE) { setError(`Minimum booking fee is ${MIN_BOOKING_FEE}`); return }
     setSaving(true)
@@ -104,7 +107,6 @@ export default function EditListingPage() {
     try {
       const supabase = createClient()
       const removed = originalImages.filter((url) => !images.includes(url))
-      await Promise.allSettled(removed.map((url) => fetch('/api/delete-image', { method: 'POST', body: JSON.stringify({ url, listing_id: id }) })))
 
       const updates: Record<string, unknown> = {
         title, description, price: fee, rent: parseInt(rent) || 0,
@@ -121,6 +123,18 @@ export default function EditListingPage() {
 
       if (updateErr) { setError(updateErr.message); return }
       setSuccess('Saved!'); setOriginalImages(images)
+
+      // Delete removed media only after the listing no longer references it,
+      // so a failed save can never leave the DB pointing at deleted objects.
+      await Promise.allSettled(
+        removed.map((url) =>
+          fetch('/api/delete-image', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url, listing_id: id }),
+          })
+        )
+      )
     } catch { setError('Failed to save') } finally { setSaving(false) }
   }
 
@@ -218,7 +232,7 @@ export default function EditListingPage() {
         <Input label="Location (Area)" id="location" value={location} onChange={(e) => setLocation(e.target.value)} required />
         <Input label="YouTube Video URL" id="youtube" type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
         <Input label="TikTok Video URL" id="tiktok" type="url" placeholder="https://www.tiktok.com/@username/video/..." value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} />
-        <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />
+        <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} onUploadingChange={setMediaUploading} />
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">House Issues</label>
@@ -244,14 +258,17 @@ export default function EditListingPage() {
 
         <div className="space-y-1">
           <label className="block text-sm font-medium text-gray-700">Photos</label>
-          <ImageUploader images={images} onChange={setImages} />
+          <ImageUploader images={images} onChange={setImages} onUploadingChange={setMediaUploading} />
         </div>
 
+        {mediaUploading && <p className="text-sm text-blue-600">Uploading media… the save button unlocks when everything finishes.</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
         {success && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-xl p-3">{success}</p>}
 
         <div className="flex gap-3">
-          <Button type="submit" loading={saving} className="flex-1" size="lg">Save Changes</Button>
+          <Button type="submit" loading={saving} disabled={mediaUploading} className="flex-1" size="lg">
+            {mediaUploading ? 'Uploading media…' : 'Save Changes'}
+          </Button>
           <Button type="button" variant="outline" onClick={() => router.back()} size="lg">Cancel</Button>
         </div>
       </form>

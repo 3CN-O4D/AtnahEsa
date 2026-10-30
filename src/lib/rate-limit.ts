@@ -76,7 +76,7 @@ export function createRateLimitHeaders(
 export const RATE_LIMITS = {
   auth: { max: 10, window: 60 },
   api: { max: 100, window: 60 },
-  upload: { max: 20, window: 60 },
+  upload: { max: 60, window: 60 },
   payments: { max: 30, window: 60 },
   search: { max: 60, window: 60 },
   contact: { max: 5, window: 300 },

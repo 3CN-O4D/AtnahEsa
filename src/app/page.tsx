@@ -8,7 +8,6 @@ import SearchBar from '@/components/listings/SearchBar'
 import SortDropdown from '@/components/listings/SortDropdown'
 import FilterPanel from '@/components/listings/FilterPanel'
 import { createClient } from '@/lib/supabase/client'
-import { ITEMS_PER_PAGE } from '@/lib/constants'
 import { useCountUp } from '@/hooks/useCountUp'
 import type { Listing } from '@/types'
 
@@ -73,21 +72,22 @@ export default function HomePage() {
         params.set('issues', filters.issues)
       }
 
-      try {
-        const res = await fetch(`/api/listings?${params.toString()}`, {
-          headers: { 'Content-Type': 'application/json' },
-        })
-        if (!res.ok) {
-          console.error(`API error: ${res.status} ${res.statusText}`)
-          throw new Error(`Failed to load listings: ${res.status}`)
-        }
-        const data = await res.json()
-        console.log(`Fetched page ${page}:`, data?.length || 0, 'listings')
-        return (data ?? []) as Listing[]
-      } catch (err) {
-        console.error('fetchListings error:', err)
-        return []
+      const res = await fetch(`/api/listings?${params.toString()}`, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+      if (!res.ok) {
+        console.error(`[listings] API error: ${res.status} ${res.statusText}`)
+        throw new Error(
+          res.status === 429
+            ? 'Too many requests right now. Please wait a moment and try again.'
+            : 'Could not load homes. Check your connection and try again.'
+        )
       }
+      const data = await res.json()
+      if (!Array.isArray(data)) {
+        throw new Error(data?.error || 'Unexpected response while loading homes.')
+      }
+      return data as Listing[]
     },
     [query, sort, filters]
   )
@@ -158,8 +158,15 @@ export default function HomePage() {
         {showFilters && <div className="animate-fadeIn"><FilterPanel onApply={setFilters} /></div>}
       </div>
 
-      {/* Listing grid with infinite scroll */}
-      <ListingGrid fetchListings={fetchListings} sort={sort} filters={filters} query={query} />
+      {/* Listing grid with infinite scroll. Remounting on every new search
+          keeps pagination state clean (no stale page/filter responses). */}
+      <ListingGrid
+        key={`${query}|${sort}|${JSON.stringify(filters)}`}
+        fetchListings={fetchListings}
+        sort={sort}
+        filters={filters}
+        query={query}
+      />
     </div>
   )
 }

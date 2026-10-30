@@ -1,7 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback, useRef } from 'react'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { ChevronLeft, ChevronRight, ImageOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 interface SlideshowProps {
@@ -13,32 +13,51 @@ interface SlideshowProps {
 
 export default function Slideshow({ images, interval = 5000, className, onImageClick }: SlideshowProps) {
   const [current, setCurrent] = useState(0)
-  const [direction, setDirection] = useState<'next' | 'prev' | null>(null)
   const [isAnimating, setIsAnimating] = useState(false)
+  const [loaded, setLoaded] = useState<Record<string, boolean>>({})
+  const [failed, setFailed] = useState<Record<string, boolean>>({})
+  const [paused, setPaused] = useState(false)
   const touchX = useRef(0)
   const touchY = useRef(0)
 
+  // A new set of images always starts from the first slide. Adjusting state
+  // during render avoids an extra effect pass and a visible flash of the old
+  // slide when a card reuses its slot for different media.
+  const imagesKey = images.join('|')
+  const [activeImagesKey, setActiveImagesKey] = useState(imagesKey)
+  if (activeImagesKey !== imagesKey) {
+    setActiveImagesKey(imagesKey)
+    setCurrent(0)
+  }
+
   const next = useCallback(() => {
-    if (isAnimating) return
-    setDirection('next')
+    if (isAnimating || images.length === 0) return
     setIsAnimating(true)
     setCurrent((c) => (c + 1) % images.length)
-    setTimeout(() => { setIsAnimating(false); setDirection(null) }, 400)
+    setTimeout(() => setIsAnimating(false), 400)
   }, [images.length, isAnimating])
 
   const prev = useCallback(() => {
-    if (isAnimating) return
-    setDirection('prev')
+    if (isAnimating || images.length === 0) return
     setIsAnimating(true)
     setCurrent((c) => (c - 1 + images.length) % images.length)
-    setTimeout(() => { setIsAnimating(false); setDirection(null) }, 400)
+    setTimeout(() => setIsAnimating(false), 400)
   }, [images.length, isAnimating])
 
   useEffect(() => {
-    if (images.length <= 1) return
+    if (images.length <= 1 || paused) return
     const timer = setInterval(next, interval)
     return () => clearInterval(timer)
-  }, [next, interval, images.length])
+  }, [next, interval, images.length, paused])
+
+  // Warm the next slide so a swipe/auto-advance never shows an empty frame.
+  useEffect(() => {
+    if (images.length <= 1) return
+    const nextUrl = images[(current + 1) % images.length]
+    if (!nextUrl) return
+    const img = new Image()
+    img.src = nextUrl
+  }, [current, images])
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchX.current = e.touches[0].clientX
@@ -57,28 +76,54 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
 
   const goToSlide = (i: number) => {
     if (isAnimating || i === current) return
-    setDirection(i > current ? 'next' : 'prev')
     setIsAnimating(true)
     setCurrent(i)
-    setTimeout(() => { setIsAnimating(false); setDirection(null) }, 400)
+    setTimeout(() => setIsAnimating(false), 400)
   }
 
   if (!images.length) return null
 
+  const src = images[current]
+  const isLoaded = !!loaded[src]
+  const hasFailed = !!failed[src]
+
   return (
     <div
-      className={cn('relative group overflow-hidden rounded-xl bg-gray-100 cursor-pointer select-none', className)}
+      className={cn('relative group overflow-hidden rounded-xl bg-gray-100 dark:bg-slate-800 cursor-pointer select-none', className)}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
       onClick={() => onImageClick?.(current)}
     >
-      <div className="absolute inset-0 transition-opacity duration-300" style={{ opacity: isAnimating ? 0.5 : 1 }}>
-        <img
-          src={images[current]}
-          alt={`Slide ${current + 1}`}
-          className="w-full h-full object-cover transition-all duration-500 group-hover:scale-150 pointer-events-none"
-        />
-      </div>
+      {/* Shimmer placeholder shown until the current frame is decoded */}
+      {!isLoaded && !hasFailed && (
+        <div className="absolute inset-0 animate-shimmer" aria-hidden="true" />
+      )}
+
+      {hasFailed ? (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-gray-400 dark:text-gray-500">
+          <ImageOff className="h-6 w-6" />
+          <span className="text-[10px] font-medium">Photo unavailable</span>
+        </div>
+      ) : (
+        <div className="absolute inset-0 transition-opacity duration-300" style={{ opacity: isAnimating ? 0.5 : 1 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={src}
+            alt={`Slide ${current + 1} of ${images.length}`}
+            loading={current === 0 ? 'eager' : 'lazy'}
+            decoding="async"
+            onLoad={() => setLoaded((prev) => (prev[src] ? prev : { ...prev, [src]: true }))}
+            onError={() => setFailed((prev) => ({ ...prev, [src]: true }))}
+            className={cn(
+              'pointer-events-none h-full w-full object-cover transition-all duration-500 group-hover:scale-150',
+              isLoaded ? 'opacity-100' : 'opacity-0'
+            )}
+          />
+        </div>
+      )}
+
       {images.length > 1 && (
         <>
           <button

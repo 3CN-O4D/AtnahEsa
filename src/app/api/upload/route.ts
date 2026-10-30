@@ -42,7 +42,7 @@ export async function POST(req: Request) {
 
     await s3.send(new PutObjectCommand({
       Bucket: process.env.R2_BUCKET!,
-      Key: `asehanta/listings/${user.id}/${key}`,
+      Key: key,
       Body: buffer,
       ContentType: file.type,
       CacheControl: 'public, max-age=31536000, immutable',

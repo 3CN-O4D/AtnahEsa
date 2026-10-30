@@ -38,11 +38,11 @@ export async function POST(req: Request) {
     const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg'
     const timestamp = Date.now().toString(36)
     const random = Math.random().toString(36).slice(2, 8)
-    const key = `asehanta/listings/${user.id}/${Date.now().toString(36)}-${random}-${index}.${ext}`
+    const key = `asehanta/listings/${user.id}/${timestamp}-${random}-${index}.${ext}`
 
     await s3.send(new PutObjectCommand({
       Bucket: process.env.R2_BUCKET!,
-      Key: `asehanta/listings/${user.id}/${key}`,
+      Key: key,
       Body: buffer,
       ContentType: file.type,
       CacheControl: 'public, max-age=31536000, immutable',

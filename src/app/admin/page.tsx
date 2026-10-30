@@ -579,7 +579,7 @@ function AdminDashboardInner() {
                 key={f}
                 onClick={() => setListingsFilter(f)}
                 className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                  listingsFilter === f ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-300'
+                  listingsFilter === f ? 'border-emerald-600 bg-emerald-600 text-white' : 'bg-white text-gray-500 border-gray-300'
                 }`}
               >
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} {f === 'all' ? `(${allListings.length})` : `(${allListings.filter(l => f === 'issues' ? l.issues_count > 0 : l.status === f).length})`}
@@ -594,14 +594,14 @@ function AdminDashboardInner() {
               value={houseSearch}
               onChange={(e) => setHouseSearch(e.target.value)}
               placeholder="Search by title, location, price, rent..."
-              className="w-full pl-10 pr-4 h-10 rounded-lg border border-gray-300 dark:border-gray-600 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full pl-10 pr-4 h-10 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
             />
           </div>
 
-          {filteredListings.length === 0 && <p className="text-gray-500 text-center py-8">No listings.</p>}
+          {filteredListings.length === 0 && <p className="text-center py-8 text-gray-500 dark:text-gray-400">No listings.</p>}
 
           {filteredListings.map((listing) => (
-            <div key={listing.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 flex items-start gap-4">
+            <div key={listing.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 flex items-start gap-4">
               <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -614,9 +614,9 @@ function AdminDashboardInner() {
                     'bg-red-100 text-red-700'
                   }`}>{listing.status}</span>
                 </div>
-                <p className="text-sm text-gray-500">{listing.location}</p>
-                <p className="text-sm text-gray-500">Charge: {formatPrice(listing.price)} | Rent: {formatPrice(listing.rent)}</p>
-                <p className="text-xs text-gray-400">By: {listing.uploader_name} | {new Date(listing.created_at).toLocaleDateString()}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">{listing.location}</p>
+                <p className="text-sm text-gray-500 dark:text-gray-400">Charge: {formatPrice(listing.price)} | Rent: {formatPrice(listing.rent)}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">By: {listing.uploader_name} | {new Date(listing.created_at).toLocaleDateString()}</p>
               </div>
               <div className="flex gap-2 shrink-0 flex-wrap">
                 <Link href={`/admin/listings/${listing.id}`}><Button variant="outline" size="sm">Edit</Button></Link>
@@ -635,18 +635,18 @@ function AdminDashboardInner() {
       {tab === 'transactions' && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">All Transactions</h2>
-            <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-600 hover:underline">Download PDF</a>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-white">All Transactions</h2>
+            <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-emerald-600 hover:underline">Download PDF</a>
           </div>
-          {transactions.length === 0 && <p className="text-gray-500 text-center py-8">No transactions yet.</p>}
+          {transactions.length === 0 && <p className="text-center py-8 text-gray-500 dark:text-gray-400">No transactions yet.</p>}
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {transactions.map((tx) => (
-              <div key={tx.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
+              <div key={tx.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 space-y-2">
                 <div className="flex items-start justify-between">
                   <div>
                     <p className="font-mono text-sm font-semibold">{tx.mpesa_receipt || tx.checkout_request_id?.slice(0, 16) || '-'}</p>
-                    <p className="text-sm text-gray-500">{tx.phone}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{tx.phone}</p>
                   </div>
                   <div className="flex flex-col items-end gap-1.5">
                     {tx.payment_method && (
@@ -697,13 +697,13 @@ function AdminDashboardInner() {
                     <p className="mt-1 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap break-words">{tx.mpesa_message}</p>
                   </details>
                 )}
-                {tx.result_desc && <p className="text-xs text-gray-400 truncate" title={tx.result_desc}>Result: {tx.result_desc}</p>}
+                {tx.result_desc && <p className="text-xs text-gray-400 dark:text-gray-500 truncate" title={tx.result_desc}>Result: {tx.result_desc}</p>}
                 {tx.booking_id && (
                   <p className="text-xs text-blue-600">
                     Booking: {tx.booking_id.slice(0, 8)}…
                   </p>
                 )}
-                <p className="text-xs text-gray-400">{new Date(tx.created_at).toLocaleString()}</p>
+                <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(tx.created_at).toLocaleString()}</p>
               </div>
             ))}
           </div>
@@ -751,7 +751,7 @@ function AdminDashboardInner() {
                 <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-gray-900 dark:text-white truncate">{r.name}</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{r.email} &middot; {r.phone}</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400 break-all">{r.email} &middot; {r.phone}</p>
                     {r.claimed_by && <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Claimed by a lister</p>}
                   </div>
                   <select
@@ -815,11 +815,11 @@ function AdminDashboardInner() {
             {wifiBookings.length === 0 && <p className="text-gray-500 text-sm">No WiFi bookings yet.</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {wifiBookings.map((b) => (
-                <div key={b.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
+                <div key={b.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 space-y-2">
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-semibold">{b.name}</p>
-                      <p className="text-sm text-gray-500">{b.phone} &middot; {b.area}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{b.phone} &middot; {b.area}</p>
                     </div>
                     <select
                       value={b.status}
@@ -839,9 +839,9 @@ function AdminDashboardInner() {
                   </div>
                   <p className="text-sm"><strong>Package:</strong> {b.package_name} ({b.package_speed}) &mdash; {formatPrice(b.package_price)}/mo</p>
                   {b.id_number && <p className="text-sm"><strong>ID:</strong> {b.id_number}</p>}
-                  <p className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(b.created_at).toLocaleString()}</p>
                   <div className="flex gap-3 pt-1">
-                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
+                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-emerald-600 hover:underline">
                       📞 Call
                     </a>
                     <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} WiFi booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
@@ -860,11 +860,11 @@ function AdminDashboardInner() {
             {houseBookings.length === 0 && <p className="text-gray-500 text-sm">No house bookings yet.</p>}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {houseBookings.map((b) => (
-                <div key={b.id} className="bg-white border dark:border-gray-700 rounded-xl p-4 space-y-2">
+                <div key={b.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div>
                       <p className="font-semibold">{b.name}</p>
-                      <p className="text-sm text-gray-500">{b.phone} &middot; {b.area}</p>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">{b.phone} &middot; {b.area}</p>
                     </div>
                     <div className="flex flex-col items-end gap-1.5">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -903,16 +903,16 @@ function AdminDashboardInner() {
                       <p className="mt-1 bg-gray-50 rounded-lg p-2 whitespace-pre-wrap break-words">{b.mpesa_message}</p>
                     </details>
                   )}
-                  <p className="text-xs text-gray-400">{new Date(b.created_at).toLocaleString()}</p>
+                  <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(b.created_at).toLocaleString()}</p>
                   <div className="flex gap-3 pt-1 flex-wrap">
-                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
+                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-emerald-600 hover:underline">
                       📞 Call
                     </a>
                     <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your house booking at ${b.listing_title}.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
                       💬 WhatsApp
                     </a>
                     {b.release_status !== 'held' && b.release_status !== 'paid' && b.release_status !== 'refunded' && (
-                      <Button size="sm" onClick={() => handleVerifyHouseEscrow(b.id)} className="bg-blue-600 hover:bg-blue-700 text-white text-xs px-2.5 py-0.5">
+                      <Button size="sm" onClick={() => handleVerifyHouseEscrow(b.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-0.5">
                         Verify & Set Escrow
                       </Button>
                     )}
@@ -926,7 +926,7 @@ function AdminDashboardInner() {
 
       {tab === 'videos' && (
         <div className="space-y-4">
-          <h2 className="text-lg font-semibold">Video Review</h2>
+          <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Video Review</h2>
           {(() => {
             const ytOf = (l: typeof allListings[number]) => l.youtube_urls?.length ? l.youtube_urls : (l.youtube_url ? [l.youtube_url] : [])
             const ttOf = (l: typeof allListings[number]) => l.tiktok_urls?.length ? l.tiktok_urls : (l.tiktok_url ? [l.tiktok_url] : [])
@@ -935,19 +935,19 @@ function AdminDashboardInner() {
               return urls.length > Math.max(ytOf(l).length, ttOf(l).length)
             }
             const videoListings = allListings.filter(hasVideo)
-            if (videoListings.length === 0) return <p className="text-gray-500 text-center py-8">No videos awaiting review.</p>
+            if (videoListings.length === 0) return <p className="text-center py-8 text-gray-500 dark:text-gray-400">No videos awaiting review.</p>
             return videoListings.map((listing) => {
               const urls = listing.video_urls?.length ? listing.video_urls : (listing.video_url ? [listing.video_url] : [])
               const ytUrls = ytOf(listing)
               const ttUrls = ttOf(listing)
               const pending = urls.filter((_, i) => !ytUrls[i] && !ttUrls[i])
               return (
-              <div key={listing.id} className="bg-white border dark:border-gray-700 rounded-xl p-4">
+              <div key={listing.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-start gap-4 mb-3">
                   <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
                   <div>
                     <h3 className="font-semibold text-gray-900">{listing.title}</h3>
-                    <p className="text-sm text-gray-500">{listing.location} &mdash; {pending.length} video{pending.length !== 1 ? 's' : ''} pending</p>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">{listing.location} &mdash; {pending.length} video{pending.length !== 1 ? 's' : ''} pending</p>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -956,7 +956,7 @@ function AdminDashboardInner() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500 truncate">Video {vi + 1}</p>
                         <div className="flex gap-2 mt-1">
-                          <a href={vurl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-600 hover:underline">Preview</a>
+                          <a href={vurl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline">Preview</a>
                           <a href={`/api/video?key=${encodeURIComponent(vurl.split('/object/public/')[1]?.split('/').slice(1).join('/').split('?')[0] || vurl)}`} download className="text-xs text-gray-500 hover:underline">Download</a>
                         </div>
                       </div>
@@ -964,13 +964,13 @@ function AdminDashboardInner() {
                         type="text"
                         placeholder="Paste YouTube URL..."
                         id={`yt-${listing.id}-${vi}`}
-                        className="w-64 rounded-lg border border-gray-300 dark:border-gray-600 bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-64 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
                       <input
                         type="text"
                         placeholder="Paste TikTok URL..."
                         id={`tt-${listing.id}-${vi}`}
-                        className="w-64 rounded-lg border border-gray-300 dark:border-gray-600 bg-white px-3 py-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-64 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
                     </div>
                   ))}
@@ -1000,7 +1000,7 @@ function AdminDashboardInner() {
       {tab === 'users' && (
         <div className="space-y-4">
           <Input label="" id="user-search" placeholder="Search by name, email, or phone..." value={userSearch} onChange={(e) => setUserSearch(e.target.value)} className="max-w-sm" />
-          {users.length === 0 && <p className="text-gray-500 text-center py-8">No users.</p>}
+          {users.length === 0 && <p className="text-center py-8 text-gray-500 dark:text-gray-400">No users.</p>}
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead><tr className="bg-gray-50 border-b dark:border-gray-700">
@@ -1011,7 +1011,7 @@ function AdminDashboardInner() {
               <tbody>{users
                 .filter((u) => !userSearch || (u.full_name?.toLowerCase() || '').includes(userSearch.toLowerCase()) || (u.username?.toLowerCase() || '').includes(userSearch.toLowerCase()) || (u.phone || '').includes(userSearch))
                 .map((u) => (
-                <tr key={u.id} className="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-200">
+                <tr key={u.id} className="border-b dark:border-slate-800 hover:bg-gray-50 dark:hover:bg-slate-800/60">
                   <td className="p-3 font-medium">{u.full_name}</td>
                   <td className="p-3 text-gray-600">{u.username}</td>
                   <td className="p-3">{u.phone || '-'}</td>

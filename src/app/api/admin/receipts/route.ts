@@ -80,13 +80,17 @@ export async function GET(request: NextRequest) {
   }
 
   let listerName: string | undefined
+  let listerPhone: string | undefined
+  let listingDescription: string | undefined
   if (booking.listing_id) {
     const { data: listing } = await admin
       .from('listings')
-      .select('uploader_name')
+      .select('uploader_name, description, lister_phone')
       .eq('id', booking.listing_id)
       .maybeSingle()
     listerName = listing?.uploader_name || undefined
+    listerPhone = listing?.lister_phone || undefined
+    listingDescription = listing?.description || undefined
   }
 
   const pdf = await generateReceiptPdf({
@@ -94,6 +98,7 @@ export async function GET(request: NextRequest) {
     receiptNumber: booking.mpesa_receipt || booking.id.slice(0, 12).toUpperCase(),
     listingTitle: booking.listing_title || 'House listing',
     listingLocation: booking.listing_location || '',
+    listingDescription,
     amount: Number(booking.listing_price) || 0,
     payerName: booking.name || '',
     payerEmail: booking.email || '',
@@ -102,6 +107,7 @@ export async function GET(request: NextRequest) {
     heldUntil: booking.held_until,
     paymentMethod: booking.payment_method || 'paywave',
     listerName,
+    listerPhone,
   })
 
   const filename = `asehanta-receipt-${(booking.mpesa_receipt || booking.id.slice(0, 8)).replace(/[^A-Za-z0-9-]/g, '')}.pdf`

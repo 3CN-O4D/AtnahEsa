@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, WHATSAPP_NUMBER } from '@/lib/constants'
 
 const transporter = nodemailer.createTransport({
   host: process.env.BREVO_SMTP_HOST,
@@ -142,33 +143,86 @@ export async function sendPaymentReceiptEmail(params: {
   to: string
   name?: string
   listingTitle: string
+  listingLocation?: string
+  listingDescription?: string
+  listerName?: string
+  listerPhone?: string
   amount: number
   receiptNumber: string
+  heldUntil?: string | null
   pdf: Buffer
   bookingId: string
 }) {
-  const { to, name, listingTitle, amount, receiptNumber, pdf, bookingId } = params
-  const safeTitle = listingTitle.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))
+  const {
+    to,
+    name,
+    listingTitle,
+    listingLocation,
+    listingDescription,
+    listerName,
+    listerPhone,
+    amount,
+    receiptNumber,
+    heldUntil,
+    pdf,
+    bookingId,
+  } = params
+  const escape = (value: string) => value.replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' }[c] || c))
+  const safeTitle = escape(listingTitle)
   const amountText = `KES ${Math.round(amount).toLocaleString()}`
+  const heldText = heldUntil
+    ? new Date(heldUntil).toLocaleString('en-KE', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })
+    : '24 hours'
 
   const body = `
 <tr><td style="padding:32px 32px 8px">
   <span style="display:inline-block;background:#D1FAE5;color:#059669;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">✅ Payment received</span>
   <h1 style="margin:14px 0 0;font-size:22px;font-weight:700;color:${BRAND.dark}">Your payment is safe in escrow</h1>
   <p style="margin:10px 0 0;font-size:15px;color:${BRAND.gray};line-height:1.6">
-    Hi ${name ? name.replace(/[<>&]/g, '') : 'there'}, we received <strong style="color:${BRAND.dark}">${amountText}</strong> for
+    Hi ${name ? escape(name) : 'there'}, we received <strong style="color:${BRAND.dark}">${amountText}</strong> for
     <strong style="color:${BRAND.dark}">${safeTitle}</strong>. Your branded receipt is attached as a PDF.
   </p>
 </td></tr>
-<tr><td style="padding:8px 32px 24px">
+<tr><td style="padding:8px 32px 12px">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};border-radius:10px">
     <tr><td style="padding:18px 20px">
       <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:${BRAND.gray};text-transform:uppercase;letter-spacing:.5px">Escrow rules</p>
       <p style="margin:0;font-size:13px;color:${BRAND.dark};line-height:1.7">
-        • We hold your money for <strong>24 hours</strong> while you view the house.<br>
+        • We hold your money for <strong>24 hours</strong> (until ${heldText}) while you view the house.<br>
         • Happy? Confirm in My Bookings and we pay the lister.<br>
         • Changed your mind? You get <strong>85% back</strong>.<br>
         • Fake listing or no show? You get <strong>100% back</strong>.
+      </p>
+    </td></tr>
+  </table>
+</td></tr>
+<tr><td style="padding:0 32px 12px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};border-radius:10px">
+    <tr><td style="padding:18px 20px">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:${BRAND.gray};text-transform:uppercase;letter-spacing:.5px">${listerName ? 'The house contact' : 'House details'}</p>
+      <p style="margin:0;font-size:13px;color:${BRAND.dark};line-height:1.7">
+        <strong>${safeTitle}</strong>${listingLocation ? ` — ${escape(listingLocation)}` : ''}<br>
+        ${listingDescription ? `${escape(listingDescription.slice(0, 400))}<br>` : ''}
+        ${listerPhone
+          ? `Lister: <strong>${escape(listerName || 'AseHanta lister')}</strong> · <a href="tel:${listerPhone}" style="color:${BRAND.blue};text-decoration:none"><strong>${escape(listerPhone)}</strong></a>`
+          : 'The lister&rsquo;s phone number is unlocked in My Bookings after payment.'}
+      </p>
+    </td></tr>
+  </table>
+</td></tr>
+<tr><td style="padding:0 32px 12px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px">
+    <tr><td style="padding:18px 20px">
+      <p style="margin:0 0 6px;font-size:12px;font-weight:600;color:#B45309;text-transform:uppercase;letter-spacing:.5px">What to do next</p>
+      <p style="margin:0;font-size:13px;color:#78350F;line-height:1.7">
+        • Call the lister (or WhatsApp) and agree on a viewing time within the next 24 hours.<br>
+        • Never send money directly to a lister — everything goes through AseHanta escrow.<br>
+        • No show, wrong house, or the phone is unavailable? Report it in My Bookings for a <strong>100% refund</strong>.
+      </p>
+      <p style="margin:12px 0 0;font-size:12px;color:#78350F;line-height:1.7">
+        Need a human? AseHanta support is on <a href="tel:${CONTACT_PHONE}" style="color:#B45309;font-weight:600;text-decoration:none">${CONTACT_PHONE_DISPLAY}</a>,
+        <a href="mailto:${CONTACT_EMAIL}" style="color:#B45309;font-weight:600;text-decoration:none">${CONTACT_EMAIL}</a> or
+        <a href="https://wa.me/${WHATSAPP_NUMBER}" style="color:#B45309;font-weight:600;text-decoration:none">WhatsApp</a>.
       </p>
     </td></tr>
   </table>

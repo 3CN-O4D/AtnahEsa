@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { MapPin, AlertTriangle, BadgeCheck, Heart } from 'lucide-react'
 import Card from '@/components/ui/Card'
@@ -25,9 +25,19 @@ const NEW_LISTING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export default function ListingCard({ listing, listerName, isAdmin, verified }: ListingCardProps) {
   const router = useRouter()
-  const { isFavorite, toggle, signedIn } = useFavorites()
+  const { isFavorite, toggle } = useFavorites()
   const [showVerifyTip, setShowVerifyTip] = useState(false)
   const [showHeart, setShowHeart] = useState(false)
+  const [leaving, setLeaving] = useState(false)
+  const leaveTimer = useRef<number | null>(null)
+
+  // Playful touch: the card lifts on hover, then shakes itself off as the
+  // pointer leaves, like dust falling off.
+  const handleMouseLeave = () => {
+    if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
+    setLeaving(true)
+    leaveTimer.current = window.setTimeout(() => setLeaving(false), 480)
+  }
 
   const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
   const saved = isFavorite(listing.id)
@@ -39,20 +49,21 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
     e.preventDefault()
     e.stopPropagation()
 
-    // Saving requires an account, so return the user to this exact card.
-    if (!signedIn) {
-      router.push(signInUrl(currentPathWithSearch()))
-      return
-    }
-
     setShowHeart(true)
     setTimeout(() => setShowHeart(false), 800)
-    void toggle(listing.id)
+    void toggle(listing.id).then((result) => {
+      // Guard rail: if a future account-only rule applies, send them to sign in
+      // and bring them back to this exact card.
+      if (result === 'auth') router.push(signInUrl(currentPathWithSearch()))
+    })
   }
 
   return (
     <div className="relative">
-      <Card className="group/card relative rounded-2xl border-gray-200/80 transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-slate-800">
+      <Card
+        onMouseLeave={handleMouseLeave}
+        className={`group/card relative rounded-2xl border-gray-200/80 transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-slate-800 ${leaving ? 'card-shake' : ''}`}
+      >
         <div className={`aspect-[4/3] relative overflow-hidden group ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />
           <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/5 opacity-70 transition-opacity duration-300 group-hover:opacity-100" />

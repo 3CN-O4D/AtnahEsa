@@ -130,7 +130,7 @@ async function findTransaction(
 async function getBookingContext(admin: Admin, booking: HouseBookingRow) {
   const { data: listing } = await admin
     .from('listings')
-    .select('id, title, location, uploader_id, price')
+    .select('id, title, location, description, lister_phone, uploader_id, price')
     .eq('id', booking.listing_id)
     .maybeSingle()
 
@@ -148,6 +148,8 @@ async function getBookingContext(admin: Admin, booking: HouseBookingRow) {
   return {
     listing,
     listerId,
+    listerPhone: listing?.lister_phone || listerProfile?.phone || '',
+    listingDescription: listing?.description || '',
     hunterEmail: hunterProfile?.email || booking.email || '',
     hunterName: hunterProfile?.full_name || booking.name || 'Hunter',
     listerEmail: listerProfile?.email || '',
@@ -349,6 +351,7 @@ export async function confirmHouseBookingPayment(
       receiptNumber,
       listingTitle: confirmed.listing_title || 'House listing',
       listingLocation: confirmed.listing_location || confirmed.area || '',
+      listingDescription: ctx.listingDescription,
       amount: expected,
       payerName: ctx.hunterName,
       payerEmail: ctx.hunterEmail,
@@ -357,6 +360,7 @@ export async function confirmHouseBookingPayment(
       heldUntil,
       paymentMethod: params.paymentMethod || 'paywave',
       listerName: ctx.listerName,
+      listerPhone: ctx.listerPhone,
     })
 
     if (ctx.hunterEmail) {
@@ -364,8 +368,13 @@ export async function confirmHouseBookingPayment(
         to: ctx.hunterEmail,
         name: ctx.hunterName,
         listingTitle: confirmed.listing_title || 'House listing',
+        listingLocation: confirmed.listing_location || confirmed.area || '',
+        listingDescription: ctx.listingDescription,
+        listerName: ctx.listerName,
+        listerPhone: ctx.listerPhone,
         amount: expected,
         receiptNumber,
+        heldUntil,
         pdf,
         bookingId: confirmed.id,
       })

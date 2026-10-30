@@ -69,6 +69,7 @@ export default function ListingDetailPage() {
   const [showReport, setShowReport] = useState(false)
   const [canReview, setCanReview] = useState(false)
   const [phoneUnlocked, setPhoneUnlocked] = useState(false)
+  const [listerContact, setListerContact] = useState<{ name?: string; phone: string | null; whatsapp: string | null } | null>(null)
   const [similar, setSimilar] = useState<Listing[]>([])
   const [listerReviews, setListerReviews] = useState<ListerReview[]>([])
   const [listerReviewProfiles, setListerReviewProfiles] = useState<Record<string, Profile>>({})
@@ -79,18 +80,16 @@ export default function ListingDetailPage() {
   const [listerModalOpen, setListerModalOpen] = useState(false)
   const [heartPulse, setHeartPulse] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const { isFavorite, toggle, signedIn } = useFavorites()
+  const { isFavorite, toggle } = useFavorites()
 
   const saved = isFavorite(id)
 
   const handleToggleFavorite = () => {
-    if (!signedIn) {
-      router.push(signInUrl(currentPathWithSearch()))
-      return
-    }
     setHeartPulse(true)
     setTimeout(() => setHeartPulse(false), 800)
-    void toggle(id)
+    void toggle(id).then((result) => {
+      if (result === 'auth') router.push(signInUrl(currentPathWithSearch()))
+    })
   }
 
   useEffect(() => {
@@ -156,6 +155,21 @@ export default function ListingDetailPage() {
       setLoading(false)
     })
   }, [id, router])
+
+  // Unlock the lister's real number only once the server confirms a paid booking.
+  useEffect(() => {
+    if (!phoneUnlocked) return
+    let cancelled = false
+    fetch(`/api/listings/${id}/contact`, { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!cancelled && data) setListerContact(data)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [phoneUnlocked, id])
 
   const handleSubmitReview = async () => {
     if (!user || !listing || myRating === 0) return
@@ -445,23 +459,20 @@ export default function ListingDetailPage() {
                   <span className="font-bold text-blue-700 dark:text-white">{lister.listing_count}</span>
                   <span className="text-gray-500 dark:text-gray-400 ml-1">house{lister.listing_count !== 1 ? 's' : ''} listed</span>
                 </div>
-                {lister.phone ? (
-                  phoneUnlocked ? (
-                    <a href={`tel:${lister.phone}`} className="text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1">
-                      <PhoneIcon className="w-3.5 h-3.5" /> {lister.phone}
-                    </a>
-                  ) : (
-                    <button
-                      onClick={() => router.push(`/booking/${listing.id}`)}
-                      className="text-red-600 dark:text-red-400 hover:underline font-medium flex items-center gap-1"
-                    >
-                      <PhoneIcon className="w-3.5 h-3.5" /> Contact lister — book to reveal
-                    </button>
-                  )
+                {phoneUnlocked && listerContact?.phone ? (
+                  <a
+                    href={`tel:${listerContact.phone}`}
+                    className="text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
+                  >
+                    <PhoneIcon className="w-3.5 h-3.5" /> {listerContact.phone}
+                  </a>
                 ) : (
-                  <span className="text-gray-400 dark:text-gray-500 text-sm flex items-center gap-1">
-                    <PhoneIcon className="w-3.5 h-3.5" /> No phone listed
-                  </span>
+                  <button
+                    onClick={() => router.push(user ? `/booking/${listing.id}` : signInUrl(currentPathWithSearch()))}
+                    className="text-red-600 dark:text-red-400 hover:underline font-medium flex items-center gap-1"
+                  >
+                    <PhoneIcon className="w-3.5 h-3.5" /> Contact lister — pay to reveal
+                  </button>
                 )}
               </div>
             </div>

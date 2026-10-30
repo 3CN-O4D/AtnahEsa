@@ -1,4 +1,5 @@
 import PDFDocument from 'pdfkit'
+import { CONTACT_EMAIL, CONTACT_PHONE_DISPLAY, WHATSAPP_NUMBER } from '@/lib/constants'
 
 /**
  * Branded PDF receipt for a house-booking payment.
@@ -13,6 +14,8 @@ export type ReceiptInput = {
   receiptNumber: string
   listingTitle: string
   listingLocation: string
+  /** Short description of the house as advertised, shown on the receipt. */
+  listingDescription?: string
   amount: number
   payerName: string
   payerEmail: string
@@ -21,6 +24,8 @@ export type ReceiptInput = {
   heldUntil: string | null
   paymentMethod: string
   listerName?: string
+  /** Lister's contact number as shared after payment. */
+  listerPhone?: string
 }
 
 const BLUE = '#2563EB'
@@ -118,6 +123,7 @@ export async function generateReceiptPdf(input: ReceiptInput): Promise<Buffer> {
         ['Payment method', input.paymentMethod === 'paywave' ? 'PayWave / M-Pesa' : input.paymentMethod || 'M-Pesa'],
         ['M-Pesa receipt', input.receiptNumber || '—'],
         ['Lister', input.listerName || 'AseHanta verified lister'],
+        ['Lister phone', input.listerPhone || 'Revealed in My Bookings'],
       ]
 
       doc.fillColor(DARK).font('Helvetica-Bold').fontSize(13).text('Payment details', margin, y)
@@ -134,6 +140,20 @@ export async function generateReceiptPdf(input: ReceiptInput): Promise<Buffer> {
           .text(value, margin + 150, y, { width: contentWidth - 150, align: 'right' })
         y += 26
         doc.moveTo(margin, y - 8).lineTo(margin + contentWidth, y - 8).strokeColor(BORDER).lineWidth(0.5).stroke()
+      }
+
+      // ---- About the house ---------------------------------------------
+      if (input.listingDescription && input.listingDescription.trim()) {
+        y += 22
+        doc.fillColor(DARK).font('Helvetica-Bold').fontSize(13).text('About this house', margin, y)
+        y += 20
+        const description = input.listingDescription.trim().slice(0, 600)
+        doc
+          .fillColor('#334155')
+          .font('Helvetica')
+          .fontSize(10)
+          .text(description, margin, y, { width: contentWidth, lineGap: 2 })
+        y += doc.heightOfString(description, { width: contentWidth }) + 10
       }
 
       // ---- Escrow rules -------------------------------------------------
@@ -160,15 +180,43 @@ export async function generateReceiptPdf(input: ReceiptInput): Promise<Buffer> {
         y += doc.heightOfString(rule, { width: contentWidth - 16 }) + 9
       }
 
+      // ---- If something goes wrong -------------------------------------
+      y += 26
+      doc.fillColor(DARK).font('Helvetica-Bold').fontSize(13).text('If something goes wrong', margin, y)
+      y += 20
+      doc
+        .fillColor('#334155')
+        .font('Helvetica')
+        .fontSize(10)
+        .text(
+          'No show, the house is not what was advertised, or the lister is unreachable? Do not pay anyone again. ' +
+            'Report it from My Bookings within 24 hours for a 100% refund, or contact AseHanta directly:',
+          margin,
+          y,
+          { width: contentWidth, lineGap: 2 }
+        )
+      y += doc.heightOfString(
+        'No show, the house is not what was advertised, or the lister is unreachable? Do not pay anyone again. ' +
+          'Report it from My Bookings within 24 hours for a 100% refund, or contact AseHanta directly:',
+        { width: contentWidth }
+      ) + 8
+      doc.fillColor(BLUE).font('Helvetica-Bold').fontSize(10)
+      doc.text(`Phone / WhatsApp: ${CONTACT_PHONE_DISPLAY}`, margin, y)
+      y += 15
+      doc.text(`Email: ${CONTACT_EMAIL}`, margin, y)
+      y += 15
+      doc.fillColor(GRAY).font('Helvetica').fontSize(9).text(`WhatsApp: https://wa.me/${WHATSAPP_NUMBER}`, margin, y)
+      y += 18
+
       // ---- Footer -------------------------------------------------------
-      const footerY = doc.page.height - 92
+      const footerY = Math.max(y + 16, doc.page.height - 92)
       doc.moveTo(margin, footerY).lineTo(margin + contentWidth, footerY).strokeColor(BORDER).lineWidth(1).stroke()
       doc
         .fillColor(GRAY)
         .font('Helvetica')
         .fontSize(8.5)
         .text(
-          'This receipt was generated automatically by AseHanta. For help, email support@asehanta.com or use the contact page.',
+          `This receipt was generated automatically by AseHanta. For help, email ${CONTACT_EMAIL} or call ${CONTACT_PHONE_DISPLAY}.`,
           margin,
           footerY + 14,
           { width: contentWidth, align: 'center' }

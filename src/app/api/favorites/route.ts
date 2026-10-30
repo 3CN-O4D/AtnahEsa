@@ -101,20 +101,44 @@ export async function GET(request: Request) {
   return NextResponse.json({ ids, listings: ordered, listers })
 }
 
-/** POST /api/favorites { listing_id } */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+/**
+ * POST /api/favorites { listing_id }        -> save one house
+ * POST /api/favorites { ids: string[] }     -> merge guest favourites on sign-in
+ */
 export async function POST(request: Request) {
   const { supabase, user } = await signedInUser()
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   let listingId = ''
+  let ids: string[] = []
   try {
     const body = await request.json()
     listingId = typeof body?.listing_id === 'string' ? body.listing_id : ''
+    if (Array.isArray(body?.ids)) {
+      ids = body.ids.filter((id: unknown): id is string => typeof id === 'string' && UUID_RE.test(id))
+    }
   } catch {
     return NextResponse.json({ error: 'Invalid request body' }, { status: 400 })
   }
 
-  if (!listingId) return NextResponse.json({ error: 'listing_id is required' }, { status: 400 })
+  if (ids.length > 0) {
+    const rows = [...new Set(ids)].slice(0, 500).map((id) => ({ user_id: user.id, listing_id: id }))
+    const { error } = await supabase
+      .from('favorites')
+      .upsert(rows, { onConflict: 'user_id,listing_id', ignoreDuplicates: true })
+
+    // Duplicates are harmless on a merge.
+    if (error && error.code !== '23505') {
+      return NextResponse.json({ error: error.message }, { status: 500 })
+    }
+    return NextResponse.json({ merged: rows.length })
+  }
+
+  if (!listingId || !UUID_RE.test(listingId)) {
+    return NextResponse.json({ error: 'listing_id is required' }, { status: 400 })
+  }
 
   const { error } = await supabase
     .from('favorites')

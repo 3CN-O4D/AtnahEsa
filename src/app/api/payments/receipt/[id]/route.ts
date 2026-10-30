@@ -30,18 +30,20 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     const { data: listing } = await admin
       .from('listings')
-      .select('uploader_id')
+      .select('uploader_id, description, lister_phone')
       .eq('id', booking.listing_id)
       .maybeSingle()
 
     let listerName = 'AseHanta verified lister'
+    let listerPhone = listing?.lister_phone || ''
     if (listing?.uploader_id) {
       const { data: lister } = await admin
         .from('profiles')
-        .select('full_name')
+        .select('full_name, phone')
         .eq('id', listing.uploader_id)
         .maybeSingle()
       if (lister?.full_name) listerName = lister.full_name
+      if (!listerPhone && lister?.phone) listerPhone = lister.phone
     }
 
     const pdf = await generateReceiptPdf({
@@ -49,6 +51,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       receiptNumber: booking.mpesa_receipt || '',
       listingTitle: booking.listing_title || 'House listing',
       listingLocation: booking.listing_location || booking.area || '',
+      listingDescription: listing?.description || '',
       amount: Number(booking.listing_price) || 0,
       payerName: profile?.full_name || booking.name || '',
       payerEmail: booking.email || profile?.email || '',
@@ -57,6 +60,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       heldUntil: booking.held_until,
       paymentMethod: booking.payment_method || 'paywave',
       listerName,
+      listerPhone,
     })
 
     return new NextResponse(new Uint8Array(pdf), {

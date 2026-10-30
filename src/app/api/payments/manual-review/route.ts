@@ -42,11 +42,15 @@ export async function POST(req: Request) {
     return addSecurityHeaders(
       NextResponse.json({
         success: true,
-        message:
-          'Thanks — your payment is now under review. An admin will confirm it and open escrow, usually within a few minutes.',
+        message: result.autoConfirmed
+          ? `Payment verified with PayWave. KES ${result.amount.toLocaleString()} is now held in escrow. Your receipt is ready below.`
+          : result.reviewNote
+            ? `Thanks — your message is under review. ${result.reviewNote}`
+            : 'Thanks — your payment is now under review. An admin will confirm it and open escrow, usually within a few minutes.',
         receipt: result.receipt,
         amount: result.amount,
-        status: 'verifying',
+        status: result.autoConfirmed ? 'completed' : 'verifying',
+        auto_confirmed: result.autoConfirmed,
       })
     )
   } catch (err) {

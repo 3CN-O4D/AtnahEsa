@@ -84,6 +84,15 @@ function holdUntil(): string {
   return new Date(Date.now() + VIEW_WINDOW_HOURS * 60 * 60 * 1000).toISOString()
 }
 
+/** Compare phone numbers in one canonical 2547… format. */
+function normalizePhone(phone: string): string {
+  try {
+    return normalizeMsisdn(phone)
+  } catch {
+    return phone.replace(/[\s-]/g, '')
+  }
+}
+
 function mergeRaw(existing: unknown, next: Record<string, unknown>): Record<string, unknown> {
   return {
     ...(existing && typeof existing === 'object' ? (existing as Record<string, unknown>) : {}),
@@ -547,14 +556,285 @@ export async function initiateHouseBookingPayment(
   }
 }
 
+export type PayWaveLookup =
+  | { available: false; reason: string }
+  | {
+      available: true
+      status: 'Pending' | 'Completed' | 'Failed' | 'Cancelled'
+      receipt: string | null
+      amount: number | null
+      msisdn: string | null
+      reference: string | null
+      /** The `FCID…` id we asked PayWave about. */
+      transactionId: string
+      /** The `ws_CO_…` checkout id we recorded when we sent the STK push. */
+      expectedCheckoutRequestId: string | null
+      raw: Awaited<ReturnType<typeof verifyTransaction>>
+    }
+
+/**
+ * Ask PayWave for the authoritative record of a booking's payment.
+ *
+ * PayWave's transaction status endpoint is keyed on the `FCID…` transaction id
+ * returned by the STK push (and echoed in webhooks as `TransactionID`). The
+ * response contains the real M-Pesa receipt (`UJT…`), amount and phone — so a
+ * pasted SMS is only trusted when it matches this record.
+ */
+export async function lookupPayWavePayment(
+  admin: Admin,
+  bookingId: string
+): Promise<PayWaveLookup> {
+  const { data: txs } = await admin
+    .from('transactions')
+    .select('id, originator_conversation_id, checkout_request_id, raw_callback, created_at')
+    .filter('raw_callback->>house_booking_id', 'eq', bookingId)
+    .order('created_at', { ascending: false })
+    .limit(10)
+
+  let requestId = ''
+  let checkoutRequestId = ''
+  for (const tx of txs || []) {
+    const raw = (tx.raw_callback || {}) as Record<string, unknown>
+    // Only PayWave's transaction id (FCID…) works with /v1/tstatus. Never use
+    // our own database id or the checkout id; those return "does not exist".
+    const candidates = [
+      tx.originator_conversation_id,
+      raw.transaction_request_id,
+      raw.paywave_transaction_id,
+      raw.TransactionID,
+    ]
+    const found = candidates.find(
+      (candidate): candidate is string =>
+        typeof candidate === 'string' && candidate.length > 0 && candidate !== 'N/A'
+    )
+    if (found) {
+      requestId = found
+      const storedCheckout =
+        (typeof raw.checkout_request_id === 'string' && raw.checkout_request_id) ||
+        (typeof raw.CheckoutRequestID === 'string' && raw.CheckoutRequestID) ||
+        (typeof tx.checkout_request_id === 'string' && tx.checkout_request_id) ||
+        ''
+      // Older rows may have stored the FCID in the checkout column; only keep
+      // an actual M-Pesa checkout id.
+      checkoutRequestId = storedCheckout && storedCheckout !== found ? storedCheckout : ''
+      break
+    }
+  }
+
+  // Successful callbacks are always archived. If the transaction row lost the
+  // PayWave id (older manual verifications), recover it from the archived
+  // payload so the paid SMS can still be authenticated via PayWave.
+  if (!requestId) {
+    // Older rows stored the webhook body as a JSON string inside the jsonb
+    // column, so payload->>… cannot be queried directly. Scan recent
+    // successful callbacks and match the booking reference in code.
+    const { data: events } = await admin
+      .from('paywave_webhook_events')
+      .select('payload, checkout_request_id')
+      .eq('event', 'stkpush.success')
+      .order('received_at', { ascending: false })
+      .limit(100)
+
+    for (const event of events || []) {
+      let payload: Record<string, unknown> = {}
+      try {
+        if (typeof event.payload === 'string') {
+          payload = JSON.parse(event.payload) as Record<string, unknown>
+        } else if (event.payload && typeof event.payload === 'object') {
+          payload = event.payload as Record<string, unknown>
+        }
+        // Double-encoded jsonb: the value itself is a JSON string.
+        if (typeof payload === 'string') {
+          payload = JSON.parse(payload) as Record<string, unknown>
+        }
+      } catch {
+        continue
+      }
+      const reference = String(payload.TransactionReference || payload.transactionReference || '')
+      if (reference !== bookingId) continue
+      const transactionId = String(payload.TransactionID || payload.transactionId || '')
+      if (!transactionId) continue
+      requestId = transactionId
+      checkoutRequestId =
+        String(payload.CheckoutRequestID || event.checkout_request_id || '') || ''
+      break
+    }
+  }
+
+  if (!requestId) {
+    return {
+      available: false,
+      reason: 'No PayWave transaction id was stored for this booking, so the SMS cannot be checked automatically.',
+    }
+  }
+
+  try {
+    const raw = await verifyTransaction(requestId)
+    if (raw.ResultCode === '102' || !raw.TransactionStatus) {
+      return {
+        available: false,
+        reason:
+          raw.errorMessage ||
+          'PayWave has no record of this payment request yet. An admin will check it manually.',
+      }
+    }
+
+    const parsedAmount = Number.parseFloat(String(raw.TransactionAmount ?? ''))
+    const receipt = raw.TransactionReceipt && raw.TransactionReceipt !== 'N/A' ? raw.TransactionReceipt : null
+
+    let msisdn: string | null = null
+    if (raw.Msisdn) {
+      try {
+        msisdn = normalizeMsisdn(raw.Msisdn)
+      } catch {
+        msisdn = raw.Msisdn
+      }
+    }
+
+    return {
+      available: true,
+      status: raw.TransactionStatus,
+      receipt,
+      amount: Number.isFinite(parsedAmount) ? Math.round(parsedAmount) : null,
+      msisdn,
+      reference: raw.TransactionReference || null,
+      transactionId: raw.TransactionID || requestId,
+      expectedCheckoutRequestId: checkoutRequestId || null,
+      raw,
+    }
+  } catch (err) {
+    console.error('PayWave status lookup failed:', err)
+    return {
+      available: false,
+      reason: 'Could not reach PayWave to check this payment. An admin will verify it manually.',
+    }
+  }
+}
+
+/**
+ * Compare a pasted SMS with PayWave's authoritative record.
+ * Returns a human-readable refusal when anything does not line up.
+ */
+export function checkSmsAgainstPayWave(params: {
+  lookup: PayWaveLookup
+  booking: HouseBookingRow
+  receipt: string
+  amount: number
+}): { ok: true } | { ok: false; code: string; message: string } {
+  const { lookup, booking, receipt, amount } = params
+
+  if (!lookup.available) {
+    return { ok: false, code: 'PAYWAVE_UNAVAILABLE', message: lookup.reason }
+  }
+
+  if (lookup.status === 'Failed' || lookup.status === 'Cancelled') {
+    return {
+      ok: false,
+      code: 'PAYMENT_NOT_COMPLETED',
+      message: `PayWave says this payment was ${lookup.status.toLowerCase()}. No money was received for this booking, so that SMS cannot be accepted.`,
+    }
+  }
+
+  if (lookup.status === 'Pending') {
+    return {
+      ok: false,
+      code: 'PAYMENT_PENDING',
+      message: 'PayWave still shows this payment as pending. Wait for the M-Pesa confirmation SMS and check again.',
+    }
+  }
+
+  if (!lookup.receipt) {
+    return {
+      ok: false,
+      code: 'NO_PAYWAVE_RECEIPT',
+      message: 'PayWave has not returned an M-Pesa receipt for this payment yet.',
+    }
+  }
+
+  if (lookup.receipt.toUpperCase() !== receipt.toUpperCase()) {
+    return {
+      ok: false,
+      code: 'RECEIPT_MISMATCH',
+      message: `PayWave records M-Pesa code ${lookup.receipt} for this booking, but the message says ${receipt}. Nothing was changed.`,
+    }
+  }
+
+  const expected = Math.round(Number(booking.listing_price))
+  if (lookup.amount === null || lookup.amount !== amount) {
+    return {
+      ok: false,
+      code: 'AMOUNT_MISMATCH',
+      message: `The message says KES ${amount.toLocaleString()}, but PayWave recorded KES ${lookup.amount?.toLocaleString() ?? 'an unknown amount'} for this payment. Nothing was changed.`,
+    }
+  }
+
+  if (amount !== expected) {
+    return {
+      ok: false,
+      code: 'AMOUNT_MISMATCH',
+      message: `This booking is exactly KES ${expected.toLocaleString()}, but the payment was KES ${amount.toLocaleString()}. Nothing was changed.`,
+    }
+  }
+
+  if (lookup.reference && lookup.reference !== booking.id) {
+    return {
+      ok: false,
+      code: 'REFERENCE_MISMATCH',
+      message: 'That PayWave payment belongs to a different booking. Check the SMS and try again.',
+    }
+  }
+
+  // PayWave must return the same transaction id we asked about, and the
+  // checkout id must match the STK request we sent for this booking.
+  if (lookup.raw.TransactionID && lookup.raw.TransactionID !== lookup.transactionId) {
+    return {
+      ok: false,
+      code: 'TRANSACTION_MISMATCH',
+      message: 'PayWave returned a different transaction id than the one for this booking. Nothing was changed.',
+    }
+  }
+
+  if (
+    lookup.expectedCheckoutRequestId &&
+    lookup.raw.CheckoutRequestID &&
+    lookup.expectedCheckoutRequestId !== lookup.raw.CheckoutRequestID
+  ) {
+    return {
+      ok: false,
+      code: 'TRANSACTION_MISMATCH',
+      message:
+        'The PayWave transaction does not match the payment request we sent for this booking. Nothing was changed.',
+    }
+  }
+
+  if (lookup.msisdn && booking.phone && lookup.msisdn !== normalizePhone(booking.phone)) {
+    return {
+      ok: false,
+      code: 'PHONE_MISMATCH',
+      message: 'That payment was made from a different phone number than the one on this booking.',
+    }
+  }
+
+  return { ok: true }
+}
+
 /**
  * The hunter pasted an M-Pesa SMS because the callback was missed.
- * This never confirms a payment by itself — admins review it.
+ *
+ * The SMS is checked against PayWave's transaction record first. When PayWave
+ * confirms the exact receipt/amount/phone the payment is escrowed immediately;
+ * otherwise it is queued for admin review. The SMS alone never moves money.
  */
 export async function submitManualPaymentReview(
   admin: Admin,
   params: { bookingId: string; userId: string; mpesaMessage: string }
-): Promise<{ booking: HouseBookingRow; receipt: string; amount: number }> {
+): Promise<{
+  booking: HouseBookingRow
+  receipt: string
+  amount: number
+  autoConfirmed: boolean
+  reviewNote?: string
+}> {
   const message = params.mpesaMessage.trim()
   if (message.length < 20) {
     throw new PaymentError('INVALID_SMS', 'Paste the full M-Pesa confirmation message', 400)
@@ -605,6 +885,54 @@ export async function submitManualPaymentReview(
     )
   }
 
+  // PayWave is the source of truth. If it already has a completed record for
+  // this booking we can escrow immediately — but only when the SMS matches the
+  // authoritative receipt, amount, reference and phone.
+  const lookup = await lookupPayWavePayment(admin, booking.id)
+
+  if (lookup.available && lookup.status === 'Completed') {
+    const check = checkSmsAgainstPayWave({ lookup, booking, receipt, amount })
+    if (!check.ok) throw new PaymentError(check.code, check.message, 409)
+
+    const result = await confirmHouseBookingPayment(admin, {
+      bookingId: booking.id,
+      amount: lookup.amount ?? amount,
+      receiptNumber: lookup.receipt as string,
+      phone: lookup.msisdn || booking.phone,
+      source: 'status',
+      raw: {
+        manual_review: true,
+        paywave_verified: true,
+        paywave_status: lookup.raw,
+        submitted_by: params.userId,
+      },
+    })
+
+    await admin.from('house_bookings').update({ mpesa_message: message }).eq('id', booking.id)
+
+    return {
+      booking: result.booking,
+      receipt: (lookup.receipt as string) || receipt,
+      amount,
+      autoConfirmed: true,
+    }
+  }
+
+  if (lookup.available && (lookup.status === 'Failed' || lookup.status === 'Cancelled')) {
+    const check = checkSmsAgainstPayWave({ lookup, booking, receipt, amount })
+    throw new PaymentError(
+      'PAYMENT_NOT_COMPLETED',
+      check.ok
+        ? 'PayWave shows this payment was not completed.'
+        : check.message,
+      409
+    )
+  }
+
+  const reviewNote = lookup.available
+    ? 'PayWave still shows this payment as pending, so an admin will review the message.'
+    : lookup.reason
+
   const now = new Date().toISOString()
   const tx = await findTransaction(admin, booking.id)
 
@@ -621,6 +949,9 @@ export async function submitManualPaymentReview(
     submitted_by: params.userId,
     mpesa_receipt: receipt,
     mpesa_amount: amount,
+    paywave_check: lookup.available
+      ? { status: lookup.status, receipt: lookup.receipt, amount: lookup.amount }
+      : { available: false, reason: lookup.reason },
   })
 
   if (tx) {
@@ -667,11 +998,12 @@ export async function submitManualPaymentReview(
       Hunter: booking.name || booking.email || 'N/A',
       Receipt: receipt,
       'M-Pesa message': message,
+      'PayWave check': reviewNote,
       'Action needed': 'Open Admin → Treasury, verify the SMS, then set escrow.',
     }),
   ])
 
-  return { booking, receipt, amount }
+  return { booking, receipt, amount, autoConfirmed: false, reviewNote }
 }
 
 /**
@@ -877,6 +1209,11 @@ export async function verifyHouseBookingPayment(
     return { status: 'Pending', booking, transaction, alreadyProcessed: false }
   }
 
+  // 102 / error responses carry no status: PayWave has no record of this request.
+  if (!result.TransactionStatus) {
+    return { status: 'Unavailable', booking, transaction, alreadyProcessed: false }
+  }
+
   if (result.TransactionStatus === 'Completed') {
     const receipt = result.TransactionReceipt || ''
     if (!receipt) {
@@ -935,7 +1272,7 @@ export async function verifyHouseBookingPayment(
   }
 
   return {
-    status: result.TransactionStatus,
+    status: result.TransactionStatus ?? 'Pending',
     booking,
     transaction,
     alreadyProcessed: false,

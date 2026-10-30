@@ -35,8 +35,10 @@ export const TransactionStatusRequest = z.object({
 
 export const TransactionStatusResponse = z.object({
   ResultCode: z.coerce.string(),
-  ResultDesc: z.coerce.string(),
-  TransactionStatus: z.enum(['Pending', 'Completed', 'Failed', 'Cancelled']),
+  ResultDesc: z.coerce.string().optional(),
+  errorMessage: z.coerce.string().optional(),
+  TransactionStatus: z.enum(['Pending', 'Completed', 'Failed', 'Cancelled']).optional(),
+  TransactionID: z.coerce.string().optional(),
   TransactionReceipt: z.coerce.string().optional(),
   TransactionAmount: z.coerce.string().optional(),
   Msisdn: z.coerce.string().optional(),

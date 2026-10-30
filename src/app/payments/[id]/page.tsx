@@ -354,7 +354,7 @@ function PaymentPageInner() {
         setSubmittingSms(false)
         return
       }
-      setSmsSubmitted(true)
+      setSmsSubmitted(!data.auto_confirmed)
       setNotice(data.message || 'Your payment is under review.')
       await loadSession()
     } catch (err) {
@@ -610,8 +610,8 @@ function PaymentPageInner() {
                 <Clock className="mx-auto h-9 w-9 text-amber-600" />
                 <h2 className="mt-2 font-semibold text-amber-900 dark:text-amber-100">Payment under review</h2>
                 <p className="mt-1 text-xs text-amber-800 dark:text-amber-200">
-                  We received your M-Pesa message and an admin is confirming it. Escrow opens as soon as it is verified.
-                  You do not need to pay again.
+                  We received your M-Pesa message and are checking it against PayWave. If it matches, escrow opens
+                  automatically; otherwise an admin confirms it. You do not need to pay again.
                 </p>
               </div>
               <EscrowRules />
@@ -731,7 +731,8 @@ function SmsFallback({
       </summary>
       <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
         If {phone || 'your phone'} was charged but this page still shows pending, paste the confirmation SMS from
-        M-Pesa. An admin will verify it and open escrow.
+        M-Pesa. We check it against PayWave instantly — if it matches, escrow opens right away; otherwise an admin
+        verifies it.
       </p>
       <textarea
         value={sms}
@@ -746,7 +747,7 @@ function SmsFallback({
         className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-gray-900"
       >
         {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
-        {submitting ? 'Submitting…' : 'Submit for admin review'}
+        {submitting ? 'Submitting…' : 'Verify my payment'}
       </button>
     </details>
   )

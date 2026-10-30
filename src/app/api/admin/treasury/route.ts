@@ -11,6 +11,8 @@ import {
 import {
   confirmHouseBookingPayment,
   recordListerPayout,
+  lookupPayWavePayment,
+  checkSmsAgainstPayWave,
   PaymentError,
   type HouseBookingRow,
   type TransactionRow,
@@ -181,15 +183,70 @@ export async function POST(request: Request) {
           return NextResponse.json({ error: 'No amount found in that SMS' }, { status: 400 })
         }
 
-        const result = await confirmHouseBookingPayment(admin, {
-          bookingId: hb.id,
-          amount,
-          receiptNumber: receipt,
-          paymentMethod: (body.payment_method as string) || hb.payment_method || 'paywave',
-          phone: hb.phone,
-          source: 'admin',
-          raw: { admin_id: user.id, admin_verified: true, mpesa_message },
-        })
+        const result = await (async () => {
+          // Check PayWave's own record first: the receipt, amount and checkout
+          // id must all line up. Only fall back to manual admin judgement when
+          // PayWave cannot be reached or has no record at all.
+          const lookup = await lookupPayWavePayment(admin, hb.id)
+
+          if (lookup.available && lookup.status === 'Completed') {
+            const check = checkSmsAgainstPayWave({ lookup, booking: hb, receipt, amount })
+            if (!check.ok) {
+              throw new PaymentError(check.code, check.message, 409)
+            }
+            return confirmHouseBookingPayment(admin, {
+              bookingId: hb.id,
+              amount: lookup.amount ?? amount,
+              receiptNumber: lookup.receipt as string,
+              paymentMethod: (body.payment_method as string) || hb.payment_method || 'paywave',
+              phone: lookup.msisdn || hb.phone,
+              source: 'admin',
+              raw: {
+                admin_id: user.id,
+                admin_verified: true,
+                paywave_verified: true,
+                paywave_status: lookup.raw,
+                mpesa_message,
+              },
+            })
+          }
+
+          if (lookup.available && (lookup.status === 'Failed' || lookup.status === 'Cancelled')) {
+            throw new PaymentError(
+              'PAYMENT_NOT_COMPLETED',
+              `PayWave says this payment was ${lookup.status.toLowerCase()}. It cannot be verified as paid.`,
+              409
+            )
+          }
+
+          if (lookup.available && lookup.status === 'Pending') {
+            throw new PaymentError(
+              'PAYMENT_PENDING',
+              'PayWave still shows this payment as pending. Wait for the M-Pesa confirmation, then verify again.',
+              409
+            )
+          }
+
+          // PayWave is unreachable or has no record. The admin's SMS proof is
+          // still recorded in the audit trail with an explicit unverified flag.
+          return confirmHouseBookingPayment(admin, {
+            bookingId: hb.id,
+            amount,
+            receiptNumber: receipt,
+            paymentMethod: (body.payment_method as string) || hb.payment_method || 'paywave',
+            phone: hb.phone,
+            source: 'admin',
+            raw: {
+              admin_id: user.id,
+              admin_verified: true,
+              paywave_verified: false,
+              paywave_note: lookup.available
+                ? `PayWave still shows this payment as ${lookup.status}; the admin verified it manually.`
+                : lookup.reason,
+              mpesa_message,
+            },
+          })
+        })()
 
         // Store the full SMS for the audit trail.
         await admin.from('house_bookings').update({ mpesa_message }).eq('id', hb.id)

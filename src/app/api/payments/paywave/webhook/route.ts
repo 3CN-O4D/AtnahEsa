@@ -114,12 +114,19 @@ export async function POST(req: Request) {
     }
 
     const recordEvent = async (event: string) => {
+      let storedPayload: unknown = rawBody
+      try {
+        // Store as a real jsonb object so future lookups can query fields.
+        storedPayload = JSON.parse(rawBody)
+      } catch {
+        // keep the raw body
+      }
       await admin.from('paywave_webhook_events').insert({
         checkout_request_id: eventKey,
         event,
         amount: amount !== null ? String(amount) : null,
         received_at: new Date().toISOString(),
-        payload: rawBody,
+        payload: storedPayload,
       })
     }
 

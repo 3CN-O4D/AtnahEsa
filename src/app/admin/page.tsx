@@ -2,11 +2,12 @@
 
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { Search } from 'lucide-react'
+import { Search, Mail, MessageCircle, Phone } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { formatPrice } from '@/lib/utils'
+import { formatWhatsAppContact, getWhatsAppLink } from '@/lib/whatsapp'
 import Button from '@/components/ui/Button'
 import Input from '@/components/ui/Input'
 import type { Listing, Booking, Transaction, Profile, HouseRequest, WifiBooking, HouseBooking } from '@/types'
@@ -674,42 +675,97 @@ function AdminDashboardInner() {
 
       {tab === 'requests' && (
         <div className="space-y-4">
-          {requests.length === 0 && <p className="text-gray-500 text-center py-8">No house requests yet.</p>}
-          {requests.map((r) => (
-            <div key={r.id} className="bg-white border dark:border-gray-700 rounded-xl p-4">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div>
-                  <h3 className="font-semibold text-gray-900">{r.name}</h3>
-                  <p className="text-sm text-gray-500">{r.email} &middot; {r.phone}</p>
-                  {r.claimed_by && <p className="text-xs text-green-600 mt-1">Claimed by a lister</p>}
-                </div>
-                <select
-                  value={r.status}
-                  onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)}
-                  className={`text-xs border rounded px-2 py-1 font-medium ${
-                    r.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
-                    r.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
-                    r.status === 'fulfilled' ? 'text-green-700 bg-green-50 border-green-200' :
-                    'text-gray-700 bg-gray-50 border-gray-200'
-                  }`}
-                >
-                  <option value="pending">Pending</option>
-                  <option value="contacted">Contacted</option>
-                  <option value="fulfilled">Fulfilled</option>
-                  <option value="closed">Closed</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
-                <div><span className="text-gray-500">Location:</span> <span className="font-medium">{r.location}</span></div>
-                <div><span className="text-gray-500">Rent:</span> <span className="font-medium">{r.min_rent || r.max_rent ? `KES ${(r.min_rent || 0).toLocaleString()} — KES ${(r.max_rent || 0).toLocaleString()}` : 'Any'}</span></div>
-                <div><span className="text-gray-500">Token:</span> <span className="font-medium">{(r.token_options || []).join(', ') || 'Any'}</span></div>
-                <div><span className="text-gray-500">Water:</span> <span className="font-medium">{(r.water_options || []).join(', ') || 'Any'}</span></div>
-                <div><span className="text-gray-500">Design:</span> <span className="font-medium">{(r.house_designs || []).join(', ') || 'Any'}</span></div>
-                <div><span className="text-gray-500">Date:</span> <span className="font-medium">{new Date(r.created_at).toLocaleDateString()}</span></div>
-              </div>
-              {r.description && <p className="text-sm text-gray-600 bg-gray-50 rounded-lg p-3 mb-3">{r.description}</p>}
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 px-4 py-3">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">House requests</h2>
+              <p className="text-xs text-gray-500 dark:text-gray-400">Message requesters directly on WhatsApp, call, or email them.</p>
             </div>
-          ))}
+            <div className="flex items-center gap-2 text-xs">
+              <span className="rounded-full bg-amber-50 dark:bg-amber-900/30 border border-amber-200 dark:border-amber-800/60 px-2.5 py-1 font-medium text-amber-700 dark:text-amber-300">
+                {requests.filter((r) => r.status === 'pending').length} pending
+              </span>
+              <span className="rounded-full bg-gray-100 dark:bg-slate-800 border border-gray-200 dark:border-gray-700 px-2.5 py-1 font-medium text-gray-600 dark:text-gray-300">
+                {requests.length} total
+              </span>
+            </div>
+          </div>
+
+          {requests.length === 0 && (
+            <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 bg-white dark:bg-slate-900 py-12 text-center">
+              <p className="text-sm font-medium text-gray-700 dark:text-gray-200">No house requests yet</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">New requests from the website will appear here.</p>
+            </div>
+          )}
+
+          {requests.map((r) => {
+            const contact = r.whatsapp || r.phone
+            const waLink = getWhatsAppLink(
+              contact,
+              `Hi ${(r.name || 'there').split(' ')[0]}, this is AseHanta. We received your request for a house in ${r.location}. Is now a good time to chat?`
+            )
+            const waDisplay = formatWhatsAppContact(contact)
+            return (
+              <div key={r.id} className="group relative overflow-hidden rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-slate-900 p-4 transition-shadow hover:shadow-md">
+                <span className={`absolute inset-y-0 left-0 w-1 ${
+                  r.status === 'pending' ? 'bg-amber-400' :
+                  r.status === 'contacted' ? 'bg-blue-500' :
+                  r.status === 'fulfilled' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`} />
+                <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
+                  <div className="min-w-0">
+                    <h3 className="font-semibold text-gray-900 dark:text-white truncate">{r.name}</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 break-all">{r.email} &middot; {r.phone}</p>
+                    {r.claimed_by && <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Claimed by a lister</p>}
+                  </div>
+                  <select
+                    value={r.status}
+                    onChange={(e) => handleUpdateRequestStatus(r.id, e.target.value)}
+                    className={`text-xs border rounded-lg px-2.5 py-1.5 font-medium ${
+                      r.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800/60' :
+                      r.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800/60' :
+                      r.status === 'fulfilled' ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800/60' :
+                      'text-gray-700 bg-gray-50 border-gray-200 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-700'
+                    }`}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="contacted">Contacted</option>
+                    <option value="fulfilled">Fulfilled</option>
+                    <option value="closed">Closed</option>
+                  </select>
+                </div>
+
+                <div className="mb-3 flex flex-wrap items-center gap-2">
+                  {waLink ? (
+                    <a href={waLink} target="_blank" rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-emerald-700 transition-colors shadow-sm">
+                      <MessageCircle className="w-3.5 h-3.5" /> WhatsApp {waDisplay}
+                    </a>
+                  ) : (
+                    <span className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 dark:bg-slate-800 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+                      <MessageCircle className="w-3.5 h-3.5" /> No valid WhatsApp contact
+                    </span>
+                  )}
+                  <a href={`tel:${r.phone}`} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                    <Phone className="w-3.5 h-3.5" /> Call
+                  </a>
+                  <a href={`mailto:${r.email}`} className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-800 transition-colors">
+                    <Mail className="w-3.5 h-3.5" /> Email
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm mb-3">
+                  <div><span className="text-gray-500 dark:text-gray-400">Location:</span> <span className="font-medium text-gray-900 dark:text-white">{r.location}</span></div>
+                  <div><span className="text-gray-500 dark:text-gray-400">Rent:</span> <span className="font-medium text-gray-900 dark:text-white">{r.min_rent || r.max_rent ? `KES ${(r.min_rent || 0).toLocaleString()} — KES ${(r.max_rent || 0).toLocaleString()}` : 'Any'}</span></div>
+                  <div><span className="text-gray-500 dark:text-gray-400">Token:</span> <span className="font-medium text-gray-900 dark:text-white">{(r.token_options || []).join(', ') || 'Any'}</span></div>
+                  <div><span className="text-gray-500 dark:text-gray-400">Water:</span> <span className="font-medium text-gray-900 dark:text-white">{(r.water_options || []).join(', ') || 'Any'}</span></div>
+                  <div><span className="text-gray-500 dark:text-gray-400">Design:</span> <span className="font-medium text-gray-900 dark:text-white">{(r.house_designs || []).join(', ') || 'Any'}</span></div>
+                  <div><span className="text-gray-500 dark:text-gray-400">Date:</span> <span className="font-medium text-gray-900 dark:text-white">{new Date(r.created_at).toLocaleDateString()}</span></div>
+                  <div><span className="text-gray-500 dark:text-gray-400">WhatsApp:</span> <span className="font-medium text-gray-900 dark:text-white">{waDisplay || 'Not set'}</span></div>
+                </div>
+                {r.description && <p className="text-sm text-gray-600 dark:text-gray-300 bg-gray-50 dark:bg-slate-800/60 border border-gray-100 dark:border-gray-700/60 rounded-lg p-3">{r.description}</p>}
+              </div>
+            )
+          })}
         </div>
       )}
 

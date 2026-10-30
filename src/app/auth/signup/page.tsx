@@ -1,21 +1,18 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useRef, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, KeyRound, Eye, EyeOff } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
-
-function getRoleFromUrl(): string {
-  if (typeof window === 'undefined') return 'hunter'
-  const params = new URLSearchParams(window.location.search)
-  return params.get('role') || 'hunter'
-}
+import { callbackDestination, withCallbackUrl } from '@/lib/auth-redirect'
 
 function SignUpForm() {
   const router = useRouter()
-  const [role, setRole] = useState(getRoleFromUrl)
+  const searchParams = useSearchParams()
+  const callbackUrl = callbackDestination(searchParams.get('callbackUrl'))
+  const [role, setRole] = useState(() => searchParams.get('role') || 'hunter')
   const [step, setStep] = useState<'form' | 'otp'>('form')
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
@@ -76,7 +73,7 @@ function SignUpForm() {
       const data = await res.json()
       if (!res.ok) { setError(data.error); setLoading(false); return }
 
-      router.push('/auth/signin')
+      router.push(withCallbackUrl('/auth/signin', callbackUrl))
     } catch {
       setError('Something went wrong')
     } finally {
@@ -235,7 +232,7 @@ function SignUpForm() {
 
       <p className="text-sm text-center text-gray-500 mt-6">
         Already have an account?{' '}
-        <Link href="/auth/signin" className="text-blue-600 hover:underline">
+        <Link href={withCallbackUrl('/auth/signin', callbackUrl)} className="text-blue-600 hover:underline">
           Sign in
         </Link>
       </p>
@@ -244,5 +241,20 @@ function SignUpForm() {
 }
 
 export default function SignUpPage() {
-  return <SignUpForm />
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-sm mx-auto px-4 py-16">
+          <div className="h-8 w-40 mx-auto mb-8 rounded bg-gray-100 animate-pulse" />
+          <div className="space-y-4">
+            <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+          </div>
+        </div>
+      }
+    >
+      <SignUpForm />
+    </Suspense>
+  )
 }

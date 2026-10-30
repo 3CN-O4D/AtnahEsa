@@ -4,20 +4,25 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { MapPin, AlertTriangle, DollarSign, Video, ArrowLeft, Calendar, Zap, Droplets, Home, Info, Star, User, Building, Layers, Flag, Phone as PhoneIcon, BadgeCheck, X } from 'lucide-react'
+import { MapPin, AlertTriangle, Video, ArrowLeft, Calendar, Home, Info, Star, User, Flag, Phone as PhoneIcon, BadgeCheck, ExternalLink, MessageCircle } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
-import { maskPhone } from '@/lib/utils'
 import { formatPrice } from '@/lib/utils'
-import { APP_NAME } from '@/lib/constants'
+import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
+import { getWhatsAppLink } from '@/lib/whatsapp'
 import ListingCard from '@/components/listings/ListingCard'
 import { SkeletonDetail } from '@/components/ui/Skeleton'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
 const ImageViewer = dynamic(() => import('@/components/ui/ImageViewer'), { ssr: false })
 const ReportModal = dynamic(() => import('@/components/reports/ReportModal'), { ssr: false })
+
+const LISTING_SUPPORT_LINK = getWhatsAppLink(
+  WHATSAPP_NUMBER,
+  `Hi ${APP_NAME}, I need help with a house listing on the website.`
+)
 
 function videoSrc(url: string): string {
   if (url.startsWith('https://') && url.includes('/storage/v1/s3/')) {
@@ -283,24 +288,69 @@ export default function ListingDetailPage() {
 
           {(videos.length > 0) && (
             <div>
-              <h2 className="text-lg font-semibold mb-3 flex items-center gap-2"><Video className="w-5 h-5 text-red-500" /> Video Tours</h2>
-              <div className={`grid gap-4 ${videos.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : ''}`}>
-                {videos.map((v, i) => (
-                  <div key={i} className="aspect-video rounded-xl overflow-hidden bg-black">
-                    {v.type === 'direct' ? (
-                      <video controls className="w-full h-full" playsInline>
-                        <source src={videoSrc(v.url)} />
-                      </video>
-                    ) : v.type === 'tiktok' ? (
-                      <iframe src={`https://www.tiktok.com/embed/v2/${v.id}`} title={`Video ${i + 1}`}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
-                    ) : (
-                      <iframe src={`https://www.youtube.com/embed/${v.id}`} title={`Video ${i + 1}`}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen className="w-full h-full" />
-                    )}
-                  </div>
-                ))}
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
+                <h2 className="text-lg font-semibold flex items-center gap-2">
+                  <Video className="w-5 h-5 text-red-500" /> Video Tours
+                  <span className="text-xs font-normal text-gray-400">({videos.length})</span>
+                </h2>
+                <p className="text-xs text-gray-400">Tap a video to play. Use fullscreen for the best view.</p>
               </div>
+              <div className={`grid gap-5 ${videos.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
+                {videos.map((v, i) => {
+                  const isTikTok = v.type === 'tiktok'
+                  const label = isTikTok ? 'TikTok tour' : v.type === 'youtube' ? 'YouTube tour' : 'Video tour'
+                  return (
+                    <div key={i} className={isTikTok ? 'mx-auto w-full max-w-[380px]' : 'w-full'}>
+                      <div className={`relative overflow-hidden rounded-2xl bg-black shadow-xl ring-1 ring-black/10 dark:ring-white/10 ${isTikTok ? 'aspect-[9/16]' : 'aspect-video'}`}>
+                        {v.type === 'direct' ? (
+                          <video controls preload="metadata" className="w-full h-full object-contain" playsInline>
+                            <source src={videoSrc(v.url)} />
+                          </video>
+                        ) : isTikTok ? (
+                          <iframe
+                            src={`https://www.tiktok.com/embed/v2/${v.id}?lang=en`}
+                            title={`TikTok video ${i + 1}`}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                            referrerPolicy="strict-origin-when-cross-origin"
+                            allowFullScreen
+                            className="w-full h-full"
+                          />
+                        ) : (
+                          <iframe
+                            src={`https://www.youtube.com/embed/${v.id}?rel=0`}
+                            title={`YouTube video ${i + 1}`}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
+                            allowFullScreen
+                            className="w-full h-full"
+                          />
+                        )}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between gap-2 px-0.5">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${
+                          isTikTok
+                            ? 'bg-gray-900 text-white dark:bg-white/10 dark:text-gray-200'
+                            : v.type === 'youtube'
+                              ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'
+                              : 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
+                        }`}>
+                          {isTikTok ? '♪' : v.type === 'youtube' ? '▶' : '●'} {label}
+                        </span>
+                        <a
+                          href={v.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-300 transition-colors"
+                        >
+                          Open {isTikTok ? 'in TikTok' : v.type === 'youtube' ? 'on YouTube' : 'video'} <ExternalLink className="w-3.5 h-3.5" />
+                        </a>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                Can&apos;t see a video? Open it in the app using the link below it.
+              </p>
             </div>
           )}
 
@@ -591,6 +641,17 @@ export default function ListingDetailPage() {
                 </Link>
                 <p className="text-xs text-gray-400 text-center">No payment needed to book right now — we&apos;ll confirm via WhatsApp.</p>
               </div>
+            )}
+
+            {LISTING_SUPPORT_LINK && (
+              <a
+                href={LISTING_SUPPORT_LINK}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full flex items-center justify-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-900/20 hover:bg-emerald-100 dark:hover:bg-emerald-900/30 rounded-lg transition-colors py-2 border border-emerald-200 dark:border-emerald-800/60"
+              >
+                <MessageCircle className="w-4 h-4" /> Need help booking? WhatsApp us
+              </a>
             )}
 
             <button onClick={() => setShowReport(true)} className="w-full flex items-center justify-center gap-1.5 text-sm text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors py-2 border border-red-200">

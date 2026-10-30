@@ -241,6 +241,8 @@ export interface HouseRequest {
   name: string
   email: string
   phone: string
+  /** Preferred WhatsApp contact: 2547… phone or @username. */
+  whatsapp: string | null
   location: string
   min_rent: number | null
   max_rent: number | null

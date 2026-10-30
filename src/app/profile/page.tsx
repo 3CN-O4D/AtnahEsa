@@ -8,6 +8,7 @@ import { SkeletonProfile } from '@/components/ui/Skeleton'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Profile } from '@/types'
 
 export default function ProfilePage() {
@@ -69,7 +70,7 @@ export default function ProfilePage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push('/auth/signin'); return }
+      if (!user) { router.push(signInUrl(currentPathWithSearch())); return }
       setUserEmail(user.email ?? '')
       const isGoogle = user.app_metadata?.provider === 'google'
       setIsGoogleUser(isGoogle)

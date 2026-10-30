@@ -1,14 +1,17 @@
 'use client'
 
-import { useState, useRef } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useRef } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Mail, KeyRound, Eye, EyeOff } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
+import { callbackDestination, withCallbackUrl } from '@/lib/auth-redirect'
 
-export default function ForgotPasswordPage() {
+function ForgotPasswordForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = callbackDestination(searchParams.get('callbackUrl'))
   const [step, setStep] = useState<'email' | 'otp' | 'password'>('email')
   const [email, setEmail] = useState('')
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
@@ -113,7 +116,7 @@ export default function ForgotPasswordPage() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }
-      router.push('/auth/signin')
+      router.push(withCallbackUrl('/auth/signin', callbackUrl))
     } catch {
       setError('Something went wrong')
     } finally {
@@ -315,10 +318,25 @@ export default function ForgotPasswordPage() {
       </form>
 
       <p className="text-sm text-center mt-6">
-        <Link href="/auth/signin" className="text-blue-600 hover:underline">
+        <Link href={withCallbackUrl('/auth/signin', callbackUrl)} className="text-blue-600 hover:underline">
           Back to Sign In
         </Link>
       </p>
     </div>
+  )
+}
+
+export default function ForgotPasswordPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-sm mx-auto px-4 py-16">
+          <div className="h-8 w-48 mx-auto mb-8 rounded bg-gray-100 animate-pulse" />
+          <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+        </div>
+      }
+    >
+      <ForgotPasswordForm />
+    </Suspense>
   )
 }

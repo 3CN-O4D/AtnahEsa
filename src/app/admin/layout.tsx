@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from 'next/navigation'
 import { LayoutDashboard, Home, ArrowLeftRight, Users, FileText, Wrench, Upload, Banknote, Menu, X, Shield } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 
 const sidebarLinks = [
   { href: '/admin', label: 'Dashboard', icon: LayoutDashboard },
@@ -36,7 +37,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push('/auth/signin'); return }
+      if (!user) { router.push(signInUrl(currentPathWithSearch())); return }
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       if (profile?.role !== 'admin') { router.push('/'); return }
       setChecking(false)

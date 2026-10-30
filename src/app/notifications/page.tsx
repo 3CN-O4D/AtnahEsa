@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SkeletonBooking } from '@/components/ui/Skeleton'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 
 type NotificationItem = {
   id: string
@@ -85,7 +86,7 @@ export default function NotificationsPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.push('/auth/signin'); return }
+      if (!data.user) { router.push(signInUrl(currentPathWithSearch())); return }
       setUser(data.user)
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
       setIsAdmin(profile?.role === 'admin')

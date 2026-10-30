@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server'
+import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
+import { callbackDestination } from '@/lib/auth-redirect'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
   const code = searchParams.get('code')
-  const next = searchParams.get('next') ?? '/'
+
+  const cookieStore = await cookies()
+  const rawCookieNext = cookieStore.get('auth_next')?.value
+  let cookieNext: string | null = rawCookieNext ?? null
+  if (cookieNext?.startsWith('%')) {
+    try {
+      cookieNext = decodeURIComponent(cookieNext)
+    } catch {
+      cookieNext = null
+    }
+  }
+
+  const next = callbackDestination(
+    searchParams.get('next') ?? searchParams.get('callbackUrl') ?? cookieNext
+  )
 
   if (code) {
     const supabase = await createClient()
@@ -42,9 +58,16 @@ export async function GET(request: Request) {
         console.error('Failed to upsert profile for Google user:', profileError)
       }
 
-      return NextResponse.redirect(`${origin}${next}`)
+      const success = NextResponse.redirect(`${origin}${next}`)
+      success.cookies.set('auth_next', '', { path: '/', maxAge: 0 })
+      return success
     }
   }
 
-  return NextResponse.redirect(`${origin}/auth/signin?error=auth_callback_failed`)
+  const failureUrl = new URL('/auth/signin', origin)
+  failureUrl.searchParams.set('error', 'auth_callback_failed')
+  if (next !== '/') failureUrl.searchParams.set('callbackUrl', next)
+  const failure = NextResponse.redirect(failureUrl)
+  failure.cookies.set('auth_next', '', { path: '/', maxAge: 0 })
+  return failure
 }

@@ -1,15 +1,20 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import type { MouseEvent } from 'react'
 import Link from 'next/link'
+import { usePathname, useRouter } from 'next/navigation'
 import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { APP_NAME } from '@/lib/constants'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
 
 export default function Header() {
+  const pathname = usePathname()
+  const router = useRouter()
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -74,6 +79,16 @@ export default function Header() {
   const handleSignOut = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
+  }
+
+  const signInHref = signInUrl(pathname)
+
+  const handleSignInClick = (close: () => void) => (event: MouseEvent<HTMLAnchorElement>) => {
+    // Keep the query string (tabs, filters) so sign-in can return to this exact view.
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+    event.preventDefault()
+    close()
+    router.push(signInUrl(currentPathWithSearch()))
   }
 
   const navLinks = [
@@ -172,7 +187,7 @@ export default function Header() {
               )}
             </div>
           ) : (
-            <Link href="/auth/signin">
+            <Link href={signInHref} onClick={handleSignInClick(() => setShowUserMenu(false))}>
               <Button size="sm" variant="outline">
                 <UserIcon className="w-4 h-4 mr-1.5" />
                 Sign In
@@ -262,8 +277,8 @@ export default function Header() {
             </>
           ) : (
             <Link
-              href="/auth/signin"
-              onClick={() => setMenuOpen(false)}
+              href={signInHref}
+              onClick={handleSignInClick(() => setMenuOpen(false))}
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30"
             >
               <UserIcon className="w-4 h-4" />

@@ -38,7 +38,9 @@ export async function middleware(req: NextRequest) {
 
   if (req.nextUrl.pathname.startsWith('/admin')) {
     if (!user) {
-      return NextResponse.redirect(new URL('/auth/signin', req.url))
+      const signIn = new URL('/auth/signin', req.url)
+      signIn.searchParams.set('callbackUrl', `${req.nextUrl.pathname}${req.nextUrl.search}`)
+      return NextResponse.redirect(signIn)
     }
 
     const { data: profile } = await supabase

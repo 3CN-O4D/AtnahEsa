@@ -1,22 +1,19 @@
 'use client'
 
-import { useState, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useRef, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { KeyRound, Eye, EyeOff } from 'lucide-react'
 import Button from '@/components/ui/Button'
-
-function getParam(name: string): string {
-  if (typeof window === 'undefined') return ''
-  return new URLSearchParams(window.location.search).get(name) || ''
-}
+import { callbackDestination, withCallbackUrl } from '@/lib/auth-redirect'
 
 function ResetPasswordForm() {
   const router = useRouter()
-  const [emailParam, setEmailParam] = useState(getParam('email'))
-  const email = emailParam || ''
+  const searchParams = useSearchParams()
+  const email = searchParams.get('email') || ''
+  const callbackUrl = callbackDestination(searchParams.get('callbackUrl'))
   const [step, setStep] = useState<'otp' | 'password'>(email ? 'otp' : 'password')
-  const [localEmail, setLocalEmail] = useState(email)
+  const [localEmail] = useState(email)
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
@@ -57,7 +54,7 @@ function ResetPasswordForm() {
       })
       const data = await res.json()
       if (!res.ok) { setError(data.error); return }
-      router.push('/auth/signin')
+      router.push(withCallbackUrl('/auth/signin', callbackUrl))
     } catch { setError('Something went wrong') } finally { setLoading(false) }
   }
 
@@ -149,11 +146,22 @@ function ResetPasswordForm() {
         {error && <p className="text-sm text-red-600">{error}</p>}
         <Button type="submit" loading={loading} className="w-full">Update Password</Button>
       </form>
-      <p className="text-sm text-center mt-6"><Link href="/auth/signin" className="text-blue-600 hover:underline">Back to Sign In</Link></p>
+      <p className="text-sm text-center mt-6"><Link href={withCallbackUrl('/auth/signin', callbackUrl)} className="text-blue-600 hover:underline">Back to Sign In</Link></p>
     </div>
   )
 }
 
 export default function ResetPasswordPage() {
-  return <ResetPasswordForm />
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-sm mx-auto px-4 py-16">
+          <div className="h-8 w-40 mx-auto mb-8 rounded bg-gray-100 animate-pulse" />
+          <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </Suspense>
+  )
 }

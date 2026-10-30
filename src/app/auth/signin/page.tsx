@@ -1,32 +1,58 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { Suspense, useState, useEffect } from 'react'
+import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { Eye, EyeOff } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { callbackDestination, withCallbackUrl } from '@/lib/auth-redirect'
 
 export default function SignInPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="max-w-sm mx-auto px-4 py-16">
+          <div className="h-8 w-32 mx-auto mb-8 rounded bg-gray-100 animate-pulse" />
+          <div className="space-y-4">
+            <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+            <div className="h-11 rounded-lg bg-gray-100 animate-pulse" />
+          </div>
+        </div>
+      }
+    >
+      <SignInForm />
+    </Suspense>
+  )
+}
+
+function SignInForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const callbackUrl = callbackDestination(searchParams.get('callbackUrl'))
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
+  const [error, setError] = useState(() =>
+    searchParams.get('error') === 'auth_callback_failed'
+      ? 'We could not complete that sign-in. Please try again.'
+      : ''
+  )
 
   const supabase = createClient()
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_IN') {
-        router.push('/')
+        router.replace(callbackUrl)
         router.refresh()
       }
     })
     return () => subscription?.unsubscribe()
-  }, [router, supabase.auth])
+  }, [router, supabase.auth, callbackUrl])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -42,7 +68,7 @@ export default function SignInPage() {
       if (err) {
         setError(err.message)
       } else {
-        router.push('/')
+        router.replace(callbackUrl)
         router.refresh()
       }
     } catch {
@@ -55,10 +81,15 @@ export default function SignInPage() {
   const handleGoogleSignIn = async () => {
     setLoading(true)
     setError('')
-    const redirectTo = `${process.env.NEXT_PUBLIC_SITE_URL || window.location.origin}/auth/callback`
+    const origin = process.env.NEXT_PUBLIC_SITE_URL || window.location.origin
+    // Carry the destination in a short-lived cookie: the OAuth redirect URL is
+    // matched exactly against the Supabase allow-list, so we cannot append a
+    // `next` query param to it reliably.
+    const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+    document.cookie = `auth_next=${encodeURIComponent(callbackUrl)}; Path=/; Max-Age=600; SameSite=Lax${secure}`
     const { error: err } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo },
+      options: { redirectTo: `${origin}/auth/callback` },
     })
     if (err) setError(err.message)
     setLoading(false)
@@ -139,10 +170,10 @@ export default function SignInPage() {
       </p>
 
       <div className="flex items-center justify-between mt-6 text-sm">
-        <Link href="/auth/forgot-password" className="text-blue-600 hover:underline">
+        <Link href={withCallbackUrl('/auth/forgot-password', callbackUrl)} className="text-blue-600 hover:underline">
           Forgot password?
         </Link>
-        <Link href="/auth/signup" className="text-blue-600 hover:underline">
+        <Link href={withCallbackUrl('/auth/signup', callbackUrl)} className="text-blue-600 hover:underline">
           Create account
         </Link>
       </div>

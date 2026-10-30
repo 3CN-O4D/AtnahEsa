@@ -4,9 +4,14 @@ import { useState, useRef, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
+import { callbackDestination } from '@/lib/auth-redirect'
 
 export default function VerifyPage() {
   const router = useRouter()
+  const [callbackUrl] = useState(() => {
+    if (typeof window === 'undefined') return '/'
+    return callbackDestination(new URLSearchParams(window.location.search).get('callbackUrl'))
+  })
   const [otp, setOtp] = useState(['', '', '', '', '', ''])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -67,7 +72,7 @@ export default function VerifyPage() {
       } else {
         sessionStorage.removeItem('authIdentifier')
         sessionStorage.removeItem('authMethod')
-        router.push('/')
+        router.replace(callbackUrl)
         router.refresh()
       }
     } catch {

@@ -9,6 +9,7 @@ import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { normalizeTikTokUrl } from '@/lib/utils'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { User } from '@supabase/supabase-js'
 
 export default function AdminUploadPage() {
@@ -40,7 +41,7 @@ export default function AdminUploadPage() {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data }) => {
       if (!data.user) {
-        router.push('/auth/signin')
+        router.push(signInUrl(currentPathWithSearch()))
         return
       }
       setUser(data.user)

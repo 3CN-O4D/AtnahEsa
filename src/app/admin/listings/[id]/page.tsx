@@ -8,6 +8,7 @@ import ImageUploader from '@/components/upload/ImageUploader'
 import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Listing } from '@/types'
 
 export default function AdminEditListingPage() {
@@ -43,7 +44,7 @@ export default function AdminEditListingPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push('/auth/signin'); return }
+      if (!user) { router.push(signInUrl(currentPathWithSearch())); return }
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
       if (profile?.role !== 'admin') { router.push('/'); return }
 

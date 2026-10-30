@@ -8,6 +8,7 @@ import Button from '@/components/ui/Button'
 import { SkeletonPage } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Listing } from '@/types'
 
 export default function MyListingsPage() {
@@ -19,7 +20,7 @@ export default function MyListingsPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push('/auth/signin'); return }
+      if (!user) { router.push(signInUrl(currentPathWithSearch())); return }
 
       const { data } = await supabase
         .from('listings')

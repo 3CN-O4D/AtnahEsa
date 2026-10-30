@@ -8,6 +8,7 @@ import ImageUploader from '@/components/upload/ImageUploader'
 import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Listing } from '@/types'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
@@ -56,7 +57,7 @@ export default function EditListingPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) { router.push('/auth/signin'); return }
+      if (!user) { router.push(signInUrl(currentPathWithSearch())); return }
 
       const { data } = await supabase.from('listings').select('*').eq('id', id).single()
       if (!data || data.uploader_id !== user.id) { router.push('/my-listings'); return }

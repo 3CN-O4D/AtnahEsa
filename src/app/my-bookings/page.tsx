@@ -7,6 +7,7 @@ import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, Home, Star, 
 import { SkeletonBooking } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Booking, Listing, EscrowHold, HouseBooking } from '@/types'
 
 type BookingWithDetails = Booking & {
@@ -86,7 +87,7 @@ function MyBookingsInner() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.push('/auth/signin'); return }
+      if (!data.user) { router.push(signInUrl(currentPathWithSearch())); return }
       setUser(data.user)
 
       const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()

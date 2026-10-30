@@ -9,6 +9,7 @@ import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { normalizeTikTokUrl } from '@/lib/utils'
+import { withCallbackUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { User } from '@supabase/supabase-js'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
@@ -51,7 +52,7 @@ export default function UploadPage() {
   useEffect(() => {
     const supabase = createClient()
     supabase.auth.getUser().then(({ data }) => {
-      if (!data.user) router.push('/auth/signup?role=lister')
+      if (!data.user) router.push(withCallbackUrl('/auth/signup?role=lister', currentPathWithSearch()))
       else setUser(data.user)
     })
   }, [router])

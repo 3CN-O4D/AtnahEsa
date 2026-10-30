@@ -45,7 +45,9 @@ export async function GET() {
   const auth = await requireAdmin()
   if (auth.error) return auth.error
 
-  const supabase = await createClient()
+  // Service role: admin RLS on house_bookings depends on a JWT metadata role,
+  // which not every admin profile has. The admin check above is the real gate.
+  const supabase = createAdminClient()
 
   const { data: escrows } = await supabase
     .from('escrow_holds')

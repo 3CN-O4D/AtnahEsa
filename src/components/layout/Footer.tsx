@@ -26,6 +26,7 @@ export default function Footer() {
               <li><Link href="/wifi" className="hover:text-white transition-colors">WiFi</Link></li>
               <li><Link href="/terms" className="hover:text-white transition-colors">Terms &amp; Conditions</Link></li>
               <li><a href="/contact" className="hover:text-white transition-colors">Contact Us</a></li>
+              <li><Link href="/complaints" className="hover:text-white transition-colors">Report a Bug</Link></li>
             </ul>
           </div>
 

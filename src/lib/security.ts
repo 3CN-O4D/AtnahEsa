@@ -76,6 +76,16 @@ export const VALIDATION_SCHEMAS = {
     message: z.string().max(2000).optional(),
   }),
 
+  complaintSubmit: z.object({
+    name: z.string().min(2).max(100),
+    email: z.string().email(),
+    phone: z.string().max(30).optional().or(z.literal('')),
+    category: z.enum(['complaint', 'bug', 'payment', 'listing', 'account', 'feature', 'other']),
+    subject: z.string().min(3).max(140),
+    message: z.string().min(10).max(4000),
+    related_listing_id: z.string().uuid().optional().or(z.literal('')),
+  }),
+
   searchQuery: z.object({
     query: z.string().max(100).optional(),
     sort: z.enum(['rent_asc', 'rent_desc', 'price_asc', 'price_desc', 'location', 'issues_asc', 'issues_desc']).optional(),
@@ -86,6 +96,7 @@ export const VALIDATION_SCHEMAS = {
     maxPrice: z.string().regex(/^\d+$/).optional(),
     issues: z.string().regex(/^\d+$/).optional(),
     page: z.string().regex(/^\d+$/).optional(),
+    limit: z.string().regex(/^\d+$/).optional(),
     status: z.enum(['published', 'taken', 'booked', 'all']).optional(),
     count: z.string().optional(),
   }),

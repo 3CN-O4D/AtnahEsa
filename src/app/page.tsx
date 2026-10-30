@@ -120,6 +120,7 @@ export default function HomePage() {
     async (page: number): Promise<Listing[]> => {
       const params = new URLSearchParams()
       params.set('page', String(page))
+      params.set('limit', '8')
       params.set('status', 'published')
       if (query) params.set('query', query)
       if (sort) params.set('sort', sort)
@@ -158,6 +159,18 @@ export default function HomePage() {
   const countTotal = useCountUp(stats.total)
   const countPending = useCountUp(stats.pending)
   const countTaken = useCountUp(stats.taken)
+
+  // The exact total is only meaningful when no search or filter narrows the list.
+  const filtersActive = Boolean(
+    query ||
+      filters.location ||
+      filters.minRent ||
+      filters.maxRent ||
+      filters.minPrice ||
+      filters.maxPrice ||
+      (filters.issues !== undefined && filters.issues !== '')
+  )
+  const homeTotal = filtersActive ? undefined : stats.available
 
   return (
     <div>
@@ -297,6 +310,9 @@ export default function HomePage() {
             sort={sort}
             filters={filters}
             query={query}
+            pageSize={8}
+            total={homeTotal}
+            batchMode
           />
         </div>
       </section>

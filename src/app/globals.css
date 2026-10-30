@@ -444,6 +444,153 @@ body {
   box-shadow: 0 0 12px rgba(48, 181, 74, 0.7);
 }
 
+/* Batch loading: a soft moving sheen on the progress fill. */
+@keyframes batchSheen {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+.batch-progress-fill {
+  background-size: 200% 100%;
+  animation: batchSheen 2.4s linear infinite;
+}
+
+.batch-more-btn {
+  background-size: 160% 100%;
+  background-position: 0% 50%;
+  transition:
+    background-position 0.5s ease,
+    transform 0.3s ease,
+    box-shadow 0.3s ease;
+}
+
+.batch-more-btn:hover:not(:disabled) {
+  background-position: 100% 50%;
+}
+
+/* Cartoon "moving day" loader */
+@keyframes loaderBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-2.5px); }
+}
+
+@keyframes loaderStepA {
+  0%, 100% { transform: rotate(14deg); }
+  50%      { transform: rotate(-16deg); }
+}
+
+@keyframes loaderStepB {
+  0%, 100% { transform: rotate(-16deg); }
+  50%      { transform: rotate(14deg); }
+}
+
+@keyframes loaderBox {
+  0%, 100% { transform: translateY(0) rotate(-1.5deg); }
+  50%      { transform: translateY(-2px) rotate(1.5deg); }
+}
+
+@keyframes loaderCloud {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(10px); }
+}
+
+@keyframes loaderDoor {
+  0%, 100% { opacity: 0.75; }
+  50%      { opacity: 1; }
+}
+
+@keyframes loaderDust {
+  0%   { opacity: 0; transform: translateX(0) scale(0.6); }
+  40%  { opacity: 0.8; }
+  100% { opacity: 0; transform: translateX(-10px) scale(1.1); }
+}
+
+@keyframes loaderDot {
+  0%, 80%, 100% { transform: translateY(0); opacity: 0.35; }
+  40%           { transform: translateY(-4px); opacity: 1; }
+}
+
+.loader-walk,
+.loader-leg-a,
+.loader-leg-b,
+.loader-box,
+.loader-cloud,
+.loader-door,
+.loader-dust {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.loader-walk { animation: loaderBob 0.9s ease-in-out infinite; transform-origin: bottom center; }
+.loader-leg-a { transform-origin: top center; animation: loaderStepA 0.6s ease-in-out infinite; }
+.loader-leg-b { transform-origin: top center; animation: loaderStepB 0.6s ease-in-out infinite; }
+.loader-box { transform-origin: bottom center; animation: loaderBox 0.9s ease-in-out infinite; }
+.loader-cloud { animation: loaderCloud 4s ease-in-out infinite; }
+.loader-door { animation: loaderDoor 1.8s ease-in-out infinite; }
+.loader-dust { transform-origin: center; animation: loaderDust 1.3s ease-out infinite; }
+
+.loader-dots { display: inline-flex; gap: 3px; align-items: flex-end; }
+.loader-dots i {
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  background: currentColor;
+  animation: loaderDot 1.2s ease-in-out infinite;
+}
+.loader-dots i:nth-child(2) { animation-delay: 0.15s; }
+.loader-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .loader-walk,
+  .loader-leg-a,
+  .loader-leg-b,
+  .loader-box,
+  .loader-cloud,
+  .loader-door,
+  .loader-dust,
+  .loader-dots i { animation: none; }
+}
+
+/* Animated, brand-coloured scrollbar (Firefox + WebKit). */
+html {
+  scrollbar-width: thin;
+  scrollbar-color: #30b54a rgba(148, 163, 184, 0.18);
+  scroll-behavior: smooth;
+}
+
+@supports selector(::-webkit-scrollbar) {
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: rgba(148, 163, 184, 0.14);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    border-radius: 9999px;
+    border: 2px solid transparent;
+    background-clip: content-box;
+    background-image: linear-gradient(180deg, #30b54a, #10b981 55%, #22d3ee);
+    transition: background-image 0.3s ease;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-image: linear-gradient(180deg, #2a9c40, #059669 55%, #0891b2);
+  }
+
+  .dark ::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.6);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .batch-progress-fill { animation: none; }
+  .batch-more-btn { transition: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .text-gradient { animation: none; }
   .hero-orb { animation: none; }

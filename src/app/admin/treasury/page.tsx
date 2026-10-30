@@ -36,6 +36,7 @@ export default function TreasuryPage() {
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [loadError, setLoadError] = useState('')
   const [escrowFilter, setEscrowFilter] = useState<string>('all')
   const [payoutFilter, setPayoutFilter] = useState<string>('pending')
   const [txSearch, setTxSearch] = useState('')
@@ -55,18 +56,33 @@ export default function TreasuryPage() {
     setTimeout(() => setToast(null), 3000)
   }
 
-  const loadData = () => {
-    Promise.all([
-      fetch('/api/admin/treasury').then((r) => r.json()),
-      fetch('/api/daraja/balance').then((r) => r.json()),
-    ]).then(([treasury, bal]) => {
-      setStats(treasury.stats)
-      setEscrows(treasury.escrows)
-      setHouseBookings(treasury.house_bookings || [])
-      setTransactions(treasury.transactions)
-      setBalance(bal)
+  const loadData = async () => {
+    setLoading(true)
+    setLoadError('')
+    try {
+      const res = await fetch('/api/admin/treasury')
+      const treasury = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setLoadError(treasury?.error || `Treasury could not load (${res.status})`)
+        return
+      }
+      if (treasury.stats) setStats(treasury.stats)
+      setEscrows(Array.isArray(treasury.escrows) ? treasury.escrows : [])
+      setHouseBookings(Array.isArray(treasury.house_bookings) ? treasury.house_bookings : [])
+      setTransactions(Array.isArray(treasury.transactions) ? treasury.transactions : [])
+
+      // Balance is optional; never let it block the ledger.
+      try {
+        const balRes = await fetch('/api/daraja/balance')
+        setBalance(await balRes.json())
+      } catch {
+        setBalance({ configured: false, error: 'Balance endpoint unavailable' })
+      }
+    } catch {
+      setLoadError('Network error while loading treasury data')
+    } finally {
       setLoading(false)
-    })
+    }
   }
 
   useEffect(() => { loadData() }, [])
@@ -235,7 +251,14 @@ export default function TreasuryPage() {
   const [refundPhone, setRefundPhone] = useState('')
   const [extendDays, setExtendDays] = useState(7)
 
-  if (loading) return <div className="flex justify-center py-20"><div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" /></div>
+  if (loading) {
+    return (
+      <div className="flex flex-col items-center justify-center gap-3 py-24">
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+        <p className="text-sm text-gray-500 dark:text-gray-400">Loading the treasury ledger…</p>
+      </div>
+    )
+  }
 
   const filteredEscrows = escrowFilter === 'all' ? escrows : escrows.filter((e) => e.status === escrowFilter)
   const filteredPayouts = payoutFilter === 'all' ? houseBookings : houseBookings.filter((h) => h.release_status === payoutFilter)
@@ -246,38 +269,64 @@ export default function TreasuryPage() {
   )
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        <div className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slideInRight ${
+          toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
         }`}>
           {toast.message}
         </div>
       )}
 
-      <div className="flex items-center justify-between mb-6">
-        <h1 className="text-2xl font-bold">Treasury</h1>
-        <button onClick={loadData} className="flex items-center gap-1.5 text-sm text-blue-600 hover:underline">
-          <RefreshCw className="w-3.5 h-3.5" /> Refresh
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+            Finance
+          </p>
+          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+            Treasury &amp; escrow
+          </h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Held funds, lister payouts, hunter refunds and the payment ledger.
+          </p>
+        </div>
+        <button
+          onClick={() => void loadData()}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
+        >
+          <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
       </div>
 
+      {loadError && (
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+          <span>{loadError}</span>
+          <button
+            type="button"
+            onClick={() => void loadData()}
+            className="rounded-lg bg-red-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-red-700"
+          >
+            Try again
+          </button>
+        </div>
+      )}
+
       {/* M-Pesa Balance */}
-      <div className="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-xl p-6 text-white mb-6">
-        <div className="flex items-center justify-between">
+      <div className="mt-5 mb-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 p-6 text-white shadow-lg shadow-emerald-900/10">
+        <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="text-blue-200 text-sm font-medium flex items-center gap-1.5">
-              <Wallet className="w-4 h-4" /> M-Pesa Balance
+            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-100">
+              <Wallet className="h-4 w-4" /> M-Pesa balance
             </p>
             {balance?.configured === false ? (
-              <p className="text-blue-200 text-sm mt-1">Keys not configured</p>
+              <p className="mt-1 text-sm text-emerald-100">Keys not configured</p>
             ) : balance?.error ? (
-              <p className="text-blue-200 text-sm mt-1">Query failed — {balance.error}</p>
+              <p className="mt-1 text-sm text-emerald-100">Query failed — {balance.error}</p>
             ) : (
-              <p className="text-3xl font-bold mt-1">—</p>
+              <p className="mt-1 text-3xl font-extrabold">—</p>
             )}
           </div>
-          <div className="text-right text-blue-200 text-xs">
+          <div className="text-right text-xs text-emerald-100">
             <p>Daraja {process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER ? 'Connected' : 'Not connected'}</p>
             <p className="mt-0.5">
               {process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER ? `Till: ${process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER}` : 'Set DARAJA keys in .env'}

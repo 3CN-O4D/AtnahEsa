@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import type { MouseEvent } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart, Bug } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useFavorites } from '@/lib/favorites'
 import { APP_NAME } from '@/lib/constants'
@@ -99,6 +99,7 @@ export default function Header() {
     { href: '/movers', label: 'Movers', icon: Truck },
     { href: '/wifi', label: 'WiFi', icon: Wifi },
     { href: '/request-house', label: 'Request House', icon: undefined },
+    { href: '/complaints', label: 'Report a bug', icon: Bug },
     { href: '/contact', label: 'Contact', icon: undefined },
   ]
 

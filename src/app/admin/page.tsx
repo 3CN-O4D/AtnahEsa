@@ -45,6 +45,8 @@ function AdminDashboardInner() {
     escrowHeld: 0, escrowHeldAmount: 0,
     houseRevenue: 0, houseRevenueCount: 0, houseRefunded: 0, houseRefundedCount: 0,
     pendingPayouts: 0, pendingPayoutsAmount: 0,
+    netRevenue: 0, successfulTransactions: 0, failedTransactions: 0,
+    complaintsOpen: 0, complaintsTotal: 0,
     paymentsByMethod: [] as { method: string; count: number; amount: number }[],
   })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
@@ -391,16 +393,19 @@ function AdminDashboardInner() {
   const statCard = (label: string, value: number | string, color: string, link?: string) => (
     <button
       onClick={() => { if (link) router.push(link) }}
-      className={`bg-white border dark:border-gray-700 rounded-xl p-4 text-left hover:shadow-md transition-shadow ${link ? 'cursor-pointer' : ''}`}
+      className={`group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500/50 ${link ? 'cursor-pointer' : 'cursor-default'}`}
     >
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className={`text-2xl font-bold ${color}`}>{typeof value === 'number' ? value : value}</p>
+      <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
+      <p className={`mt-1.5 text-2xl font-extrabold tabular-nums tracking-tight ${color}`}>
+        {typeof value === 'number' ? value.toLocaleString('en-KE') : value}
+      </p>
     </button>
   )
 
   const sectionTitle = (title: string, emoji: string) => (
-    <h3 className="text-lg font-semibold text-gray-800 mb-3 flex items-center gap-2 col-span-full mt-6 first:mt-0">
-      <span className="text-xl">{emoji}</span> {title}
+    <h3 className="col-span-full mt-7 flex items-center gap-2 border-b border-gray-100 pb-2 text-sm font-bold uppercase tracking-wider text-gray-600 first:mt-0 dark:border-slate-800 dark:text-gray-300">
+      <span className="text-base" aria-hidden="true">{emoji}</span> {title}
     </h3>
   )
 
@@ -424,22 +429,33 @@ function AdminDashboardInner() {
   })
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
+    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {toast && (
-        <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+        <div className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slideInRight ${
+          toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
         }`}>
           {toast.message}
         </div>
       )}
-      <div className="flex items-center justify-between mb-4">
-        <h1 className="text-2xl font-bold dark:text-white">Admin Dashboard</h1>
-        <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-600 hover:underline">
-          Download Payment Report
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+            Control centre
+          </p>
+          <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+            Admin dashboard
+          </h1>
+        </div>
+        <a
+          href="/api/payments/reports?format=pdf"
+          target="_blank"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
+        >
+          Download payment report
         </a>
       </div>
 
-      <div className="flex gap-1 flex-wrap mb-6 border-b border-gray-200 dark:border-gray-700 pb-1">
+      <div className="mt-5 flex flex-wrap gap-1 rounded-xl border border-gray-200 bg-white p-1 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {[
           { key: 'stats', label: 'Stats' },
           { key: 'houses', label: 'Houses' },
@@ -452,16 +468,18 @@ function AdminDashboardInner() {
           <Link
             key={t.key}
             href={`/admin?tab=${t.key}`}
-            className={`px-3 py-2 text-sm font-medium rounded-t-lg border-b-2 transition-colors ${
+            className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
               tab === t.key
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-gray-500 hover:text-gray-700'
+                ? 'bg-emerald-600 text-white shadow-sm'
+                : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-white'
             }`}
           >
             {t.label}
           </Link>
         ))}
       </div>
+
+      <div className="mt-6">
 
       {tab === 'stats' && (
         !loaded ? (
@@ -494,6 +512,9 @@ function AdminDashboardInner() {
             {statCard('Refunded', stats.refunded, 'text-red-600')}
             {statCard('Revenue', formatPrice(stats.totalRevenue), 'text-green-600')}
             {statCard('Refunded Amount', formatPrice(stats.totalRefunded), 'text-red-600')}
+            {statCard('Net Revenue', formatPrice(stats.netRevenue), 'text-emerald-600', '/admin/treasury')}
+            {statCard('Successful Payments', stats.successfulTransactions, 'text-emerald-600', '/admin?tab=transactions')}
+            {statCard('Failed Payments', stats.failedTransactions, 'text-red-600', '/admin?tab=transactions')}
 
             {sectionTitle('Services', '📡')}
             {statCard('Movers', stats.totalMovers, 'text-blue-600', '/admin/services')}
@@ -504,6 +525,8 @@ function AdminDashboardInner() {
             {statCard('Contact Messages', stats.contactSubmissions, 'text-blue-600')}
             {statCard('Pending Requests', stats.houseRequests, 'text-amber-600', '/admin?tab=requests')}
             {statCard('Reports', stats.reports, 'text-red-600')}
+            {statCard('Open Complaints', stats.complaintsOpen, 'text-amber-600', '/admin/complaints')}
+            {statCard('All Complaints', stats.complaintsTotal, 'text-gray-700', '/admin/complaints')}
 
             {sectionTitle('Treasury', '🏦')}
             {statCard('Escrow Held', stats.escrowHeld, 'text-blue-600', '/admin/treasury')}
@@ -535,7 +558,9 @@ function AdminDashboardInner() {
                 <span className="text-xl">⚡</span> Quick Actions
               </h3>
               <div className="flex flex-wrap gap-3">
-                <Link href="/admin/upload"><Button className="bg-blue-600 hover:bg-blue-700 text-white">+ List a House</Button></Link>
+                <Link href="/admin/upload"><Button className="bg-emerald-600 hover:bg-emerald-700 text-white">+ List a House</Button></Link>
+                <Link href="/admin/complaints"><Button variant="outline">Complaints {stats.complaintsOpen > 0 ? `(${stats.complaintsOpen})` : ''}</Button></Link>
+                <Link href="/admin/receipts"><Button variant="outline">Receipt Generator</Button></Link>
                 <Link href="/admin/services"><Button variant="outline">Manage Services</Button></Link>
                 <Link href="/admin/treasury"><Button variant="outline">Treasury</Button></Link>
                 <Link href="/admin?tab=requests"><Button variant="outline">House Requests</Button></Link>
@@ -632,12 +657,24 @@ function AdminDashboardInner() {
                     <select
                     value={tx.status}
                     onChange={async (e) => {
-                      const supabase = createClient()
-                      const { error } = await supabase.from('transactions').update({ status: e.target.value }).eq('id', tx.id)
-                      if (error) { showToast('error', error.message); return }
-                      showToast('success', `Transaction marked as ${e.target.value}`)
-                      clearCache('admin:transactions')
-                      loadTransactions()
+                      const nextStatus = e.target.value
+                      try {
+                        const res = await fetch(`/api/admin/transactions/${tx.id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ status: nextStatus }),
+                        })
+                        const data = await res.json().catch(() => ({}))
+                        if (!res.ok) {
+                          showToast('error', data?.error || 'Could not update the transaction')
+                          return
+                        }
+                        showToast('success', `Transaction marked as ${nextStatus}`)
+                        clearCache('admin:transactions')
+                        loadTransactions()
+                      } catch {
+                        showToast('error', 'Network error while updating the transaction')
+                      }
                     }}
                     className={`text-xs border rounded px-2 py-1 font-medium ${
                       tx.status === 'success' ? 'text-green-700 bg-green-50 border-green-200' :
@@ -1006,6 +1043,7 @@ function AdminDashboardInner() {
           </div>
         </div>
       )}
+      </div>
     </div>
   )
 }

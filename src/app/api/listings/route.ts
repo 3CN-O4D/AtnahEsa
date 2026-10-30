@@ -56,8 +56,9 @@ export async function GET(req: Request) {
     const validation = validateRequest(VALIDATION_SCHEMAS.searchQuery, Object.fromEntries(searchParams))
     if (!validation.success) return addSecurityHeaders(validation.error)
 
-    const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, status, count } = validation.data
+    const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, limit, status, count } = validation.data
     const supabase = createAdminClient()
+    const pageSize = Math.min(48, Math.max(1, limit ? parseInt(limit, 10) : ITEMS_PER_PAGE))
 
     const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
 
@@ -70,8 +71,8 @@ export async function GET(req: Request) {
 
     if (!wantCount) {
       const pageNum = Math.max(1, page ? parseInt(page, 10) : 1)
-      const from = (pageNum - 1) * ITEMS_PER_PAGE
-      q = q.range(from, from + ITEMS_PER_PAGE - 1)
+      const from = (pageNum - 1) * pageSize
+      q = q.range(from, from + pageSize - 1)
     }
 
     if (query) {

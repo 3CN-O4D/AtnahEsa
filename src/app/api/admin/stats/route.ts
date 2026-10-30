@@ -1,8 +1,18 @@
 import { NextResponse } from 'next/server'
+import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addSecurityHeaders } from '@/lib/security'
 
 export async function GET() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).single()
+  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
   const admin = createAdminClient()
 
   const [
@@ -26,6 +36,8 @@ export async function GET() {
     { count: contacts },
     { count: houseReqs },
     { count: reports },
+    { count: complaintsOpen },
+    { count: complaintsTotal },
   ] = await Promise.all([
     admin.from('listings').select('*', { count: 'exact', head: true }),
     admin.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'published'),
@@ -47,6 +59,8 @@ export async function GET() {
     admin.from('contact_submissions').select('*', { count: 'exact', head: true }),
     admin.from('house_requests').select('*', { count: 'exact', head: true }),
     admin.from('reports').select('*', { count: 'exact', head: true }),
+    admin.from('complaints').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+    admin.from('complaints').select('*', { count: 'exact', head: true }),
   ])
 
   const [{ data: bookings }, { data: escrows }, { data: txns }, { data: houseBkgs }] = await Promise.all([
@@ -82,12 +96,33 @@ export async function GET() {
   }
   const paymentsByMethod = Object.entries(methodMap).map(([method, v]) => ({ method, ...v }))
 
+  const netRevenue =
+    totalRevenue +
+    houseRevenue -
+    totalRefunded -
+    houseRefunded
+
+  const successfulTransactions = (txns || []).filter((t: any) => t.status === 'success').length
+  const failedTransactions = (txns || []).filter((t: any) => t.status === 'failed').length
+
   return NextResponse.json({
     total, published, booked, taken, pending, rejected,
     vacant, vacancyPending, withIssues,
     completed, refunded, listers, hunters, totalUsers,
     movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
-    totalRevenue, totalRefunded, escrowHeld, escrowHeldAmount,
+    complaintsOpen: complaintsOpen ?? 0,
+    complaintsTotal: complaintsTotal ?? 0,
+    // Shapes the dashboard already expects.
+    totalListers: listers ?? 0,
+    totalHunters: hunters ?? 0,
+    totalMovers: movers ?? 0,
+    wifiPackages: wifiPkgs ?? 0,
+    wifiBookings: wifiBkgs ?? 0,
+    contactSubmissions: contacts ?? 0,
+    houseRequests: houseReqs ?? 0,
+    totalRevenue, totalRefunded, netRevenue,
+    successfulTransactions, failedTransactions,
+    escrowHeld, escrowHeldAmount,
     houseRevenue, houseRevenueCount, houseRefunded, houseRefundedCount,
     pendingPayouts, pendingPayoutsAmount, paymentsByMethod,
   })

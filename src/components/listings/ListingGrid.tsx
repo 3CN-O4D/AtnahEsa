@@ -3,7 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import ListingCard from './ListingCard'
-import { Home, Wifi, Search, Sparkles, RefreshCw, Loader2 } from 'lucide-react'
+import HouseLoader from '@/components/ui/HouseLoader'
+import { Home, Wifi, Search, Sparkles, RefreshCw, Loader2, ArrowDown, CheckCircle2 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
 import type { Listing } from '@/types'
@@ -14,6 +15,12 @@ interface ListingGridProps {
   sort?: string
   filters?: Record<string, string>
   query?: string
+  /** How many homes each request returns. Defaults to ITEMS_PER_PAGE. */
+  pageSize?: number
+  /** Total homes available, used for the batch progress bar. */
+  total?: number
+  /** Show explicit "more houses" controls instead of infinite scrolling. */
+  batchMode?: boolean
 }
 
 interface ListerInfo {
@@ -48,17 +55,19 @@ function CardSkeleton({ delay = 0 }: { delay?: number }) {
   )
 }
 
-export default function ListingGrid({ fetchListings }: ListingGridProps) {
+export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, total, batchMode = false }: ListingGridProps) {
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [hasMore, setHasMore] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
+  const [revealingAll, setRevealingAll] = useState(false)
   const [listerInfo, setListerInfo] = useState<Map<string, ListerInfo>>(new Map())
 
   const loaderRef = useRef<HTMLDivElement>(null)
   const mountedRef = useRef(false)
   const fetchRef = useRef(fetchListings)
+  const revealingRef = useRef(false)
 
   // Pagination bookkeeping lives in refs so a re-render never triggers a
   // duplicate request, and a stale response can never advance the cursor.
@@ -155,7 +164,7 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
       nextPageRef.current = page + 1
 
       // A short page means there is nothing after it.
-      if (data.length < ITEMS_PER_PAGE) {
+      if (data.length < pageSize) {
         hasMoreRef.current = false
         setHasMore(false)
       }
@@ -175,7 +184,26 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
         setLoading(false)
       }
     }
-  }, [getPage, prefetchNextPage])
+  }, [getPage, prefetchNextPage, pageSize])
+
+  const revealAll = useCallback(async () => {
+    if (revealingRef.current || !hasMoreRef.current) return
+    revealingRef.current = true
+    setRevealingAll(true)
+    try {
+      // Walk remaining pages in order so `nextPageRef` stays consistent.
+      while (hasMoreRef.current && mountedRef.current) {
+        const before = loadedPagesRef.current
+        await loadMore()
+        // If the load could not advance (e.g. another request was in flight),
+        // stop rather than spinning.
+        if (loadedPagesRef.current === before) break
+      }
+    } finally {
+      revealingRef.current = false
+      if (mountedRef.current) setRevealingAll(false)
+    }
+  }, [loadMore])
 
   // The caller remounts this grid (via a key) whenever the search changes, so
   // there is no in-place reset race: mount state already starts at page 1.
@@ -194,6 +222,7 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
   }, [loadMore])
 
   useEffect(() => {
+    if (batchMode) return
     const el = loaderRef.current
     if (!el) return
 
@@ -207,7 +236,7 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
     )
     observer.observe(el)
     return () => observer.disconnect()
-  }, [loadMore, error, hasMore])
+  }, [loadMore, error, hasMore, batchMode])
 
   // Batch-fetch lister profiles for all loaded listings (avoids N+1 per-card fetches)
   useEffect(() => {
@@ -244,6 +273,14 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
   const isInitialLoading = loading && listings.length === 0 && !error
   const isEmpty = !loading && !error && listings.length === 0 && !hasMore
 
+  const progressTotal = total && total > 0 ? total : listings.length + (hasMore ? pageSize : 0)
+  const progressPct =
+    progressTotal > 0 ? Math.min(100, Math.round((listings.length / progressTotal) * 100)) : 0
+  const remaining = total && total > 0 ? Math.max(0, total - listings.length) : null
+  const batchNumber = Math.max(1, Math.ceil(listings.length / pageSize))
+  const batchCount = progressTotal > 0 ? Math.max(1, Math.ceil(progressTotal / pageSize)) : batchNumber
+  const busy = loading || revealingAll
+
   return (
     <div>
       {error && listings.length === 0 && (
@@ -261,27 +298,52 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
       )}
 
       {isInitialLoading && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 py-4">
-          {Array.from({ length: INITIAL_SKELETONS }).map((_, i) => (
-            <CardSkeleton key={i} delay={(i % 4) * 0.08} />
-          ))}
+        <div className="py-4">
+          <HouseLoader />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {Array.from({ length: INITIAL_SKELETONS }).map((_, i) => (
+              <CardSkeleton key={i} delay={(i % 4) * 0.08} />
+            ))}
+          </div>
         </div>
       )}
 
       {listings.length > 0 && (
         <>
-          <div className="mb-4 flex items-center gap-2 animate-fadeIn animate-slideUp">
-            <span className="font-semibold text-gray-700 dark:text-gray-200" aria-live="polite">
-              {listings.length} home{listings.length !== 1 ? 's' : ''}
-            </span>
-            <span className="text-xs text-gray-500 dark:text-gray-400">
-              &middot; {loading ? 'loading more…' : 'all loaded'}
-            </span>
-            {showSuccess && (
-              <span className="ml-auto flex items-center gap-1 text-xs text-green-600 dark:text-green-400 animate-scaleIn animate-fadeIn">
-                <Sparkles className="w-3.5 h-3.5" />
-                New listings loaded!
+          <div className="mb-4 space-y-2 animate-fadeIn animate-slideUp">
+            <div className="flex items-center gap-2">
+              <span className="font-semibold text-gray-700 dark:text-gray-200" aria-live="polite">
+                {listings.length} home{listings.length !== 1 ? 's' : ''}
+                {total && total > 0 ? <span className="font-normal text-gray-400"> of {total}</span> : null}
               </span>
+              <span className="text-xs text-gray-500 dark:text-gray-400">
+                &middot; {revealingAll ? 'revealing all…' : loading ? 'loading more…' : hasMore ? 'more available' : 'all loaded'}
+              </span>
+              {batchMode && (
+                <span className="ml-auto text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">
+                  Batch {Math.min(batchNumber, batchCount)} / {batchCount}
+                </span>
+              )}
+              {showSuccess && (
+                <span className={`${batchMode ? '' : 'ml-auto'} flex items-center gap-1 text-xs text-green-600 dark:text-green-400 animate-scaleIn animate-fadeIn`}>
+                  <Sparkles className="w-3.5 h-3.5" />
+                  New listings loaded!
+                </span>
+              )}
+            </div>
+
+            {batchMode && (
+              <div className="flex items-center gap-3">
+                <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200/80 dark:bg-slate-800">
+                  <div
+                    className="batch-progress-fill absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#30B54A] via-emerald-400 to-teal-400 transition-[width] duration-700 ease-out"
+                    style={{ width: `${progressPct}%` }}
+                  />
+                </div>
+                <span className="w-10 text-right text-[11px] font-bold tabular-nums text-[#2a9c40] dark:text-[#6fdc84]">
+                  {progressPct}%
+                </span>
+              </div>
             )}
           </div>
 
@@ -370,19 +432,60 @@ export default function ListingGrid({ fetchListings }: ListingGridProps) {
         </div>
       )}
 
-      {/* One persistent sentinel: it exists before the first page arrives and
-          stays mounted afterwards, so the observer never loses its target. */}
-      {hasMore && !error && (
-        <div
-          ref={loaderRef}
-          className={listings.length > 0 ? 'flex justify-center py-8' : 'h-4'}
-        >
-          {listings.length > 0 && loading && (
-            <div className="flex flex-col items-center gap-2 text-gray-500 dark:text-gray-400 animate-fadeIn">
-              <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
-              <span className="text-sm animate-pulse-slow">Loading more homes…</span>
+      {batchMode ? (
+        listings.length > 0 && !error && (hasMore || revealingAll) && (
+          <div className="mt-8 flex flex-col items-center gap-3 animate-fadeIn">
+            <div className="flex flex-col items-center gap-2 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => void loadMore()}
+                disabled={busy}
+                className="batch-more-btn group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#30B54A] to-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-600/35 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowDown className="h-4 w-4 transition-transform duration-300 group-hover:translate-y-0.5" />
+                )}
+                {loading ? 'Loading…' : `More houses${remaining !== null ? ` (${Math.min(pageSize, remaining)})` : ''}`}
+              </button>
+              <button
+                type="button"
+                onClick={() => void revealAll()}
+                disabled={busy}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#30B54A] hover:text-[#2a9c40] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:hover:border-[#30B54A] dark:hover:text-[#6fdc84]"
+              >
+                {revealingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
+                {revealingAll ? 'Revealing…' : 'Reveal all'}
+              </button>
             </div>
-          )}
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {remaining !== null
+                ? `${remaining} more home${remaining !== 1 ? 's' : ''} waiting`
+                : 'More homes available'}
+            </p>
+          </div>
+        )
+      ) : (
+        hasMore && !error && (
+          <div
+            ref={loaderRef}
+            className={listings.length > 0 ? 'flex justify-center py-8' : 'h-4'}
+          >
+            {listings.length > 0 && loading && (
+              <div className="flex flex-col items-center gap-2 text-gray-500 dark:text-gray-400 animate-fadeIn">
+                <Loader2 className="w-7 h-7 animate-spin text-blue-600" />
+                <span className="text-sm animate-pulse-slow">Loading more homes…</span>
+              </div>
+            )}
+          </div>
+        )
+      )}
+
+      {batchMode && !hasMore && !loading && listings.length > 0 && !error && (
+        <div className="mt-8 flex items-center justify-center gap-2 text-sm font-medium text-emerald-600 animate-fadeIn dark:text-emerald-400">
+          <CheckCircle2 className="h-4 w-4" />
+          You&apos;ve seen every available home
         </div>
       )}
     </div>

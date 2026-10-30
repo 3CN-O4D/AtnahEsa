@@ -4,8 +4,9 @@ import { useState, useEffect } from 'react'
 import type { MouseEvent } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
+import { useFavorites } from '@/lib/favorites'
 import { APP_NAME } from '@/lib/constants'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import Button from '@/components/ui/Button'
@@ -15,6 +16,7 @@ import type { User as SupabaseUser } from '@supabase/supabase-js'
 export default function Header() {
   const pathname = usePathname()
   const router = useRouter()
+  const { count: favoritesCount } = useFavorites()
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -134,6 +136,14 @@ export default function Header() {
 
         {/* Right: Profile — flush to right edge */}
         <div className="hidden md:flex items-center pr-4 shrink-0">
+          <Link href="/favorites" className="relative p-2 text-gray-600 hover:text-gray-900 dark:hover:text-white mr-1" aria-label="Favourites">
+            <Heart className={`w-5 h-5 transition-colors ${favoritesCount > 0 ? 'text-red-500 fill-current' : ''}`} />
+            {favoritesCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                {favoritesCount > 99 ? '99+' : favoritesCount}
+              </span>
+            )}
+          </Link>
           {user && (
             <Link href="/notifications" className="relative p-2 text-gray-600 hover:text-gray-900 dark:hover:text-white mr-1" aria-label="Notifications">
               <Bell className="w-5 h-5" />
@@ -170,6 +180,12 @@ export default function Header() {
                   <Link href="/my-bookings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Calendar className="w-4 h-4" /> My Bookings
                   </Link>
+                  <Link href="/favorites" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <Heart className="w-4 h-4" /> My Favourites
+                    {favoritesCount > 0 && (
+                      <span className="ml-auto rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">{favoritesCount}</span>
+                    )}
+                  </Link>
                   {isLister && (
                     <Link href="/requests" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <BadgeCheck className="w-4 h-4" /> House Requests
@@ -200,6 +216,14 @@ export default function Header() {
         {/* Mobile: dark mode + hamburger — flush to right */}
         <div className="md:hidden flex items-center gap-1 pr-4 ml-auto">
           <ThemeToggle />
+          <Link href="/favorites" className="relative p-2 text-gray-600 hover:text-gray-900 dark:hover:text-white" aria-label="Favourites">
+            <Heart className={`w-5 h-5 ${favoritesCount > 0 ? 'text-red-500 fill-current' : ''}`} />
+            {favoritesCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">
+                {favoritesCount > 99 ? '99+' : favoritesCount}
+              </span>
+            )}
+          </Link>
           {user && (
             <Link href="/notifications" className="relative p-2 text-gray-600 hover:text-gray-900 dark:hover:text-white" aria-label="Notifications">
               <Bell className="w-5 h-5" />
@@ -257,6 +281,12 @@ export default function Header() {
               </Link>
               <Link href="/my-bookings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Calendar className="w-4 h-4" /> My Bookings
+              </Link>
+              <Link href="/favorites" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Heart className="w-4 h-4" /> My Favourites
+                {favoritesCount > 0 && (
+                  <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">{favoritesCount > 99 ? '99+' : favoritesCount}</span>
+                )}
               </Link>
               {isLister && (
                 <Link href="/requests" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">

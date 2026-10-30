@@ -5,6 +5,7 @@ import Footer from '@/components/layout/Footer'
 import CookieBanner from '@/components/layout/CookieBanner'
 import RouteProgress from '@/components/layout/RouteProgress'
 import { ThemeProvider } from '@/lib/ThemeProvider'
+import { FavoritesProvider } from '@/lib/favorites'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import Script from 'next/script'
 import { Analytics } from '@vercel/analytics/next'
@@ -38,11 +39,13 @@ export default function RootLayout({
       </head>
       <body className="min-h-screen flex flex-col">
         <ThemeProvider>
-          <RouteProgress />
-          <Header />
-          <main className="flex-1">{children}</main>
-          <Footer />
-          <CookieBanner />
+          <FavoritesProvider>
+            <RouteProgress />
+            <Header />
+            <main className="flex-1">{children}</main>
+            <Footer />
+            <CookieBanner />
+          </FavoritesProvider>
         </ThemeProvider>
 
         {/* Floating WhatsApp */}

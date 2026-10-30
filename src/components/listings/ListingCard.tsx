@@ -2,10 +2,13 @@
 
 import Link from 'next/link'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { MapPin, AlertTriangle, BadgeCheck, Heart } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Slideshow from '@/components/ui/Slideshow'
 import { formatPrice } from '@/lib/utils'
+import { useFavorites } from '@/lib/favorites'
+import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Listing } from '@/types'
 
 interface ListingCardProps {
@@ -21,11 +24,13 @@ const PAGE_LOADED_AT = Date.now()
 const NEW_LISTING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
 export default function ListingCard({ listing, listerName, isAdmin, verified }: ListingCardProps) {
+  const router = useRouter()
+  const { isFavorite, toggle, signedIn } = useFavorites()
   const [showVerifyTip, setShowVerifyTip] = useState(false)
-  const [isFavorite, setIsFavorite] = useState(false)
   const [showHeart, setShowHeart] = useState(false)
 
   const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
+  const saved = isFavorite(listing.id)
 
   const posted = new Date(listing.created_at)
   const isNew = listing.status === 'published' && PAGE_LOADED_AT - posted.getTime() <= NEW_LISTING_WINDOW_MS
@@ -33,9 +38,16 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
-    setIsFavorite(!isFavorite)
+
+    // Saving requires an account, so return the user to this exact card.
+    if (!signedIn) {
+      router.push(signInUrl(currentPathWithSearch()))
+      return
+    }
+
     setShowHeart(true)
     setTimeout(() => setShowHeart(false), 800)
+    void toggle(listing.id)
   }
 
   return (
@@ -50,16 +62,18 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
             type="button"
             onClick={handleFavoriteClick}
             className="absolute top-2.5 right-2.5 z-10 rounded-full bg-white/90 p-2 shadow-lg backdrop-blur-sm transition-all duration-200 hover:scale-110 hover:bg-white dark:bg-slate-900/85 dark:hover:bg-slate-800 tap-scale"
-            aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+            aria-label={saved ? 'Remove from favourites' : 'Save to favourites'}
+            aria-pressed={saved}
+            title={saved ? 'Saved to favourites' : 'Save to favourites'}
           >
             <Heart
               className={`
                 w-[18px] h-[18px] transition-all duration-300
-                ${isFavorite ? 'text-red-500 fill-current' : 'text-gray-600 dark:text-gray-300'}
+                ${saved ? 'text-red-500 fill-current' : 'text-gray-600 dark:text-gray-300'}
                 ${showHeart ? 'animate-heartBeat' : ''}
               `}
-              fill={isFavorite ? 'currentColor' : 'none'}
-              strokeWidth={isFavorite ? 0 : 2}
+              fill={saved ? 'currentColor' : 'none'}
+              strokeWidth={saved ? 0 : 2}
             />
           </button>
 

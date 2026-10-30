@@ -427,8 +427,8 @@ export default function ProfilePage() {
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setCreatePasswordError(''); setSuccess('')
+    if (newPassword.length < 8) { setCreatePasswordError('Password must be at least 8 characters'); return }
     if (newPassword !== confirmPassword) { setCreatePasswordError('Passwords do not match'); return }
-    if (newPassword.length < 6) { setCreatePasswordError('Password must be at least 6 characters'); return }
     setLoading(true)
     try {
       const res = await fetch('/api/auth/send-otp', {
@@ -500,25 +500,47 @@ export default function ProfilePage() {
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setPasswordError(''); setSuccess('')
-    if (newPassword !== confirmPassword) { setPasswordError('Passwords do not match'); return }
-    if (newPassword.length < 6) { setPasswordError('Password must be at least 6 characters'); return }
     if (!oldPassword) { setPasswordError('Enter your current password'); return }
+    if (newPassword.length < 8) { setPasswordError('New password must be at least 8 characters'); return }
+    if (newPassword === oldPassword) { setPasswordError('New password must be different from your current password'); return }
+    if (newPassword !== confirmPassword) { setPasswordError('New passwords do not match'); return }
     setLoading(true)
     try {
       const supabase = createClient()
       const { error: signInErr } = await supabase.auth.signInWithPassword({ email: userEmail, password: oldPassword })
-      if (signInErr) { setPasswordError('Current password is incorrect'); setLoading(false); return }
-      try {
-        const { error: reauthErr } = await supabase.auth.reauthenticate()
-        if (reauthErr && !reauthErr.message?.toLowerCase().includes('rate') && !reauthErr.message?.toLowerCase().includes('too many')) {
-          setPasswordError(reauthErr.message)
-          setLoading(false)
-          return
+      if (signInErr) {
+        const msg = signInErr.message?.toLowerCase() || ''
+        if (msg.includes('invalid login') || msg.includes('invalid credentials')) {
+          setPasswordError('Current password is incorrect. Use “Forgot password?” if you cannot remember it.')
+        } else if (msg.includes('rate') || msg.includes('too many')) {
+          setPasswordError('Too many attempts. Wait a minute and try again.')
+        } else if (msg.includes('network') || msg.includes('fetch')) {
+          setPasswordError('Network error. Check your connection and try again.')
+        } else {
+          setPasswordError(signInErr.message || 'Could not verify your current password')
         }
-      } catch {}
+        setLoading(false)
+        return
+      }
+
+      // Send the code through Brevo (app-generated OTP), not Supabase email.
+      const res = await fetch('/api/auth/send-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, type: 'password_reset' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPasswordError(data.error || 'Could not send the verification code. Try again.')
+        setLoading(false)
+        return
+      }
+
       setStep('otp')
-    } catch {
-      setPasswordError('Something went wrong')
+      setPasswordOtp(['', '', '', '', '', ''])
+      setTimeout(() => passwordOtpRefs.current[0]?.focus(), 100)
+    } catch (err) {
+      setPasswordError(err instanceof Error && err.message ? err.message : 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -526,23 +548,31 @@ export default function ProfilePage() {
 
   const handleVerifyPasswordOtp = async (e: React.FormEvent) => {
     e.preventDefault()
-    setPasswordError(''); setSuccess('')
+    setPasswordError(''); setError(''); setSuccess('')
     const code = passwordOtp.join('')
     if (code.length !== 6) { setPasswordError('Enter the full 6-digit code'); return }
     setLoading(true)
     try {
+      const res = await fetch('/api/auth/update-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: userEmail, password: newPassword, otp: code }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPasswordError(data.error || 'Invalid or expired code. Request a new one.')
+        setLoading(false)
+        return
+      }
+
       const supabase = createClient()
-      const { error: verifyErr } = await supabase.auth.verifyOtp({ email: userEmail, token: code, type: 'email' })
-      if (verifyErr) { setPasswordError(verifyErr.message); setLoading(false); return }
-      const { error: updateErr } = await supabase.auth.updateUser({ password: newPassword })
-      if (updateErr) { setPasswordError(updateErr.message); setLoading(false); return }
       await supabase.from('profiles').update({ has_password: true }).eq('id', profile!.id)
       setHasPassword(true)
       setStep('done')
       setSuccess('Password changed successfully!')
       setOldPassword(''); setNewPassword(''); setConfirmPassword(''); setPasswordOtp(['', '', '', '', '', ''])
-    } catch {
-      setPasswordError('Something went wrong')
+    } catch (err) {
+      setPasswordError(err instanceof Error && err.message ? err.message : 'Something went wrong. Please try again.')
     } finally {
       setLoading(false)
     }
@@ -691,7 +721,7 @@ export default function ProfilePage() {
             <div className="space-y-1">
               <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
               <div className="relative">
-                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required minLength={8} />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
                   {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -768,7 +798,7 @@ export default function ProfilePage() {
             <div className="space-y-1">
               <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
               <div className="relative">
-                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 6 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required />
+                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required minLength={8} />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
                   {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -783,7 +813,7 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
+            {(passwordError || error) && <p className="text-sm text-red-600 dark:text-red-400">{passwordError || error}</p>}
             <Button type="submit" loading={loading} className="w-full">Send OTP</Button>
           </form>
         </div>
@@ -814,17 +844,21 @@ export default function ProfilePage() {
                 />
               ))}
             </div>
-            {error && <p className="text-sm text-red-600 dark:text-red-400 text-center">{error}</p>}
-            <Button type="submit" loading={loading} className="w-full">Verify & Change Password</Button>
+            {(error || passwordError) && <p className="text-sm text-red-600 dark:text-red-400 text-center">{passwordError || error}</p>}
+            <Button type="submit" loading={loading} className="w-full">Verify &amp; Change Password</Button>
             <button type="button" onClick={async () => {
               if (resendCooldown > 0) return
-              setError('')
+              setError(''); setPasswordError('')
               try {
-                const supabase = createClient()
-                const { error: reauthErr } = await supabase.auth.reauthenticate()
-                if (reauthErr) { setError(reauthErr.message); return }
+                const res = await fetch('/api/auth/send-otp', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email: userEmail, type: 'password_reset' }),
+                })
+                const data = await res.json().catch(() => ({}))
+                if (!res.ok) { setPasswordError(data.error || 'Failed to resend code'); return }
                 startCooldown()
-              } catch { setError('Failed to resend code') }
+              } catch { setPasswordError('Failed to resend code') }
             }} disabled={resendCooldown > 0} className="w-full text-sm text-blue-600 dark:text-blue-400 hover:underline disabled:text-gray-400 dark:disabled:text-gray-500 disabled:cursor-not-allowed">
               {resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend code'}
             </button>

@@ -322,6 +322,11 @@ export async function refundHunter(params: {
   return Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))
 }
 
+/**
+ * Escrow holds are never released automatically: an admin must send the
+ * M-Pesa payout and record the payout SMS first. This only reports expiry so
+ * the cron can escalate it.
+ */
 export async function processAutoReleases(): Promise<number> {
   const admin = createAdminClient()
   const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
@@ -332,20 +337,18 @@ export async function processAutoReleases(): Promise<number> {
     .eq('status', 'held')
     .lt('held_until', cutoff)
 
-  let processed = 0
-  for (const hold of expiredHolds || []) {
-    try {
-      await releaseToLister({
-        escrowId: hold.id,
-        action: 'auto_release',
-        actorId: 'system',
-        reason: '24-hour window elapsed - auto-released to lister',
-      })
-      processed++
-    } catch (err) {
-      console.error(`Auto-release failed:`, err)
-    }
-  }
+  if (!expiredHolds || expiredHolds.length === 0) return 0
 
-  return processed
+  await notifyAdmins(
+    'Escrow Expired — Payout Required',
+    `${expiredHolds.length} Escrow Hold(s) Expired`,
+    {
+      Count: String(expiredHolds.length),
+      Message:
+        'No money was moved automatically. Review each hold, send the payout by M-Pesa, then record the payout SMS in Treasury.',
+      Link: 'https://www.asehanta.com/admin/treasury',
+    }
+  )
+
+  return expiredHolds.length
 }

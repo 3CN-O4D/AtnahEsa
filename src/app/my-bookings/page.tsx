@@ -35,6 +35,7 @@ function ReleaseBadge({ release_status }: { release_status: string }) {
     held: { label: 'In Escrow', className: 'bg-blue-100 text-blue-700' },
     paid: { label: 'Paid to Lister', className: 'bg-green-100 text-green-700' },
     refunded: { label: 'Refunded', className: 'bg-amber-100 text-amber-700' },
+    refund_requested: { label: 'Refund Requested', className: 'bg-red-100 text-red-700' },
   }
   const c = config[release_status] || { label: release_status, className: 'bg-gray-100 text-gray-600' }
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.className}`}>{c.label}</span>
@@ -76,12 +77,13 @@ function MyBookingsInner() {
   const [listerBookings, setListerBookings] = useState<BookingWithDetails[]>([])
   const [houseBookings, setHouseBookings] = useState<HouseBooking[]>([])
   const [listerHouseBookings, setListerHouseBookings] = useState<HouseBooking[]>([])
+  const [housePayments, setHousePayments] = useState<Record<string, { status: string; receipt: string | null }>>({})
   const [acting, setActing] = useState<{ id: string; action: 'confirm' | 'displeased' } | null>(null)
   const [displeasedFor, setDispleasedFor] = useState<string | null>(null)
   const [displeasedReason, setDispleasedReason] = useState('')
   const [displeasedRating, setDispleasedRating] = useState(0)
-  const [displeasedMpesaMessage, setDispleasedMpesaMessage] = useState('')
   const [paymentsError, setPaymentsError] = useState('')
+  const [paymentsNotice, setPaymentsNotice] = useState('')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -129,7 +131,27 @@ function MyBookingsInner() {
         .select('*')
         .eq('user_id', data.user.id)
         .order('created_at', { ascending: false })
-      if (hb) setHouseBookings(hb as unknown as HouseBooking[])
+      if (hb) {
+        setHouseBookings(hb as unknown as HouseBooking[])
+
+        const bookingIds = (hb as Array<{ id: string }>).map((b) => b.id)
+        if (bookingIds.length > 0) {
+          const { data: txs } = await supabase
+            .from('transactions')
+            .select('status, mpesa_receipt, raw_callback, created_at')
+            .filter('raw_callback->>house_booking_id', 'in', `(${bookingIds.join(',')})`)
+            .order('created_at', { ascending: false })
+
+          const map: Record<string, { status: string; receipt: string | null }> = {}
+          for (const tx of txs || []) {
+            const linked = (tx.raw_callback as Record<string, unknown> | null)?.house_booking_id
+            if (typeof linked === 'string' && !map[linked]) {
+              map[linked] = { status: tx.status, receipt: tx.mpesa_receipt }
+            }
+          }
+          setHousePayments(map)
+        }
+      }
       setLoading(false)
     })
   }, [router])
@@ -137,6 +159,7 @@ function MyBookingsInner() {
   async function handleConfirm(hb: HouseBooking) {
     setActing({ id: hb.id, action: 'confirm' })
     setPaymentsError('')
+    setPaymentsNotice('')
     try {
       const res = await fetch('/api/house-bookings/release', {
         method: 'POST',
@@ -154,28 +177,27 @@ function MyBookingsInner() {
   async function handleDispleased(hb: HouseBooking) {
     if (!displeasedReason.trim()) { setPaymentsError('Please tell us what went wrong'); return }
     if (displeasedRating < 1) { setPaymentsError('Please rate your experience'); return }
-    if (!displeasedMpesaMessage.trim()) { setPaymentsError('Please paste your M-Pesa confirmation message'); return }
     setActing({ id: hb.id, action: 'displeased' })
     setPaymentsError('')
+    setPaymentsNotice('')
     try {
-      const res = await fetch('/api/payments/paywave', {
+      const res = await fetch('/api/house-bookings/release', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'manual_refund',
+          action: 'displeased',
           booking_id: hb.id,
-          escrow_id: hb.id,
-          mpesa_message: displeasedMpesaMessage,
-          reason: hb.release_status === 'held' ? 'viewed_changed_mind' : 'fake_listing',
+          reason: displeasedReason.trim(),
+          rating: displeasedRating,
         }),
       })
       const data = await res.json()
       if (!res.ok) { setPaymentsError(data.error || 'Something went wrong'); return }
-      setHouseBookings(prev => prev.map(b => b.id === hb.id ? { ...b, release_status: 'refunded', displeased_reason: displeasedReason, rating: displeasedRating, refunded_at: new Date().toISOString() } : b))
+      setHouseBookings(prev => prev.map(b => b.id === hb.id ? { ...b, release_status: 'refund_requested', displeased_reason: displeasedReason, rating: displeasedRating } : b))
       setDispleasedFor(null)
       setDispleasedReason('')
       setDispleasedRating(0)
-      setDispleasedMpesaMessage('')
+      setPaymentsNotice(data.message || 'Refund requested. Our team will process it within 24 hours.')
     } finally {
       setActing(null)
     }
@@ -209,6 +231,9 @@ function MyBookingsInner() {
 
       {tab === 'payments' ? (
         <div className="space-y-4">
+          {paymentsNotice && (
+            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm rounded-lg px-4 py-3">{paymentsNotice}</div>
+          )}
           {paymentsError && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">{paymentsError}</div>
           )}
@@ -223,6 +248,12 @@ function MyBookingsInner() {
             houseBookings.map((hb) => {
               const isHeld = hb.release_status === 'held'
               const isActing = acting?.id === hb.id
+              const payment = housePayments[hb.id]
+              const paymentConfirmed = hb.status === 'confirmed' || isHeld || hb.release_status === 'paid'
+              const paymentUnderReview = !paymentConfirmed && payment?.status === 'verifying'
+              const paymentPending = !paymentConfirmed && !paymentUnderReview && payment?.status === 'pending'
+              const paymentFailed =
+                !paymentConfirmed && !paymentUnderReview && (payment?.status === 'failed' || hb.status === 'cancelled')
               return (
                 <div key={hb.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
                   <div className="p-4">
@@ -243,6 +274,38 @@ function MyBookingsInner() {
                         <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={hb.held_until} /></span>
                       )}
                     </div>
+
+                    {(paymentUnderReview || paymentPending || paymentFailed || paymentConfirmed) && (
+                      <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {paymentUnderReview && (
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                            <Clock className="w-3 h-3" /> Payment under review
+                          </span>
+                        )}
+                        {paymentPending && (
+                          <Link
+                            href={`/payments/${hb.id}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">
+                            <Phone className="w-3 h-3" /> Continue payment
+                          </Link>
+                        )}
+                        {paymentFailed && (
+                          <Link
+                            href={`/payments/new?listing=${hb.listing_id}&phone=${encodeURIComponent(hb.phone || '')}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700">
+                            <AlertTriangle className="w-3 h-3" /> Payment failed — try again
+                          </Link>
+                        )}
+                        {paymentConfirmed && (
+                          <a
+                            href={`/api/payments/receipt/${hb.id}`}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700">
+                            <Eye className="w-3 h-3" /> Download receipt
+                          </a>
+                        )}
+                      </div>
+                    )}
+
                     {isHeld && (
                       <div className="mt-3 flex items-center gap-2">
                         <button
@@ -279,14 +342,6 @@ function MyBookingsInner() {
                           placeholder="Tell us what went wrong..."
                           className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                           rows={3}
-                        />
-                        <textarea
-                          value={displeasedMpesaMessage}
-                          onChange={(e) => setDispleasedMpesaMessage(e.target.value)}
-                          disabled={!!acting}
-                          placeholder="Paste your M-Pesa confirmation message (e.g. ABCDE12345 Confirmed. Ksh150.00 sent to ASEHANTA INVESTMENTS...)"
-                          className="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          rows={2}
                         />
                         <p className="text-xs text-gray-500 mt-2 flex items-center gap-1">
                           <AlertTriangle className="w-3.5 h-3.5" /> 85% of the fee will be refunded to you and the lister gets nothing.

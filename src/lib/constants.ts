@@ -1,5 +1,7 @@
 export const APP_NAME = 'AseHanta'
-export const MIN_BOOKING_FEE = 499
+// Listers set the booking fee in whole shillings. The payable amount is always
+// this exact value — no rounding, no platform deduction, no "KES 1 less" trick.
+export const MIN_BOOKING_FEE = 500
 export const PLATFORM_COMMISSION = 0.5
 export const OWNER_SHARE = 0.5
 export const ITEMS_PER_PAGE = 12

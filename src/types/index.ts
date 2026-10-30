@@ -225,7 +225,7 @@ export interface HouseBooking {
   mpesa_message: string
   status: 'pending' | 'contacted' | 'completed' | 'cancelled' | 'confirmed'
   user_id: string | null
-  release_status: 'pending' | 'held' | 'paid' | 'refunded'
+  release_status: 'pending' | 'held' | 'paid' | 'refunded' | 'refund_requested'
   held_until: string | null
   rating: number | null
   displeased_reason: string
@@ -233,6 +233,8 @@ export interface HouseBooking {
   paid_at: string | null
   refunded_at: string | null
   payment_method: string
+  email?: string | null
+  mpesa_receipt?: string | null
   created_at: string
 }
 

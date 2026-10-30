@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw, Wallet, TrendingUp, Clock, CheckCircle, XCircle, Search, AlertTriangle, Calendar } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
+import { OWNER_SHARE } from '@/lib/constants'
 import type { EscrowHold, Transaction, Booking, HouseBooking } from '@/types'
 
 type EscrowWithDetails = EscrowHold & {
@@ -11,9 +12,16 @@ type EscrowWithDetails = EscrowHold & {
   listing?: { title: string }
 }
 
+type HouseBookingWithPayment = HouseBooking & {
+  payment_status?: string | null
+  transaction_id?: string | null
+  transaction_receipt?: string | null
+}
+
 type RefundModal = { escrow: EscrowWithDetails } | null
 type ExtendModal = { escrow: EscrowWithDetails } | null
 type ConfirmAction = { escrow?: EscrowWithDetails; houseBooking?: HouseBooking; action: string; label: string } | null
+type SmsAction = { houseBooking: HouseBookingWithPayment; action: 'house_verify' | 'house_release' | 'house_refund'; label: string } | null
 
 export default function TreasuryPage() {
   const [stats, setStats] = useState({
@@ -22,7 +30,7 @@ export default function TreasuryPage() {
     pending_payouts: 0, pending_payouts_amount: 0,
   })
   const [escrows, setEscrows] = useState<EscrowWithDetails[]>([])
-  const [houseBookings, setHouseBookings] = useState<HouseBooking[]>([])
+  const [houseBookings, setHouseBookings] = useState<HouseBookingWithPayment[]>([])
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [balance, setBalance] = useState<{ configured: boolean; result?: unknown; error?: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -34,6 +42,13 @@ export default function TreasuryPage() {
   const [refundModal, setRefundModal] = useState<RefundModal>(null)
   const [extendModal, setExtendModal] = useState<ExtendModal>(null)
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null)
+  const [smsAction, setSmsAction] = useState<SmsAction>(null)
+  const [smsText, setSmsText] = useState('')
+  const [smsError, setSmsError] = useState('')
+  const [smsRefundPercentage, setSmsRefundPercentage] = useState(85)
+  const [statusModal, setStatusModal] = useState<{ houseBooking: HouseBookingWithPayment } | null>(null)
+  const [newStatus, setNewStatus] = useState('')
+  const [newReleaseStatus, setNewReleaseStatus] = useState('')
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
@@ -82,8 +97,84 @@ export default function TreasuryPage() {
   const handleAction = (escrowId: string, action: string, label: string) =>
     setConfirmAction({ escrow: escrows.find((e) => e.id === escrowId)!, action, label })
 
-  const handleHouseAction = (hbId: string, action: string, label: string) =>
-    setConfirmAction({ houseBooking: houseBookings.find((h) => h.id === hbId)!, action, label })
+  const handleHouseAction = (hbId: string, action: 'house_verify' | 'house_release' | 'house_refund', label: string) => {
+    const houseBooking = houseBookings.find((h) => h.id === hbId)
+    if (!houseBooking) return
+    setSmsError('')
+    setSmsText('')
+    if (action === 'house_refund') setSmsRefundPercentage(85)
+    setSmsAction({ houseBooking, action, label })
+  }
+
+  const submitSmsAction = async () => {
+    if (!smsAction) return
+    if (!smsText.trim()) {
+      setSmsError('Paste the M-Pesa SMS before continuing.')
+      return
+    }
+    setActionLoading(smsAction.houseBooking.id)
+    setSmsError('')
+    try {
+      const res = await fetch('/api/admin/treasury', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: smsAction.action,
+          house_booking_id: smsAction.houseBooking.id,
+          mpesa_message: smsText,
+          ...(smsAction.action === 'house_refund' ? { percentage: smsRefundPercentage } : {}),
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setSmsError(data.error || 'Action failed')
+        return
+      }
+      showToast('success', data.message)
+      setSmsAction(null)
+      setSmsText('')
+      loadData()
+    } catch {
+      setSmsError('Action failed. Nothing was changed.')
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const openStatusModal = (hb: HouseBookingWithPayment) => {
+    setNewStatus(hb.status || 'pending')
+    setNewReleaseStatus(hb.release_status || 'pending')
+    setStatusModal({ houseBooking: hb })
+  }
+
+  const submitStatusChange = async () => {
+    if (!statusModal) return
+    setActionLoading(statusModal.houseBooking.id)
+    try {
+      const res = await fetch('/api/admin/treasury', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'house_status',
+          house_booking_id: statusModal.houseBooking.id,
+          status: newStatus,
+          release_status: newReleaseStatus,
+        }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        showToast('error', data.error || 'Could not change status')
+        return
+      }
+      showToast('success', data.message)
+      setStatusModal(null)
+      loadData()
+    } catch {
+      showToast('error', 'Could not change status')
+    } finally {
+      setActionLoading(null)
+    }
+  }
 
   const executeConfirmedAction = () => {
     if (!confirmAction) return
@@ -262,7 +353,7 @@ export default function TreasuryPage() {
           <div className="divide-y" style={{ borderColor: 'var(--color-gray-200)' }}>
             {filteredPayouts.map((hb) => {
               const isHeld = hb.release_status === 'held'
-              const confirmed = !!hb.confirmed_at
+              const confirmed = hb.rating != null
               const isOverdue = isHeld && hb.held_until && new Date(hb.held_until) < new Date()
               return (
                 <div key={hb.id} className="px-4 py-3 flex items-center justify-between gap-4">
@@ -281,6 +372,16 @@ export default function TreasuryPage() {
                         {hb.release_status}{isOverdue ? ' (overdue)' : ''}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium capitalize">{hb.payment_method || 'payment'}</span>
+                      {hb.payment_status === 'verifying' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
+                          <Clock className="w-3 h-3" /> Under review
+                        </span>
+                      )}
+                      {hb.payment_status === 'failed' && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700">
+                          <XCircle className="w-3 h-3" /> Payment failed
+                        </span>
+                      )}
                       {isHeld && !confirmed && (
                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-700">
                           <AlertTriangle className="w-3 h-3" /> Hunter not confirmed
@@ -294,7 +395,7 @@ export default function TreasuryPage() {
                       {isHeld && hb.held_until && <> &middot; Held until {new Date(hb.held_until).toLocaleDateString()}</>}
                       {hb.release_status === 'paid' && hb.paid_at && <> &middot; Paid {new Date(hb.paid_at).toLocaleDateString()}</>}
                       {hb.release_status === 'refunded' && hb.refunded_at && <> &middot; Refunded {new Date(hb.refunded_at).toLocaleDateString()}</>}
-                      {hb.confirmed_at && <> &middot; Hunter confirmed {new Date(hb.confirmed_at).toLocaleDateString()}</>}
+                      {hb.confirmed_at && hb.rating != null && <> &middot; Hunter confirmed {new Date(hb.confirmed_at).toLocaleDateString()}</>}
                     </p>
                   </div>
                   <div className="flex gap-2 shrink-0 flex-wrap justify-end">
@@ -310,9 +411,9 @@ export default function TreasuryPage() {
                           className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1">
                           <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleHouseAction(hb.id, 'house_refund', 'Refund 85% to hunter')} loading={actionLoading === hb.id}
+                        <Button size="sm" variant="outline" onClick={() => handleHouseAction(hb.id, 'house_refund', 'Refund hunter')} loading={actionLoading === hb.id}
                           className="text-xs px-2.5 py-1">
-                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund 85%
+                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund
                         </Button>
                       </>
                     )}
@@ -322,6 +423,10 @@ export default function TreasuryPage() {
                     {hb.release_status === 'refunded' && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">Refunded</span>
                     )}
+                    <Button size="sm" variant="outline" onClick={() => openStatusModal(hb)} loading={actionLoading === hb.id}
+                      className="text-xs px-2.5 py-1">
+                      <RefreshCw className="w-3 h-3 mr-1" /> Status
+                    </Button>
                   </div>
                 </div>
               )
@@ -557,6 +662,135 @@ export default function TreasuryPage() {
               <Button onClick={handleExtend} loading={actionLoading === extendModal.escrow.id}
                 className="bg-blue-600 hover:bg-blue-700 text-white">
                 Extend {extendDays} Days
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SMS Action Modal (verify / payout / refund) */}
+      {smsAction && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setSmsAction(null)}>
+          <div className="w-full max-w-md rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: 'var(--color-gray-50)' }}>
+            <h3 className="text-lg font-semibold mb-1" style={{ color: 'var(--color-gray-900)' }}>
+              {smsAction.action === 'house_verify'
+                ? 'Verify payment with M-Pesa SMS'
+                : smsAction.action === 'house_release'
+                  ? 'Record lister payout'
+                  : 'Record hunter refund'}
+            </h3>
+            <p className="text-sm mb-3" style={{ color: 'var(--color-gray-600)' }}>
+              {smsAction.houseBooking.listing_title || 'Unknown listing'} &middot;{' '}
+              {formatPrice(smsAction.houseBooking.listing_price || 0)}
+            </p>
+
+            <div className="mb-3 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">
+              {smsAction.action === 'house_verify' && (
+                <>Expected amount: <strong>{formatPrice(smsAction.houseBooking.listing_price || 0)}</strong>. The SMS must say ASEHANTA INVESTMENTS and match the exact amount.</>
+              )}
+              {smsAction.action === 'house_release' && (
+                <>Expected payout: <strong>{formatPrice(Math.round((smsAction.houseBooking.listing_price || 0) * OWNER_SHARE))}</strong> ({Math.round(OWNER_SHARE * 100)}% lister share). A mismatch will be refused.</>
+              )}
+              {smsAction.action === 'house_refund' && (
+                <>
+                  Refund rate:{' '}
+                  <span className="mt-1 flex gap-1.5">
+                    {[
+                      { p: 85, label: '85% — viewed & changed mind' },
+                      { p: 100, label: '100% — fake listing / no-show' },
+                    ].map(({ p, label }) => (
+                      <button
+                        key={p}
+                        type="button"
+                        onClick={() => setSmsRefundPercentage(p)}
+                        className={`rounded-md border px-2 py-1 text-[11px] font-medium ${
+                          smsRefundPercentage === p ? 'border-blue-600 bg-blue-600 text-white' : 'border-blue-200 bg-white text-blue-800'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </span>
+                  <span className="mt-1 block">
+                    Expected refund: <strong>{formatPrice(Math.round((smsAction.houseBooking.listing_price || 0) * (smsRefundPercentage / 100)))}</strong>{' '}
+                    ({smsRefundPercentage}%). The amount in the SMS must match exactly or nothing is changed.
+                  </span>
+                </>
+              )}
+            </div>
+
+            <label className="mb-1 block text-sm font-medium" style={{ color: 'var(--color-gray-700)' }}>
+              M-Pesa confirmation SMS <span className="text-red-500">*</span>
+            </label>
+            <textarea
+              value={smsText}
+              onChange={(e) => setSmsText(e.target.value)}
+              rows={4}
+              placeholder="Paste the full M-Pesa message here…"
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--color-gray-300)', backgroundColor: 'white' }}
+            />
+            <p className="mt-1 text-xs" style={{ color: 'var(--color-gray-500)' }}>
+              The transaction code and amount are read from this message and saved to the audit trail.
+            </p>
+
+            {smsError && <p className="mt-2 text-xs text-red-600">{smsError}</p>}
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setSmsAction(null)}>Cancel</Button>
+              <Button onClick={submitSmsAction} loading={actionLoading === smsAction.houseBooking.id}
+                className="bg-blue-600 hover:bg-blue-700 text-white">
+                {smsAction.action === 'house_verify'
+                  ? 'Verify & open escrow'
+                  : smsAction.action === 'house_release'
+                    ? 'Record payout'
+                    : 'Record refund'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Status Modal */}
+      {statusModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setStatusModal(null)}>
+          <div className="w-full max-w-sm rounded-xl p-6 shadow-xl" onClick={(e) => e.stopPropagation()}
+            style={{ backgroundColor: 'var(--color-gray-50)' }}>
+            <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-gray-900)' }}>Change payment status</h3>
+            <p className="text-sm mb-4" style={{ color: 'var(--color-gray-600)' }}>
+              {statusModal.houseBooking.listing_title || 'Unknown listing'} &middot;{' '}
+              {formatPrice(statusModal.houseBooking.listing_price || 0)}
+            </p>
+
+            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-gray-600)' }}>Booking status</label>
+            <select value={newStatus} onChange={(e) => setNewStatus(e.target.value)}
+              className="mb-3 w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--color-gray-300)', backgroundColor: 'white' }}>
+              {['pending', 'contacted', 'confirmed', 'completed', 'cancelled'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+
+            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--color-gray-600)' }}>Escrow / release status</label>
+            <select value={newReleaseStatus} onChange={(e) => setNewReleaseStatus(e.target.value)}
+              className="w-full rounded-lg border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--color-gray-300)', backgroundColor: 'white' }}>
+              {['pending', 'held', 'refund_requested', 'rejected'].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <p className="mt-2 text-xs" style={{ color: 'var(--color-gray-500)' }}>
+              Setting escrow to <strong>held</strong> requires a stored payment receipt. Use the SMS verify action for
+              new payments. Marking a lister <strong>paid</strong> or recording a <strong>refund</strong> requires the
+              M-Pesa SMS — use the Record Payout / Record Refund actions.
+            </p>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setStatusModal(null)}>Cancel</Button>
+              <Button onClick={submitStatusChange} loading={actionLoading === statusModal.houseBooking.id}
+                className="bg-blue-600 hover:bg-blue-700 text-white">
+                Save status
               </Button>
             </div>
           </div>

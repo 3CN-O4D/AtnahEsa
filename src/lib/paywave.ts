@@ -16,15 +16,15 @@ export const StkPushRequest = z.object({
 })
 
 export const StkPushResponse = z.object({
-  ResponseCode: z.string(),
-  success: z.string().optional(),
-  message: z.string().optional(),
-  transaction_request_id: z.string().optional(),
-  MerchantRequestID: z.string().optional(),
-  CheckoutRequestID: z.string().optional(),
-  errorMessage: z.string().optional(),
-  ResultCode: z.string().optional(),
-  error: z.string().optional(),
+  ResponseCode: z.coerce.string(),
+  success: z.coerce.string().optional(),
+  message: z.coerce.string().optional(),
+  transaction_request_id: z.coerce.string().optional(),
+  MerchantRequestID: z.coerce.string().optional(),
+  CheckoutRequestID: z.coerce.string().optional(),
+  errorMessage: z.coerce.string().optional(),
+  ResultCode: z.coerce.string().optional(),
+  error: z.coerce.string().optional(),
 })
 
 export const TransactionStatusRequest = z.object({
@@ -34,16 +34,16 @@ export const TransactionStatusRequest = z.object({
 })
 
 export const TransactionStatusResponse = z.object({
-  ResultCode: z.string(),
-  ResultDesc: z.string(),
+  ResultCode: z.coerce.string(),
+  ResultDesc: z.coerce.string(),
   TransactionStatus: z.enum(['Pending', 'Completed', 'Failed', 'Cancelled']),
-  TransactionReceipt: z.string().optional(),
-  TransactionAmount: z.string().optional(),
-  Msisdn: z.string().optional(),
-  TransactionDate: z.string().optional(),
-  TransactionReference: z.string().optional(),
-  CheckoutRequestID: z.string().optional(),
-  MerchantRequestID: z.string().optional(),
+  TransactionReceipt: z.coerce.string().optional(),
+  TransactionAmount: z.coerce.string().optional(),
+  Msisdn: z.coerce.string().optional(),
+  TransactionDate: z.coerce.string().optional(),
+  TransactionReference: z.coerce.string().optional(),
+  CheckoutRequestID: z.coerce.string().optional(),
+  MerchantRequestID: z.coerce.string().optional(),
 })
 
 export const WebhookPayload = z.object({
@@ -94,7 +94,12 @@ export function extractTransactionCode(message: string): string | null {
 
 export function isValidMpesaMessage(message: string): boolean {
   const upper = message.toUpperCase()
-  return /ASEHANTA\s+INVESTMENTS/i.test(upper) || /Tuma|I&M|I AND M|tinua/i.test(upper)
+  return (
+    /ASEHANTA\s+INVESTMENTS/i.test(upper) ||
+    /4376459/.test(upper) ||
+    /PAYWAVE/i.test(upper) ||
+    /Tuma|I&M|I AND M|tinua/i.test(upper)
+  )
 }
 
 export function extractAmountFromMessage(message: string): number | null {

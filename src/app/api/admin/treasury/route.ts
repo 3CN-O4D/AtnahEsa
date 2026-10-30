@@ -2,15 +2,48 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
-import { extractTransactionCode, extractAmountFromMessage, isValidMpesaMessage } from '@/lib/paywave'
+import { notifyAdmins } from '@/lib/notify'
+import {
+  extractTransactionCode,
+  extractAmountFromMessage,
+  isValidMpesaMessage,
+} from '@/lib/paywave'
+import {
+  confirmHouseBookingPayment,
+  recordListerPayout,
+  PaymentError,
+  type HouseBookingRow,
+  type TransactionRow,
+} from '@/lib/payments'
+import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
 
-export async function GET() {
+const HOUSE_STATUSES = ['pending', 'contacted', 'confirmed', 'completed', 'cancelled'] as const
+const RELEASE_STATUSES = [
+  'pending',
+  'held',
+  'released',
+  'paid',
+  'refunded',
+  'refund_requested',
+  'rejected',
+] as const
+
+async function requireAdmin() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) }
 
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  if (profile?.role !== 'admin') return { error: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
+
+  return { user }
+}
+
+export async function GET() {
+  const auth = await requireAdmin()
+  if (auth.error) return auth.error
+
+  const supabase = await createClient()
 
   const { data: escrows } = await supabase
     .from('escrow_holds')
@@ -29,290 +62,457 @@ export async function GET() {
     .order('created_at', { ascending: false })
     .limit(50)
 
-    const totalHeld = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
+  // Attach the latest payment status so the dashboard can show "under review"
+  // even though house_bookings has no review status column.
+  const bookingIds = (houseBookings || []).map((b) => b.id)
+  const { data: linkedTransactions } = bookingIds.length
+    ? await supabase
+        .from('transactions')
+        .select('*')
+        .filter('raw_callback->>house_booking_id', 'in', `(${bookingIds.join(',')})`)
+        .order('created_at', { ascending: false })
+    : { data: [] as TransactionRow[] }
+
+  const latestTx = new Map<string, TransactionRow>()
+  for (const tx of (linkedTransactions || []) as TransactionRow[]) {
+    const linked = tx.raw_callback?.house_booking_id
+    if (typeof linked === 'string' && !latestTx.has(linked)) latestTx.set(linked, tx)
+  }
+
+  const enrichedHouseBookings = (houseBookings || []).map((b) => {
+    const tx = latestTx.get(b.id)
+    return {
+      ...b,
+      payment_status: tx?.status || null,
+      transaction_id: tx?.id || null,
+      transaction_receipt: tx?.mpesa_receipt || b.mpesa_receipt || null,
+    }
+  })
+
+  const totalHeld = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
   const totalReleased = (escrows || []).filter((e) => e.status === 'released').reduce((s, e) => s + (e.amount || 0), 0)
   const totalRefunded = (escrows || []).filter((e) => e.status === 'refunded').reduce((s, e) => s + (e.amount || 0), 0)
-  const platformRevenue = (escrows || [])
-    .filter((e) => e.status === 'released')
-    .reduce((s, e) => s + Math.round((e.amount || 0) * 0.5), 0)
+  const platformRevenue =
+    (escrows || [])
+      .filter((e) => e.status === 'released')
+      .reduce((s, e) => s + Math.round((e.amount || 0) * 0.5), 0) +
+    enrichedHouseBookings
+      .filter((h) => h.release_status === 'paid')
+      .reduce((s, h) => s + Math.round((h.listing_price || 0) * (1 - OWNER_SHARE)), 0)
 
-  const heldHouse = (houseBookings || []).filter((h) => h.release_status === 'held')
+  const heldHouse = enrichedHouseBookings.filter((h) => h.release_status === 'held')
   const pendingPayoutsAmount = heldHouse.reduce((s, h) => s + (h.listing_price || 0), 0)
+  const underReview = enrichedHouseBookings.filter(
+    (h) => h.payment_status === 'verifying' && h.release_status === 'pending'
+  )
 
   return NextResponse.json({
     stats: {
-      total_escrows: (escrows?.length || 0) + (houseBookings?.length || 0),
+      total_escrows: (escrows?.length || 0) + enrichedHouseBookings.length,
       held: (escrows || []).filter((e) => e.status === 'held').length + heldHouse.length,
       released: (escrows || []).filter((e) => e.status === 'released').length,
-      refunded: (escrows || []).filter((e) => e.status === 'refunded').length + (houseBookings || []).filter((h) => h.release_status === 'refunded').length,
+      refunded:
+        (escrows || []).filter((e) => e.status === 'refunded').length +
+        enrichedHouseBookings.filter((h) => h.release_status === 'refunded').length,
       total_held_amount: totalHeld + pendingPayoutsAmount,
       total_released_amount: totalReleased,
       total_refunded_amount: totalRefunded,
       platform_revenue: platformRevenue,
       pending_payouts: heldHouse.length,
       pending_payouts_amount: pendingPayoutsAmount,
+      under_review: underReview.length,
     },
     escrows: escrows || [],
-    house_bookings: houseBookings || [],
+    house_bookings: enrichedHouseBookings,
     transactions: recentTransactions || [],
   })
 }
 
 export async function POST(request: Request) {
-  const supabase = await createClient()
-  const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  const auth = await requireAdmin()
+  if (auth.error) return auth.error
+  const user = auth.user!
 
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
-  if (profile?.role !== 'admin') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  const body = await request.json().catch(() => ({}))
+  const {
+    action,
+    escrow_id,
+    house_booking_id,
+    mpesa_message,
+  } = body as Record<string, unknown>
 
-  const body = await request.json()
-  const { action, escrow_id, house_booking_id, mpesa_message } = body
-
-  if (!action) {
+  if (typeof action !== 'string' || !action) {
     return NextResponse.json({ error: 'action required' }, { status: 400 })
   }
 
-  if (action === 'house_release' || action === 'house_refund' || action === 'house_verify') {
-    if (!house_booking_id) return NextResponse.json({ error: 'house_booking_id required' }, { status: 400 })
+  const admin = createAdminClient()
 
-    const { data: hb } = await supabase.from('house_bookings').select('*').eq('id', house_booking_id).single()
-    if (!hb) return NextResponse.json({ error: 'House booking not found' }, { status: 404 })
-    if (hb.release_status === 'paid' || hb.release_status === 'refunded') {
-      return NextResponse.json({ error: 'House booking is already processed' }, { status: 400 })
-    }
+  try {
+    if (action === 'house_verify' || action === 'house_release' || action === 'house_refund' || action === 'house_status') {
+      if (typeof house_booking_id !== 'string' || !house_booking_id) {
+        return NextResponse.json({ error: 'house_booking_id required' }, { status: 400 })
+      }
 
-    if (action === 'house_verify') {
-      const method = (body.payment_method as string) || hb.payment_method || 'tuma'
+      const { data: hbData } = await admin.from('house_bookings').select('*').eq('id', house_booking_id).maybeSingle()
+      if (!hbData) return NextResponse.json({ error: 'House booking not found' }, { status: 404 })
+      const hb = hbData as HouseBookingRow
+
+      // ---- Verify a payment: SMS is the source of truth ----
+      if (action === 'house_verify') {
+        if (typeof mpesa_message !== 'string' || !mpesa_message.trim()) {
+          return NextResponse.json(
+            { error: 'Paste the M-Pesa confirmation SMS before verifying. It is required as proof of payment.' },
+            { status: 400 }
+          )
+        }
+        if (!isValidMpesaMessage(mpesa_message)) {
+          return NextResponse.json(
+            { error: 'That message is not an AseHanta M-Pesa confirmation. Nothing was changed.' },
+            { status: 400 }
+          )
+        }
+
+        const receipt = extractTransactionCode(mpesa_message)
+        const amount = extractAmountFromMessage(mpesa_message)
+        if (!receipt) {
+          return NextResponse.json({ error: 'No M-Pesa transaction code found in that SMS' }, { status: 400 })
+        }
+        if (!amount) {
+          return NextResponse.json({ error: 'No amount found in that SMS' }, { status: 400 })
+        }
+
+        const result = await confirmHouseBookingPayment(admin, {
+          bookingId: hb.id,
+          amount,
+          receiptNumber: receipt,
+          paymentMethod: (body.payment_method as string) || hb.payment_method || 'paywave',
+          phone: hb.phone,
+          source: 'admin',
+          raw: { admin_id: user.id, admin_verified: true, mpesa_message },
+        })
+
+        // Store the full SMS for the audit trail.
+        await admin.from('house_bookings').update({ mpesa_message }).eq('id', hb.id)
+
+        return NextResponse.json({
+          success: true,
+          message: result.alreadyProcessed
+            ? 'This payment was already confirmed.'
+            : `Payment verified. KES ${amount.toLocaleString()} is now in escrow for ${VIEW_WINDOW_HOURS}h.`,
+          extracted_receipt: receipt,
+          extracted_amount: amount,
+        })
+      }
+
+      // ---- Record a payout to the lister: SMS is mandatory ----
+      if (action === 'house_release') {
+        if (typeof mpesa_message !== 'string' || !mpesa_message.trim()) {
+          return NextResponse.json(
+            { error: 'Paste the M-Pesa payout SMS. It is required before marking the lister paid.' },
+            { status: 400 }
+          )
+        }
+
+        const percentage =
+          typeof body.percentage === 'number' && body.percentage > 0 && body.percentage <= 100
+            ? body.percentage / 100
+            : undefined
+
+        const result = await recordListerPayout(admin, {
+          bookingId: hb.id,
+          mpesaMessage: mpesa_message,
+          adminId: user.id,
+          percentage,
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: `Lister paid. KES ${result.payoutAmount.toLocaleString()} recorded with receipt ${result.receipt}.`,
+          payout_amount: result.payoutAmount,
+          receipt: result.receipt,
+        })
+      }
+
+      // ---- Refund the hunter: SMS is mandatory ----
+      if (action === 'house_refund') {
+        if (hb.release_status === 'refunded') {
+          return NextResponse.json({ error: 'This booking is already refunded' }, { status: 400 })
+        }
+        if (typeof mpesa_message !== 'string' || !mpesa_message.trim()) {
+          return NextResponse.json(
+            { error: 'Paste the M-Pesa refund SMS. It is required as proof that the hunter was refunded.' },
+            { status: 400 }
+          )
+        }
+
+        const percentage =
+          typeof body.percentage === 'number' && body.percentage > 0 && body.percentage <= 100
+            ? body.percentage
+            : 85
+        const refundAmount = Math.round(Number(hb.listing_price) * (percentage / 100))
+
+        const receipt = extractTransactionCode(mpesa_message)
+        const amount = extractAmountFromMessage(mpesa_message)
+        if (!receipt) {
+          return NextResponse.json({ error: 'No M-Pesa transaction code found in that SMS' }, { status: 400 })
+        }
+        if (!amount) {
+          return NextResponse.json({ error: 'No amount found in that SMS' }, { status: 400 })
+        }
+        if (amount !== refundAmount) {
+          return NextResponse.json(
+            {
+              error: `The SMS shows KES ${amount.toLocaleString()} but this ${percentage}% refund should be exactly KES ${refundAmount.toLocaleString()}. Nothing was changed.`,
+            },
+            { status: 409 }
+          )
+        }
+
+        const now = new Date().toISOString()
+        const { error: refundError } = await admin
+          .from('house_bookings')
+          .update({
+            release_status: 'refunded',
+            refunded_at: now,
+            mpesa_message,
+          })
+          .eq('id', hb.id)
+        if (refundError) return NextResponse.json({ error: refundError.message }, { status: 500 })
+
+        await admin.from('transactions').insert({
+          booking_id: null,
+          user_id: hb.user_id,
+          listing_id: hb.listing_id,
+          phone: hb.phone || '',
+          amount: refundAmount,
+          mpesa_receipt: receipt,
+          mpesa_message: `Refund to hunter (${percentage}%): ${mpesa_message}`,
+          checkout_request_id: '',
+          originator_conversation_id: '',
+          merchant_request_id: '',
+          status: 'success',
+          result_code: 0,
+          result_desc: 'Refund completed',
+          payment_method: 'refund',
+          raw_callback: {
+            house_booking_id: hb.id,
+            refund: true,
+            refund_percentage: percentage,
+            refund_amount: refundAmount,
+            admin_id: user.id,
+            recorded_at: now,
+          },
+        })
+
+        if (hb.user_id) {
+          await createNotification({
+            userId: hb.user_id,
+            category: 'transaction',
+            title: `${percentage}% refund processed`,
+            body: `KES ${refundAmount.toLocaleString()} was refunded for ${hb.listing_title || 'your house'}. Receipt ${receipt}.`,
+            link: '/my-bookings?tab=payments',
+            data: { house_booking_id: hb.id, amount: refundAmount },
+          })
+        }
+
+        await notifyAdmins('Hunter Refund Recorded', 'Refund Recorded', {
+          Listing: hb.listing_title || hb.listing_id,
+          Amount: `KES ${refundAmount.toLocaleString()} (${percentage}%)`,
+          Receipt: receipt,
+          Admin: user.email || user.id,
+          Date: now,
+        })
+
+        return NextResponse.json({
+          success: true,
+          message: `${percentage}% refund of KES ${refundAmount.toLocaleString()} recorded.`,
+          refund_amount: refundAmount,
+          receipt,
+        })
+      }
+
+      // ---- Explicit status override (keeps escrow + dashboards in sync) ----
+      const nextStatus = typeof body.status === 'string' ? body.status : undefined
+      const nextReleaseStatus = typeof body.release_status === 'string' ? body.release_status : undefined
+
+      if (!nextStatus && !nextReleaseStatus) {
+        return NextResponse.json({ error: 'Provide status or release_status' }, { status: 400 })
+      }
+      if (nextStatus && !HOUSE_STATUSES.includes(nextStatus as (typeof HOUSE_STATUSES)[number])) {
+        return NextResponse.json({ error: `Invalid status '${nextStatus}'` }, { status: 400 })
+      }
+      if (
+        nextReleaseStatus &&
+        !RELEASE_STATUSES.includes(nextReleaseStatus as (typeof RELEASE_STATUSES)[number])
+      ) {
+        return NextResponse.json({ error: `Invalid release_status '${nextReleaseStatus}'` }, { status: 400 })
+      }
+      if (nextReleaseStatus === 'paid' || nextReleaseStatus === 'refunded') {
+        return NextResponse.json(
+          {
+            error:
+              nextReleaseStatus === 'paid'
+                ? 'Use Record Payout with the M-Pesa payout SMS. A lister can only be marked paid with proof.'
+                : 'Use Record Refund with the M-Pesa refund SMS. A refund can only be recorded with proof.',
+          },
+          { status: 400 }
+        )
+      }
+
       const now = new Date().toISOString()
-      const heldUntil = new Date(Date.now() + 24 * 3600 * 1000).toISOString()
+      const update: Record<string, unknown> = {}
 
-      // Extract M-Pesa details from pasted message if provided
-      let extractedReceipt = ''
-      let extractedAmount = hb.listing_price || 0
-      let mpesaValid = false
+      if (nextStatus) update.status = nextStatus
+      if (nextReleaseStatus) update.release_status = nextReleaseStatus
 
-      if (mpesa_message) {
-        mpesaValid = isValidMpesaMessage(mpesa_message)
-        const code = extractTransactionCode(mpesa_message)
-        const amt = extractAmountFromMessage(mpesa_message)
-        if (code) extractedReceipt = code
-        if (amt) extractedAmount = amt
+      if (nextReleaseStatus === 'held') {
+        update.status = 'confirmed'
+        update.confirmed_at = hb.confirmed_at || now
+        update.held_until =
+          hb.held_until || new Date(Date.now() + VIEW_WINDOW_HOURS * 3600 * 1000).toISOString()
+        if (!hb.mpesa_receipt) {
+          return NextResponse.json(
+            { error: 'Cannot open escrow without a payment receipt. Use Verify with an SMS instead.' },
+            { status: 400 }
+          )
+        }
+      }
+      if (nextReleaseStatus === 'paid') {
+        update.paid_at = hb.paid_at || now
+      }
+      if (nextReleaseStatus === 'refunded') {
+        update.refunded_at = hb.refunded_at || now
       }
 
-      let userId: string | null = hb.user_id || null
-      if (!userId && hb.phone) {
-        const digits = hb.phone.replace(/[^0-9]/g, '').slice(-9)
-        const { data: profiles } = await supabase.from('profiles').select('id, phone')
-        const match = (profiles || []).find((p) => p.phone && p.phone.replace(/[^0-9]/g, '').slice(-9) === digits)
-        if (match) userId = match.id
+      const { error: updateError } = await admin.from('house_bookings').update(update).eq('id', hb.id)
+      if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+
+      if (nextStatus === 'confirmed' && hb.status !== 'confirmed') {
+        const { error: listingError } = await admin
+          .from('listings')
+          .update({ status: 'booked' })
+          .eq('id', hb.listing_id)
+        if (listingError) console.error('Failed to mark listing booked:', listingError)
       }
 
-      const { error: e1 } = await supabase
-        .from('house_bookings')
-        .update({
-          status: 'confirmed',
-          release_status: 'held',
-          held_until: heldUntil,
-          payment_method: method,
-          user_id: userId,
-          confirmed_at: hb.confirmed_at ?? null,
-          mpesa_message: mpesa_message || hb.mpesa_message,
-        })
-        .eq('id', house_booking_id)
-      if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
-
-      await supabase.from('transactions').insert({
-        listing_id: hb.listing_id,
-        phone: hb.phone || '',
-        amount: extractedAmount,
-        mpesa_receipt: extractedReceipt,
-        mpesa_message: mpesa_message || 'Payment verified by admin, placed in escrow',
-        checkout_request_id: '',
-        status: mpesaValid ? 'success' : 'verifying',
-        payment_method: method,
-        raw_callback: { house_booking_id, admin_verified: true, mpesa_message, extracted_receipt: extractedReceipt, extracted_amount: extractedAmount },
-      })
-
-      const { data: listing } = await supabase
-        .from('listings')
-        .select('uploader_id, title')
-        .eq('id', hb.listing_id)
-        .maybeSingle()
-
-      const amount = hb.listing_price || 0
-      if (userId) {
+      if (hb.user_id) {
         await createNotification({
-          userId,
+          userId: hb.user_id,
           category: 'transaction',
-          title: `Payment verified — KES ${amount.toLocaleString()} now in escrow`,
-          body: `Your payment for ${hb.listing_title || 'your house'} is confirmed. Contact the lister to arrange the visit.`,
+          title: 'Your payment status changed',
+          body: `Booking ${hb.listing_title || hb.id.slice(0, 8)} is now ${nextStatus || hb.status} / ${nextReleaseStatus || hb.release_status}.`,
           link: '/my-bookings?tab=payments',
-          data: { house_booking_id, amount },
-        })
-      }
-      if (listing?.uploader_id) {
-        await createNotification({
-          userId: listing.uploader_id,
-          category: 'linking',
-          title: `A hunter paid for "${listing.title || 'your house'}"`,
-          body: `Phone ${hb.phone || 'N/A'} · KES ${amount.toLocaleString()}. Verified by admin and placed in 24h escrow — call the hunter to arrange the visit.`,
-          link: '/my-bookings?tab=payments',
-          data: { house_booking_id, hunter_phone: hb.phone, amount },
+          data: { house_booking_id: hb.id },
         })
       }
 
       return NextResponse.json({
         success: true,
-        message: `Payment verified. KES ${(hb.listing_price || 0).toLocaleString()} placed in escrow for 24h.`,
-        extracted_receipt: extractedReceipt,
-        extracted_amount: extractedAmount,
-        mpesa_valid: mpesaValid,
+        message: `Status updated to ${nextStatus || hb.status}${nextReleaseStatus ? ` / ${nextReleaseStatus}` : ''}.`,
       })
     }
 
-    if (hb.release_status !== 'held') {
-      return NextResponse.json({ error: 'House booking is not awaiting payout' }, { status: 400 })
+    // ---- Legacy escrow_holds actions ----
+    if (typeof escrow_id !== 'string' || !escrow_id) {
+      return NextResponse.json(
+        { error: `Invalid action '${action}'. Use house_verify, house_release, house_refund, house_status, release, refund, extend_hold, or reverse_tx.` },
+        { status: 400 }
+      )
     }
 
-    if (action === 'house_release') {
-      const { error } = await supabase
-        .from('house_bookings')
-        .update({ release_status: 'paid', paid_at: new Date().toISOString() })
-        .eq('id', house_booking_id)
+    const { data: escrow } = await admin.from('escrow_holds').select('*').eq('id', escrow_id).single()
+    if (!escrow) return NextResponse.json({ error: 'Escrow not found' }, { status: 404 })
+
+    if (action === 'release') {
+      const { error: e1 } = await admin
+        .from('escrow_holds')
+        .update({ status: 'released', released_at: new Date().toISOString() })
+        .eq('id', escrow_id)
+      if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+
+      const { error: e2 } = await admin.from('bookings').update({ release_status: 'released' }).eq('id', escrow.booking_id)
+      if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+
+      await admin.from('transactions').insert({
+        booking_id: escrow.booking_id,
+        user_id: escrow.user_id,
+        phone: '',
+        amount: escrow.amount,
+        mpesa_receipt: '',
+        mpesa_message: 'Admin released to lister',
+        checkout_request_id: '',
+        status: 'success',
+      })
+
+      return NextResponse.json({ success: true, message: 'Funds released to lister' })
+    }
+
+    if (action === 'refund') {
+      const percentage = typeof body.percentage === 'number' ? body.percentage : 85
+      const refundAmount = Math.round((escrow.amount || 0) * (percentage / 100))
+      const { error: e1 } = await admin
+        .from('escrow_holds')
+        .update({ status: 'refunded', refunded_at: new Date().toISOString() })
+        .eq('id', escrow_id)
+      if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
+
+      const { error: e2 } = await admin
+        .from('bookings')
+        .update({
+          release_status: 'refunded',
+          refund_percentage: percentage,
+          refund_amount: refundAmount,
+          refunded_at: new Date().toISOString(),
+        })
+        .eq('id', escrow.booking_id)
+      if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
+
+      await admin.from('transactions').insert({
+        booking_id: escrow.booking_id,
+        user_id: escrow.user_id,
+        phone: '',
+        amount: refundAmount,
+        mpesa_receipt: '',
+        mpesa_message: `Admin processed ${percentage}% refund`,
+        checkout_request_id: '',
+        status: 'success',
+      })
+
+      return NextResponse.json({ success: true, message: `${percentage}% refund (KES ${refundAmount.toLocaleString()}) processed` })
+    }
+
+    if (action === 'extend_hold') {
+      const days = typeof body.days === 'number' ? body.days : 7
+      const newUntil = new Date(Date.now() + days * 86400000).toISOString()
+      const { error } = await admin.from('escrow_holds').update({ held_until: newUntil }).eq('id', escrow_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-      await supabase.from('transactions').insert({
-        listing_id: hb.listing_id, phone: hb.phone || '', amount: hb.listing_price || 0,
-        mpesa_receipt: '', mpesa_message: 'Payout released to lister (house booking)',
-        checkout_request_id: '', status: 'success', payment_method: hb.payment_method || 'tuma',
-      })
-
-      const { data: listing } = await supabase
-        .from('listings')
-        .select('uploader_id, title')
-        .eq('id', hb.listing_id)
-        .maybeSingle()
-      if (listing?.uploader_id) {
-        await createNotification({
-          userId: listing.uploader_id,
-          category: 'transaction',
-          title: 'Payout released',
-          body: `KES ${(hb.listing_price || 0).toLocaleString()} for "${listing.title || 'your house'}" has been paid to you (50%).`,
-          link: '/my-bookings?tab=payments',
-          data: { house_booking_id, amount: hb.listing_price },
-        })
-      }
-      if (hb.user_id) {
-        await createNotification({
-          userId: hb.user_id,
-          category: 'transaction',
-          title: 'Your escrow was released',
-          body: `Funds for ${hb.listing_title || 'your house'} were released to the lister.`,
-          link: '/my-bookings?tab=payments',
-          data: { house_booking_id },
-        })
-      }
-
-      return NextResponse.json({ success: true, message: 'Payout released to lister' })
+      return NextResponse.json({ success: true, message: `Hold extended by ${days} days` })
     }
 
-    const percentage = body.percentage ?? 85
-    const refundAmount = Math.round((hb.listing_price || 0) * (percentage / 100))
-    const { error } = await supabase
-      .from('house_bookings')
-      .update({ release_status: 'refunded', refunded_at: new Date().toISOString() })
-      .eq('id', house_booking_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-
-    await supabase.from('transactions').insert({
-      listing_id: hb.listing_id, phone: hb.phone || '', amount: refundAmount,
-      mpesa_receipt: '', mpesa_message: `Admin processed ${percentage}% refund (house booking)`,
-      checkout_request_id: '', status: 'success', payment_method: hb.payment_method || 'tuma',
-    })
-
-    if (hb.user_id) {
-      await createNotification({
-        userId: hb.user_id,
-        category: 'transaction',
-        title: `${percentage}% refund processed`,
-        body: `KES ${refundAmount.toLocaleString()} refunded for ${hb.listing_title || 'your house'}.`,
-        link: '/my-bookings?tab=payments',
-        data: { house_booking_id, amount: refundAmount },
+    if (action === 'reverse_tx') {
+      const txId = typeof body.transaction_id === 'string' ? body.transaction_id : ''
+      if (!txId) return NextResponse.json({ error: 'transaction_id required' }, { status: 400 })
+      const { data: tx } = await admin.from('transactions').select('*').eq('id', txId).single()
+      if (!tx) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
+      await admin.from('transactions').insert({
+        booking_id: tx.booking_id,
+        user_id: tx.user_id,
+        phone: tx.phone,
+        amount: -tx.amount,
+        mpesa_receipt: '',
+        mpesa_message: `Admin reversal of ${tx.mpesa_receipt || tx.id.slice(0, 8)}`,
+        checkout_request_id: '',
+        status: 'success',
       })
+      return NextResponse.json({ success: true, message: `Reversal logged for KES ${tx.amount.toLocaleString()}` })
     }
 
-    return NextResponse.json({ success: true, message: `${percentage}% refund (KES ${refundAmount.toLocaleString()}) processed` })
+    return NextResponse.json({ error: `Invalid action '${action}'` }, { status: 400 })
+  } catch (err) {
+    if (err instanceof PaymentError) {
+      return NextResponse.json({ error: err.message, code: err.code, ...(err.details || {}) }, { status: err.status })
+    }
+    console.error('admin/treasury error:', err)
+    return NextResponse.json({ error: 'Treasury action failed' }, { status: 500 })
   }
-
-  if (!escrow_id) {
-    return NextResponse.json({ error: 'escrow_id required' }, { status: 400 })
-  }
-
-  const { data: escrow } = await supabase.from('escrow_holds').select('*').eq('id', escrow_id).single()
-  if (!escrow) return NextResponse.json({ error: 'Escrow not found' }, { status: 404 })
-
-  if (action === 'release') {
-    const { error: e1 } = await supabase.from('escrow_holds').update({ status: 'released', released_at: new Date().toISOString() }).eq('id', escrow_id)
-    if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
-
-    const { error: e2 } = await supabase.from('bookings').update({ release_status: 'released' }).eq('id', escrow.booking_id)
-    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
-
-    await supabase.from('transactions').insert({
-      booking_id: escrow.booking_id, user_id: escrow.user_id, phone: '',
-      amount: escrow.amount, mpesa_receipt: '', mpesa_message: 'Admin released to lister',
-      checkout_request_id: '', status: 'success',
-    })
-
-    return NextResponse.json({ success: true, message: 'Funds released to lister' })
-  }
-
-  if (action === 'refund') {
-    const percentage = body.percentage ?? 85
-    const refundAmount = Math.round((escrow.amount || 0) * (percentage / 100))
-    const { error: e1 } = await supabase.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrow_id)
-    if (e1) return NextResponse.json({ error: e1.message }, { status: 500 })
-
-    const { error: e2 } = await supabase.from('bookings').update({
-      release_status: 'refunded', refund_percentage: percentage, refund_amount: refundAmount, refunded_at: new Date().toISOString(),
-    }).eq('id', escrow.booking_id)
-    if (e2) return NextResponse.json({ error: e2.message }, { status: 500 })
-
-    await supabase.from('transactions').insert({
-      booking_id: escrow.booking_id, user_id: escrow.user_id, phone: '',
-      amount: refundAmount, mpesa_receipt: '', mpesa_message: `Admin processed ${percentage}% refund`,
-      checkout_request_id: '', status: 'success',
-    })
-
-    return NextResponse.json({ success: true, message: `${percentage}% refund (KES ${refundAmount.toLocaleString()}) processed` })
-  }
-
-  if (action === 'extend_hold') {
-    const days = body.days ?? 7
-    const newUntil = new Date(Date.now() + days * 86400000).toISOString()
-    const { error } = await supabase.from('escrow_holds').update({ held_until: newUntil }).eq('id', escrow_id)
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    await supabase.from('transactions').insert({
-      booking_id: escrow.booking_id, user_id: escrow.user_id, phone: '',
-      amount: 0, mpesa_receipt: '', mpesa_message: `Admin extended hold by ${days} days`,
-      checkout_request_id: '', status: 'success',
-    })
-    return NextResponse.json({ success: true, message: `Hold extended by ${days} days` })
-  }
-
-  if (action === 'reverse_tx') {
-    const txId = body.transaction_id
-    if (!txId) return NextResponse.json({ error: 'transaction_id required' }, { status: 400 })
-    const { data: tx } = await supabase.from('transactions').select('*').eq('id', txId).single()
-    if (!tx) return NextResponse.json({ error: 'Transaction not found' }, { status: 404 })
-    await supabase.from('transactions').insert({
-      booking_id: tx.booking_id, user_id: tx.user_id, phone: tx.phone,
-      amount: -tx.amount, mpesa_receipt: '', mpesa_message: `Admin reversal of ${tx.mpesa_receipt || tx.id.slice(0, 8)}`,
-      checkout_request_id: '', status: 'success',
-    })
-    return NextResponse.json({ success: true, message: `Reversal logged for KES ${tx.amount.toLocaleString()}` })
-  }
-
-  return NextResponse.json({ error: `Invalid action '${action}'. Use release, refund, extend_hold, reverse_tx, house_release, or house_refund.` }, { status: 400 })
 }

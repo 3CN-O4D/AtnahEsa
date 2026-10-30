@@ -1,188 +1,226 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { createNotification } from '@/lib/notifications'
-import { notifyUser, notifyAdmins } from '@/lib/notify'
-import { moveMediaToTaken } from '@/lib/move-media'
 import { parseWebhookPayload } from '@/lib/paywave'
+import { confirmHouseBookingPayment, PaymentError, type HouseBookingRow } from '@/lib/payments'
 import { addSecurityHeaders } from '@/lib/security'
+
+type AnyPayload = Record<string, unknown>
+
+function pickString(source: AnyPayload, keys: string[]): string {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'string' && value.trim()) return value.trim()
+  }
+  return ''
+}
+
+function pickNumber(source: AnyPayload, keys: string[]): number | null {
+  for (const key of keys) {
+    const value = source[key]
+    if (typeof value === 'number' && Number.isFinite(value)) return value
+    if (typeof value === 'string' && value.trim() && !Number.isNaN(Number(value))) return Number(value)
+  }
+  return null
+}
+
+function unwrap(rawBody: string): { payload: AnyPayload; daraja: boolean } | null {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(rawBody)
+  } catch {
+    return null
+  }
+  if (!parsed || typeof parsed !== 'object') return null
+
+  const obj = parsed as AnyPayload
+
+  // Daraja-style callbacks still arrive on the old URL.
+  const stk = (obj.Body as AnyPayload | undefined)?.stkCallback
+  if (stk && typeof stk === 'object') {
+    const callback = stk as AnyPayload
+    const metadata = (callback.CallbackMetadata as AnyPayload | undefined)?.Item
+    const items = Array.isArray(metadata) ? (metadata as Array<{ Name?: string; Key?: string; Value?: unknown }>) : []
+    const item = (name: string) =>
+      items.find((entry) => entry.Name === name || entry.Key === name)?.Value
+
+    return {
+      daraja: true,
+      payload: {
+        ResponseCode: callback.ResultCode,
+        ResponseDescription: callback.ResultDesc,
+        MerchantRequestID: callback.MerchantRequestID,
+        CheckoutRequestID: callback.CheckoutRequestID,
+        TransactionID: callback.OriginatorConversationID,
+        TransactionAmount: item('Amount'),
+        TransactionReceipt: item('MpesaReceiptNumber'),
+        TransactionDate: item('TransactionDate'),
+        Msisdn: item('PhoneNumber'),
+      },
+    }
+  }
+
+  // PayWave flat payload.
+  const validated = parseWebhookPayload(rawBody)
+  if (validated) return { daraja: false, payload: validated as unknown as AnyPayload }
+
+  // Be lenient with field naming differences from the provider.
+  const responseCode = pickNumber(obj, ['ResponseCode', 'responseCode', 'resultCode', 'ResultCode'])
+  const checkout = pickString(obj, ['CheckoutRequestID', 'checkoutRequestId', 'checkout_request_id'])
+  const reference = pickString(obj, ['TransactionReference', 'transactionReference', 'reference', 'account_number'])
+  if (responseCode === null || (!checkout && !reference)) return null
+
+  return { daraja: false, payload: obj }
+}
 
 export async function POST(req: Request) {
   try {
     const rawBody = await req.text()
-    const payload = parseWebhookPayload(rawBody)
+    const parsed = unwrap(rawBody)
 
-    if (!payload) {
+    if (!parsed) {
+      console.error('PayWave webhook: unrecognised payload')
       return addSecurityHeaders(NextResponse.json({ error: 'Invalid webhook payload' }, { status: 400 }))
     }
 
-    const { ResponseCode, ResponseDescription, MerchantRequestID, CheckoutRequestID,
-      TransactionID, TransactionAmount, TransactionReceipt, TransactionDate,
-      TransactionReference, Msisdn } = payload
-
+    const payload = parsed.payload
     const admin = createAdminClient()
 
-    // Idempotency check
-    const { data: existingWebhook } = await admin
+    const responseCode = pickNumber(payload, ['ResponseCode', 'responseCode', 'ResultCode', 'resultCode'])
+    const description = pickString(payload, ['ResponseDescription', 'responseDescription', 'ResultDesc', 'resultDesc'])
+    const merchantRequestId = pickString(payload, ['MerchantRequestID', 'merchantRequestId'])
+    const checkoutRequestId = pickString(payload, ['CheckoutRequestID', 'checkoutRequestId', 'checkout_request_id'])
+    const transactionId = pickString(payload, ['TransactionID', 'transactionId'])
+    const amount = pickNumber(payload, ['TransactionAmount', 'transactionAmount', 'amount'])
+    const receipt = pickString(payload, ['TransactionReceipt', 'transactionReceipt', 'mpesa_receipt', 'MpesaReceiptNumber'])
+    const reference = pickString(payload, ['TransactionReference', 'transactionReference', 'reference'])
+    const msisdn = pickString(payload, ['Msisdn', 'msisdn', 'phone'])
+
+    const success = responseCode === 0 || responseCode === 200
+
+    const eventKey = checkoutRequestId || transactionId || reference
+    if (!eventKey) {
+      return addSecurityHeaders(NextResponse.json({ error: 'Missing transaction identifiers' }, { status: 400 }))
+    }
+
+    // Idempotency: the same callback may be delivered several times.
+    const { data: existingEvent } = await admin
       .from('paywave_webhook_events')
       .select('id')
-      .eq('checkout_request_id', CheckoutRequestID)
+      .eq('checkout_request_id', eventKey)
       .maybeSingle()
 
-    if (existingWebhook) {
+    if (existingEvent) {
       return addSecurityHeaders(NextResponse.json({ success: true, message: 'Already processed' }))
     }
 
-    await admin
-      .from('paywave_webhook_events')
-      .insert({
-        checkout_request_id: CheckoutRequestID,
-        event: ResponseCode === 0 ? 'stkpush.success' : 'stkpush.failed',
-        amount: TransactionAmount,
+    const recordEvent = async (event: string) => {
+      await admin.from('paywave_webhook_events').insert({
+        checkout_request_id: eventKey,
+        event,
+        amount: amount !== null ? String(amount) : null,
         received_at: new Date().toISOString(),
         payload: rawBody,
       })
+    }
 
-    const { data: booking } = await admin
-      .from('house_bookings')
-      .select('*')
-      .eq('id', TransactionReference)
-      .single()
+    // Find the booking. New callbacks carry the booking id as the reference;
+    // older ones only carry the PayWave checkout id stored on the transaction.
+    let booking: HouseBookingRow | null = null
+
+    if (reference) {
+      const { data } = await admin.from('house_bookings').select('*').eq('id', reference).maybeSingle()
+      if (data) booking = data as HouseBookingRow
+    }
+
+    if (!booking && checkoutRequestId) {
+      const { data: tx } = await admin
+        .from('transactions')
+        .select('raw_callback')
+        .eq('checkout_request_id', checkoutRequestId)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      const houseBookingId =
+        tx?.raw_callback && typeof tx.raw_callback === 'object'
+          ? (tx.raw_callback as Record<string, unknown>).house_booking_id
+          : null
+      if (typeof houseBookingId === 'string') {
+        const { data } = await admin.from('house_bookings').select('*').eq('id', houseBookingId).maybeSingle()
+        if (data) booking = data as HouseBookingRow
+      }
+    }
 
     if (!booking) {
-      console.error('Booking not found for reference:', TransactionReference)
-      return addSecurityHeaders(NextResponse.json({ error: 'Booking not found' }, { status: 404 }))
+      console.error('PayWave webhook: booking not found', { reference, checkoutRequestId })
+      // Acknowledge so PayWave does not retry forever; admin can reconcile.
+      return addSecurityHeaders(NextResponse.json({ success: true, message: 'No matching booking' }))
     }
 
-    // Amount verification
-    const webhookAmount = parseInt(String(TransactionAmount || 0))
-    if (isNaN(webhookAmount) || webhookAmount !== booking.listing_price) {
-      console.error(
-        `Amount mismatch for booking ${booking.id}: webhook=${webhookAmount}, booking=${booking.listing_price}`
-      )
+    if (!success) {
+      if (booking.status === 'pending') {
+        await admin.from('house_bookings').update({ status: 'cancelled' }).eq('id', booking.id)
+      }
+      const { error: failTxError } = await admin
+        .from('transactions')
+        .update({
+          status: 'failed',
+          result_code: responseCode,
+          result_desc: description || 'Payment failed',
+          mpesa_message: description || 'Payment failed',
+        })
+        .filter('raw_callback->>house_booking_id', 'eq', booking.id)
+      if (failTxError) console.error('Failed to mark webhook transaction failed:', failTxError)
+      await recordEvent('stkpush.failed')
+      return addSecurityHeaders(NextResponse.json({ success: true, message: 'Recorded failed payment' }))
+    }
+
+    if (amount === null) {
+      console.error('PayWave webhook: successful callback without amount', { eventKey })
+      return addSecurityHeaders(NextResponse.json({ error: 'Missing amount' }, { status: 400 }))
+    }
+
+    if (Math.round(amount) !== Math.round(Number(booking.listing_price))) {
+      console.error('PayWave webhook amount mismatch', {
+        booking: booking.id,
+        expected: booking.listing_price,
+        received: amount,
+      })
       return addSecurityHeaders(
-        NextResponse.json({ error: 'Amount mismatch' }, { status: 400 })
+        NextResponse.json({ error: 'Amount mismatch — payment not applied' }, { status: 400 })
       )
     }
 
-    const { data: escrow } = await admin
-      .from('escrow_holds')
-      .select('*')
-      .eq('booking_id', booking.id)
-      .single()
-
-    if (!escrow) {
-      console.error('Escrow not found for booking:', booking.id)
-      return addSecurityHeaders(NextResponse.json({ error: 'Escrow not found' }, { status: 404 }))
+    if (!receipt) {
+      console.error('PayWave webhook: successful callback without receipt', { eventKey })
+      return addSecurityHeaders(NextResponse.json({ error: 'Missing receipt number' }, { status: 400 }))
     }
 
-    // State check
-    if (booking.status === 'confirmed' || booking.status === 'refunded') {
-      console.log(`Booking ${booking.id} already in status ${booking.status}, skipping`)
-      return addSecurityHeaders(NextResponse.json({ success: true, message: 'Already processed' }))
-    }
+    await confirmHouseBookingPayment(admin, {
+      bookingId: booking.id,
+      amount,
+      receiptNumber: receipt,
+      transactionRequestId: transactionId || checkoutRequestId || null,
+      phone: msisdn || booking.phone,
+      source: parsed.daraja ? 'webhook' : 'paywave',
+      raw: {
+        merchant_request_id: merchantRequestId || null,
+        checkout_request_id: checkoutRequestId || null,
+        paywave_transaction_id: transactionId || null,
+        webhook_response_code: responseCode,
+        webhook_description: description,
+      },
+    })
 
-    if (ResponseCode === 0) {
-      await admin.from('house_bookings').update({
-        status: 'confirmed',
-        mpesa_receipt: TransactionReceipt,
-        release_status: 'held',
-        confirmed_at: TransactionDate || new Date().toISOString(),
-      }).eq('id', booking.id)
-
-      await admin.from('escrow_holds').update({
-        status: 'held',
-        held_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-      }).eq('id', escrow.id)
-
-      await moveMediaToTaken(booking.listing_id)
-
-      // Fetch emails for 3-way notification
-      const { data: profiles } = await admin
-        .from('profiles')
-        .select('id, email, full_name')
-        .in('id', [booking.user_id, booking.listing_id || booking.uploader_id])
-      const emailById: Record<string, { email: string; full_name: string }> = {}
-      for (const p of (profiles ?? [])) {
-        emailById[p.id] = { email: p.email || '', full_name: p.full_name || '' }
-      }
-      const hunterEmail = emailById[booking.user_id]?.email
-      const hunterName = emailById[booking.user_id]?.full_name || 'Hunter'
-      const listerId = booking.listing_id || booking.uploader_id || ''
-      const listerEmail = emailById[listerId]?.email
-      const listerName = emailById[listerId]?.full_name || 'Lister'
-
-      await Promise.all([
-        createNotification({
-          userId: booking.user_id,
-          category: 'transaction',
-          title: 'Payment Confirmed',
-          body: `Payment of KES ${TransactionAmount} confirmed. 24-hour view window started.`,
-          link: '/my-bookings?tab=payments',
-        }),
-        createNotification({
-          userId: booking.uploader_id || booking.listing_id,
-          category: 'transaction',
-          title: 'New Booking Payment',
-          body: `Hunter paid KES ${TransactionAmount}. 24-hour view window started.`,
-          link: '/my-bookings?tab=payments',
-        }),
-      ])
-
-      // --- 3-WAY EMAIL NOTIFICATIONS ON PAYMENT CONFIRMED ---
-      if (hunterEmail) {
-        await notifyUser(hunterEmail, 'Payment Confirmed — Money in Escrow', 'Payment Received', {
-          Listing: booking.listing_id,
-          Amount: `KES ${TransactionAmount ?? 0}`,
-          Hunter: hunterName,
-          Status: 'Payment confirmed, held in 24h escrow',
-          ViewWindow: '24 hours to view the house',
-          Date: new Date().toLocaleString(),
-        })
-      }
-      if (listerEmail) {
-        await notifyUser(listerEmail, 'New Booking Payment Received', 'New Booking', {
-          Listing: booking.listing_id,
-          Amount: `KES ${TransactionAmount ?? 0}`,
-          Hunter: hunterName,
-          Lister: listerName,
-          Status: 'Payment in 24h escrow — contact hunter to arrange visit',
-          Date: new Date().toLocaleString(),
-        })
-      }
-      await notifyAdmins('Payment Confirmed — Booking Created', 'Booking Created', {
-        Listing: booking.listing_id,
-        Amount: `KES ${TransactionAmount ?? 0}`,
-        Hunter: `${hunterName} (${hunterEmail || 'N/A'})`,
-        Lister: `${listerName} (${listerEmail || 'N/A'})`,
-        Status: 'Payment confirmed, held in escrow for 24h',
-        PlatformShare: `KES ${Math.round((TransactionAmount ?? 0) * 0.5).toLocaleString()} (50%)`,
-        ListerShare: `KES ${Math.round((TransactionAmount ?? 0) * 0.5).toLocaleString()} (50%)`,
-        Date: new Date().toLocaleString(),
-      })
-    } else {
-      await admin.from('house_bookings').update({
-        status: 'failed',
-        release_status: 'failed',
-      }).eq('id', booking.id)
-
-      await admin.from('escrow_holds').update({
-        status: 'refunded',
-        action: 'payment_failed',
-      }).eq('id', escrow.id)
-
-      await createNotification({
-        userId: booking.user_id,
-        category: 'transaction',
-        title: 'Payment Failed',
-        body: `Payment of KES ${TransactionAmount} failed. Please try again.`,
-        link: '/my-bookings?tab=payments',
-      })
-    }
+    await recordEvent('stkpush.success')
 
     return addSecurityHeaders(NextResponse.json({ success: true }))
   } catch (err) {
+    if (err instanceof PaymentError) {
+      console.error('PayWave webhook rejected:', err.code, err.message)
+      return addSecurityHeaders(NextResponse.json({ error: err.message }, { status: err.status }))
+    }
     console.error('PayWave webhook error:', err)
-    return addSecurityHeaders(NextResponse.json({ error: err instanceof Error ? err.message : 'Server error' }, { status: 500 }))
+    return addSecurityHeaders(NextResponse.json({ error: 'Server error' }, { status: 500 }))
   }
 }
 

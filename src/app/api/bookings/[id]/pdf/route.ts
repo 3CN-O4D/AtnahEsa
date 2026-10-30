@@ -55,13 +55,26 @@ function buildBookingPdf({
     y += 17
   }
 
-  // ---- Lister contact ----
+  // ---- Lister contact (only once the payment is confirmed) ----
+  const paymentConfirmed =
+    paid ||
+    booking.status === 'confirmed' ||
+    booking.release_status === 'released' ||
+    booking.release_status === 'refund_requested'
   const listerName = listing.uploader_name || 'AseHanta lister'
-  const listerPhone = listing.lister_phone || '-'
+  const listerPhone = paymentConfirmed ? listing.lister_phone || '-' : null
   y += 10
   doc.font('Helvetica-Bold').fontSize(11).fillColor('#1E293B').text('Listed by', 56, y)
   doc.font('Helvetica').fontSize(9).fillColor('#475569').text(listerName, 56, y + 15)
-  doc.font('Helvetica').fontSize(9).fillColor('#475569').text(`Phone: ${listerPhone}`, 56, y + 30)
+  doc
+    .font('Helvetica')
+    .fontSize(9)
+    .fillColor(listerPhone ? '#475569' : '#B45309')
+    .text(
+      listerPhone ? `Phone: ${listerPhone}` : 'Phone: unlocks in My Bookings once your payment is confirmed',
+      56,
+      y + 30
+    )
 
   // ---- Escrow / refund notice ----
   y += 52

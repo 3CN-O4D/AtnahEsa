@@ -1,7 +1,7 @@
 -- Fix listing image URLs to match actual R2 storage paths
--- R2 stores files at double-prefix: asahanta/listings/{uuid}/asehanta/listings/{uuid}/{file}
--- DB currently has single-prefix: asahanta/listings/{uuid}/{file}  (404s!)
--- Convert DB URLs to double-prefix to match R2 storage
+-- Verified: R2 stores at double-prefix (200), DB has single-prefix (404)
+-- Convert: media.asehanta.com/asehanta/listings/{uuid}/{file}
+--   → media.asehanta.com/asehanta/listings/{uuid}/asehanta/listings/{uuid}/{file}
 -- Run in Supabase SQL Editor. Safe to re-run (idempotent).
 
 UPDATE public.listings

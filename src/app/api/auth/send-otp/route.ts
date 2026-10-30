@@ -9,7 +9,7 @@ export async function POST(req: Request) {
   try {
     const { email, type } = await req.json()
 
-    if (!email || !['signup', 'password_reset', 'password_create', 'profile_update', 'email_change', 'delete_account'].includes(type)) {
+    if (!email || !['signup', 'login', 'password_reset', 'password_create', 'profile_update', 'email_change', 'delete_account'].includes(type)) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 

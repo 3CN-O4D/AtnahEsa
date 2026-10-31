@@ -5,6 +5,7 @@ import { moveMediaToTaken, moveMediaBackToListings } from '@/lib/move-media'
 import { releaseToLister, refundHunter } from '@/lib/escrow'
 import { addSecurityHeaders } from '@/lib/security'
 import { createClient } from '@/lib/supabase/server'
+import { invalidateCached } from '@/lib/server-cache'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -25,8 +26,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   // Handle status transitions with media management
   if (status && status !== existing.status) {
-    // Taken -> Published (reversal within 48h)
-    if (existing.status === 'taken' && status === 'published') {
+    // Booked/Taken -> Published (admin puts the house back on the market)
+    if ((existing.status === 'taken' || existing.status === 'booked') && status === 'published') {
       try {
         await moveMediaBackToListings(id)
       } catch (err) {
@@ -40,8 +41,20 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  const { error } = await admin.from('listings').update({ ...updates, status: status || existing.status }).eq('id', id)
+  const statusDefaults =
+    status === 'published'
+      ? { taken_at: null, taken_by_name: '' }
+      : status === 'taken'
+        ? { taken_at: updates.taken_at || new Date().toISOString() }
+        : {}
+
+  const { error } = await admin
+    .from('listings')
+    .update({ ...statusDefaults, ...updates, status: status || existing.status })
+    .eq('id', id)
   if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
+
+  invalidateCached('listings|')
 
   const { data: updated } = await admin.from('listings').select('*').eq('id', id).single()
   return addSecurityHeaders(NextResponse.json(updated))

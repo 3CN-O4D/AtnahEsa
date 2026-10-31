@@ -17,6 +17,7 @@ import {
   Shield,
   MessageSquareWarning,
   ReceiptText,
+  ClipboardCheck,
   ExternalLink,
   ChevronRight,
 } from 'lucide-react'
@@ -39,6 +40,7 @@ const navGroups = [
     label: 'Operations',
     links: [
       { href: '/admin/treasury', label: 'Treasury', icon: Banknote },
+      { href: '/admin/booking-reviews', label: 'Booking reviews', icon: ClipboardCheck },
       { href: '/admin/services', label: 'Services', icon: Wrench },
       { href: '/admin/upload', label: 'List House', icon: Upload },
     ],

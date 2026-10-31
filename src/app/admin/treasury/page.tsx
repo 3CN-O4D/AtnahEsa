@@ -5,6 +5,7 @@ import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
 import { OWNER_SHARE } from '@/lib/constants'
+import { parseBookingFeedback, refundPercentForFeedback } from '@/lib/booking-feedback'
 import type { EscrowHold, Transaction, Booking, HouseBooking } from '@/types'
 
 type EscrowWithDetails = EscrowHold & {
@@ -71,16 +72,28 @@ export default function TreasuryPage() {
     }
   }
 
+  const openSmsForBooking = (
+    booking: HouseBookingWithPayment,
+    action: 'house_verify' | 'house_release' | 'house_refund',
+    label: string,
+    refundPercentage = 85
+  ) => {
+    setSmsError('')
+    // Prefill the hunter's submitted SMS when verifying a claim so the admin
+    // only has to review it. Payout/refund proof is always typed fresh.
+    setSmsText(action === 'house_verify' ? (booking.mpesa_message || '') : '')
+    if (action === 'house_refund') setSmsRefundPercentage(refundPercentage)
+    setSmsAction({ houseBooking: booking, action, label })
+    return true
+  }
+
   /**
    * Opens the payout SMS modal for a booking. Used by the "Pay lister" button
    * and by the deep link in the admin payout-panel email (?booking=<id>).
    */
   const openPayoutForBooking = (booking: HouseBookingWithPayment) => {
     if (booking.release_status === 'paid' || booking.release_status === 'refunded') return false
-    setSmsError('')
-    setSmsText('')
-    setSmsAction({ houseBooking: booking, action: 'house_release', label: 'Mark paid to lister' })
-    return true
+    return openSmsForBooking(booking, 'house_release', 'Mark paid to lister')
   }
 
   const loadData = async () => {
@@ -101,10 +114,35 @@ export default function TreasuryPage() {
 
       // Deep link from the admin payout-panel email: open the SMS modal for
       // this booking straight away so paying the lister is one paste away.
-      const deepLinkId = new URLSearchParams(window.location.search).get('booking')
+      const search = new URLSearchParams(window.location.search)
+      const deepLinkId = search.get('booking')
       if (deepLinkId) {
         const linked = bookingRows.find((b) => b.id === deepLinkId)
         if (linked) openPayoutForBooking(linked)
+      }
+
+      // Deep link from Admin → Booking reviews: open the refund SMS modal with
+      // the percentage the review queue calculated.
+      const refundLinkId = search.get('refund')
+      if (refundLinkId) {
+        const linked = bookingRows.find((b) => b.id === refundLinkId)
+        if (linked) {
+          const percent = Number(search.get('percent'))
+          openSmsForBooking(
+            linked,
+            'house_refund',
+            'Refund hunter',
+            Number.isFinite(percent) && percent > 0 && percent <= 100 ? percent : 85
+          )
+        }
+      }
+
+      // Deep link from a payment claim: open the verification modal with the
+      // hunter's submitted M-Pesa SMS already filled in.
+      const verifyLinkId = search.get('verify')
+      if (verifyLinkId) {
+        const linked = bookingRows.find((b) => b.id === verifyLinkId)
+        if (linked) openSmsForBooking(linked, 'house_verify', 'Verify payment & set escrow')
       }
 
       // Balance is optional; never let it block the ledger.
@@ -149,13 +187,10 @@ export default function TreasuryPage() {
   const handleAction = (escrowId: string, action: string, label: string) =>
     setConfirmAction({ escrow: escrows.find((e) => e.id === escrowId)!, action, label })
 
-  const handleHouseAction = (hbId: string, action: 'house_verify' | 'house_release' | 'house_refund', label: string) => {
+  const handleHouseAction = (hbId: string, action: 'house_verify' | 'house_release' | 'house_refund', label: string, refundPercentage = 85) => {
     const houseBooking = houseBookings.find((h) => h.id === hbId)
     if (!houseBooking) return
-    setSmsError('')
-    setSmsText('')
-    if (action === 'house_refund') setSmsRefundPercentage(85)
-    setSmsAction({ houseBooking, action, label })
+    openSmsForBooking(houseBooking, action, label, refundPercentage)
   }
 
   const submitSmsAction = async () => {
@@ -297,7 +332,16 @@ export default function TreasuryPage() {
   }
 
   const filteredEscrows = escrowFilter === 'all' ? escrows : escrows.filter((e) => e.status === escrowFilter)
-  const filteredPayouts = payoutFilter === 'all' ? houseBookings : houseBookings.filter((h) => h.release_status === payoutFilter)
+  const refundReviewRow = (h: HouseBookingWithPayment) => {
+    const feedback = parseBookingFeedback(h.displeased_reason)
+    return h.release_status === 'held' && !!h.confirmed_at && feedback?.outcome === 'issue' && feedback.decision !== 'refund_declined'
+  }
+  const filteredPayouts =
+    payoutFilter === 'all'
+      ? houseBookings
+      : payoutFilter === 'refund_review'
+        ? houseBookings.filter(refundReviewRow)
+        : houseBookings.filter((h) => h.release_status === payoutFilter)
   const filteredTxs = transactions.filter((tx) =>
     !txSearch || tx.mpesa_receipt?.toLowerCase().includes(txSearch.toLowerCase()) ||
     tx.mpesa_message?.toLowerCase().includes(txSearch.toLowerCase()) ||
@@ -419,7 +463,7 @@ export default function TreasuryPage() {
             )}
           </h2>
           <div className="flex gap-1">
-            {['pending', 'held', 'paid', 'refunded', 'all'].map((f) => (
+            {['pending', 'held', 'refund_review', 'paid', 'refunded', 'all'].map((f) => (
               <button key={f} onClick={() => setPayoutFilter(f)}
                 className={`px-3 py-1 rounded-lg text-xs font-medium transition-colors ${
                   payoutFilter === f
@@ -427,7 +471,7 @@ export default function TreasuryPage() {
                     : 'border text-gray-600 hover:bg-gray-100'
                 }`}
                 style={payoutFilter !== f ? { borderColor: 'var(--color-gray-300)', color: 'var(--color-gray-600)' } : {}}>
-                {f.charAt(0).toUpperCase() + f.slice(1)}
+                {f === 'refund_review' ? 'Refund review' : f.charAt(0).toUpperCase() + f.slice(1)}
               </button>
             ))}
           </div>
@@ -438,6 +482,8 @@ export default function TreasuryPage() {
           <div className="divide-y" style={{ borderColor: 'var(--color-gray-200)' }}>
             {filteredPayouts.map((hb) => {
               const isHeld = hb.release_status === 'held'
+              const isRefundReview = refundReviewRow(hb)
+              const refundPercent = refundPercentForFeedback(parseBookingFeedback(hb.displeased_reason)) || 85
               const confirmed = hb.rating != null
               const isOverdue = isHeld && hb.held_until && new Date(hb.held_until) < new Date()
               return (
@@ -447,14 +493,15 @@ export default function TreasuryPage() {
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                         hb.release_status === 'held' ? (isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') :
                         hb.release_status === 'paid' ? 'bg-green-100 text-green-700' :
-                        hb.release_status === 'refunded' ? 'bg-amber-100 text-amber-700' : 'bg-gray-100 text-gray-600'
+                        hb.release_status === 'refunded' ? 'bg-amber-100 text-amber-700' :
+                        isRefundReview ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                       }`}>
                         {isHeld && isOverdue ? <AlertTriangle className="w-3 h-3" /> :
                          isHeld ? <Clock className="w-3 h-3" /> :
                          hb.release_status === 'paid' ? <CheckCircle className="w-3 h-3" /> :
                          hb.release_status === 'refunded' ? <RotateCcw className="w-3 h-3" /> :
                          null}
-                        {hb.release_status}{isOverdue ? ' (overdue)' : ''}
+                        {isRefundReview ? 'refund review' : hb.release_status}{isOverdue ? ' (overdue)' : ''}
                       </span>
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium capitalize">{hb.payment_method || 'payment'}</span>
                       {hb.payment_status === 'verifying' && (
@@ -517,16 +564,16 @@ export default function TreasuryPage() {
                       </Button>
                     )}
                     {isHeld && (
-                      <>
-                        <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === hb.id}
-                          className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1">
-                          <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleHouseAction(hb.id, 'house_refund', 'Refund hunter')} loading={actionLoading === hb.id}
-                          className="text-xs px-2.5 py-1">
-                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund hunter
-                        </Button>
-                      </>
+                      <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === hb.id}
+                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1">
+                        <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
+                      </Button>
+                    )}
+                    {(isHeld || isRefundReview) && (
+                      <Button size="sm" variant="outline" onClick={() => handleHouseAction(hb.id, 'house_refund', 'Refund hunter', refundPercent)} loading={actionLoading === hb.id}
+                        className="text-xs px-2.5 py-1">
+                        <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund hunter
+                      </Button>
                     )}
                     {hb.release_status === 'paid' && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 font-medium">Paid to lister</span>
@@ -887,7 +934,7 @@ export default function TreasuryPage() {
             <select value={newReleaseStatus} onChange={(e) => setNewReleaseStatus(e.target.value)}
               className="w-full rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: 'var(--color-gray-300)', backgroundColor: 'white' }}>
-              {['pending', 'held', 'refund_requested', 'rejected'].map((s) => (
+              {['pending', 'held', 'refunded'].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>

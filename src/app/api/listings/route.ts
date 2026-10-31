@@ -34,7 +34,6 @@ const PUBLIC_COLUMNS = [
   'payment_method',
   'status',
   'taken_at',
-  'taken_by_name',
   'uploader_id',
   'uploader_name',
   'created_at',

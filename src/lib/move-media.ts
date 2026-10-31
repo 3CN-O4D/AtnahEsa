@@ -23,14 +23,9 @@ export async function moveMediaBackToListings(listingId: string): Promise<void> 
 
   if (!listing) throw new Error(`Listing ${listingId} not found`)
 
-  const takenAt = new Date(listing.taken_at).getTime()
-  const hoursSinceTaken = (Date.now() - takenAt) / (1000 * 60 * 60)
-  
-  if (hoursSinceTaken > 48) {
-    throw new Error('48-hour reversal window expired - media already deleted by lifecycle')
-  }
-
-  // Queue the reversal operation
+  // An admin can put a house back at any time. If the lifecycle cron has
+  // already archived the media the queue entry will fail, but the listing
+  // status must still be restored.
   await admin.from('media_move_queue').insert({
     listing_id: listingId,
     operation: 'move_back_to_listings',

@@ -237,14 +237,6 @@ export async function POST(request: Request) {
             })
           }
 
-          if (lookup.available && (lookup.status === 'Failed' || lookup.status === 'Cancelled')) {
-            throw new PaymentError(
-              'PAYMENT_NOT_COMPLETED',
-              `PayWave says this payment was ${lookup.status.toLowerCase()}. It cannot be verified as paid.`,
-              409
-            )
-          }
-
           if (lookup.available && lookup.status === 'Pending') {
             throw new PaymentError(
               'PAYMENT_PENDING',
@@ -253,8 +245,9 @@ export async function POST(request: Request) {
             )
           }
 
-          // PayWave is unreachable or has no record. The admin's SMS proof is
-          // still recorded in the audit trail with an explicit unverified flag.
+          // PayWave is unreachable, has no record, or says the request failed
+          // while M-Pesa charged the hunter. The admin's SMS proof is still
+          // recorded in the audit trail with an explicit unverified flag.
           return confirmHouseBookingPayment(admin, {
             bookingId: hb.id,
             amount,
@@ -473,7 +466,7 @@ export async function POST(request: Request) {
       if (nextStatus === 'confirmed' && hb.status !== 'confirmed') {
         const { error: listingError } = await admin
           .from('listings')
-          .update({ status: 'booked' })
+          .update({ status: 'booked', taken_at: null, taken_by_name: '' })
           .eq('id', hb.listing_id)
         if (listingError) console.error('Failed to mark listing booked:', listingError)
       }

@@ -4,6 +4,7 @@ import { notifyUser, notifyAdmins } from '@/lib/notify'
 import { sendPaymentReceiptEmail } from '@/lib/email'
 import { generateReceiptPdf } from '@/lib/receipt'
 import { moveMediaToTaken } from '@/lib/move-media'
+import { invalidateCached } from '@/lib/server-cache'
 import {
   initiateStkPush,
   verifyTransaction,
@@ -250,8 +251,9 @@ export async function confirmHouseBookingPayment(
   // The house is now taken. Media moves are queued; failures must never undo
   // a confirmed payment.
   try {
-    await admin.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)
+    await admin.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', booking.listing_id)
     await moveMediaToTaken(booking.listing_id)
+    invalidateCached('listings|')
   } catch (err) {
     console.error('Failed to mark listing as booked:', err)
   }
@@ -968,6 +970,9 @@ export async function submitManualPaymentReview(
   // this booking we can escrow immediately — but only when the SMS matches the
   // authoritative receipt, amount, reference and phone.
   const lookup = await lookupPayWavePayment(admin, booking.id)
+  let reviewNote = lookup.available
+    ? 'PayWave still shows this payment as pending, so an admin will review the message.'
+    : lookup.reason
 
   if (lookup.available && lookup.status === 'Completed') {
     const check = checkSmsAgainstPayWave({ lookup, booking, receipt, amount })
@@ -998,19 +1003,14 @@ export async function submitManualPaymentReview(
   }
 
   if (lookup.available && (lookup.status === 'Failed' || lookup.status === 'Cancelled')) {
+    // PayWave may say the request failed even though M-Pesa charged the hunter
+    // (for example a callback was lost). Keep the claim, flag the conflict and
+    // let an admin verify the SMS instead of silently refusing the hunter.
     const check = checkSmsAgainstPayWave({ lookup, booking, receipt, amount })
-    throw new PaymentError(
-      'PAYMENT_NOT_COMPLETED',
-      check.ok
-        ? 'PayWave shows this payment was not completed.'
-        : check.message,
-      409
-    )
+    reviewNote = check.ok
+      ? `PayWave shows this payment as ${lookup.status.toLowerCase()}, but the SMS matches this booking. An admin must verify it manually.`
+      : `PayWave shows this payment as ${lookup.status.toLowerCase()}. ${check.message}`
   }
-
-  const reviewNote = lookup.available
-    ? 'PayWave still shows this payment as pending, so an admin will review the message.'
-    : lookup.reason
 
   const now = new Date().toISOString()
   const tx = await findTransaction(admin, booking.id)
@@ -1061,26 +1061,16 @@ export async function submitManualPaymentReview(
     })
   }
 
-  await Promise.allSettled([
-    createNotification({
-      userId: booking.user_id,
-      category: 'transaction',
-      title: 'Payment submitted for review',
-      body: `We received your M-Pesa message (${receipt}). An admin will confirm it and open escrow shortly.`,
-      link: '/my-bookings?tab=payments',
-      data: { house_booking_id: booking.id },
-    }),
-    notifyAdmins('Manual Payment Submitted for Verification', 'Manual Payment Pending', {
-      Listing: booking.listing_title || booking.listing_id,
-      Amount: `KES ${amount.toLocaleString()}`,
-      Phone: booking.phone || 'N/A',
-      Hunter: booking.name || booking.email || 'N/A',
-      Receipt: receipt,
-      'M-Pesa message': message,
-      'PayWave check': reviewNote,
-      'Action needed': 'Open Admin → Treasury, verify the SMS, then set escrow.',
-    }),
-  ])
+  // In-app notification is instant. The detailed admin email is sent by the
+  // API route after the response, only now that the hunter has pasted the SMS.
+  await createNotification({
+    userId: booking.user_id,
+    category: 'transaction',
+    title: 'Payment submitted for review',
+    body: `We received your M-Pesa message (${receipt}). An admin will confirm it and open escrow shortly.`,
+    link: '/my-bookings?tab=payments',
+    data: { house_booking_id: booking.id },
+  })
 
   return { booking, receipt, amount, autoConfirmed: false, reviewNote }
 }

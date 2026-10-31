@@ -153,7 +153,7 @@ export async function POST(req: Request) {
             mpesa_metadata: body,
           }).eq('id', booking.id)
 
-          await supabase.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)
+          await supabase.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', booking.listing_id)
         }
       } else {
         const { data: listing } = await supabase
@@ -162,7 +162,7 @@ export async function POST(req: Request) {
           .eq('id', existing.listing_id || '')
           .maybeSingle()
         if (listing && listing.status === 'published') {
-          await supabase.from('listings').update({ status: 'booked' }).eq('id', existing.listing_id)
+          await supabase.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', existing.listing_id)
         }
       }
 
@@ -180,17 +180,16 @@ export async function POST(req: Request) {
         }
       )
     } else {
-      notifyAdmins(
-        'Payment Failed',
-        'Tuma Payment Failed',
-        {
-          'Merchant Request ID': merchantRequestId || 'N/A',
-          'Checkout ID': checkoutRequestId || 'N/A',
-          'Result Code': resultCode !== undefined ? String(resultCode) : 'N/A',
-          Description: body.result_desc || body.failure_reason || 'N/A',
-          Timestamp: body.timestamp || 'N/A',
-        }
-      )
+      // A failed prompt is not an incident by itself: many hunters retry, and
+      // some are charged even when the callback reports a failure. Do not email
+      // admins yet. The hunter is asked to paste the M-Pesa SMS on the payment
+      // page, and that claim triggers a detailed admin alert for verification.
+      console.log('Tuma payment failed:', {
+        merchantRequestId,
+        checkoutRequestId,
+        resultCode,
+        description: body.result_desc || body.failure_reason || 'N/A',
+      })
     }
 
     const resp = NextResponse.json({ success: true })

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createAdminClient } from '@/lib/supabase/admin'
+import { SAFE_LISTING_COLUMNS } from '@/lib/listing-detail-cache'
 
 export async function GET(
   _req: Request,
@@ -7,18 +8,19 @@ export async function GET(
 ) {
   try {
     const { id } = await params
-    const supabase = await createClient()
+    // Use the service role so a booked house stays publicly viewable even
+    // though the anon RLS policy only lists published/taken rows. Pending and
+    // rejected listings are never exposed here.
+    const admin = createAdminClient()
 
-    const PUBLIC_COLUMNS =
-      'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,created_at,updated_at'
-
-    const { data, error } = await supabase
+    const { data, error } = await admin
       .from('listings')
-      .select(PUBLIC_COLUMNS)
+      .select(SAFE_LISTING_COLUMNS)
       .eq('id', id)
-      .single()
+      .in('status', ['published', 'booked', 'taken'])
+      .maybeSingle()
 
-    if (error) {
+    if (error || !data) {
       return NextResponse.json({ error: 'Listing not found' }, { status: 404 })
     }
 

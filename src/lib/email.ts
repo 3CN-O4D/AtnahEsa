@@ -279,6 +279,8 @@ export async function sendAdminPayoutPanelEmail(params: {
   listerPhone?: string | null
   payoutAmount: number
   confirmedAt?: string | null
+  rating?: number | null
+  reviewComment?: string | null
 }) {
   const admins = (process.env.ADMIN_EMAILS || 'asehanta@gmail.com')
     .split(',')
@@ -330,10 +332,19 @@ export async function sendAdminPayoutPanelEmail(params: {
         ${row('Amount paid', `${amountText} <span style="color:${BRAND.gray};font-weight:400">(${escape(params.paymentMethod || 'payment')})</span>`)}
         ${row('M-Pesa receipt', escape(params.receipt || '—'))}
         ${row('Booking ref', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escape(params.bookingId.slice(0, 8).toUpperCase())}</span>`)}
+        ${params.rating ? row('Hunter rating', `${params.rating}/5 ${'★'.repeat(Math.max(0, Math.min(5, params.rating)))}`) : ''}
       </table>
     </td></tr>
   </table>
 </td></tr>
+${params.reviewComment ? `<tr><td style="padding:12px 32px 4px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#FFFBEB;border:1px solid #FDE68A;border-radius:10px">
+    <tr><td style="padding:14px 18px">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#B45309;text-transform:uppercase;letter-spacing:.6px">Hunter review</p>
+      <p style="margin:0;font-size:13px;color:#78350F;line-height:1.55">&ldquo;${escape(params.reviewComment)}&rdquo;</p>
+    </td></tr>
+  </table>
+</td></tr>` : ''}
 <tr><td style="padding:12px 32px 4px">
   <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px">
     <tr><td style="padding:16px 20px">

@@ -16,6 +16,7 @@ export default function MyListingsPage() {
   const [listings, setListings] = useState<Listing[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [updating, setUpdating] = useState<string | null>(null)
 
   useEffect(() => {
     const supabase = createClient()
@@ -52,14 +53,61 @@ export default function MyListingsPage() {
     const colors: Record<string, string> = {
       pending: 'bg-amber-100 text-amber-700',
       published: 'bg-green-100 text-green-700',
-      booked: 'bg-blue-100 text-blue-700',
-      taken: 'bg-gray-100 text-gray-600',
+      booked: 'bg-amber-100 text-amber-700',
+      taken: 'bg-red-100 text-red-700',
       rejected: 'bg-red-100 text-red-700',
     }
     return (
       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${colors[status] || 'bg-gray-100 text-gray-600'}`}>
-        {status}
+        {status === 'published' ? 'available' : status}
       </span>
+    )
+  }
+
+  const changeStatus = async (id: string, status: 'published' | 'booked' | 'taken') => {
+    setUpdating(id)
+    try {
+      const res = await fetch(`/api/listings/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data.error || 'Could not change the listing status')
+        return
+      }
+      setListings((prev) => prev.map((l) => (l.id === id ? { ...l, status, taken_at: data.listing?.taken_at ?? null } : l)))
+    } catch {
+      alert('Could not change the listing status')
+    } finally {
+      setUpdating(null)
+    }
+  }
+
+  const statusActions = (listing: Listing) => {
+    if (listing.status === 'pending' || listing.status === 'rejected') return null
+    const options: Array<{ status: 'published' | 'booked' | 'taken'; label: string }> = [
+      { status: 'published', label: 'Available' },
+      { status: 'booked', label: 'Booked' },
+      { status: 'taken', label: 'Taken' },
+    ]
+    return (
+      <div className="flex flex-wrap items-center gap-1.5">
+        {options
+          .filter((option) => option.status !== listing.status)
+          .map((option) => (
+            <Button
+              key={option.status}
+              variant="outline"
+              size="sm"
+              loading={updating === listing.id}
+              onClick={() => void changeStatus(listing.id, option.status)}
+            >
+              Mark {option.label}
+            </Button>
+          ))}
+      </div>
     )
   }
 
@@ -117,7 +165,7 @@ export default function MyListingsPage() {
                       )}
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 mt-3">
+                  <div className="flex flex-wrap items-center gap-2 mt-3">
                     <Link href={`/my-listings/edit/${listing.id}`}>
                       <Button variant="outline" size="sm"><Edit3 className="w-3.5 h-3.5 mr-1" /> Edit</Button>
                     </Link>
@@ -130,6 +178,14 @@ export default function MyListingsPage() {
                       </Link>
                     )}
                   </div>
+                  {(listing.status === 'published' || listing.status === 'booked' || listing.status === 'taken') && (
+                    <div className="mt-2 border-t border-gray-100 pt-2">
+                      <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-gray-500">
+                        Availability
+                      </p>
+                      {statusActions(listing)}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>

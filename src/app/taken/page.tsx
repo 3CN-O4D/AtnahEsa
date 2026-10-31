@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { Home, ArrowLeft } from 'lucide-react'
 import { SkeletonPage } from '@/components/ui/Skeleton'
-import { createClient } from '@/lib/supabase/client'
 import type { Listing } from '@/types'
 
 export default function TakenHousesPage() {
@@ -12,16 +11,15 @@ export default function TakenHousesPage() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const supabase = createClient()
-    supabase
-      .from('listings')
-      .select('id, title, location, taken_by_name, status, created_at')
-      .in('status', ['taken', 'booked'])
-      .order('created_at', { ascending: false })
-      .then(({ data }) => {
-        setListings((data ?? []) as Listing[])
-        setLoading(false)
+    // Booked rows are hidden by anon RLS, so the public list comes from a
+    // service-role endpoint. It never exposes hunter identity.
+    fetch('/api/listings/taken', { cache: 'no-store' })
+      .then((res) => (res.ok ? res.json() : { listings: [] }))
+      .then((data) => {
+        setListings((data.listings ?? []) as Listing[])
       })
+      .catch(() => setListings([]))
+      .finally(() => setLoading(false))
   }, [])
 
   return (
@@ -52,7 +50,7 @@ export default function TakenHousesPage() {
                 <p className="text-sm text-amber-600 font-medium mt-2">Booked — a hunter has paid, visit being arranged.</p>
               ) : (
                 <p className="text-sm text-gray-700 mt-2">
-                  Taken by <span className="font-medium">{listing.taken_by_name || 'Unknown'}</span>
+                  Taken — this house is no longer available.
                 </p>
               )}
             </div>

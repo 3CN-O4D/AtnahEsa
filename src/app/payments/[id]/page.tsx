@@ -627,24 +627,34 @@ function PaymentPageInner() {
             <div className="space-y-4">
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-800 dark:bg-red-900/20">
                 <AlertTriangle className="mx-auto h-9 w-9 text-red-500" />
-                <h2 className="mt-2 font-semibold text-red-900 dark:text-red-100">Payment did not go through</h2>
+                <h2 className="mt-2 font-semibold text-red-900 dark:text-red-100">Payment not confirmed</h2>
                 <p className="mt-1 text-xs text-red-800 dark:text-red-200">
-                  No money was taken. You can start a new request, or paste your M-Pesa SMS if you were charged.
+                  We have not matched a payment to this booking yet. If M-Pesa charged you, paste the confirmation SMS
+                  below — do not start a new booking. An admin will verify it and open escrow.
                 </p>
               </div>
-              <Link
-                href={`/payments/new?listing=${booking.listing_id}&phone=${encodeURIComponent(booking.phone || '')}`}
-                className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
-              >
-                <Smartphone className="h-4 w-4" /> Try again
-              </Link>
               <SmsFallback
                 sms={sms}
                 setSms={setSms}
                 submitting={submittingSms}
                 onSubmit={submitSms}
                 phone={booking.phone || ''}
+                prominent
               />
+              <button
+                onClick={() => checkStatus(false)}
+                disabled={checking}
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-60 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
+              >
+                {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                {checking ? 'Checking with PayWave…' : 'Check payment again'}
+              </button>
+              <Link
+                href="/my-bookings?tab=payments"
+                className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
+              >
+                <Receipt className="h-4 w-4" /> Back to My Bookings
+              </Link>
             </div>
           )}
 
@@ -715,22 +725,33 @@ function SmsFallback({
   submitting,
   onSubmit,
   phone,
+  prominent = false,
 }: {
   sms: string
   setSms: (value: string) => void
   submitting: boolean
   onSubmit: () => void
   phone: string
+  prominent?: boolean
 }) {
   return (
-    <details className="rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm dark:border-gray-700 dark:bg-slate-900/40">
-      <summary className="cursor-pointer text-xs font-semibold text-gray-700 dark:text-gray-200">
-        Payment not showing? Paste your M-Pesa SMS
-      </summary>
-      <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-        If {phone || 'your phone'} was charged but this page still shows pending, paste the confirmation SMS from
+    <div
+      id="sms"
+      className={`scroll-mt-6 rounded-xl border p-3 text-sm ${
+        prominent
+          ? 'border-amber-300 bg-amber-50 ring-1 ring-amber-200 dark:border-amber-700 dark:bg-amber-900/20 dark:ring-amber-800'
+          : 'border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-slate-900/40'
+      }`}
+    >
+      <p className={`flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide ${
+        prominent ? 'text-amber-800 dark:text-amber-200' : 'text-gray-700 dark:text-gray-200'
+      }`}>
+        <Receipt className="h-3.5 w-3.5" /> Already paid? Submit your M-Pesa SMS
+      </p>
+      <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-300">
+        If {phone || 'your phone'} was charged but this page does not confirm it, paste the confirmation SMS from
         M-Pesa. We check it against PayWave instantly — if it matches, escrow opens right away; otherwise an admin
-        verifies it.
+        verifies it. Do not pay again or start a new booking.
       </p>
       <textarea
         value={sms}
@@ -742,12 +763,14 @@ function SmsFallback({
       <button
         onClick={onSubmit}
         disabled={submitting || sms.trim().length < 20}
-        className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg bg-gray-900 px-3 py-2 text-xs font-semibold text-white hover:bg-black disabled:opacity-50 dark:bg-white dark:text-gray-900"
+        className={`mt-2 flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-xs font-semibold text-white disabled:opacity-50 ${
+          prominent ? 'bg-amber-600 hover:bg-amber-700' : 'bg-gray-900 hover:bg-black dark:bg-white dark:text-gray-900'
+        }`}
       >
         {submitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Receipt className="h-3.5 w-3.5" />}
         {submitting ? 'Submitting…' : 'Verify my payment'}
       </button>
-    </details>
+    </div>
   )
 }
 

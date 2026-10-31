@@ -106,27 +106,28 @@ export default function ListingDetailPage() {
     let cancelled = false
 
     const load = async () => {
-      const [userRes, listingRes] = await Promise.all([
+      const [userRes, listingResponse] = await Promise.all([
         supabase.auth.getUser(),
-        // Never expose lister_phone here; it is unlocked only after payment
-        // through the gated contact endpoints.
-        supabase
-          .from('listings')
-          .select(SAFE_LISTING_COLUMNS)
-          .eq('id', id)
-          .single(),
+        // The public detail API uses the service role and returns published,
+        // booked and taken houses only. Never exposes lister_phone.
+        fetch(`/api/listings/${id}`, { cache: 'no-store' }).catch(() => null),
       ])
 
       if (cancelled) return
       const currentUser = userRes.data.user
       setUser(currentUser ? { id: currentUser.id, email: currentUser.email } : null)
 
-      if (listingRes.error || !listingRes.data) {
+      let listingData: Listing | null = null
+      if (listingResponse?.ok) {
+        listingData = (await listingResponse.json().catch(() => null)) as Listing | null
+      }
+
+      if (!listingData) {
         if (!remembered) router.push('/')
         return
       }
 
-      const l = listingRes.data as Listing
+      const l = listingData
       setListing(l)
       setLoading(false)
       writeDetailCache(l)
@@ -481,7 +482,9 @@ export default function ListingDetailPage() {
               <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-white"><User className="w-4 h-4" /> Listed by</h3>
               <div className="flex items-center gap-4">
                 <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
-                  {lister.avatar_url ? (
+                  {lister.role === 'admin' ? (
+                    <img src="/images/asehanta-logo.jpeg" alt="AseHanta" className="w-full h-full object-cover" />
+                  ) : lister.avatar_url ? (
                     <img src={lister.avatar_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     lister.full_name?.charAt(0)?.toUpperCase() || 'L'
@@ -501,7 +504,7 @@ export default function ListingDetailPage() {
                     <p className="text-xs text-blue-600 dark:text-white font-medium mt-0.5">{lister.average_rating} out of 5</p>
                   )}
                   {lister.role === 'admin' && (
-                    <p className="text-xs text-blue-500 dark:text-white font-medium mt-0.5">Official AseHanta Listing</p>
+                    <p className="text-xs text-emerald-600 dark:text-emerald-300 font-medium mt-0.5">Official Listing of AseHanta</p>
                   )}
                 </div>
               </div>

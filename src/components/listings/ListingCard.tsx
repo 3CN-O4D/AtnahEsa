@@ -46,6 +46,7 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
 
   const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
   const saved = isFavorite(listing.id)
+  const displayLister = isAdmin ? 'AseHanta' : (listerName || 'AseHanta lister')
 
   /**
    * Warm the preview before the click lands: seed it synchronously from this
@@ -60,6 +61,14 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
 
   const posted = new Date(listing.created_at)
   const isNew = listing.status === 'published' && PAGE_LOADED_AT - posted.getTime() <= NEW_LISTING_WINDOW_MS
+  const statusTheme =
+    listing.status === 'taken'
+      ? 'border-red-300/80 dark:border-red-900/70'
+      : listing.status === 'booked'
+        ? 'border-amber-400/80 dark:border-amber-700/70'
+        : isNew
+          ? 'border-blue-300/80 dark:border-blue-800/70'
+          : 'border-emerald-200/80 dark:border-emerald-900/70'
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.preventDefault()
@@ -78,7 +87,7 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
     <div className={`relative ${leaving ? 'card-shake' : ''}`}>
       <Card
         onMouseLeave={handleMouseLeave}
-        className="group/card relative rounded-2xl border-gray-200/80 transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-slate-800"
+        className={`group/card relative rounded-2xl border ${statusTheme} transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:hover:shadow-black/40`}
       >
         <div className={`aspect-[4/3] relative overflow-hidden group ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />
@@ -127,12 +136,25 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
             {formatPrice(listing.price)}
           </div>
         </div>
-        <div className="space-y-2 p-3.5">
+        <div className={`space-y-2 p-3.5 ${
+          listing.status === 'taken'
+            ? 'bg-red-50/40 dark:bg-red-950/10'
+            : listing.status === 'booked'
+              ? 'bg-amber-50/40 dark:bg-amber-950/10'
+              : isNew
+                ? 'bg-blue-50/40 dark:bg-blue-950/10'
+                : 'bg-emerald-50/20 dark:bg-emerald-950/10'
+        }`}>
           <h3 className={`truncate text-[15px] font-semibold transition-colors ${isUnavailable ? 'text-gray-400 dark:text-gray-500' : 'text-gray-900 group-hover/card:text-[#2a9c40] dark:text-white dark:group-hover/card:text-[#6fdc84]'}`}>{listing.title}</h3>
           <div className="flex items-center gap-1 text-[13px] text-gray-500 dark:text-gray-400">
             <MapPin className="w-3.5 h-3.5 shrink-0" />
             <span className="truncate">{listing.location}</span>
           </div>
+          {isAdmin && (
+            <p className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+              <BadgeCheck className="h-3 w-3" /> Official Listing of AseHanta
+            </p>
+          )}
           {isUnavailable && (
             <p className="text-xs text-red-600 dark:text-red-400 font-medium">View only — {listing.status === 'booked' ? 'booked' : 'already taken'}</p>
           )}
@@ -152,20 +174,25 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
           </div>
           <div className="flex items-center gap-1.5 border-t border-gray-100 pt-2 text-[11px] text-gray-500 dark:border-slate-800 dark:text-gray-400">
             <span>By</span>
-            <Link href={`/listers/${listing.uploader_id}`} className="relative z-10 truncate font-semibold text-blue-600 transition-colors hover:underline dark:text-blue-400">
-              {listerName || 'AseHanta lister'}
+            <Link
+              href={`/listers/${listing.uploader_id}`}
+              className={`relative z-10 truncate font-semibold transition-colors hover:underline ${
+                isAdmin ? 'text-emerald-600 dark:text-emerald-400' : 'text-blue-600 dark:text-blue-400'
+              }`}
+            >
+              {displayLister}
             </Link>
-            {verified && (
+            {(verified || isAdmin) && (
               <button
                 type="button"
                 onClick={() => setShowVerifyTip(!showVerifyTip)}
                 className="relative z-10 tap-scale"
-                title="Verified by AseHanta"
+                title={isAdmin ? 'Official Listing of AseHanta' : 'Verified by AseHanta'}
               >
-                <BadgeCheck className={`w-3.5 h-3.5 transition-all duration-300 hover:scale-125 ${isAdmin ? 'text-green-500' : 'text-blue-500'}`} />
+                <BadgeCheck className={`w-3.5 h-3.5 transition-all duration-300 hover:scale-125 ${isAdmin ? 'text-emerald-500' : 'text-blue-500'}`} />
                 {showVerifyTip && (
                   <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[10px] font-medium bg-black text-white px-2 py-0.5 rounded shadow-lg border border-gray-700 z-50 animate-fadeInUp">
-                    Verified by AseHanta
+                    {isAdmin ? 'Official Listing of AseHanta' : 'Verified by AseHanta'}
                   </span>
                 )}
               </button>

@@ -92,7 +92,7 @@ export async function POST(req: Request) {
             escrow_hold_id: escrowId,
           }).eq('id', booking.id)
 
-          await supabase.from('listings').update({ status: 'booked' }).eq('id', booking.listing_id)
+          await supabase.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', booking.listing_id)
         }
 
         await supabase.from('transactions').update({

@@ -233,11 +233,9 @@ function AdminDashboardInner() {
   }
 
   const handleMarkTaken = async (id: string) => {
-    const name = prompt('Who took this house? (Enter name):')
-    if (!name || !name.trim()) return
     const res = await fetch(`/api/admin/listings/${id}`, {
       method: 'PATCH', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'taken', taken_by_name: name.trim(), taken_at: new Date().toISOString() }),
+      body: JSON.stringify({ status: 'taken', taken_at: new Date().toISOString() }),
     })
     if (!res.ok) { showToast('error', 'Failed to mark as taken'); return }
     showToast('success', 'Marked as taken')
@@ -563,6 +561,7 @@ function AdminDashboardInner() {
                 <Link href="/admin/receipts"><Button variant="outline">Receipt Generator</Button></Link>
                 <Link href="/admin/services"><Button variant="outline">Manage Services</Button></Link>
                 <Link href="/admin/treasury"><Button variant="outline">Treasury</Button></Link>
+                <Link href="/admin/booking-reviews"><Button variant="outline">Booking Reviews</Button></Link>
                 <Link href="/admin?tab=requests"><Button variant="outline">House Requests</Button></Link>
                 <Link href="/notifications"><Button variant="outline">Send Notification</Button></Link>
                 <a href="/api/payments/reports?format=pdf" target="_blank"><Button variant="outline">Download Report</Button></a>
@@ -625,7 +624,7 @@ function AdminDashboardInner() {
                 {listing.status === 'pending' && <Button size="sm" variant="danger" onClick={() => handleReject(listing.id)}>Reject</Button>}
                 {listing.status === 'published' && <Button size="sm" onClick={() => handleMarkBooked(listing.id)}>Mark Booked</Button>}
                 {listing.status === 'booked' && <Button size="sm" onClick={() => handleMarkTaken(listing.id)}>Mark Taken</Button>}
-                {listing.status === 'taken' && <Button size="sm" variant="outline" onClick={() => handleMarkPublished(listing.id)}>Put Back</Button>}
+                {(listing.status === 'taken' || listing.status === 'booked') && <Button size="sm" variant="outline" onClick={() => handleMarkPublished(listing.id)}>Put Back</Button>}
                 <Button size="sm" variant="danger" onClick={() => handleDeleteListing(listing.id)}>Delete</Button>
               </div>
             </div>

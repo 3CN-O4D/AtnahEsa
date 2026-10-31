@@ -22,14 +22,17 @@ export default function ListerPage() {
     if (!id) return
     const supabase = createClient()
 
+    // Listings come from a service-role API so booked houses remain visible
+    // even though anon RLS hides them. The profile itself is public data.
     Promise.all([
       supabase.from('profiles_public').select('*').eq('id', id).maybeSingle(),
-      supabase.from('listings').select('*').eq('uploader_id', id).eq('status', 'published').order('created_at', { ascending: false }),
-      supabase.from('listings').select('*').eq('uploader_id', id).in('status', ['taken', 'booked']).order('created_at', { ascending: false }),
-    ]).then(([profileRes, listingsRes, takenRes]) => {
+      fetch(`/api/listers/${id}/listings`, { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : { listings: [], taken: [] }))
+        .catch(() => ({ listings: [], taken: [] })),
+    ]).then(([profileRes, listingData]) => {
       if (profileRes.data) setProfile(profileRes.data as Profile)
-      setListings((listingsRes.data ?? []) as Listing[])
-      setTaken((takenRes.data ?? []) as Listing[])
+      setListings((listingData.listings ?? []) as Listing[])
+      setTaken((listingData.taken ?? []) as Listing[])
       setLoading(false)
     })
   }, [id])
@@ -96,7 +99,7 @@ export default function ListerPage() {
                   {l.status === 'booked' ? (
                     <p className="text-xs text-amber-600 mt-1">Booked — payment received</p>
                   ) : (
-                    l.taken_by_name && <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Taken by: {l.taken_by_name}</p>
+                    <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">Taken — this house is no longer available.</p>
                   )}
                 </div>
               ))}

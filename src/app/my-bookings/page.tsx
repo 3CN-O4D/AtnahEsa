@@ -16,7 +16,7 @@ type BookingWithDetails = Booking & {
   escrow_hold: EscrowHold | null
 }
 
-type Tab = 'hunter' | 'lister' | 'payments'
+type Tab = 'hunter' | 'lister'
 
 function StatusBadge({ release_status }: { release_status: string }) {
   const config: Record<string, { label: string; className: string }> = {
@@ -143,7 +143,10 @@ export default function MyBookingsPage() {
 function MyBookingsInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const initialTab = (searchParams.get('tab') as Tab) || 'hunter'
+  // Legacy links (emails, old bookmarks) point at ?tab=payments. House
+  // payments now live inside "My Viewings", so map that tab across.
+  const requestedTab = searchParams.get('tab')
+  const initialTab: Tab = requestedTab === 'lister' ? 'lister' : 'hunter'
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [profileRole, setProfileRole] = useState<string | null>(null)
   const [tab, setTab] = useState<Tab>(initialTab)
@@ -297,29 +300,20 @@ function MyBookingsInner() {
             <Home className="w-4 h-4 inline mr-1.5" /> Bookings on My Houses
           </button>
         )}
-        <button onClick={() => setTab('payments')}
-          className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'payments' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-          <Star className="w-4 h-4 inline mr-1.5" /> Payments
-        </button>
+
       </div>
 
-      {tab === 'payments' ? (
-        <div className="space-y-4">
-          {paymentsNotice && (
+      <div className="space-y-4">
+        {paymentsNotice && (
             <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm rounded-lg px-4 py-3">{paymentsNotice}</div>
           )}
           {paymentsError && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">{paymentsError}</div>
           )}
-          {houseBookings.length === 0 ? (
-            <div className="text-center py-16">
-              <Star className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h2 className="text-lg font-semibold text-gray-600 mb-1">No house payments yet</h2>
-              <p className="text-sm text-gray-400 mb-4">Pay for a house on a listing page and manage it here.</p>
-              <Link href="/" className="text-sm text-blue-600 hover:underline">Browse Listings</Link>
-            </div>
-          ) : (
-            houseBookings.map((hb) => {
+        {tab === 'hunter' && houseBookings.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-300">House viewings &amp; payments</h2>
+            {houseBookings.map((hb) => {
               const isHeld = hb.release_status === 'held'
               const isActing = acting?.id === hb.id
               const payment = housePayments[hb.id]
@@ -442,10 +436,10 @@ function MyBookingsInner() {
                   </div>
                 </div>
               )
-            })
-          )}
-        </div>
-      ) : currentBookings.length === 0 && (tab !== 'lister' || listerHouseBookings.length === 0) ? (
+            })}
+          </div>
+        )}
+        {currentBookings.length === 0 && (tab !== 'hunter' || houseBookings.length === 0) && (tab !== 'lister' || listerHouseBookings.length === 0) ? (
         <div className="text-center py-16">
           <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-gray-600 mb-1">No bookings yet</h2>
@@ -545,6 +539,7 @@ function MyBookingsInner() {
           ))}
         </div>
       )}
+      </div>
     </div>
   )
 }

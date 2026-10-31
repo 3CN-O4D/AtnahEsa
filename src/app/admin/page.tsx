@@ -564,6 +564,7 @@ function AdminDashboardInner() {
                 <Link href="/admin/services"><Button variant="outline">Manage Services</Button></Link>
                 <Link href="/admin/treasury"><Button variant="outline">Treasury</Button></Link>
                 <Link href="/admin?tab=requests"><Button variant="outline">House Requests</Button></Link>
+                <Link href="/notifications"><Button variant="outline">Send Notification</Button></Link>
                 <a href="/api/payments/reports?format=pdf" target="_blank"><Button variant="outline">Download Report</Button></a>
               </div>
             </div>

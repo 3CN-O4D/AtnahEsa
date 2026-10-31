@@ -258,3 +258,112 @@ export async function sendPaymentReceiptEmail(params: {
       : {}),
   })
 }
+
+/**
+ * Sent to admins when a hunter confirms they are happy with the house.
+ * It is the trigger for the lister payout: the panel carries every number the
+ * admin needs (hunter payment details + lister M-Pesa number) and links to the
+ * Treasury panel where the number can be copied and the payout SMS pasted.
+ */
+export async function sendAdminPayoutPanelEmail(params: {
+  bookingId: string
+  listingTitle: string
+  listingLocation?: string
+  hunterName?: string
+  hunterPhone?: string
+  hunterEmail?: string
+  amount: number
+  receipt?: string | null
+  paymentMethod?: string | null
+  listerName?: string
+  listerPhone?: string | null
+  payoutAmount: number
+  confirmedAt?: string | null
+}) {
+  const admins = (process.env.ADMIN_EMAILS || 'asehanta@gmail.com')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (!admins.length) return
+
+  const escape = (value: unknown) =>
+    String(value ?? '').replace(/[<>&"]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' }[c] || c))
+  const amountText = `KES ${Math.round(params.amount).toLocaleString()}`
+  const payoutText = `KES ${Math.round(params.payoutAmount).toLocaleString()}`
+  const treasuryUrl = `https://www.asehanta.com/admin/treasury?booking=${encodeURIComponent(params.bookingId)}`
+  const confirmedText = params.confirmedAt
+    ? new Date(params.confirmedAt).toLocaleString('en-KE', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : 'just now'
+
+  const row = (label: string, value: string) => `
+    <tr>
+      <td style="padding:9px 0;border-bottom:1px solid ${BRAND.border};font-size:12px;color:${BRAND.gray};width:42%">${escape(label)}</td>
+      <td style="padding:9px 0;border-bottom:1px solid ${BRAND.border};font-size:13px;font-weight:600;color:${BRAND.dark};text-align:right">${value}</td>
+    </tr>`
+
+  const hunterPhone = params.hunterPhone
+    ? `<a href="tel:${escape(params.hunterPhone)}" style="color:${BRAND.blue};text-decoration:none">${escape(params.hunterPhone)}</a>`
+    : '—'
+  const listerNumber = params.listerPhone
+    ? `<span style="display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;letter-spacing:.5px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;border-radius:8px;padding:6px 12px">${escape(params.listerPhone)}</span>`
+    : `<span style="color:#B45309">No lister M-Pesa number on file — ask the lister before paying.</span>`
+
+  const body = `
+<tr><td style="padding:32px 32px 8px">
+  <span style="display:inline-block;background:#D1FAE5;color:#059669;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">✅ Hunter confirmed — payout ready</span>
+  <h1 style="margin:14px 0 0;font-size:22px;font-weight:700;color:${BRAND.dark}">Release the lister payout</h1>
+  <p style="margin:10px 0 0;font-size:14px;color:${BRAND.gray};line-height:1.6">
+    The hunter confirmed they are happy with <strong style="color:${BRAND.dark}">${escape(params.listingTitle)}</strong>
+    on ${escape(confirmedText)}. Pay the lister their share, then paste the M-Pesa SMS into the Treasury panel to close the escrow.
+  </p>
+</td></tr>
+<tr><td style="padding:8px 32px 4px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:${BRAND.bg};border-radius:10px">
+    <tr><td style="padding:16px 20px">
+      <p style="margin:0 0 8px;font-size:11px;font-weight:700;color:${BRAND.gray};text-transform:uppercase;letter-spacing:.6px">Hunter payment</p>
+      <table width="100%" cellpadding="0" cellspacing="0">
+        ${row('House', escape(params.listingTitle))}
+        ${row('Location', escape(params.listingLocation || '—'))}
+        ${row('Hunter', escape(params.hunterName || '—'))}
+        ${row('Hunter phone', hunterPhone)}
+        ${row('Hunter email', escape(params.hunterEmail || '—'))}
+        ${row('Amount paid', `${amountText} <span style="color:${BRAND.gray};font-weight:400">(${escape(params.paymentMethod || 'payment')})</span>`)}
+        ${row('M-Pesa receipt', escape(params.receipt || '—'))}
+        ${row('Booking ref', `<span style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace">${escape(params.bookingId.slice(0, 8).toUpperCase())}</span>`)}
+      </table>
+    </td></tr>
+  </table>
+</td></tr>
+<tr><td style="padding:12px 32px 4px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px">
+    <tr><td style="padding:16px 20px">
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#047857;text-transform:uppercase;letter-spacing:.6px">Lister payout · 50% share</p>
+      <p style="margin:0 0 10px;font-size:24px;font-weight:700;color:#065F46">${payoutText}</p>
+      <p style="margin:0 0 6px;font-size:12px;color:#065F46">${escape(params.listerName || 'Lister')} · M-Pesa number:</p>
+      <p style="margin:0 0 10px">${listerNumber}</p>
+      <p style="margin:0;font-size:12px;color:#065F46">
+        Copy this number from the Treasury panel (the panel has a one-tap copy button), send the payout in M-Pesa,
+        then paste the confirmation SMS there. The transaction code and amount are parsed and saved to the audit trail.
+      </p>
+    </td></tr>
+  </table>
+</td></tr>
+<tr><td style="padding:16px 32px 8px">
+  <table cellpadding="0" cellspacing="0">
+    <tr><td style="background:${BRAND.blue};border-radius:8px">
+      <a href="${treasuryUrl}" style="display:inline-block;padding:12px 26px;color:#ffffff;text-decoration:none;font-weight:600;font-size:14px">Open payout panel</a>
+    </td></tr>
+  </table>
+</td></tr>
+<tr><td style="padding:0 32px 24px">
+  <p style="margin:16px 0 0;font-size:12px;color:${BRAND.gray}">Booking ${escape(params.bookingId)} · AseHanta Treasury</p>
+</td></tr>`
+
+  await transporter.sendMail({
+    from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
+    to: admins.join(','),
+    subject: `[AseHanta] Payout ready — ${amountText} for ${params.listingTitle}`,
+    html: baseHtml(body),
+  })
+}
+

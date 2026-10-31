@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw, Wallet, TrendingUp, Clock, CheckCircle, XCircle, Search, AlertTriangle, Calendar } from 'lucide-react'
+import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw, Wallet, TrendingUp, Clock, CheckCircle, XCircle, Search, AlertTriangle, Calendar, Copy, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
 import { OWNER_SHARE } from '@/lib/constants'
@@ -16,6 +16,9 @@ type HouseBookingWithPayment = HouseBooking & {
   payment_status?: string | null
   transaction_id?: string | null
   transaction_receipt?: string | null
+  lister_name?: string | null
+  lister_phone?: string | null
+  payout_amount?: number | null
 }
 
 type RefundModal = { escrow: EscrowWithDetails } | null
@@ -38,7 +41,7 @@ export default function TreasuryPage() {
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [loadError, setLoadError] = useState('')
   const [escrowFilter, setEscrowFilter] = useState<string>('all')
-  const [payoutFilter, setPayoutFilter] = useState<string>('pending')
+  const [payoutFilter, setPayoutFilter] = useState<string>('held')
   const [txSearch, setTxSearch] = useState('')
   const [refundModal, setRefundModal] = useState<RefundModal>(null)
   const [extendModal, setExtendModal] = useState<ExtendModal>(null)
@@ -50,10 +53,34 @@ export default function TreasuryPage() {
   const [statusModal, setStatusModal] = useState<{ houseBooking: HouseBookingWithPayment } | null>(null)
   const [newStatus, setNewStatus] = useState('')
   const [newReleaseStatus, setNewReleaseStatus] = useState('')
+  const [copiedField, setCopiedField] = useState<string | null>(null)
 
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message })
     setTimeout(() => setToast(null), 3000)
+  }
+
+  const copyToClipboard = async (value: string, key: string, label: string) => {
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopiedField(key)
+      showToast('success', `${label} copied`)
+      setTimeout(() => setCopiedField(null), 2000)
+    } catch {
+      showToast('error', `Could not copy ${label.toLowerCase()}`)
+    }
+  }
+
+  /**
+   * Opens the payout SMS modal for a booking. Used by the "Pay lister" button
+   * and by the deep link in the admin payout-panel email (?booking=<id>).
+   */
+  const openPayoutForBooking = (booking: HouseBookingWithPayment) => {
+    if (booking.release_status === 'paid' || booking.release_status === 'refunded') return false
+    setSmsError('')
+    setSmsText('')
+    setSmsAction({ houseBooking: booking, action: 'house_release', label: 'Mark paid to lister' })
+    return true
   }
 
   const loadData = async () => {
@@ -68,8 +95,17 @@ export default function TreasuryPage() {
       }
       if (treasury.stats) setStats(treasury.stats)
       setEscrows(Array.isArray(treasury.escrows) ? treasury.escrows : [])
-      setHouseBookings(Array.isArray(treasury.house_bookings) ? treasury.house_bookings : [])
+      const bookingRows: HouseBookingWithPayment[] = Array.isArray(treasury.house_bookings) ? treasury.house_bookings : []
+      setHouseBookings(bookingRows)
       setTransactions(Array.isArray(treasury.transactions) ? treasury.transactions : [])
+
+      // Deep link from the admin payout-panel email: open the SMS modal for
+      // this booking straight away so paying the lister is one paste away.
+      const deepLinkId = new URLSearchParams(window.location.search).get('booking')
+      if (deepLinkId) {
+        const linked = bookingRows.find((b) => b.id === deepLinkId)
+        if (linked) openPayoutForBooking(linked)
+      }
 
       // Balance is optional; never let it block the ledger.
       try {
@@ -446,6 +482,32 @@ export default function TreasuryPage() {
                       {hb.release_status === 'refunded' && hb.refunded_at && <> &middot; Refunded {new Date(hb.refunded_at).toLocaleDateString()}</>}
                       {hb.confirmed_at && hb.rating != null && <> &middot; Hunter confirmed {new Date(hb.confirmed_at).toLocaleDateString()}</>}
                     </p>
+                    {hb.release_status !== 'refunded' && (
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                          Payout {formatPrice(hb.payout_amount ?? Math.round((hb.listing_price || 0) * OWNER_SHARE))} ({Math.round(OWNER_SHARE * 100)}%)
+                        </span>
+                        <span style={{ color: 'var(--color-gray-500)' }}>
+                          Lister: {hb.lister_name || 'N/A'}
+                        </span>
+                        {hb.lister_phone ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <span className="font-mono font-semibold" style={{ color: 'var(--color-gray-800)' }}>{hb.lister_phone}</span>
+                            <button
+                              type="button"
+                              onClick={() => copyToClipboard(hb.lister_phone!, `phone-${hb.id}`, 'M-Pesa number')}
+                              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 font-medium text-gray-600 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-slate-700 dark:text-gray-300"
+                              title="Copy the lister M-Pesa number"
+                            >
+                              {copiedField === `phone-${hb.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                              {copiedField === `phone-${hb.id}` ? 'Copied' : 'Copy'}
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="font-medium text-amber-700">No M-Pesa number on file — ask the lister</span>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2 shrink-0 flex-wrap justify-end">
                     {hb.release_status !== 'held' && hb.release_status !== 'paid' && hb.release_status !== 'refunded' && (
@@ -462,7 +524,7 @@ export default function TreasuryPage() {
                         </Button>
                         <Button size="sm" variant="outline" onClick={() => handleHouseAction(hb.id, 'house_refund', 'Refund hunter')} loading={actionLoading === hb.id}
                           className="text-xs px-2.5 py-1">
-                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund
+                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund hunter
                         </Button>
                       </>
                     )}

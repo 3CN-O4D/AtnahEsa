@@ -9,6 +9,7 @@ import Slideshow from '@/components/ui/Slideshow'
 import { formatPrice } from '@/lib/utils'
 import { useFavorites } from '@/lib/favorites'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import { seedDetailCache, prefetchListingDetail } from '@/lib/listing-detail-cache'
 import type { Listing } from '@/types'
 
 interface ListingCardProps {
@@ -45,6 +46,17 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
 
   const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
   const saved = isFavorite(listing.id)
+
+  /**
+   * Warm the preview before the click lands: seed it synchronously from this
+   * card so the detail page paints instantly, then fetch the full row (videos
+   * included) in the background.
+   */
+  const warmPreview = () => {
+    if (isUnavailable) return
+    seedDetailCache(listing)
+    void prefetchListingDetail(listing.id)
+  }
 
   const posted = new Date(listing.created_at)
   const isNew = listing.status === 'published' && PAGE_LOADED_AT - posted.getTime() <= NEW_LISTING_WINDOW_MS
@@ -166,6 +178,9 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
           href={`/listings/${listing.id}`}
           aria-disabled={isUnavailable}
           aria-label={`View ${listing.title}`}
+          onPointerEnter={warmPreview}
+          onFocus={warmPreview}
+          onTouchStart={warmPreview}
           className="absolute inset-0 z-[5] rounded-2xl focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#30B54A]"
         />
       </Card>

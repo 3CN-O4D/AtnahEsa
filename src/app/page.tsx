@@ -5,7 +5,10 @@ import Link from 'next/link'
 import {
   ArrowRight,
   BadgeCheck,
+  Banknote,
   CheckCircle2,
+  Clock,
+  Home as HomeIcon,
   KeyRound,
   MapPin,
   MessageCircle,
@@ -21,6 +24,7 @@ import SortDropdown from '@/components/listings/SortDropdown'
 import FilterPanel from '@/components/listings/FilterPanel'
 import Reveal from '@/components/ui/Reveal'
 import { createClient } from '@/lib/supabase/client'
+import { formatPrice } from '@/lib/utils'
 import { useCountUp } from '@/hooks/useCountUp'
 import type { Listing } from '@/types'
 
@@ -73,6 +77,17 @@ const FEATURES = [
 
 type HomeStats = { available: number; total: number; pending: number; taken: number }
 
+type HomeRequest = {
+  id: string
+  location: string
+  min_rent: number | null
+  max_rent: number | null
+  house_type_requested: string[] | null
+  building_type: string[] | null
+  description: string
+  created_at: string
+}
+
 // Survive client-side navigation: returning to Home should paint the last
 // batch and stats immediately while a fresh copy loads in the background.
 const HOME_LISTINGS_TTL_MS = 45_000
@@ -110,6 +125,7 @@ export default function HomePage() {
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [showFilters, setShowFilters] = useState(false)
   const [stats, setStats] = useState<HomeStats>({ available: 0, total: 0, pending: 0, taken: 0 })
+  const [houseRequests, setHouseRequests] = useState<HomeRequest[]>([])
 
   useEffect(() => {
     // Paint the previous counts immediately when coming back to Home, then
@@ -152,6 +168,18 @@ export default function HomePage() {
       setStats(next)
       storeStats(next)
     }).catch(() => {})
+
+    // Open house requests are public and anonymised: show the newest few so
+    // listers can see demand straight from the home page.
+    supabase
+      .from('house_requests_public')
+      .select('id, location, min_rent, max_rent, house_type_requested, building_type, description, created_at')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(6)
+      .then(({ data }) => {
+        if (data) setHouseRequests(data as HomeRequest[])
+      })
   }, [])
 
   const fetchListings = useCallback(
@@ -359,6 +387,89 @@ export default function HomePage() {
           />
         </div>
       </section>
+
+      {/* Open house requests */}
+      {houseRequests.length > 0 && (
+        <section className="border-y border-gray-100 bg-white py-14 dark:border-slate-800 dark:bg-slate-950/60">
+          <div className="mx-auto max-w-7xl px-4">
+            <div className="flex flex-wrap items-end justify-between gap-3">
+              <div>
+                <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-400">
+                  <HomeIcon className="h-3.5 w-3.5" /> People are looking
+                </p>
+                <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
+                  Open house requests
+                </h2>
+                <p className="mt-1 max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+                  Renters and buyers have told us exactly what they need. If you have a matching house, claim the
+                  request and list it.
+                </p>
+              </div>
+              <Link
+                href="/requests"
+                className="inline-flex items-center gap-1.5 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-600/20 transition-all hover:-translate-y-0.5 hover:bg-blue-700"
+              >
+                See all requests <ArrowRight className="h-4 w-4" />
+              </Link>
+            </div>
+
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {houseRequests.map((request) => {
+                const rent =
+                  request.min_rent != null && request.max_rent != null
+                    ? `${formatPrice(request.min_rent)} – ${formatPrice(request.max_rent)}`
+                    : request.max_rent != null
+                      ? `Up to ${formatPrice(request.max_rent)}`
+                      : request.min_rent != null
+                        ? `From ${formatPrice(request.min_rent)}`
+                        : 'Budget open'
+                const wanted = [
+                  ...(request.house_type_requested || []),
+                  ...(request.building_type || []),
+                ].slice(0, 3)
+                return (
+                  <Link
+                    key={request.id}
+                    href="/requests"
+                    className="group flex h-full flex-col rounded-2xl border border-gray-200 bg-gray-50/70 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-blue-300 hover:bg-white hover:shadow-lg dark:border-slate-800 dark:bg-slate-900/60 dark:hover:border-blue-800 dark:hover:bg-slate-900"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
+                        <MapPin className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                        {request.location || 'Location open'}
+                      </span>
+                      <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                        <Clock className="h-3 w-3" /> Open
+                      </span>
+                    </div>
+                    <p className="mt-2 inline-flex items-center gap-1.5 text-sm font-semibold text-[#2a9c40] dark:text-[#6fdc84]">
+                      <Banknote className="h-4 w-4" /> {rent}
+                    </p>
+                    {wanted.length > 0 && (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {wanted.map((tag) => (
+                          <span
+                            key={tag}
+                            className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[11px] font-medium capitalize text-gray-600 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300"
+                          >
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
+                      {request.description}
+                    </p>
+                    <span className="mt-auto pt-3 text-xs font-semibold text-blue-600 group-hover:underline dark:text-blue-400">
+                      View request →
+                    </span>
+                  </Link>
+                )
+              })}
+            </div>
+          </div>
+        </section>
+      )}
 
       {/* How it works */}
       <section className="border-y border-gray-100 bg-white py-16 dark:border-slate-800 dark:bg-slate-950/60">

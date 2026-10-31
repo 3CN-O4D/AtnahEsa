@@ -475,7 +475,7 @@ export default function UploadPage() {
         {error && <p className="text-sm text-red-600">{error}</p>}
 
         <div className="bg-gray-50 rounded-xl p-4 text-sm text-gray-600 space-y-1">
-          <p><strong>Revenue Share:</strong> You earn <strong>70%</strong> of the booking fee. AseHanta takes <strong>30%</strong></p>
+          <p><strong>Revenue Share:</strong> You earn <strong>50%</strong> of the booking fee. AseHanta takes <strong>50%</strong> to run verification, escrow and support.</p>
           <p><strong>Note:</strong> Your listing will be reviewed by admin before it goes live.</p>
         </div>
 

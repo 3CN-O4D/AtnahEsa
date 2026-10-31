@@ -7,6 +7,7 @@ import Link from 'next/link'
 import {
   Bell, Megaphone, Home, CreditCard, Link2, Calendar, Building2,
   CheckCheck, ChevronRight, Loader2, Send, User as UserIcon, Shield,
+  Trash2, Users, Timer,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { SkeletonBooking } from '@/components/ui/Skeleton'
@@ -24,6 +25,8 @@ type NotificationItem = {
   is_broadcast: boolean
   read_at: string | null
   created_at: string
+  audiences?: string[]
+  expires_at?: string | null
 }
 
 type Filter = 'all' | 'unread'
@@ -37,6 +40,28 @@ const CATEGORY_META: Record<string, { label: string; className: string; icon: ty
   listing: { label: 'Listing', className: 'bg-indigo-100 text-indigo-700', icon: Building2 },
   system: { label: 'System', className: 'bg-gray-100 text-gray-700', icon: Bell },
 }
+
+const AUDIENCE_OPTIONS = [
+  { id: 'hunter', label: 'Hunters' },
+  { id: 'lister', label: 'Listers' },
+  { id: 'admin', label: 'Admins' },
+] as const
+
+const AUDIENCE_LABELS: Record<string, string> = {
+  everyone: 'Everyone',
+  hunter: 'Hunters',
+  lister: 'Listers',
+  admin: 'Admins',
+}
+
+const DURATION_OPTIONS = [
+  { value: '0', label: 'No expiry (until deleted)' },
+  { value: '6', label: '6 hours' },
+  { value: '24', label: '24 hours' },
+  { value: '72', label: '3 days' },
+  { value: '168', label: '7 days' },
+  { value: '720', label: '30 days' },
+]
 
 function timeAgo(iso: string) {
   const diff = Date.now() - new Date(iso).getTime()
@@ -65,12 +90,13 @@ export default function NotificationsPage() {
   const [sendSuccess, setSendSuccess] = useState(false)
   const [form, setForm] = useState({
     category: 'advert',
-    audience: 'everyone',
-    role: 'hunter',
+    audiences: ['everyone'] as string[],
+    durationHours: '0',
     title: '',
     body: '',
     link: '',
   })
+  const [deleting, setDeleting] = useState<string[]>([])
 
   const load = useCallback(async () => {
     try {
@@ -132,6 +158,36 @@ export default function NotificationsPage() {
     }
   }
 
+  const toggleAudience = (id: string) => {
+    setForm((prev) => {
+      if (id === 'everyone') return { ...prev, audiences: ['everyone'] }
+      const current = prev.audiences.includes('everyone')
+        ? []
+        : prev.audiences.filter((a) => a !== 'everyone')
+      const next = current.includes(id)
+        ? current.filter((a) => a !== id)
+        : [...current, id]
+      return { ...prev, audiences: next.length ? next : ['everyone'] }
+    })
+  }
+
+  async function deleteNotification(item: NotificationItem, forEveryone = false) {
+    const label = forEveryone ? 'this notification for everyone' : 'this notification'
+    if (!window.confirm(`Delete ${label}?`)) return
+    setDeleting((prev) => [...prev, item.id])
+    try {
+      const res = await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [item.id], global: forEveryone }),
+      })
+      if (!res.ok) return
+      setNotifications((prev) => prev.filter((n) => n.id !== item.id))
+    } finally {
+      setDeleting((prev) => prev.filter((id) => id !== item.id))
+    }
+  }
+
   async function sendNotification(e: React.FormEvent) {
     e.preventDefault()
     if (!form.title.trim()) { setSendError('Title is required'); return }
@@ -144,8 +200,8 @@ export default function NotificationsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           category: form.category,
-          audience: form.audience,
-          role: form.role,
+          audiences: form.audiences,
+          duration_hours: Number(form.durationHours) || 0,
           title: form.title,
           body: form.body,
           link: form.link,
@@ -209,17 +265,59 @@ export default function NotificationsPage() {
               </select>
             </label>
             <label className="block">
-              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Audience</span>
+              <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Duration</span>
               <select
-                value={form.audience}
-                onChange={(e) => setForm({ ...form, audience: e.target.value })}
+                value={form.durationHours}
+                onChange={(e) => setForm({ ...form, durationHours: e.target.value })}
                 className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="everyone">Everyone</option>
-                <option value="hunters">Hunters only</option>
-                <option value="listers">Listers only</option>
+                {DURATION_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </label>
+          </div>
+
+          <div>
+            <span className="flex items-center gap-1.5 text-xs font-medium text-gray-600 dark:text-gray-300">
+              <Users className="w-3.5 h-3.5" /> Audience — pick one or combine
+            </span>
+            <div className="mt-1.5 flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => toggleAudience('everyone')}
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                  form.audiences.includes('everyone')
+                    ? 'border-blue-600 bg-blue-600 text-white'
+                    : 'border-gray-300 text-gray-600 hover:border-blue-400 dark:border-gray-600 dark:text-gray-300'
+                }`}
+              >
+                Everyone
+              </button>
+              {AUDIENCE_OPTIONS.map((option) => {
+                const active = form.audiences.includes(option.id)
+                return (
+                  <button
+                    key={option.id}
+                    type="button"
+                    onClick={() => toggleAudience(option.id)}
+                    aria-pressed={active}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                      active
+                        ? 'border-blue-600 bg-blue-600 text-white'
+                        : 'border-gray-300 text-gray-600 hover:border-blue-400 dark:border-gray-600 dark:text-gray-300'
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+              {form.audiences.includes('everyone')
+                ? 'Every signed-in user will see this notification.'
+                : `Only ${form.audiences.map((a) => AUDIENCE_LABELS[a] || a).join(' + ')} will see this notification.`}
+            </p>
           </div>
           <label className="block">
             <span className="text-xs font-medium text-gray-600 dark:text-gray-300">Title</span>
@@ -310,13 +408,52 @@ export default function NotificationsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex flex-wrap items-center gap-1">
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${meta.className}`}>{meta.label}</span>
-                        {n.is_broadcast && !n.user_id && n.role && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 ml-1 capitalize">{n.role}s</span>
+                        {(n.audiences?.length ? n.audiences : [n.role || 'everyone']).map((audience) => (
+                          <span key={audience} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
+                            {AUDIENCE_LABELS[audience] || audience}
+                          </span>
+                        ))}
+                        {n.expires_at && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                            <Timer className="w-3 h-3" /> Until {new Date(n.expires_at).toLocaleDateString()}
+                          </span>
                         )}
                       </div>
-                      <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">{timeAgo(n.created_at)}</span>
+                      <div className="flex flex-shrink-0 items-center gap-1">
+                        <span className="text-xs text-gray-400 whitespace-nowrap">{timeAgo(n.created_at)}</span>
+                        <button
+                          type="button"
+                          title="Delete this notification"
+                          aria-label="Delete this notification"
+                          onClick={(e) => {
+                            e.preventDefault()
+                            e.stopPropagation()
+                            void deleteNotification(n)
+                          }}
+                          disabled={deleting.includes(n.id)}
+                          className="rounded-md p-1 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600 disabled:opacity-40 dark:hover:bg-red-900/30"
+                        >
+                          {deleting.includes(n.id) ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                        </button>
+                        {isAdmin && n.is_broadcast && n.user_id === null && (
+                          <button
+                            type="button"
+                            title="Delete for every user"
+                            aria-label="Delete this notification for every user"
+                            onClick={(e) => {
+                              e.preventDefault()
+                              e.stopPropagation()
+                              void deleteNotification(n, true)
+                            }}
+                            disabled={deleting.includes(n.id)}
+                            className="rounded-md border border-red-200 p-1 text-red-500 transition-colors hover:bg-red-100 disabled:opacity-40 dark:border-red-900/60 dark:hover:bg-red-900/30"
+                          >
+                            <Users className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className={`text-sm mt-1 ${unread ? 'font-semibold text-gray-900 dark:text-white' : 'font-medium text-gray-700 dark:text-gray-300'}`}>{n.title}</p>
                     {n.body && <p className="text-sm text-gray-500 mt-0.5">{n.body}</p>}

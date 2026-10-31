@@ -16,6 +16,7 @@ import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import ListingCard from '@/components/listings/ListingCard'
 import { SkeletonDetail } from '@/components/ui/Skeleton'
+import { SAFE_LISTING_COLUMNS, readDetailCache, writeDetailCache } from '@/lib/listing-detail-cache'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
 const ImageViewer = dynamic(() => import('@/components/ui/ImageViewer'), { ssr: false })
@@ -25,33 +26,6 @@ const LISTING_SUPPORT_LINK = getWhatsAppLink(
   WHATSAPP_NUMBER,
   `Hi ${APP_NAME}, I need help with a house listing on the website.`
 )
-
-// Never select `lister_phone` from public pages. It is unlocked through the
-// payment-gated contact endpoints instead.
-const SAFE_LISTING_COLUMNS =
-  'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,uploader_name,created_at,updated_at'
-
-const DETAIL_CACHE_TTL_MS = 5 * 60_000
-const detailCache = new Map<string, { at: number; listing: Listing }>()
-
-function readDetailCache(id: string): Listing | null {
-  const hit = detailCache.get(id)
-  if (!hit) return null
-  if (Date.now() - hit.at > DETAIL_CACHE_TTL_MS) {
-    detailCache.delete(id)
-    return null
-  }
-  return hit.listing
-}
-
-function writeDetailCache(listing: Listing) {
-  detailCache.set(listing.id, { at: Date.now(), listing })
-  // Keep the module cache small in long sessions.
-  if (detailCache.size > 40) {
-    const oldest = detailCache.keys().next().value
-    if (oldest) detailCache.delete(oldest)
-  }
-}
 
 function videoSrc(url: string): string {
   if (url.startsWith('https://') && url.includes('/storage/v1/s3/')) {

@@ -2,8 +2,9 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
+import { sendAdminPayoutPanelEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notifications'
-import { REFUND_PERCENTAGES, VIEW_WINDOW_HOURS, REFUND_PROCESSING_HOURS } from '@/lib/constants'
+import { REFUND_PERCENTAGES, VIEW_WINDOW_HOURS, REFUND_PROCESSING_HOURS, OWNER_SHARE } from '@/lib/constants'
 
 /**
  * Hunter-facing actions on a paid house booking (public Tuma flow):
@@ -35,7 +36,7 @@ export async function POST(req: Request) {
 
     const { data: booking } = await admin
       .from('house_bookings')
-      .select('id, status, release_status, listing_id, listing_title, phone, listing_price, user_id, created_at')
+      .select('id, status, release_status, listing_id, listing_title, listing_location, name, email, phone, listing_price, user_id, created_at, mpesa_receipt, payment_method, held_until')
       .eq('id', booking_id)
       .single()
 
@@ -60,6 +61,24 @@ export async function POST(req: Request) {
         .eq('id', booking_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
+      const { data: listing } = await admin
+        .from('listings')
+        .select('uploader_id, title, lister_phone')
+        .eq('id', booking.listing_id)
+        .maybeSingle()
+
+      let listerName = 'Lister'
+      let listerPhone = listing?.lister_phone || ''
+      if (listing?.uploader_id) {
+        const { data: listerProfile } = await admin
+          .from('profiles')
+          .select('full_name, phone')
+          .eq('id', listing.uploader_id)
+          .maybeSingle()
+        if (listerProfile?.full_name) listerName = listerProfile.full_name
+        if (!listerPhone && listerProfile?.phone) listerPhone = listerProfile.phone
+      }
+
       await notifyAdmins(
         'Booking Confirmed',
         'Hunter Pleased — Release Funds',
@@ -67,15 +86,34 @@ export async function POST(req: Request) {
           House: booking.listing_title || 'N/A',
           'Hunter Phone': booking.phone || 'N/A',
           'Hunting Fee': booking.listing_price ? `KES ${booking.listing_price}` : 'N/A',
-          'Action Required': 'The hunter is pleased. Contact the lister to arrange payout, then release funds in Treasury.',
+          'Lister M-Pesa': listerPhone || 'Not on file',
+          'Action Required': 'The hunter is pleased. Copy the lister number in Treasury, pay their 50% share, then paste the M-Pesa SMS there to record the payout.',
         }
       )
 
-      const { data: listing } = await admin
-        .from('listings')
-        .select('uploader_id, title')
-        .eq('id', booking.listing_id)
-        .maybeSingle()
+      // Dedicated admin panel email: hunter payment details, lister payout
+      // number and a link straight into the Treasury payout panel.
+      try {
+        await sendAdminPayoutPanelEmail({
+          bookingId: booking.id,
+          listingTitle: booking.listing_title || 'House listing',
+          listingLocation: booking.listing_location || '',
+          hunterName: booking.name || '',
+          hunterPhone: booking.phone || '',
+          hunterEmail: booking.email || '',
+          amount: Number(booking.listing_price) || 0,
+          receipt: booking.mpesa_receipt || null,
+          paymentMethod: booking.payment_method || null,
+          listerName,
+          listerPhone: listerPhone || null,
+          payoutAmount: Math.round((Number(booking.listing_price) || 0) * OWNER_SHARE),
+          confirmedAt: now,
+        })
+      } catch (err) {
+        // The in-app admin notification above still stands if SMTP fails.
+        console.error('Failed to email admin payout panel:', err)
+      }
+
       if (listing?.uploader_id) {
         await createNotification({
           userId: listing.uploader_id,

@@ -31,6 +31,36 @@ interface ListerInfo {
 
 const INITIAL_SKELETONS = 8
 const LOADING_SKELETONS = 4
+const IMAGE_PRELOAD_TIMEOUT_MS = 900
+
+/**
+ * Best-effort preload of the first image on each card. The loader stays up
+ * until these resolve (or the timeout fires), so cards never appear as empty
+ * grey boxes right after a page swap.
+ */
+function preloadListingImages(listings: Listing[]): Promise<void> {
+  if (typeof window === 'undefined' || listings.length === 0) return Promise.resolve()
+  const urls = listings
+    .map((listing) => listing.images?.[0])
+    .filter((url): url is string => Boolean(url))
+    .slice(0, LOADING_SKELETONS * 2)
+  if (urls.length === 0) return Promise.resolve()
+
+  const loads = urls.map(
+    (url) =>
+      new Promise<void>((resolve) => {
+        const img = new window.Image()
+        img.onload = () => resolve()
+        img.onerror = () => resolve()
+        img.src = url
+      })
+  )
+
+  return Promise.race([
+    Promise.all(loads).then(() => undefined),
+    new Promise<void>((resolve) => window.setTimeout(resolve, IMAGE_PRELOAD_TIMEOUT_MS)),
+  ])
+}
 
 function CardSkeleton({ delay = 0 }: { delay?: number }) {
   return (
@@ -78,7 +108,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
   const loadedPagesRef = useRef(0)
   const seenIdsRef = useRef<Set<string>>(new Set())
   const cacheRef = useRef<Map<number, Listing[]>>(new Map())
-  const prefetchingRef = useRef<number | null>(null)
+  const inFlightRef = useRef<Map<number, Promise<Listing[]>>>(new Map())
 
   useEffect(() => {
     fetchRef.current = fetchListings
@@ -100,41 +130,54 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
   const getPage = useCallback(async (page: number, generation: number): Promise<Listing[] | null> => {
     const cached = cacheRef.current.get(page)
     if (cached) return cached
-    const data = await fetchRef.current(page)
-    if (generation !== activeRef.current) return null
-    cacheRef.current.set(page, data)
-    return data
+
+    // Reuse a request that a prefetch already started instead of firing a
+    // duplicate fetch (which is what made the loader feel twice as slow).
+    let request = inFlightRef.current.get(page)
+    if (!request) {
+      request = fetchRef.current(page)
+      inFlightRef.current.set(page, request)
+    }
+
+    try {
+      const data = await request
+      if (generation !== activeRef.current) return null
+      cacheRef.current.set(page, data)
+      return data
+    } finally {
+      if (inFlightRef.current.get(page) === request) inFlightRef.current.delete(page)
+    }
   }, [])
 
-  const prefetchNextPage = useCallback(() => {
-    const page = nextPageRef.current
-    if (!hasMoreRef.current || cacheRef.current.has(page) || prefetchingRef.current === page) return
-
+  /**
+   * Warm the next pages while the current batch is on screen. Runs eagerly
+   * (not on idle) and walks sequentially so it stops at the last real page.
+   */
+  const prefetchUpcomingPages = useCallback(async () => {
     const generation = activeRef.current
-    prefetchingRef.current = page
+    let page = nextPageRef.current
 
-    const run = async () => {
-      try {
-        const data = await fetchRef.current(page)
-        if (mountedRef.current && generation === activeRef.current) {
-          cacheRef.current.set(page, data)
+    for (let i = 0; i < 2; i += 1) {
+      if (!hasMoreRef.current || generation !== activeRef.current) return
+
+      if (!cacheRef.current.has(page) && !inFlightRef.current.has(page)) {
+        try {
+          const data = await getPage(page, generation)
+          if (!data) return
+          // Warm the card images too, so the eventual batch swap is paint-ready.
+          await preloadListingImages(data)
+        } catch {
+          // Best-effort only; the real request surfaces the error.
+          return
         }
-      } catch {
-        // Best-effort only; the real request surfaces the error.
-      } finally {
-        if (prefetchingRef.current === page) prefetchingRef.current = null
       }
-    }
 
-    const idleWindow = window as Window & {
-      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number
+      if (generation !== activeRef.current) return
+      const pageData = cacheRef.current.get(page)
+      if (!pageData || pageData.length < pageSize) return
+      page += 1
     }
-    if (typeof idleWindow.requestIdleCallback === 'function') {
-      idleWindow.requestIdleCallback(run, { timeout: 2500 })
-    } else {
-      window.setTimeout(run, 500)
-    }
-  }, [])
+  }, [getPage, pageSize])
 
   const loadMore = useCallback(async () => {
     if (loadingRef.current || !hasMoreRef.current) return
@@ -142,6 +185,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
     loadingRef.current = true
     const generation = activeRef.current
     const page = nextPageRef.current
+    // Show the batch loader while the next page is fetched/preloaded.
     setLoading(true)
     setError(null)
 
@@ -170,11 +214,15 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
       }
 
       if (unique.length > 0) {
+        // Keep the loader up until the new cards' photos are ready so the
+        // swap lands on a fully painted batch, never an empty grid.
+        await preloadListingImages(unique)
+        if (!mountedRef.current || generation !== activeRef.current) return
         setListings((prev) => (prev.length === 0 ? unique : [...prev, ...unique]))
         if (!isFirstPage) setShowSuccess(true)
       }
 
-      prefetchNextPage()
+      void prefetchUpcomingPages()
     } catch (err) {
       if (!mountedRef.current || generation !== activeRef.current) return
       setError(err instanceof Error ? err.message : 'Failed to load listings')
@@ -184,7 +232,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
         setLoading(false)
       }
     }
-  }, [getPage, prefetchNextPage, pageSize])
+  }, [getPage, prefetchUpcomingPages, pageSize])
 
   const revealAll = useCallback(async () => {
     if (revealingRef.current || !hasMoreRef.current) return

@@ -93,6 +93,30 @@ export async function GET() {
     }
   })
 
+  // Attach the lister payout number so the admin can copy it in one tap and
+  // pay the 50% share straight from Treasury.
+  const listingIds = Array.from(new Set(enrichedHouseBookings.map((h) => h.listing_id).filter(Boolean)))
+  const { data: payoutListings } = listingIds.length
+    ? await supabase.from('listings').select('id, uploader_id, lister_phone').in('id', listingIds)
+    : { data: [] as Array<{ id: string; uploader_id: string | null; lister_phone: string | null }> }
+  const uploaderIds = Array.from(new Set((payoutListings || []).map((l) => l.uploader_id).filter(Boolean)))
+  const { data: listerProfiles } = uploaderIds.length
+    ? await supabase.from('profiles').select('id, full_name, phone').in('id', uploaderIds)
+    : { data: [] as Array<{ id: string; full_name: string | null; phone: string | null }> }
+  const listingById = new Map((payoutListings || []).map((l) => [l.id, l]))
+  const profileById = new Map((listerProfiles || []).map((p) => [p.id, p]))
+
+  const houseBookingsWithPayout = enrichedHouseBookings.map((h) => {
+    const listing = listingById.get(h.listing_id)
+    const profile = listing?.uploader_id ? profileById.get(listing.uploader_id) : undefined
+    return {
+      ...h,
+      lister_name: profile?.full_name || null,
+      lister_phone: listing?.lister_phone || profile?.phone || null,
+      payout_amount: Math.round((Number(h.listing_price) || 0) * OWNER_SHARE),
+    }
+  })
+
   const totalHeld = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
   const totalReleased = (escrows || []).filter((e) => e.status === 'released').reduce((s, e) => s + (e.amount || 0), 0)
   const totalRefunded = (escrows || []).filter((e) => e.status === 'refunded').reduce((s, e) => s + (e.amount || 0), 0)
@@ -127,7 +151,7 @@ export async function GET() {
       under_review: underReview.length,
     },
     escrows: escrows || [],
-    house_bookings: enrichedHouseBookings,
+    house_bookings: houseBookingsWithPayout,
     transactions: recentTransactions || [],
   })
 }

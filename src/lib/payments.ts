@@ -12,7 +12,12 @@ import {
   extractAmountFromMessage,
   normalizeMsisdn,
 } from '@/lib/paywave'
-import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
+import {
+  OWNER_SHARE,
+  VIEW_WINDOW_HOURS,
+  CONTACT_EMAIL,
+  CONTACT_PHONE_DISPLAY,
+} from '@/lib/constants'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -345,8 +350,9 @@ export async function confirmHouseBookingPayment(
   // Emails: branded PDF receipt to the payer, details to the lister, summary
   // to admins. Email failures never roll back a confirmed payment.
   let receiptEmailed = false
+  let receiptPdf: Buffer | null = null
   try {
-    const pdf = await generateReceiptPdf({
+    receiptPdf = await generateReceiptPdf({
       bookingId: confirmed.id,
       receiptNumber,
       listingTitle: confirmed.listing_title || 'House listing',
@@ -362,7 +368,13 @@ export async function confirmHouseBookingPayment(
       listerName: ctx.listerName,
       listerPhone: ctx.listerPhone,
     })
+  } catch (err) {
+    // Do not let a PDF rendering problem swallow the receipt email. The
+    // buyer still gets the full escrow advice and contact details below.
+    console.error('Failed to render receipt PDF:', err)
+  }
 
+  try {
     if (ctx.hunterEmail) {
       await sendPaymentReceiptEmail({
         to: ctx.hunterEmail,
@@ -375,10 +387,11 @@ export async function confirmHouseBookingPayment(
         amount: expected,
         receiptNumber,
         heldUntil,
-        pdf,
+        pdf: receiptPdf ?? undefined,
         bookingId: confirmed.id,
       })
       receiptEmailed = true
+      console.log(`✅ Payment receipt emailed to ${ctx.hunterEmail} (booking ${confirmed.id})`)
     }
   } catch (err) {
     console.error('Failed to send payment receipt email:', err)
@@ -444,7 +457,7 @@ export async function initiateHouseBookingPayment(
 
   const { data: listing } = await admin
     .from('listings')
-    .select('id, title, price, status, uploader_id, location')
+    .select('id, title, price, status, uploader_id, uploader_name, location')
     .eq('id', listingId)
     .maybeSingle()
 
@@ -541,6 +554,63 @@ export async function initiateHouseBookingPayment(
         link: '/my-bookings?tab=payments',
         data: { house_booking_id: bookingRow.id, amount },
       }).catch(() => {})
+    }
+
+    // Emails at booking time. Previously nothing was emailed until the
+    // M-Pesa payment was confirmed, so a hunter who started a booking (or
+    // whose STK prompt was slow) heard nothing at all. These are best-effort:
+    // an SMTP hiccup must never cancel a live payment.
+    try {
+      let listerEmail = ''
+      let listerName = listing.uploader_name || ''
+      if (listing.uploader_id) {
+        const { data: listerProfile } = await admin
+          .from('profiles')
+          .select('email, full_name')
+          .eq('id', listing.uploader_id)
+          .maybeSingle()
+        listerEmail = listerProfile?.email || ''
+        listerName = listerName || listerProfile?.full_name || ''
+      }
+
+      const emailTasks: Promise<unknown>[] = [
+        notifyUser(email, 'Booking started — approve the M-Pesa prompt', 'Your booking has started', {
+          Listing: listing.title,
+          Location: listing.location || '—',
+          Amount: `KES ${amount.toLocaleString()} (held in escrow once paid)`,
+          'M-Pesa number': msisdn,
+          'What Happens Next':
+            'Approve the M-Pesa prompt on your phone. We will email your receipt and the lister contact as soon as the payment lands.',
+          'Need Help': `${CONTACT_PHONE_DISPLAY} · ${CONTACT_EMAIL}`,
+          Reference: bookingRow.id.slice(0, 8).toUpperCase(),
+        }),
+        notifyAdmins('New Booking Started', 'Booking Started', {
+          Listing: listing.title,
+          Location: listing.location || 'N/A',
+          Amount: `KES ${amount.toLocaleString()}`,
+          Hunter: `${userName} (${email})`,
+          Phone: msisdn,
+          Status: 'STK push sent — awaiting M-Pesa confirmation',
+          Reference: bookingRow.id,
+        }),
+      ]
+
+      if (listerEmail) {
+        emailTasks.push(
+          notifyUser(listerEmail, 'New booking started for your house', 'New Booking', {
+            Listing: listing.title,
+            Amount: `KES ${amount.toLocaleString()} (held in escrow once paid)`,
+            Hunter: userName || 'A hunter',
+            'What Happens Next':
+              'We will email you the moment the payment is confirmed, together with the hunter contact for the viewing.',
+            Reference: bookingRow.id.slice(0, 8).toUpperCase(),
+          })
+        )
+      }
+
+      await Promise.allSettled(emailTasks)
+    } catch (err) {
+      console.error('Booking email notification failed:', err)
     }
 
     return {

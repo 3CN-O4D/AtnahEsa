@@ -153,7 +153,8 @@ export async function sendPaymentReceiptEmail(params: {
   amount: number
   receiptNumber: string
   heldUntil?: string | null
-  pdf: Buffer
+  /** Optional: if PDF rendering fails the email still goes out. */
+  pdf?: Buffer
   bookingId: string
 }) {
   const {
@@ -183,7 +184,7 @@ export async function sendPaymentReceiptEmail(params: {
   <h1 style="margin:14px 0 0;font-size:22px;font-weight:700;color:${BRAND.dark}">Your payment is safe in escrow</h1>
   <p style="margin:10px 0 0;font-size:15px;color:${BRAND.gray};line-height:1.6">
     Hi ${name ? escape(name) : 'there'}, we received <strong style="color:${BRAND.dark}">${amountText}</strong> for
-    <strong style="color:${BRAND.dark}">${safeTitle}</strong>. Your branded receipt is attached as a PDF.
+    <strong style="color:${BRAND.dark}">${safeTitle}</strong>. ${pdf ? 'Your branded receipt is attached as a PDF.' : 'Your receipt number is below and is always available in My Bookings.'}
   </p>
 </td></tr>
 <tr><td style="padding:8px 32px 12px">
@@ -244,12 +245,16 @@ export async function sendPaymentReceiptEmail(params: {
     to,
     subject: `[AseHanta] Payment receipt — ${amountText} for ${listingTitle}`,
     html: baseHtml(body),
-    attachments: [
-      {
-        filename: `AseHanta-receipt-${bookingId.slice(0, 8)}.pdf`,
-        content: pdf,
-        contentType: 'application/pdf',
-      },
-    ],
+    ...(pdf
+      ? {
+          attachments: [
+            {
+              filename: `AseHanta-receipt-${bookingId.slice(0, 8)}.pdf`,
+              content: pdf,
+              contentType: 'application/pdf',
+            },
+          ],
+        }
+      : {}),
   })
 }

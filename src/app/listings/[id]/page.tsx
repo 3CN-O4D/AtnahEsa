@@ -504,7 +504,9 @@ export default function ListingDetailPage() {
                     <p className="text-xs text-blue-600 dark:text-white font-medium mt-0.5">{lister.average_rating} out of 5</p>
                   )}
                   {lister.role === 'admin' && (
-                    <p className="text-xs text-emerald-600 dark:text-emerald-300 font-medium mt-0.5">Official Listing of AseHanta</p>
+                    <p className="official-badge mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                      <BadgeCheck className="h-3 w-3" /> Official Listing of AseHanta
+                    </p>
                   )}
                 </div>
               </div>

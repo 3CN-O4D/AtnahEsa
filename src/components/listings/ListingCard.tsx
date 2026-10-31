@@ -127,7 +127,11 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
           )}
           {listing.status === 'booked' && (
             <div className="absolute inset-0 bg-amber-950/35 backdrop-blur-[1px] flex items-center justify-center">
-              <div className="absolute top-2.5 left-2.5 bg-amber-500/95 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-1 ring-white/30">
+              <div className="absolute top-2.5 left-2.5 inline-flex items-center gap-1.5 bg-amber-500/95 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-1 ring-white/30">
+                <span className="relative flex h-1.5 w-1.5">
+                  <span className="status-ping absolute inline-flex h-full w-full rounded-full bg-white" />
+                  <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-white" />
+                </span>
                 Booked
               </div>
             </div>
@@ -151,7 +155,7 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
             <span className="truncate">{listing.location}</span>
           </div>
           {isAdmin && (
-            <p className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300">
+            <p className="official-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
               <BadgeCheck className="h-3 w-3" /> Official Listing of AseHanta
             </p>
           )}

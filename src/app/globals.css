@@ -207,6 +207,36 @@ body {
   100% { transform: scale(1); }
 }
 
+@keyframes starPop {
+  0%   { transform: scale(0.55) rotate(-14deg); }
+  55%  { transform: scale(1.3) rotate(7deg); }
+  100% { transform: scale(1) rotate(0deg); }
+}
+
+@keyframes badgeSheen {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 200% 50%; }
+}
+
+@keyframes statusPing {
+  0%   { transform: scale(1); opacity: 0.75; }
+  75%, 100% { transform: scale(2.1); opacity: 0; }
+}
+
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  18%  { transform: translateX(-7px) rotate(-0.35deg); }
+  36%  { transform: translateX(6px) rotate(0.35deg); }
+  54%  { transform: translateX(-4px); }
+  72%  { transform: translateX(3px); }
+  88%  { transform: translateX(-1px); }
+}
+
+@keyframes wifiWave {
+  0%   { transform: scale(0.45); opacity: 0.75; }
+  100% { transform: scale(1.55); opacity: 0; }
+}
+
 .animate-fadeIn        { animation: fadeIn 0.5s ease-out both; }
 .animate-slideUp       { animation: slideUp 0.6s ease-out both; }
 .animate-scaleIn       { animation: scaleIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
@@ -230,6 +260,37 @@ body {
 .animate-scaleDown     { animation: scaleDown 0.4s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-rotateIn      { animation: rotateIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
 .animate-elasticIn     { animation: elasticIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-starPop       { animation: starPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Official-listing badge: a slow, quiet sheen instead of a loud rainbow. */
+.official-badge {
+  background-image: linear-gradient(110deg, #ecfdf5 0%, #d1fae5 32%, #86efac 50%, #d1fae5 68%, #ecfdf5 100%);
+  background-size: 200% 100%;
+  animation: badgeSheen 7s linear infinite;
+  box-shadow: 0 0 0 1px rgba(16, 185, 129, 0.16), 0 1px 8px -4px rgba(16, 185, 129, 0.7);
+}
+
+.dark .official-badge {
+  background-image: linear-gradient(110deg, #052e1b 0%, #064e3b 32%, #047857 50%, #064e3b 68%, #052e1b 100%);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.2), 0 1px 10px -4px rgba(16, 185, 129, 0.5);
+}
+
+/* Live dot used inside the "Booked" pill. */
+.status-ping {
+  animation: statusPing 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+.animate-authShake {
+  animation: authShake 0.5s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
+.animate-sheen {
+  animation: badgeSheen 7s linear infinite;
+}
+
+.wifi-wave {
+  animation: wifiWave 3s ease-out infinite;
+}
 
 /* Hover/tap utilities */
 .hover-lift { @apply transition-transform duration-200 hover:-translate-y-1; }
@@ -287,7 +348,13 @@ body {
   .animate-scaleUp,
   .animate-scaleDown,
   .animate-rotateIn,
-  .animate-elasticIn {
+  .animate-elasticIn,
+  .animate-starPop,
+  .official-badge,
+  .status-ping,
+  .animate-authShake,
+  .animate-sheen,
+  .wifi-wave {
     animation: none !important;
     opacity: 1 !important;
     transform: none !important;

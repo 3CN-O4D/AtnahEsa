@@ -12,6 +12,7 @@ import {
   Loader2,
   MessageCircle,
   Receipt,
+  ScanLine,
   ShieldCheck,
   Smartphone,
 } from 'lucide-react'
@@ -639,6 +640,7 @@ function PaymentPageInner() {
                 submitting={submittingSms}
                 onSubmit={submitSms}
                 phone={booking.phone || ''}
+                expectedAmount={amount}
                 prominent
               />
               <button
@@ -694,6 +696,7 @@ function PaymentPageInner() {
                 submitting={submittingSms}
                 onSubmit={submitSms}
                 phone={booking.phone || ''}
+                expectedAmount={amount}
               />
 
               <p className="text-center text-xs text-gray-400">
@@ -719,12 +722,33 @@ function PaymentPageInner() {
   )
 }
 
+/**
+ * Lightweight client-side mirror of the server's M-Pesa parser. It only gives
+ * the hunter instant feedback while pasting; the server still parses and
+ * verifies the real message before anything is queued.
+ */
+function parseMpesaSms(message: string) {
+  const receipt =
+    message.match(/([A-Z][A-Z0-9]{3,})\s+Confirmed/i)?.[1] ??
+    message.match(/\b([A-Z0-9]{10,})\b/)?.[1] ??
+    null
+  const amountMatch =
+    message.match(/(?:KSh|KES)\s*([\d,]+)/i) ??
+    message.match(/([\d,]+)\s*(?:KSh|KES)/i)
+  const amount = amountMatch ? parseInt(amountMatch[1].replace(/,/g, ''), 10) : null
+  return {
+    receipt,
+    amount: amount !== null && Number.isFinite(amount) ? amount : null,
+  }
+}
+
 function SmsFallback({
   sms,
   setSms,
   submitting,
   onSubmit,
   phone,
+  expectedAmount = 0,
   prominent = false,
 }: {
   sms: string
@@ -732,8 +756,14 @@ function SmsFallback({
   submitting: boolean
   onSubmit: () => void
   phone: string
+  expectedAmount?: number
   prominent?: boolean
 }) {
+  const parsed = useMemo(() => parseMpesaSms(sms), [sms])
+  const hasText = sms.trim().length > 0
+  const amountMismatch = parsed.amount !== null && expectedAmount > 0 && parsed.amount !== expectedAmount
+  const amountMatches = parsed.amount !== null && expectedAmount > 0 && parsed.amount === expectedAmount
+
   return (
     <div
       id="sms"
@@ -760,6 +790,34 @@ function SmsFallback({
         placeholder="QGH7X8Y9Z1 Confirmed. Ksh500.00 sent to ASEHANTA INVESTMENTS…"
         className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 dark:border-gray-600 dark:bg-slate-800 dark:text-white"
       />
+      {hasText && (
+        <div aria-live="polite" className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
+          {parsed.receipt ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+              <CheckCircle className="h-3 w-3" /> {parsed.receipt}
+            </span>
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-full bg-gray-100 px-2 py-0.5 text-gray-500 dark:bg-slate-800 dark:text-gray-400">
+              <ScanLine className="h-3 w-3 animate-pulse" /> Looking for the M-Pesa code…
+            </span>
+          )}
+          {parsed.amount !== null && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 dark:bg-blue-900/40 dark:text-blue-200">
+              KES {parsed.amount.toLocaleString()}
+            </span>
+          )}
+          {amountMatches && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+              <CheckCircle className="h-3 w-3" /> Matches this booking
+            </span>
+          )}
+          {amountMismatch && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+              <AlertTriangle className="h-3 w-3" /> This booking is {formatPrice(expectedAmount)}
+            </span>
+          )}
+        </div>
+      )}
       <button
         onClick={onSubmit}
         disabled={submitting || sms.trim().length < 20}

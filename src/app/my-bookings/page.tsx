@@ -74,6 +74,8 @@ function hasRating(rating: number | null | undefined): rating is number {
   return typeof rating === 'number' && rating >= 1 && rating <= 5
 }
 
+const RATING_LABELS = ['Poor', 'Fair', 'Good', 'Very good', 'Excellent']
+
 /** Saved rating + review, shown on the booking after the hunter submits it. */
 function FeedbackSummary({ feedback }: { feedback: BookingFeedback }) {
   return (
@@ -198,6 +200,16 @@ function MyBookingsInner() {
   const [paymentsError, setPaymentsError] = useState('')
   const [paymentsNotice, setPaymentsNotice] = useState('')
   const [loading, setLoading] = useState(true)
+
+  // Bring the newly opened feedback form into view instead of leaving it
+  // stranded below the fold on phones.
+  useEffect(() => {
+    if (!feedbackFor) return
+    const form = document.getElementById(`feedback-${feedbackFor.id}`)
+    if (!form) return
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    form.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' })
+  }, [feedbackFor])
 
   useEffect(() => {
     const supabase = createClient()
@@ -535,7 +547,7 @@ function MyBookingsInner() {
                     )}
 
                     {feedbackFor?.id === hb.id && (
-                      <div className="mt-3 border-t dark:border-gray-700 pt-3 space-y-3">
+                      <div id={`feedback-${hb.id}`} className="mt-3 border-t dark:border-gray-700 pt-3 space-y-3">
                         <div className={`rounded-lg border p-3 text-xs leading-relaxed ${
                           feedbackFor.outcome === 'pleased'
                             ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200'
@@ -586,17 +598,23 @@ function MyBookingsInner() {
                             <div className="flex gap-1">
                               {[1, 2, 3, 4, 5].map(n => (
                                 <button
-                                  key={n}
+                                  key={`${n}-${fbRating}`}
                                   type="button"
                                   onClick={() => setFbRating(n)}
                                   disabled={!!acting}
                                   aria-label={`${n} star${n === 1 ? '' : 's'}`}
-                                  className="disabled:opacity-50">
-                                  <Star className={`w-5 h-5 ${n <= fbRating ? 'fill-amber-400 text-amber-400' : 'text-gray-300'}`} />
+                                  className="disabled:opacity-50 transition-transform duration-150 hover:scale-125 active:scale-90">
+                                  <Star className={`w-5 h-5 transition-colors duration-200 ${
+                                    n <= fbRating ? 'fill-amber-400 text-amber-400' : 'text-gray-300 dark:text-gray-600'
+                                  } ${n <= fbRating ? 'animate-starPop' : ''}`} style={{ animationDelay: `${(n - 1) * 40}ms` }} />
                                 </button>
                               ))}
                             </div>
-                            {fbRating > 0 && <span className="text-xs text-gray-500">{fbRating}/5</span>}
+                            {fbRating > 0 && (
+                              <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                                {RATING_LABELS[fbRating - 1]} · {fbRating}/5
+                              </span>
+                            )}
                           </div>
                         </div>
 

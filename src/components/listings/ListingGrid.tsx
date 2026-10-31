@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import ListingCard from './ListingCard'
 import HouseLoader from '@/components/ui/HouseLoader'
@@ -32,6 +32,28 @@ interface ListerInfo {
 const INITIAL_SKELETONS = 8
 const LOADING_SKELETONS = 4
 const IMAGE_PRELOAD_TIMEOUT_MS = 900
+
+/** Section headers shown whenever the status changes in the grouped home feed. */
+const GROUP_META: Record<string, { label: string; caption: string; dot: string; text: string }> = {
+  published: {
+    label: 'New houses',
+    caption: 'Available to view and book',
+    dot: 'bg-[#30B54A]',
+    text: 'text-[#2a9c40] dark:text-[#6fdc84]',
+  },
+  booked: {
+    label: 'Booked',
+    caption: 'Visit being arranged — view only',
+    dot: 'bg-amber-500',
+    text: 'text-amber-700 dark:text-amber-400',
+  },
+  taken: {
+    label: 'Taken',
+    caption: 'No longer available',
+    dot: 'bg-red-500',
+    text: 'text-red-700 dark:text-red-400',
+  },
+}
 
 /**
  * Best-effort preload of the first image on each card. The loader stays up
@@ -398,19 +420,31 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {listings.map((listing, i) => {
               const info = listerInfo.get(listing.uploader_id)
+              const previous = listings[i - 1]
+              const startsGroup = i === 0 || previous?.status !== listing.status
+              const meta = GROUP_META[listing.status] ?? GROUP_META.published
               return (
-                <div
-                  key={listing.id}
-                  className="animate-slideUp animate-fadeIn animate-elasticIn"
-                  style={{ animationDelay: `${(i % 8) * 0.06}s` }}
-                >
-                  <ListingCard
-                    listing={listing}
-                    listerName={info?.full_name ?? listing.uploader_name ?? ''}
-                    isAdmin={info?.role === 'admin'}
-                    verified={info?.verified ?? false}
-                  />
-                </div>
+                <Fragment key={listing.id}>
+                  {startsGroup && (
+                    <div className="col-span-full mt-1 flex items-center gap-2.5 first:mt-0">
+                      <span aria-hidden className={`h-2 w-2 shrink-0 rounded-full ${meta.dot}`} />
+                      <h3 className={`text-xs font-bold uppercase tracking-widest ${meta.text}`}>{meta.label}</h3>
+                      <span className="hidden text-[11px] text-gray-400 sm:inline dark:text-gray-500">{meta.caption}</span>
+                      <span aria-hidden className="h-px flex-1 bg-gradient-to-r from-gray-200 to-transparent dark:from-slate-800" />
+                    </div>
+                  )}
+                  <div
+                    className="animate-slideUp animate-fadeIn animate-elasticIn"
+                    style={{ animationDelay: `${(i % 8) * 0.06}s` }}
+                  >
+                    <ListingCard
+                      listing={listing}
+                      listerName={info?.full_name ?? listing.uploader_name ?? ''}
+                      isAdmin={info?.role === 'admin'}
+                      verified={info?.verified ?? false}
+                    />
+                  </div>
+                </Fragment>
               )
             })}
 

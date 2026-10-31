@@ -4,7 +4,7 @@ import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders 
 import { notifyAdmins, notifyUser } from '@/lib/notify'
 import { createClient } from '@/lib/supabase/server'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
-import { getCached, setCached, invalidateCached } from '@/lib/server-cache'
+import { getCached, setCached, invalidateCached, cached } from '@/lib/server-cache'
 import { createNotification } from '@/lib/notifications'
 
 /** Columns the public cards actually read. Keeping this list tight makes each
@@ -79,34 +79,10 @@ export async function GET(req: Request) {
       issues || '',
     ].join('|')
 
-    const cached = getCached<unknown>(cacheKey)
-    if (cached !== undefined) return cachedJson(cached)
-
-    const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
+    const cachedPayload = getCached<unknown>(cacheKey)
+    if (cachedPayload !== undefined) return cachedJson(cachedPayload)
 
     const wantCount = count === '1'
-
-    let q = supabase
-      .from('listings')
-      .select(wantCount ? '*' : PUBLIC_COLUMNS, wantCount ? { count: 'exact', head: true } : undefined)
-      .in('status', statusFilter)
-
-    if (!wantCount) {
-      const pageNum = Math.max(1, page ? parseInt(page, 10) : 1)
-      const from = (pageNum - 1) * pageSize
-      q = q.range(from, from + pageSize - 1)
-    }
-
-    if (query) {
-      const sanitized = query.replace(/[%_]/g, '').slice(0, 100)
-      q = q.or(`location.ilike.*${sanitized}*,title.ilike.*${sanitized}*`)
-    }
-    if (location) q = q.ilike('location', `%${location.replace(/[%_]/g, '').slice(0, 100)}%`)
-    if (minRent) q = q.gte('rent', parseInt(minRent))
-    if (maxRent) q = q.lte('rent', parseInt(maxRent))
-    if (minPrice) q = q.gte('price', parseInt(minPrice))
-    if (maxPrice) q = q.lte('price', parseInt(maxPrice))
-    if (issues) q = q.eq('issues_count', parseInt(issues))
 
     const sortMap: Record<string, { column: string; ascending: boolean }> = {
       rent_asc: { column: 'rent', ascending: true },
@@ -118,13 +94,119 @@ export async function GET(req: Request) {
       issues_desc: { column: 'issues_count', ascending: false },
     }
 
-    if (sort && sortMap[sort]) {
-      q = q.order(sortMap[sort].column, { ascending: sortMap[sort].ascending })
-    } else {
-      q = q.order('created_at', { ascending: false })
+    const applyFilters = <T>(q: T): T => {
+      let next = q as T & {
+        or: (filter: string) => T
+        ilike: (column: string, value: string) => T
+        gte: (column: string, value: number) => T
+        lte: (column: string, value: number) => T
+        eq: (column: string, value: number) => T
+      }
+      if (query) {
+        const sanitized = query.replace(/[%_]/g, '').slice(0, 100)
+        next = next.or(`location.ilike.*${sanitized}*,title.ilike.*${sanitized}*`) as typeof next
+      }
+      if (location) next = next.ilike('location', `%${location.replace(/[%_]/g, '').slice(0, 100)}%`) as typeof next
+      if (minRent) next = next.gte('rent', parseInt(minRent)) as typeof next
+      if (maxRent) next = next.lte('rent', parseInt(maxRent)) as typeof next
+      if (minPrice) next = next.gte('price', parseInt(minPrice)) as typeof next
+      if (maxPrice) next = next.lte('price', parseInt(maxPrice)) as typeof next
+      if (issues) next = next.eq('issues_count', parseInt(issues)) as typeof next
+      return next as T
     }
 
-    const { data, error, count: queryCount } = await q
+    /** Apply the filters + chosen sort to one status group (newest first by default). */
+    const buildGroupPage = (group: string, from: number, to: number) => {
+      let q = applyFilters(supabase.from('listings').select(PUBLIC_COLUMNS).in('status', [group]))
+      const rule = sort ? sortMap[sort] : undefined
+      q = rule ? q.order(rule.column, { ascending: rule.ascending }) : q.order('created_at', { ascending: false })
+      return q.range(from, to)
+    }
+
+    const buildGroupCount = (group: string) =>
+      applyFilters(supabase.from('listings').select('*', { count: 'exact', head: true }).in('status', [group]))
+
+    // Home requests every status at once. Instead of interleaving them by
+    // date, return one contiguous block per status: new -> booked -> taken.
+    // Counts let us page through that virtual combined list without a
+    // database migration or loading every row into memory.
+    const STATUS_ORDER = ['published', 'booked', 'taken'] as const
+    const grouped = status === 'all' && !wantCount
+
+    let data: unknown = null
+    let error: { message: string } | null = null
+    let queryCount: number | null = null
+
+    if (grouped) {
+      const pageNum = Math.max(1, page ? parseInt(page, 10) : 1)
+      const windowStart = (pageNum - 1) * pageSize
+      const windowEnd = windowStart + pageSize
+
+      const countsKey = [
+        'listings',
+        'group-counts',
+        query || '',
+        location || '',
+        minRent || '',
+        maxRent || '',
+        minPrice || '',
+        maxPrice || '',
+        issues || '',
+      ].join('|')
+
+      const counts = await cached(countsKey, LISTING_CACHE_TTL_MS, async () => {
+        const results = await Promise.all(STATUS_ORDER.map((group) => buildGroupCount(group)))
+        const failed = results.find((result) => result.error)
+        if (failed?.error) throw new Error(failed.error.message)
+        const map: Record<string, number> = {}
+        results.forEach((result, index) => {
+          map[STATUS_ORDER[index]] = result.count ?? 0
+        })
+        return map
+      })
+
+      const rows: unknown[] = []
+      let groupStart = 0
+      for (const group of STATUS_ORDER) {
+        const groupCount = counts[group] ?? 0
+        const groupEnd = groupStart + groupCount
+        if (groupCount > 0 && windowEnd > groupStart && windowStart < groupEnd) {
+          const localFrom = Math.max(0, windowStart - groupStart)
+          const localTo = Math.min(groupCount, windowEnd - groupStart) - 1
+          const result = await buildGroupPage(group, localFrom, localTo)
+          if (result.error) {
+            error = result.error
+            break
+          }
+          rows.push(...(result.data ?? []))
+        }
+        groupStart = groupEnd
+      }
+      data = rows
+    } else {
+      const statusFilter = status === 'all' ? [...STATUS_ORDER] : status ? [status] : ['published', 'taken']
+      let q = supabase
+        .from('listings')
+        .select(wantCount ? '*' : PUBLIC_COLUMNS, wantCount ? { count: 'exact', head: true } : undefined)
+        .in('status', statusFilter)
+
+      q = applyFilters(q)
+
+      if (wantCount) {
+        // No pagination or sort needed for count-only requests.
+      } else {
+        const pageNum = Math.max(1, page ? parseInt(page, 10) : 1)
+        const from = (pageNum - 1) * pageSize
+        const rule = sort ? sortMap[sort] : undefined
+        q = rule ? q.order(rule.column, { ascending: rule.ascending }) : q.order('created_at', { ascending: false })
+        q = q.range(from, from + pageSize - 1)
+      }
+
+      const result = await q
+      data = result.data
+      error = result.error
+      queryCount = result.count ?? null
+    }
 
     if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 

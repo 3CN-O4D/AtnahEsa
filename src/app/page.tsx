@@ -370,11 +370,11 @@ export default function HomePage() {
                 Live listings
               </p>
               <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
-                Available &amp; booked homes
+                New, booked &amp; taken homes
               </h2>
             </div>
             <p className="max-w-sm text-sm text-gray-500 dark:text-gray-400">
-              New homes are added regularly. Book a viewing before someone else does.
+              Fresh listings first, then homes already booked or taken — grouped so nothing gets mixed up.
             </p>
           </div>
 

@@ -18,6 +18,8 @@ import {
   type TransactionRow,
 } from '@/lib/payments'
 import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
+import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
+import { invalidateCached } from '@/lib/server-cache'
 
 const HOUSE_STATUSES = ['pending', 'contacted', 'confirmed', 'completed', 'cancelled'] as const
 const RELEASE_STATUSES = [
@@ -399,11 +401,40 @@ export async function POST(request: Request) {
           Date: now,
         })
 
+        // After a refund the admin decides what happens to the house:
+        //   republish — put it back so other hunters can book it
+        //   remove    — take it out of the listings
+        //   keep      — leave it exactly as it was
+        const listingAction =
+          body.listing_action === 'republish' || body.listing_action === 'remove'
+            ? (body.listing_action as 'republish' | 'remove')
+            : 'keep'
+
+        let listingMessage = ''
+        if (listingAction === 'republish') {
+          await admin
+            .from('listings')
+            .update({ status: 'published', taken_at: null, taken_by_name: '' })
+            .eq('id', hb.listing_id)
+          await moveMediaBackToListings(hb.listing_id).catch(() => {})
+          invalidateCached('listings|')
+          listingMessage = ' The house is back on the listings for other hunters.'
+        } else if (listingAction === 'remove') {
+          await admin
+            .from('listings')
+            .update({ status: 'taken', taken_at: now, taken_by_name: 'Removed after refund' })
+            .eq('id', hb.listing_id)
+          await moveMediaToTaken(hb.listing_id).catch(() => {})
+          invalidateCached('listings|')
+          listingMessage = ' The house was removed from the listings.'
+        }
+
         return NextResponse.json({
           success: true,
-          message: `${percentage}% refund of KES ${refundAmount.toLocaleString()} recorded.`,
+          message: `${percentage}% refund of KES ${refundAmount.toLocaleString()} recorded.${listingMessage}`,
           refund_amount: refundAmount,
           receipt,
+          listing_action: listingAction,
         })
       }
 

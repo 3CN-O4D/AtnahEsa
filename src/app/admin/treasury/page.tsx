@@ -51,6 +51,7 @@ export default function TreasuryPage() {
   const [smsText, setSmsText] = useState('')
   const [smsError, setSmsError] = useState('')
   const [smsRefundPercentage, setSmsRefundPercentage] = useState(85)
+  const [smsListingAction, setSmsListingAction] = useState<'republish' | 'remove' | 'keep'>('republish')
   const [statusModal, setStatusModal] = useState<{ houseBooking: HouseBookingWithPayment } | null>(null)
   const [newStatus, setNewStatus] = useState('')
   const [newReleaseStatus, setNewReleaseStatus] = useState('')
@@ -209,7 +210,9 @@ export default function TreasuryPage() {
           action: smsAction.action,
           house_booking_id: smsAction.houseBooking.id,
           mpesa_message: smsText,
-          ...(smsAction.action === 'house_refund' ? { percentage: smsRefundPercentage } : {}),
+          ...(smsAction.action === 'house_refund'
+            ? { percentage: smsRefundPercentage, listing_action: smsListingAction }
+            : {}),
         }),
       })
       const data = await res.json()
@@ -853,8 +856,9 @@ export default function TreasuryPage() {
               {smsAction.action === 'house_refund' && (
                 <>
                   Refund rate:{' '}
-                  <span className="mt-1 flex gap-1.5">
+                  <span className="mt-1 flex flex-wrap gap-1.5">
                     {[
+                      { p: 50, label: '50% — partial fault' },
                       { p: 85, label: '85% — viewed & changed mind' },
                       { p: 100, label: '100% — fake listing / no-show' },
                     ].map(({ p, label }) => (
@@ -873,6 +877,25 @@ export default function TreasuryPage() {
                   <span className="mt-1 block">
                     Expected refund: <strong>{formatPrice(Math.round((smsAction.houseBooking.listing_price || 0) * (smsRefundPercentage / 100)))}</strong>{' '}
                     ({smsRefundPercentage}%). The amount in the SMS must match exactly or nothing is changed.
+                  </span>
+                  <span className="mt-2 block font-semibold">After the refund, this house should:</span>
+                  <span className="mt-1 flex flex-wrap gap-1.5">
+                    {[
+                      { value: 'republish', label: 'Go back on listings' },
+                      { value: 'remove', label: 'Be removed from listings' },
+                      { value: 'keep', label: 'Stay as it is' },
+                    ].map(({ value, label }) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSmsListingAction(value as 'republish' | 'remove' | 'keep')}
+                        className={`rounded-md border px-2 py-1 text-[11px] font-medium ${
+                          smsListingAction === value ? 'border-blue-600 bg-blue-600 text-white' : 'border-blue-200 bg-white text-blue-800'
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
                   </span>
                 </>
               )}

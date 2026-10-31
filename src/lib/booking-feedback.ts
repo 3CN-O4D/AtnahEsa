@@ -45,6 +45,13 @@ export const ISSUE_CATEGORIES = [
     action: 'displeased',
   },
   {
+    id: 'shared_fault',
+    label: 'Shared blame',
+    description: 'Both you and the lister contributed to the problem being reviewed.',
+    refundPercent: 50,
+    action: 'displeased',
+  },
+  {
     id: 'other',
     label: 'Something else',
     description: 'Tell us in your own words and an admin will review it.',
@@ -73,10 +80,14 @@ export const PLEASED_TERMS =
   'By confirming, you tell AseHanta the viewing happened and the house matched the listing. An admin checks the booking before the lister\u2019s 50% share is released. Your rating and review are saved to the lister\u2019s profile.'
 
 export const ISSUE_TERMS =
-  'AseHanta reviews every report before money moves. An admin will contact you and the lister, then decide. A fake listing or a no-show can qualify for a 100% refund; other issues can qualify for 85% once reviewed. The lister is not paid while a report is open.'
+  'AseHanta reviews every report before money moves. An admin will contact you and the lister, then decide. A fake listing or a no-show can qualify for a 100% refund; other issues can qualify for 85%, and shared blame for 50%, once reviewed. The lister is not paid while a report is open.'
 
 export function getIssueCategory(id: string | null | undefined) {
-  return ISSUE_CATEGORIES.find((category) => category.id === id) || ISSUE_CATEGORIES[ISSUE_CATEGORIES.length - 1]
+  return (
+    ISSUE_CATEGORIES.find((category) => category.id === id) ||
+    ISSUE_CATEGORIES.find((category) => category.id === 'other') ||
+    ISSUE_CATEGORIES[ISSUE_CATEGORIES.length - 1]
+  )
 }
 
 export function parseBookingFeedback(raw: string | null | undefined): BookingFeedback | null {

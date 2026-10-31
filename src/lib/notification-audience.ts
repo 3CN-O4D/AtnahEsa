@@ -48,7 +48,19 @@ export function isNotificationVisibleTo(
   userId: string,
   role: string | null | undefined
 ): boolean {
+  // Personal notifications are only ever visible to their owner.
   if (row.user_id && row.user_id !== userId) return false
+
+  const explicitAudiences = Array.isArray(row.data?.audiences) && row.data.audiences.length > 0
+
+  // A row with no owner and no declared audience is not something anyone
+  // asked to broadcast. Historically an empty/unknown recipient could slip
+  // through as "everyone", which leaked transactional alerts to strangers.
+  // Treat those as admin-only until someone gives them a real audience.
+  if (!row.user_id && !explicitAudiences && !row.role) {
+    return (role || '') === 'admin'
+  }
+
   const audiences = getNotificationAudiences(row)
   return audiences.includes('everyone') || audiences.includes((role || '') as NotificationAudience)
 }

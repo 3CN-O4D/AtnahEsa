@@ -163,8 +163,13 @@ export async function POST(req: Request) {
             body: `Payment of KES ${status.TransactionAmount} confirmed. 24-hour view window started.`,
             link: '/my-bookings?tab=payments',
           })
+          const { data: paidListing } = await admin
+            .from('listings')
+            .select('uploader_id')
+            .eq('id', booking.listing_id)
+            .maybeSingle()
           await createNotification({
-            userId: booking.listing_id || '',
+            userId: paidListing?.uploader_id || null,
             category: 'transaction',
             title: 'New Booking Payment',
             body: `Hunter paid KES ${status.TransactionAmount}. 24-hour view window started.`,
@@ -236,8 +241,13 @@ export async function POST(req: Request) {
           link: '/my-bookings?tab=refunds',
         })
 
+        const { data: refundedListing } = await admin
+          .from('listings')
+          .select('uploader_id')
+          .eq('id', booking.listing_id)
+          .maybeSingle()
         await createNotification({
-          userId: booking.listing_id || '',
+          userId: refundedListing?.uploader_id || null,
           category: 'transaction',
           title: 'Booking Refunded',
           body: `A booking for "${booking.listing_title}" was manually refunded (${reason}).`,

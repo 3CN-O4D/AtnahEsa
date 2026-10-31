@@ -26,6 +26,33 @@ const LISTING_SUPPORT_LINK = getWhatsAppLink(
   `Hi ${APP_NAME}, I need help with a house listing on the website.`
 )
 
+// Never select `lister_phone` from public pages. It is unlocked through the
+// payment-gated contact endpoints instead.
+const SAFE_LISTING_COLUMNS =
+  'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,uploader_name,created_at,updated_at'
+
+const DETAIL_CACHE_TTL_MS = 5 * 60_000
+const detailCache = new Map<string, { at: number; listing: Listing }>()
+
+function readDetailCache(id: string): Listing | null {
+  const hit = detailCache.get(id)
+  if (!hit) return null
+  if (Date.now() - hit.at > DETAIL_CACHE_TTL_MS) {
+    detailCache.delete(id)
+    return null
+  }
+  return hit.listing
+}
+
+function writeDetailCache(listing: Listing) {
+  detailCache.set(listing.id, { at: Date.now(), listing })
+  // Keep the module cache small in long sessions.
+  if (detailCache.size > 40) {
+    const oldest = detailCache.keys().next().value
+    if (oldest) detailCache.delete(oldest)
+  }
+}
+
 function videoSrc(url: string): string {
   if (url.startsWith('https://') && url.includes('/storage/v1/s3/')) {
     const parts = url.split('/storage/v1/s3/')
@@ -54,12 +81,12 @@ function Stars({ rating, interactive, onChange }: { rating: number; interactive?
 export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
-  const [listing, setListing] = useState<Listing | null>(null)
+  const [listing, setListing] = useState<Listing | null>(() => readDetailCache(id))
   const [lister, setLister] = useState<(Profile & { listing_count: number }) | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewProfiles, setReviewProfiles] = useState<Record<string, Profile>>({})
   const [user, setUser] = useState<{ id: string; email?: string } | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(() => !readDetailCache(id))
   const [showViewer, setShowViewer] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
   const [myRating, setMyRating] = useState(0)
@@ -94,66 +121,94 @@ export default function ListingDetailPage() {
 
   useEffect(() => {
     const supabase = createClient()
+    const remembered = readDetailCache(id)
+    if (remembered) {
+      // Text (and the cached photos) paint immediately; the fresh copy and
+      // reviews load in the background below.
+      setListing(remembered)
+      setLoading(false)
+    }
 
-    Promise.all([
-      supabase.auth.getUser(),
-      // C-C: Never expose lister_phone to the public. Select only safe columns.
-      // Lister contact is revealed only after payment via /api/bookings/[id]/pdf
-      // and the tuma-status endpoint (which checks payment status).
-      supabase
-        .from('listings')
-        .select(
-          'id,title,description,price,rent,location,images,youtube_url,tiktok_url,video_url,video_urls,youtube_urls,tiktok_urls,issues,issues_count,deposit,deposit_refundable,electricity,electric_bill,water,why_vacant,vacancy,vacancy_type,house_type,building_type,floor_number,descriptive_location,payment_method,status,taken_at,taken_by_name,uploader_id,uploader_name,created_at,updated_at'
-        )
-        .eq('id', id)
-        .single(),
-    ]).then(async ([userRes, listingRes]) => {
+    let cancelled = false
+
+    const load = async () => {
+      const [userRes, listingRes] = await Promise.all([
+        supabase.auth.getUser(),
+        // Never expose lister_phone here; it is unlocked only after payment
+        // through the gated contact endpoints.
+        supabase
+          .from('listings')
+          .select(SAFE_LISTING_COLUMNS)
+          .eq('id', id)
+          .single(),
+      ])
+
+      if (cancelled) return
       const currentUser = userRes.data.user
       setUser(currentUser ? { id: currentUser.id, email: currentUser.email } : null)
 
-      if (listingRes.error || !listingRes.data) { router.push('/'); return }
+      if (listingRes.error || !listingRes.data) {
+        if (!remembered) router.push('/')
+        return
+      }
+
       const l = listingRes.data as Listing
       setListing(l)
-
-      const [profileRes, countRes, revsRes, lrRes, simRes, bookingCountRes, paidHouseCountRes] = await Promise.all([
-        supabase.from('profiles_public').select('*').eq('id', l.uploader_id).single(),
-        supabase.from('listings').select('*', { count: 'exact', head: true }).eq('uploader_id', l.uploader_id),
-        supabase.from('reviews').select('*').eq('listing_id', id).order('created_at', { ascending: false }),
-        l.uploader_id ? supabase.from('lister_reviews').select('*').eq('lister_id', l.uploader_id).order('created_at', { ascending: false }) : Promise.resolve({ data: null }),
-        supabase.from('listings').select('*').eq('status', 'published').eq('location', l.location).neq('id', id).limit(10),
-        currentUser ? supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).eq('release_status', 'released') : Promise.resolve({ count: null }),
-        currentUser ? supabase.from('house_bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).in('release_status', ['held', 'paid', 'refunded']) : Promise.resolve({ count: null }),
-      ])
-
-      if (profileRes.data) setLister({ ...profileRes.data as Profile, listing_count: countRes.count ?? 0 })
-
-      const revs = (revsRes.data ?? []) as Review[]
-      setReviews(revs)
-
-      const lr = (lrRes.data ?? []) as ListerReview[]
-      setListerReviews(lr)
-
-      setSimilar((simRes.data ?? []) as Listing[])
-
-      if (currentUser) {
-        const hasPaidBooking = ((bookingCountRes?.count ?? 0) > 0) || ((paidHouseCountRes?.count ?? 0) > 0)
-        setCanReview(hasPaidBooking)
-        setPhoneUnlocked(hasPaidBooking)
-      }
-
-      const userIds = [...new Set(revs.map((r) => r.user_id))]
-      const lrUserIds = [...new Set(lr.map((r) => r.reviewer_id))]
-      const allProfileIds = [...new Set([...userIds, ...lrUserIds])]
-      if (allProfileIds.length > 0) {
-        const { data: allProfiles } = await supabase.from('profiles_public').select('*').in('id', allProfileIds)
-        const pmap: Record<string, Profile> = {}
-        for (const p of allProfiles ?? []) pmap[p.id] = p as Profile
-        setReviewProfiles(pmap)
-        setListerReviewProfiles(pmap)
-      }
-
       setLoading(false)
-    })
+      writeDetailCache(l)
+
+      // Secondary data (lister profile, reviews, similar homes) no longer
+      // blocks the page from showing the house itself.
+      try {
+        const [profileRes, countRes, revsRes, lrRes, simRes, bookingCountRes, paidHouseCountRes] = await Promise.all([
+          supabase.from('profiles_public').select('*').eq('id', l.uploader_id).single(),
+          supabase.from('listings').select('*', { count: 'exact', head: true }).eq('uploader_id', l.uploader_id),
+          supabase.from('reviews').select('*').eq('listing_id', id).order('created_at', { ascending: false }),
+          l.uploader_id ? supabase.from('lister_reviews').select('*').eq('lister_id', l.uploader_id).order('created_at', { ascending: false }) : Promise.resolve({ data: null }),
+          supabase.from('listings').select(SAFE_LISTING_COLUMNS).eq('status', 'published').eq('location', l.location).neq('id', id).limit(10),
+          currentUser ? supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).eq('release_status', 'released') : Promise.resolve({ count: null }),
+          currentUser ? supabase.from('house_bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).in('release_status', ['held', 'paid', 'refunded']) : Promise.resolve({ count: null }),
+        ])
+
+        if (cancelled) return
+
+        if (profileRes.data) setLister({ ...profileRes.data as Profile, listing_count: countRes.count ?? 0 })
+
+        const revs = (revsRes.data ?? []) as Review[]
+        setReviews(revs)
+
+        const lr = (lrRes.data ?? []) as ListerReview[]
+        setListerReviews(lr)
+
+        setSimilar((simRes.data ?? []) as Listing[])
+
+        if (currentUser) {
+          const hasPaidBooking = ((bookingCountRes?.count ?? 0) > 0) || ((paidHouseCountRes?.count ?? 0) > 0)
+          setCanReview(hasPaidBooking)
+          setPhoneUnlocked(hasPaidBooking)
+        }
+
+        const userIds = [...new Set(revs.map((r) => r.user_id))]
+        const lrUserIds = [...new Set(lr.map((r) => r.reviewer_id))]
+        const allProfileIds = [...new Set([...userIds, ...lrUserIds])]
+        if (allProfileIds.length > 0) {
+          const { data: allProfiles } = await supabase.from('profiles_public').select('*').in('id', allProfileIds)
+          if (cancelled) return
+          const pmap: Record<string, Profile> = {}
+          for (const p of allProfiles ?? []) pmap[p.id] = p as Profile
+          setReviewProfiles(pmap)
+          setListerReviewProfiles(pmap)
+        }
+      } catch {
+        // The house is already on screen; a failed review/similar query should
+        // never send the visitor back to the home page.
+      }
+    }
+
+    void load()
+    return () => {
+      cancelled = true
+    }
   }, [id, router])
 
   // Unlock the lister's real number only once the server confirms a paid booking.
@@ -231,7 +286,8 @@ export default function ListingDetailPage() {
   const avgRating = reviews.length > 0 ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length * 10) / 10 : 0
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-6">
+    <div className="min-h-screen bg-[radial-gradient(80rem_40rem_at_50%_-10%,rgba(48,181,74,0.10),transparent_60%)] dark:bg-none">
+      <div className="mx-auto max-w-6xl px-4 py-6 sm:py-9">
       <button
         onClick={() => router.back()}
         className="mb-4 inline-flex items-center gap-1.5 rounded-full border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium text-gray-600 shadow-sm transition-colors hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800"
@@ -239,13 +295,13 @@ export default function ListingDetailPage() {
         <ArrowLeft className="w-4 h-4" /> Back
       </button>
 
-      <div className="relative mb-6 overflow-hidden rounded-2xl shadow-xl shadow-slate-900/10 ring-1 ring-black/5 dark:ring-white/10">
+      <div className="relative mb-6 overflow-hidden rounded-3xl shadow-2xl shadow-slate-900/15 ring-1 ring-black/5 dark:ring-white/10">
         <Slideshow
           images={listing.images}
-          className="w-full aspect-[4/3] sm:aspect-video"
+          className="w-full aspect-[4/3] sm:aspect-[16/9]"
           onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }}
         />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-black/5" />
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-black/10" />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
 
         {/* Save control stays on the hero so it is available without scrolling. */}
@@ -270,33 +326,54 @@ export default function ListingDetailPage() {
           <div className="absolute left-3 top-3 rounded-full bg-red-600/95 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-lg ring-1 ring-white/30">Taken</div>
         )}
         {listing.status === 'published' && (
-          <div className="absolute left-3 top-3 rounded-full bg-[#30B54A]/95 px-3 py-1 text-xs font-semibold text-white shadow-lg ring-1 ring-white/30">Available</div>
+          <div className="absolute left-3 top-3 rounded-full bg-[#30B54A]/95 px-3 py-1 text-xs font-semibold text-white shadow-lg ring-1 ring-white/30">Available now</div>
         )}
 
-        <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-center gap-2">
-          <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-gray-900 shadow-lg backdrop-blur dark:bg-slate-900/90 dark:text-white">
-            {formatPrice(listing.price)} booking fee
-          </span>
-          <span className="flex items-center gap-1 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white shadow-lg backdrop-blur">
-            <MapPin className="h-3 w-3" /> {listing.location}
+        <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-end justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-white/95 px-3 py-1 text-xs font-semibold text-gray-900 shadow-lg backdrop-blur dark:bg-slate-900/90 dark:text-white">
+              {formatPrice(listing.price)} booking fee
+            </span>
+            <span className="flex items-center gap-1 rounded-full bg-black/45 px-3 py-1 text-xs font-medium text-white shadow-lg backdrop-blur">
+              <MapPin className="h-3 w-3" /> {listing.location}
+            </span>
+          </div>
+          <span className="rounded-full bg-black/45 px-3 py-1 text-[11px] font-medium text-white/90 shadow-lg backdrop-blur">
+            {listing.images.length} photo{listing.images.length !== 1 ? 's' : ''}{videos.length ? ` · ${videos.length} video${videos.length !== 1 ? 's' : ''}` : ''}
           </span>
         </div>
       </div>
 
+      {/* Opening header: the essentials read before any image-heavy section. */}
+      <header className="mb-6 flex flex-wrap items-start justify-between gap-4 rounded-3xl border border-gray-200/80 bg-white/90 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/90 sm:p-6">
+        <div className="min-w-0 flex-1">
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            {listing.house_type && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{listing.house_type}</span>}
+            {listing.building_type && <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-slate-800 dark:text-gray-300">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
+            {listing.vacancy && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#e8f8eb] text-[#238c39] dark:bg-green-950/40 dark:text-green-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
+            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Escrow protected</span>
+          </div>
+          <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">{listing.title}</h1>
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+            <span className="inline-flex items-center gap-1"><MapPin className="h-4 w-4" /> {listing.location}</span>
+            {avgRating > 0 && <span className="inline-flex items-center gap-1"><Star className="h-3.5 w-3.5 fill-current text-yellow-400" /> {avgRating} · {reviews.length} review{reviews.length !== 1 ? 's' : ''}</span>}
+            <span>Listed {new Date(listing.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-2.5 text-right dark:border-blue-900/50 dark:bg-blue-950/30">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-300">Rent</p>
+            <p className="text-xl font-bold text-blue-800 dark:text-blue-100">{formatPrice(listing.rent)}<span className="text-xs font-medium text-blue-500 dark:text-blue-300">/mo</span></p>
+          </div>
+          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2.5 text-right dark:border-emerald-900/50 dark:bg-emerald-950/25">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-300">Booking fee</p>
+            <p className="text-xl font-bold text-emerald-800 dark:text-emerald-100">{formatPrice(listing.price)}</p>
+          </div>
+        </div>
+      </header>
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-6">
-          <div>
-            <div className="mb-2 flex flex-wrap items-center gap-2">
-              {listing.house_type && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{listing.house_type}</span>}
-              {listing.building_type && <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-slate-800 dark:text-gray-300">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
-              {listing.vacancy && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#e8f8eb] text-[#238c39] dark:bg-green-950/40 dark:text-green-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
-            </div>
-            <h1 className="mb-2 text-2xl font-bold text-gray-900 dark:text-white sm:text-3xl">{listing.title}</h1>
-            <div className="flex items-center gap-1 text-gray-500 dark:text-gray-400">
-              <MapPin className="h-4 w-4" /> <span>{listing.location}</span>
-            </div>
-          </div>
-
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-center dark:border-blue-900/50 dark:bg-blue-950/30">
               <p className="text-xs font-medium text-blue-600 dark:text-blue-300">Rent</p>
@@ -843,6 +920,7 @@ export default function ListingDetailPage() {
           </div>
         </Modal>
       )}
+      </div>
     </div>
   )
 }

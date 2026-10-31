@@ -18,6 +18,7 @@ type HouseRequestInsert = {
   house_designs: string[]
   description: string
   whatsapp?: string
+  user_id?: string
 }
 
 export async function POST(request: Request) {
@@ -93,6 +94,7 @@ export async function POST(request: Request) {
     }
 
     const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
     const base: HouseRequestInsert = {
       name,
       email,
@@ -104,9 +106,11 @@ export async function POST(request: Request) {
       water_options: Array.isArray(body.water_options) ? body.water_options : [],
       house_designs: Array.isArray(body.house_designs) ? body.house_designs : [],
       description,
+      ...(user ? { user_id: user.id } : {}),
     }
 
-    // Gracefully handle databases that have not run the whatsapp migration yet.
+    // Gracefully handle databases that have not run the whatsapp / user_id
+    // migrations yet.
     let whatsappSaved = true
     let { error } = await supabase.from('house_requests').insert({
       ...base,
@@ -116,6 +120,15 @@ export async function POST(request: Request) {
     if (error && /whatsapp/i.test(`${error.code || ''} ${error.message || ''}`)) {
       whatsappSaved = false
       const retry = await supabase.from('house_requests').insert(base)
+      error = retry.error
+    }
+
+    if (error && /user_id/i.test(`${error.code || ''} ${error.message || ''}`)) {
+      const { user_id: _userId, ...withoutUser } = base
+      const retry = await supabase.from('house_requests').insert({
+        ...withoutUser,
+        whatsapp: canonicalWhatsAppContact(whatsappInput) || phone,
+      })
       error = retry.error
     }
 

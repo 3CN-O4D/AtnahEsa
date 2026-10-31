@@ -32,11 +32,15 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
   const leaveTimer = useRef<number | null>(null)
 
   // Playful touch: the card lifts on hover, then shakes itself off as the
-  // pointer leaves, like dust falling off.
+  // pointer leaves, like dust falling off. The animation lives on the outer
+  // wrapper so it never fights the card's hover transform.
   const handleMouseLeave = () => {
     if (leaveTimer.current) window.clearTimeout(leaveTimer.current)
-    setLeaving(true)
-    leaveTimer.current = window.setTimeout(() => setLeaving(false), 480)
+    setLeaving(false)
+    requestAnimationFrame(() => {
+      setLeaving(true)
+      leaveTimer.current = window.setTimeout(() => setLeaving(false), 620)
+    })
   }
 
   const isUnavailable = listing.status === 'taken' || listing.status === 'booked'
@@ -59,10 +63,10 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
   }
 
   return (
-    <div className="relative">
+    <div className={`relative ${leaving ? 'card-shake' : ''}`}>
       <Card
         onMouseLeave={handleMouseLeave}
-        className={`group/card relative rounded-2xl border-gray-200/80 transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-slate-800 ${leaving ? 'card-shake' : ''}`}
+        className="group/card relative rounded-2xl border-gray-200/80 transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:border-slate-800"
       >
         <div className={`aspect-[4/3] relative overflow-hidden group ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
           <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />

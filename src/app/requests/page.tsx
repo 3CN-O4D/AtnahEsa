@@ -13,14 +13,12 @@ import {
   Inbox,
   Loader2,
   MapPin,
-  MessageCircle,
   RefreshCw,
   ShieldCheck,
   Upload,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
-import { getWhatsAppLink } from '@/lib/whatsapp'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 
 type PublicRequest = {
@@ -109,7 +107,6 @@ export default function RequestsPage() {
   const [requests, setRequests] = useState<PublicRequest[]>([])
   const [loading, setLoading] = useState(true)
   const [claimingId, setClaimingId] = useState<string | null>(null)
-  const [contactLoadingId, setContactLoadingId] = useState<string | null>(null)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<FilterKey>('all')
 
@@ -144,20 +141,22 @@ export default function RequestsPage() {
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getUser().then(async ({ data }) => {
-      if (!data.user) { router.push(signInUrl(currentPathWithSearch())); return }
-      setUser(data.user)
-      const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
-      const role = profile?.role ?? null
-      if (role !== 'lister' && role !== 'admin') {
-        router.push('/forbidden')
-        return
-      }
-      await loadRequests()
+
+    // Requests are public: anyone can browse the anonymised specifications.
+    void loadRequests()
+
+    // Sign-in only unlocks claiming; it never hides the request list.
+    supabase.auth.getUser().then(({ data }) => {
+      setUser(data.user ? { id: data.user.id } : null)
     })
-  }, [router, loadRequests])
+  }, [loadRequests])
 
   const handleClaim = async (id: string) => {
+    if (!user) {
+      router.push(signInUrl(currentPathWithSearch()))
+      return
+    }
+
     setClaimingId(id)
     setError('')
     try {
@@ -169,46 +168,17 @@ export default function RequestsPage() {
       }
       setRequests((prev) => prev.map((r) => r.id === id ? {
         ...r,
-        claimed_by: data.claimed_by ?? user?.id ?? null,
+        claimed_by: data.claimed_by ?? user.id,
         claimed_at: data.claimed_at ?? new Date().toISOString(),
       } : r))
+
+      // Claiming is not a contact exchange. Upload the matching house and the
+      // requester is sent to this lister's listings page to pick one.
+      router.push(`/upload?request=${encodeURIComponent(id)}`)
     } catch {
       setError('We could not reach the server. Check your connection and try again.')
     } finally {
       setClaimingId(null)
-    }
-  }
-
-  const handleWhatsApp = async (r: PublicRequest) => {
-    setContactLoadingId(r.id)
-    setError('')
-    // Open the tab synchronously so mobile browsers don't block it after the fetch.
-    const tab = typeof window !== 'undefined' ? window.open('about:blank', '_blank') : null
-    try {
-      const res = await fetch(`/api/house-requests/${r.id}/contact`)
-      const data = await res.json().catch(() => ({}))
-      if (!res.ok) {
-        tab?.close()
-        setError(data.error || 'We could not open this contact. Please try again.')
-        return
-      }
-      const firstName = (data.name || 'there').split(' ')[0]
-      const link = getWhatsAppLink(
-        data.whatsapp,
-        `Hi ${firstName}, this is AseHanta. I have a house that may match your request in ${r.location}. Is it okay if I share the details?`
-      )
-      if (!link) {
-        tab?.close()
-        setError('This requester has not provided a valid WhatsApp contact yet. Please contact the admin team.')
-        return
-      }
-      if (tab) tab.location.assign(link)
-      else window.location.assign(link)
-    } catch {
-      tab?.close()
-      setError('We could not reach the server. Check your connection and try again.')
-    } finally {
-      setContactLoadingId(null)
     }
   }
 
@@ -258,11 +228,11 @@ export default function RequestsPage() {
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="min-w-0">
               <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 border border-blue-100 dark:border-blue-800 px-2.5 py-1 text-[11px] font-semibold text-blue-700 dark:text-blue-300">
-                <Inbox className="w-3.5 h-3.5" /> Lister marketplace
+                <Inbox className="w-3.5 h-3.5" /> Public house requests
               </span>
               <h1 className="mt-2.5 text-2xl sm:text-3xl font-bold tracking-tight text-gray-900 dark:text-white">House requests</h1>
               <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 max-w-xl">
-                Real people looking for homes. Claim a request when you have a match, then message them on WhatsApp.
+                Real people looking for homes. See an open request you can match? Claim it, upload the house, and the requester will be sent to your listings to pick it.
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -279,7 +249,7 @@ export default function RequestsPage() {
 
           <div className="mt-5 flex items-start gap-2 rounded-xl bg-white/70 dark:bg-slate-800/60 border border-gray-200/80 dark:border-gray-700 px-3 py-2.5 text-xs text-gray-600 dark:text-gray-300">
             <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
-            <p>Contact details stay hidden until you claim a request. After claiming, you can message the requester directly on WhatsApp.</p>
+            <p>Requests are public but anonymous. Claiming does not reveal anyone&apos;s phone number — upload your matching house and the requester will pick from your listings. Contact details unlock only after a paid booking.</p>
           </div>
         </header>
 
@@ -414,46 +384,37 @@ export default function RequestsPage() {
                   <div className="flex items-center justify-between gap-3 flex-wrap pt-1">
                     {isClosed || claimedByOther ? (
                       <span className="text-xs text-gray-400 dark:text-gray-500">
-                        {r.status === 'closed' ? 'This request is closed' : r.status === 'fulfilled' ? 'This request has been fulfilled' : 'Another lister has taken this'}
+                        {r.status === 'closed' ? 'This request is closed' : r.status === 'fulfilled' ? 'This request has been fulfilled' : 'Another person has taken this'}
+                      </span>
+                    ) : claimedByMe ? (
+                      <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        <CheckCircle2 className="w-3.5 h-3.5" /> Upload the matching house so the requester can pick it
                       </span>
                     ) : (
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
-                        <ShieldCheck className="w-3.5 h-3.5" /> Verified listers only
+                      <span className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <ShieldCheck className="w-3.5 h-3.5" /> Open to anyone with a matching house
                       </span>
                     )}
 
                     <div className="flex gap-2 flex-wrap">
                       {claimedByMe && !isClosed && (
-                        <button
-                          onClick={() => handleWhatsApp(r)}
-                          disabled={contactLoadingId === r.id}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700 disabled:opacity-60 transition-colors shadow-sm"
+                        <Link
+                          href={`/upload?request=${encodeURIComponent(r.id)}`}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
                         >
-                          {contactLoadingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <MessageCircle className="w-4 h-4" />}
-                          WhatsApp
-                        </button>
+                          <Upload className="w-4 h-4" /> Upload your house
+                        </Link>
                       )}
 
                       {!claimedByMe && !claimedByOther && !isClosed && (
-                        <>
-                          <button
-                            onClick={() => handleClaim(r.id)}
-                            disabled={!!claimingId}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 text-white px-3 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
-                          >
-                            {claimingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
-                            I have this house
-                          </button>
-                          <Link href="/upload" className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                            <Upload className="w-4 h-4" /> Upload
-                          </Link>
-                        </>
-                      )}
-
-                      {claimedByMe && !isClosed && (
-                        <Link href="/upload" className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 px-3 py-2 text-sm font-medium hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors">
-                          <Upload className="w-4 h-4" /> Upload house
-                        </Link>
+                        <button
+                          onClick={() => handleClaim(r.id)}
+                          disabled={!!claimingId}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 text-white px-3 py-2 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors shadow-sm"
+                        >
+                          {claimingId === r.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
+                          I have this house
+                        </button>
                       )}
                     </div>
                   </div>

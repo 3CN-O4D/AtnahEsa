@@ -212,30 +212,28 @@ function PaymentPageInner() {
           return
         }
 
-        const { data: row } = await supabase
-          .from('listings')
-          .select('id, title, location, images, phone, price, status')
-          .eq('id', listingId)
-          .maybeSingle()
+        // `listings` has no `phone` column (the lister's number lives in
+        // `lister_phone` and is never exposed here). Selecting a missing column
+        // made PostgREST fail, which surfaced as "no longer available".
+        const [{ data: row }, { data: profile }] = await Promise.all([
+          supabase
+            .from('listings')
+            .select('id, title, location, images, price, status')
+            .eq('id', listingId)
+            .maybeSingle(),
+          supabase.from('profiles').select('phone, email').eq('id', user.id).maybeSingle(),
+        ])
 
         if (cancelled) return
         if (!row || row.status !== 'published') {
-          setError('This house is no longer available.')
+          setError("This house isn't accepting bookings right now. Pick another house or contact support.")
           setLoading(false)
           return
         }
 
-        setListing({ id: row.id, title: row.title, location: row.location, price: row.price, images: row.images, phone: row.phone })
-
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('phone, email')
-          .eq('id', user.id)
-          .maybeSingle()
-
-        if (cancelled) return
+        setListing({ id: row.id, title: row.title, location: row.location, price: row.price, images: row.images, phone: null })
         setPhone(searchParams.get('phone') || profile?.phone || '')
-        setEmail(searchParams.get('email') || profile?.email || user.email || '')
+        setEmail(searchParams.get('email') || user.email || profile?.email || '')
         setLoading(false)
         return
       }
@@ -394,7 +392,7 @@ function PaymentPageInner() {
       session?.transaction?.status === 'failed' ||
       session?.transaction?.status === 'cancelled')
 
-  const whatsappLink = session?.listing
+  const whatsappLink = confirmed && session?.listing?.phone
     ? getWhatsAppLink(
         session.listing.phone,
         `Hi, I paid for "${session.listing.title}" on AseHanta (booking ${session.booking.id.slice(0, 8)}). Let's arrange a viewing.`

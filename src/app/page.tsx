@@ -71,6 +71,37 @@ const FEATURES = [
   },
 ]
 
+type HomeStats = { available: number; total: number; pending: number; taken: number }
+
+// Survive client-side navigation: returning to Home should paint the last
+// batch and stats immediately while a fresh copy loads in the background.
+const HOME_LISTINGS_TTL_MS = 45_000
+const HOME_STATS_KEY = 'asehanta:home-stats:v1'
+const homeListingsCache = new Map<string, { at: number; data: Listing[] }>()
+
+function readStoredStats(): HomeStats | null {
+  if (typeof window === 'undefined') return null
+  try {
+    const raw = window.sessionStorage.getItem(HOME_STATS_KEY)
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { at?: number; data?: HomeStats }
+    if (!parsed?.data || typeof parsed.at !== 'number') return null
+    if (Date.now() - parsed.at > 10 * 60_000) return null
+    return parsed.data
+  } catch {
+    return null
+  }
+}
+
+function storeStats(data: HomeStats) {
+  if (typeof window === 'undefined') return
+  try {
+    window.sessionStorage.setItem(HOME_STATS_KEY, JSON.stringify({ at: Date.now(), data }))
+  } catch {
+    // Storage can be unavailable in private mode; in-memory state still works.
+  }
+}
+
 export default function HomePage() {
   const [user, setUser] = useState<{ id: string } | null>(null)
   const [isLister, setIsLister] = useState(false)
@@ -78,9 +109,14 @@ export default function HomePage() {
   const [sort, setSort] = useState('')
   const [filters, setFilters] = useState<Record<string, string>>({})
   const [showFilters, setShowFilters] = useState(false)
-  const [stats, setStats] = useState({ available: 0, total: 0, pending: 0, taken: 0 })
+  const [stats, setStats] = useState<HomeStats>({ available: 0, total: 0, pending: 0, taken: 0 })
 
   useEffect(() => {
+    // Paint the previous counts immediately when coming back to Home, then
+    // refresh them in the background.
+    const remembered = readStoredStats()
+    if (remembered) setStats(remembered)
+
     const supabase = createClient()
     supabase.auth.getUser().then(async ({ data }) => {
       setUser(data.user ? { id: data.user.id } : null)
@@ -107,12 +143,14 @@ export default function HomePage() {
       fetchStatusCount('taken'),
       fetchStatusCount('booked'),
     ]).then(([published, taken, booked]) => {
-      setStats({
+      const next = {
         available: published,
         total: published + taken + booked,
         pending: 0,
         taken: taken + booked,
-      })
+      }
+      setStats(next)
+      storeStats(next)
     }).catch(() => {})
   }, [])
 
@@ -133,6 +171,10 @@ export default function HomePage() {
         params.set('issues', filters.issues)
       }
 
+      const cacheKey = params.toString()
+      const hit = homeListingsCache.get(cacheKey)
+      if (hit && Date.now() - hit.at < HOME_LISTINGS_TTL_MS) return hit.data
+
       const res = await fetch(`/api/listings?${params.toString()}`, {
         headers: { 'Content-Type': 'application/json' },
       })
@@ -148,6 +190,7 @@ export default function HomePage() {
       if (!Array.isArray(data)) {
         throw new Error(data?.error || 'Unexpected response while loading homes.')
       }
+      homeListingsCache.set(cacheKey, { at: Date.now(), data: data as Listing[] })
       return data as Listing[]
     },
     [query, sort, filters]

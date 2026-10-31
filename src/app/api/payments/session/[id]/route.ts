@@ -59,7 +59,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
             title: listing.title,
             location: listing.location,
             images: listing.images,
-            phone: listing.phone,
+            // The lister's number unlocks only after the payment is confirmed.
+            phone:
+              booking.status === 'confirmed' ||
+              ['held', 'paid', 'released', 'refund_requested'].includes(booking.release_status || '')
+                ? listing.lister_phone || null
+                : null,
           }
         : null,
     })

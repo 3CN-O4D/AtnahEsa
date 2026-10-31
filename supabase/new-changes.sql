@@ -63,3 +63,20 @@ CREATE TABLE IF NOT EXISTS public.media_move_queue (
 );
 ALTER TABLE public.media_move_queue ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS media_move_queue_status_idx ON public.media_move_queue (status, created_at);
+
+-- 7. Public, anonymised house requests + claim-to-upload flow
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS user_id uuid REFERENCES auth.users(id) ON DELETE SET NULL;
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS request_id uuid REFERENCES public.house_requests(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS listings_request_idx ON public.listings (request_id);
+
+DROP VIEW IF EXISTS public.house_requests_public;
+CREATE VIEW public.house_requests_public AS
+SELECT
+  id, location, min_rent, max_rent,
+  token_options, water_options, house_designs,
+  deposit_preference, deposit_refundable,
+  building_type, house_type_requested, electric_bill, vacancy,
+  description, status, claimed_by, claimed_at, created_at
+FROM public.house_requests;
+
+GRANT SELECT ON public.house_requests_public TO anon, authenticated;

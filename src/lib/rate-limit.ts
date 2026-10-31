@@ -12,32 +12,61 @@ export function getClientIp(req: Request): string {
 
 const memoryStore = new Map<string, { count: number; resetAt: number }>()
 
+/** Keep the in-process store from growing without bound in long-lived workers. */
+function pruneMemoryStore(now: number) {
+  if (memoryStore.size < 5000) return
+  for (const [key, entry] of memoryStore) {
+    if (now > entry.resetAt) memoryStore.delete(key)
+  }
+}
+
+/**
+ * Rate limiting is intentionally enforced in-process first.
+ *
+ * The database RPC (`rate_limit_check`) can take many seconds on a cold
+ * Supabase connection, and it used to sit in front of every public request
+ * (listings, search suggestions, auth) — making the whole site feel stuck.
+ * The in-memory limiter answers in microseconds and still protects each
+ * serverless instance. Set `RATE_LIMIT_DB=1` to also enforce the shared
+ * database limiter with a short timeout.
+ */
 export async function checkRateLimit(
   key: string,
   max: number,
   windowSeconds = 60
 ): Promise<{ allowed: boolean; remaining: number; retryAfter: number }> {
+  const local = checkMemoryRateLimit(key, max, windowSeconds)
+
+  if (process.env.RATE_LIMIT_DB !== '1') return local
+
   try {
     const supabase = createAdminClient()
-    const { data, error } = await supabase.rpc('rate_limit_check', {
+    const rpc = Promise.resolve(supabase.rpc('rate_limit_check', {
       p_key: key,
       p_max: max,
       p_window_seconds: windowSeconds,
-    })
+    })).catch(() => null)
 
-    if (error || !data) {
-      // Fallback to in-memory rate limiting
-      return checkMemoryRateLimit(key, max, windowSeconds)
-    }
+    const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), 1200))
+    const result = await Promise.race([rpc, timeout])
+    if (!result) return local
+
+    const { data, error } = result
+    if (error || !data) return local
 
     const row = Array.isArray(data) ? data[0] : data
-    const allowed = row?.allowed !== false
-    const remaining = typeof row?.remaining === 'number' ? row.remaining : max
-    const retryAfter = typeof row?.retry_after_seconds === 'number' ? row.retry_after_seconds : windowSeconds
+    const allowed = row?.allowed !== false && local.allowed
+    const remaining = Math.min(
+      typeof row?.remaining === 'number' ? row.remaining : max,
+      local.remaining
+    )
+    const retryAfter = typeof row?.retry_after_seconds === 'number'
+      ? row.retry_after_seconds
+      : local.retryAfter
 
     return { allowed, remaining, retryAfter }
   } catch {
-    return checkMemoryRateLimit(key, max, windowSeconds)
+    return local
   }
 }
 
@@ -47,6 +76,7 @@ function checkMemoryRateLimit(
   windowSeconds: number
 ): { allowed: boolean; remaining: number; retryAfter: number } {
   const now = Date.now()
+  pruneMemoryStore(now)
   const entry = memoryStore.get(key)
 
   if (!entry || now > entry.resetAt) {

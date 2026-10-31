@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Upload } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import ImageUploader from '@/components/upload/ImageUploader'
@@ -20,6 +21,8 @@ const REASON_OPTS = ['Previous tenant moved out', 'Newly constructed']
 export default function UploadPage() {
   const router = useRouter()
   const [user, setUser] = useState<User | null>(null)
+  const [requestId, setRequestId] = useState('')
+  const [requestLocation, setRequestLocation] = useState('')
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [price, setPrice] = useState('')
@@ -56,6 +59,51 @@ export default function UploadPage() {
       else setUser(data.user)
     })
   }, [router])
+
+  // Arriving from "I have this house": prefill what the requester asked for.
+  useEffect(() => {
+    if (typeof window === 'undefined') return
+    const id = new URLSearchParams(window.location.search).get('request') || ''
+    if (!id) return
+    setRequestId(id)
+
+    const supabase = createClient()
+    supabase
+      .from('house_requests_public')
+      .select('location, min_rent, max_rent, house_designs, water_options, description, deposit_preference')
+      .eq('id', id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return
+        setRequestLocation(data.location || '')
+        setLocation((prev) => prev || data.location || '')
+        setRent((prev) => prev || String(data.max_rent ?? data.min_rent ?? ''))
+        setDescription((prev) => prev || [
+          data.description,
+          data.house_designs?.length ? `Looking for: ${data.house_designs.join(', ')}.` : '',
+        ].filter(Boolean).join(' '))
+
+        const designMap: Record<string, string> = {
+          bedsitter: 'Bedsitter/Studio',
+          studio: 'Bedsitter/Studio',
+          '1br': '1 Bedroom (1BR)',
+          '2br': '2 Bedroom (2BR)',
+          '3br': '3+ Bedroom',
+          bungalow: 'Bungalow',
+          apartment: 'Apartment',
+          townhouse: 'Townhouse',
+          other: 'Other',
+        }
+        const requested = Array.isArray(data.house_designs) ? data.house_designs[0] : ''
+        if (requested && designMap[requested]) setHouseType((prev) => prev || designMap[requested])
+
+        const water = Array.isArray(data.water_options) ? data.water_options[0] : ''
+        if (water === 'included') setWater((prev) => prev || 'Inclusive in Rent')
+        else if (water === 'own_borehole') setWater((prev) => prev || 'Self Provided')
+
+        setTitle((prev) => prev || `${designMap[requested] || 'House'} in ${data.location || 'Kenya'}`)
+      })
+  }, [])
 
   const addIssue = () => {
     if (newIssue.trim()) {
@@ -121,6 +169,7 @@ export default function UploadPage() {
           issues_count: issues.length,
           payment_method: paymentMethod,
           lister_phone: listerPhone,
+          request_id: requestId || undefined,
         }),
       })
 
@@ -145,6 +194,20 @@ export default function UploadPage() {
         <img src="/images/asehanta-logo.jpeg" alt="AseHanta" className="h-10 w-10 rounded-full object-cover" />
         <h1 className="text-2xl font-bold">List Your House</h1>
       </div>
+
+      {requestId && (
+        <div className="mb-6 flex flex-wrap items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50/80 p-4 text-sm text-blue-800 dark:border-blue-900/60 dark:bg-blue-950/30 dark:text-blue-200">
+          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/80 text-blue-600 dark:bg-blue-900/50 dark:text-blue-300">
+            <Upload className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <p className="font-semibold">Uploading for a house request{requestLocation ? ` in ${requestLocation}` : ''}</p>
+            <p className="mt-0.5 text-xs opacity-80">
+              Your house will be linked to this request. Once it is uploaded, the requester is sent to your public listings page to pick it. Claiming never shares contact details — those unlock after a paid booking.
+            </p>
+          </div>
+        </div>
+      )}
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <Input

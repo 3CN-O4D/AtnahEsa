@@ -1164,7 +1164,7 @@ export async function getPaymentSession(
   const tx = await findTransaction(admin, booking.id)
   const { data: listing } = await admin
     .from('listings')
-    .select('id, title, location, images, phone, uploader_id')
+    .select('id, title, location, images, lister_phone, uploader_id')
     .eq('id', booking.listing_id)
     .maybeSingle()
 

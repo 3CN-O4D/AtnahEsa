@@ -1,9 +1,11 @@
 import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders } from '@/lib/security'
-import { notifyAdmins } from '@/lib/notify'
+import { notifyAdmins, notifyUser } from '@/lib/notify'
 import { createClient } from '@/lib/supabase/server'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
+import { getCached, setCached, invalidateCached } from '@/lib/server-cache'
+import { createNotification } from '@/lib/notifications'
 
 /** Columns the public cards actually read. Keeping this list tight makes each
  *  page noticeably smaller over the wire and avoids leaking private fields. */
@@ -43,9 +45,11 @@ const PUBLIC_COLUMNS = [
  *  still picking up new listings within half a minute. */
 function cachedJson(body: unknown) {
   const res = addSecurityHeaders(NextResponse.json(body))
-  res.headers.set('Cache-Control', 'public, s-maxage=30, stale-while-revalidate=300')
+  res.headers.set('Cache-Control', 'public, s-maxage=120, stale-while-revalidate=600')
   return res
 }
+
+const LISTING_CACHE_TTL_MS = 20_000
 
 export async function GET(req: Request) {
   const { allowed, headers } = await withRateLimit(req, 'search')
@@ -59,6 +63,25 @@ export async function GET(req: Request) {
     const { query, sort, location, minRent, maxRent, minPrice, maxPrice, issues, page, limit, status, count } = validation.data
     const supabase = createAdminClient()
     const pageSize = Math.min(48, Math.max(1, limit ? parseInt(limit, 10) : ITEMS_PER_PAGE))
+
+    const cacheKey = [
+      'listings',
+      status || '',
+      count === '1' ? 'count' : 'page',
+      page || '1',
+      pageSize,
+      query || '',
+      sort || '',
+      location || '',
+      minRent || '',
+      maxRent || '',
+      minPrice || '',
+      maxPrice || '',
+      issues || '',
+    ].join('|')
+
+    const cached = getCached<unknown>(cacheKey)
+    if (cached !== undefined) return cachedJson(cached)
 
     const statusFilter = status === 'all' ? ['published', 'taken', 'booked'] : (status ? [status] : ['published', 'taken'])
 
@@ -107,9 +130,12 @@ export async function GET(req: Request) {
     if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 
     if (wantCount) {
-      return cachedJson({ count: queryCount ?? 0 })
+      const payload = { count: queryCount ?? 0 }
+      setCached(cacheKey, payload, LISTING_CACHE_TTL_MS)
+      return cachedJson(payload)
     }
 
+    setCached(cacheKey, data, LISTING_CACHE_TTL_MS)
     return cachedJson(data)
   } catch {
     return addSecurityHeaders(NextResponse.json({ error: 'Internal server error' }, { status: 500 }))
@@ -157,13 +183,87 @@ export async function POST(req: Request) {
       issues_count: validation.data.issues?.length || 0,
       payment_method: validation.data.payment_method || '',
       lister_phone: validation.data.lister_phone || '',
+      request_id: validation.data.request_id || null,
       uploader_id: user.id,
       uploader_name: displayName,
-      status: isAdmin ? 'published' : 'pending',
+      // A house uploaded against a public request must be visible on the
+      // lister's page immediately so the requester can pick it. Admins still
+      // get a notification and can unpublish it during review.
+      status: isAdmin || validation.data.request_id ? 'published' : 'pending',
     }
 
-    const { error: insertError } = await supabase.from('listings').insert(allowedFields)
+    let { error: insertError } = await supabase.from('listings').insert(allowedFields)
+
+    // Tolerate databases where the request-link migration has not run yet.
+    if (insertError && /request_id/i.test(`${insertError.code || ''} ${insertError.message || ''}`)) {
+      const { request_id: _requestId, ...withoutRequest } = allowedFields
+      const retry = await supabase.from('listings').insert(withoutRequest)
+      insertError = retry.error
+    }
+
     if (insertError) return addSecurityHeaders(NextResponse.json({ error: insertError.message }, { status: 400 }))
+
+    invalidateCached('listings|')
+
+    const linkedRequestId = validation.data.request_id
+    if (linkedRequestId) {
+      // Send the requester to this lister's public listings page so they can
+      // pick the house themselves. No personal contact details are exchanged.
+      try {
+        const admin = createAdminClient()
+        const { data: houseRequest } = await admin
+          .from('house_requests')
+          .select('id, name, email, user_id, location, claimed_by')
+          .eq('id', linkedRequestId)
+          .maybeSingle()
+
+        if (houseRequest) {
+          const listingsUrl = `${process.env.NEXT_PUBLIC_SITE_URL || 'https://asehanta.com'}/listers/${user.id}`
+          const requesterName = houseRequest.name || 'there'
+
+          await admin
+            .from('house_requests')
+            .update({ status: 'contacted' })
+            .eq('id', linkedRequestId)
+
+          if (houseRequest.user_id) {
+            await createNotification({
+              userId: houseRequest.user_id,
+              category: 'listing',
+              title: 'A house matching your request is ready',
+              body: `A lister uploaded a house for your request in ${houseRequest.location || 'your area'}. Pick the one you like.`,
+              link: `/listers/${user.id}`,
+              data: { request_id: linkedRequestId, listing_title: validation.data.title },
+            })
+          }
+
+          if (houseRequest.email) {
+            await notifyUser(
+              houseRequest.email,
+              'A house for your request is ready',
+              `Hi ${requesterName}, a matching house is waiting`,
+              {
+                Name: requesterName,
+                Location: houseRequest.location || 'Your requested area',
+                'What Happens Next': 'Open the lister\'s page and pick the house you like. Contact details unlock after a paid booking.',
+                'View Houses': listingsUrl,
+                'Need Help': `WhatsApp ${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || 'the AseHanta team'} if a listing is unavailable or you need help.`,
+              }
+            )
+          }
+
+          await notifyAdmins('Request House Uploaded', 'House Uploaded for a Request', {
+            Request: houseRequest.id,
+            Location: houseRequest.location || 'N/A',
+            'Listing Title': validation.data.title,
+            'Uploaded By': user.email ?? 'Unknown',
+            'Requester Page': listingsUrl,
+          })
+        }
+      } catch (err) {
+        console.error('Request-linked upload notification failed:', err)
+      }
+    }
 
     notifyAdmins('New Listing Uploaded', 'New House Listing', { Title: validation.data.title, Location: validation.data.location, Price: `KES ${validation.data.price}`, Rent: `KES ${validation.data.rent}`, Uploader: user.email ?? 'Unknown' })
 

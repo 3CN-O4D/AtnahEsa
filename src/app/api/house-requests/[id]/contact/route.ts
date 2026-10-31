@@ -3,10 +3,11 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 
 /**
- * Return a requester's WhatsApp contact to the people who are allowed to act
- * on the request: admins, and the lister who claimed it.
+ * Requester contact details are for the AseHanta admin team only.
  *
- * Unclaimed requests never reveal contact details to listers.
+ * Claiming a request is not a contact exchange. Hunters/lis​ters upload a
+ * matching house and the requester chooses from their listings; personal
+ * contact details unlock only after a paid booking.
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -20,8 +21,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     .eq('id', user.id)
     .maybeSingle()
 
-  if (profile?.role !== 'admin' && profile?.role !== 'lister') {
-    return NextResponse.json({ error: 'You do not have access to this contact.' }, { status: 403 })
+  if (profile?.role !== 'admin') {
+    return NextResponse.json({ error: 'Requester contact details are handled by the AseHanta team.' }, { status: 403 })
   }
 
   const admin = createAdminClient()

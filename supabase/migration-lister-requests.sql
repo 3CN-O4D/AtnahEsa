@@ -46,3 +46,13 @@ SELECT
 FROM public.house_requests;
 
 GRANT SELECT ON public.house_requests_public TO authenticated;
+-- Requests are public: anyone (including signed-out visitors) can browse the
+-- anonymised specification. Personal details never appear in this view.
+GRANT SELECT ON public.house_requests_public TO anon;
+
+-- Link an uploaded house back to the request that prompted it.
+ALTER TABLE public.listings ADD COLUMN IF NOT EXISTS request_id UUID REFERENCES public.house_requests(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS listings_request_idx ON public.listings (request_id);
+
+-- Remember a signed-in requester so we can send an in-app notification too.
+ALTER TABLE public.house_requests ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;

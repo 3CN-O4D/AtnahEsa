@@ -4,25 +4,22 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 
 /**
- * Lister claims a house request when they have a matching house.
- * The claimer can then message the requester directly on WhatsApp via
- * /api/house-requests/[id]/contact. Unclaimed requests stay anonymous.
+ * Anyone signed in can claim a house request when they have a matching house.
+ * Claiming only reserves the chance to upload: it never reveals requester
+ * contact details. After upload the requester is sent to the lister's public
+ * listings page to pick a house; contact exchange happens only after payment.
  */
 export async function POST(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
-  if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (!user) return NextResponse.json({ error: 'Please sign in to claim this request.' }, { status: 401 })
 
   const { data: profile } = await supabase
     .from('profiles')
-    .select('role, full_name, username')
+    .select('full_name, username')
     .eq('id', user.id)
     .maybeSingle()
-
-  if (profile?.role !== 'lister' && profile?.role !== 'admin') {
-    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
-  }
 
   // Use the service role for the claim transaction so the result does not
   // depend on lister SELECT policies, and never return requester contact data.
@@ -53,7 +50,7 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-  const listerName = profile.full_name || profile.username || user.email || 'A lister'
+  const listerName = profile?.full_name || profile?.username || user.email || 'A lister'
 
   await notifyAdmins(
     'House Request Claimed',
@@ -62,8 +59,8 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
       'Request Location': existing.location || 'N/A',
       'Claimed By': listerName,
       'Lister ID': user.id,
-      'Next Step': 'The lister can now message the requester on WhatsApp to arrange a viewing.',
-      'Action Required': 'Follow up to confirm the match and keep the request status up to date.',
+      'Next Step': 'The claimer must upload a matching house. The requester will then be sent the lister\'s listings page to pick one.',
+      'Action Required': 'Follow up to confirm the upload and keep the request status up to date.',
     }
   )
 

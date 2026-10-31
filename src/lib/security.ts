@@ -27,6 +27,7 @@ export const VALIDATION_SCHEMAS = {
     electric_bill: z.string().max(200).optional(),
     water: z.string().max(200).optional(),
     lister_phone: z.string().max(30).optional(),
+    request_id: z.string().uuid().optional(),
   }),
 
   listingUpdate: z.object({

@@ -4,10 +4,12 @@ import { createContext, useContext, useEffect, useState, type ReactNode } from '
 
 interface ThemeContextType {
   dark: boolean
+  /** False until the stored / system theme has been resolved on the client. */
+  mounted: boolean
   toggle: () => void
 }
 
-const ThemeContext = createContext<ThemeContextType>({ dark: false, toggle: () => {} })
+const ThemeContext = createContext<ThemeContextType>({ dark: false, mounted: false, toggle: () => {} })
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [dark, setDark] = useState(false)
@@ -32,7 +34,7 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   const toggle = () => setDark((d) => !d)
 
   return (
-    <ThemeContext.Provider value={{ dark, toggle }}>
+    <ThemeContext.Provider value={{ dark, mounted, toggle }}>
       {children}
     </ThemeContext.Provider>
   )

@@ -292,6 +292,583 @@ body {
   animation: wifiWave 3s ease-out infinite;
 }
 
+/* ------------------------------------------------------------------------- */
+/* Seasonal hanging decoration (home + auth). Purely decorative, never         */
+/* interactive. Shapes are drawn with CSS so they render the same everywhere.  */
+/* ------------------------------------------------------------------------- */
+
+@keyframes seasonDrop {
+  0%   { opacity: 0; transform: translateY(-120%); }
+  55%  { opacity: 1; }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes seasonSwing {
+  0%, 100% { transform: rotate(-4.5deg); }
+  25%      { transform: rotate(5deg); }
+  55%      { transform: rotate(-2.5deg); }
+  78%      { transform: rotate(3deg); }
+}
+
+@keyframes seasonGlow {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(0.96); }
+  50%      { opacity: 0.95; transform: translateX(-50%) scale(1.04); }
+}
+
+@keyframes seasonFlame {
+  0%, 100% { transform: translateX(-50%) scale(1) rotate(-2deg); }
+  30%      { transform: translateX(-50%) scale(1.08, 0.94) rotate(2deg); }
+  60%      { transform: translateX(-50%) scale(0.95, 1.06) rotate(-1deg); }
+}
+
+@keyframes seasonLeg {
+  0%, 100% { transform: rotate(var(--leg-rotate)); }
+  50%      { transform: rotate(calc(var(--leg-rotate) + 3deg)); }
+}
+
+.seasonal-drop {
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.seasonal-drop-motion {
+  animation: seasonDrop 1.05s cubic-bezier(0.22, 0.85, 0.32, 1.1) both;
+}
+
+.seasonal-hang {
+  transform-origin: top center;
+  animation: seasonSwing 5.5s ease-in-out 0.9s infinite both;
+}
+
+.seasonal-thread {
+  display: block;
+  width: 2px;
+  margin: 0 auto;
+  position: relative;
+  background: linear-gradient(to bottom, rgba(148, 163, 184, 0.06), rgba(148, 163, 184, 0.5));
+}
+
+.dark .seasonal-thread {
+  background: linear-gradient(to bottom, rgba(148, 163, 184, 0.04), rgba(203, 213, 225, 0.45));
+}
+
+.seasonal-thread::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  bottom: -4px;
+  width: 7px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  border: 1.5px solid rgba(148, 163, 184, 0.6);
+}
+
+.seasonal-creature {
+  position: relative;
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+}
+
+/* Spider ------------------------------------------------------------------ */
+
+.seasonal-spider { position: relative; width: 66px; height: 72px; }
+
+.seasonal-spider .spider-leg {
+  position: absolute;
+  width: 27px;
+  height: 2.5px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #334155, #1e293b);
+  transform: rotate(var(--leg-rotate));
+  animation: seasonLeg 2.4s ease-in-out infinite;
+}
+
+.seasonal-spider .leg-l { left: -14px; transform-origin: right center; }
+.seasonal-spider .leg-r { right: -14px; transform-origin: left center; }
+
+.seasonal-spider .spider-body {
+  position: absolute;
+  left: 11px;
+  top: 27px;
+  width: 44px;
+  height: 40px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 30%, #64748b, #1e293b 62%, #0f172a);
+  box-shadow: inset -5px -7px 12px rgba(0, 0, 0, 0.45), 0 5px 14px rgba(0, 0, 0, 0.35);
+}
+
+.seasonal-spider .spider-head {
+  position: absolute;
+  left: 18px;
+  top: 8px;
+  width: 30px;
+  height: 26px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #64748b, #1e293b 68%);
+  box-shadow: inset -3px -4px 8px rgba(0, 0, 0, 0.4);
+}
+
+.seasonal-spider .spider-eye {
+  position: absolute;
+  top: 7px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #f8fafc;
+  box-shadow: inset -2px -2px 0 rgba(15, 23, 42, 0.85);
+}
+
+.seasonal-spider .spider-eye-l { left: 4px; }
+.seasonal-spider .spider-eye-r { right: 4px; }
+
+.seasonal-spider .spider-mouth {
+  position: absolute;
+  left: 50%;
+  bottom: 4px;
+  width: 12px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-bottom: 2px solid rgba(248, 250, 252, 0.6);
+  border-radius: 0 0 10px 10px;
+}
+
+/* Doll -------------------------------------------------------------------- */
+
+.seasonal-doll { position: relative; width: 62px; height: 86px; }
+
+.seasonal-doll .doll-hair {
+  position: absolute;
+  left: 7px;
+  top: 0;
+  width: 48px;
+  height: 46px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8b5e3c, #5b3b2e 70%);
+}
+
+.seasonal-doll .doll-bun {
+  position: absolute;
+  top: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #8b5e3c, #5b3b2e 70%);
+}
+
+.seasonal-doll .bun-l { left: 0; }
+.seasonal-doll .bun-r { right: 0; }
+
+.seasonal-doll .doll-face {
+  position: absolute;
+  left: 13px;
+  top: 8px;
+  width: 36px;
+  height: 34px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fde3cd, #f3c6a5);
+  box-shadow: inset -3px -3px 6px rgba(180, 110, 80, 0.18);
+}
+
+.seasonal-doll .doll-eye {
+  position: absolute;
+  top: 12px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: #3f2b22;
+}
+
+.seasonal-doll .doll-eye-l { left: 9px; }
+.seasonal-doll .doll-eye-r { right: 9px; }
+
+.seasonal-doll .doll-blush {
+  position: absolute;
+  top: 17px;
+  width: 7px;
+  height: 5px;
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.35);
+}
+
+.seasonal-doll .blush-l { left: 4px; }
+.seasonal-doll .blush-r { right: 4px; }
+
+.seasonal-doll .doll-mouth {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  width: 10px;
+  height: 5px;
+  transform: translateX(-50%);
+  border-bottom: 2px solid rgba(120, 53, 44, 0.75);
+  border-radius: 0 0 8px 8px;
+}
+
+.seasonal-doll .doll-dress {
+  position: absolute;
+  left: 8px;
+  top: 41px;
+  width: 46px;
+  height: 33px;
+  clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%);
+  background: linear-gradient(160deg, #fb7185, #e11d48);
+  box-shadow: inset -6px -4px 10px rgba(136, 19, 55, 0.25);
+}
+
+.seasonal-doll .doll-collar {
+  position: absolute;
+  left: 50%;
+  top: 38px;
+  width: 18px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: #fff7ed;
+}
+
+.seasonal-doll .doll-arm,
+.seasonal-doll .doll-shoe {
+  position: absolute;
+  border-radius: 9999px;
+}
+
+.seasonal-doll .doll-arm {
+  top: 45px;
+  width: 7px;
+  height: 22px;
+  background: linear-gradient(#f3c6a5, #e6b291);
+}
+
+.seasonal-doll .arm-l { left: 4px; transform: rotate(14deg); }
+.seasonal-doll .arm-r { right: 4px; transform: rotate(-14deg); }
+
+.seasonal-doll .doll-shoe {
+  top: 72px;
+  width: 12px;
+  height: 8px;
+  background: #7c3f52;
+}
+
+.seasonal-doll .shoe-l { left: 15px; }
+.seasonal-doll .shoe-r { right: 15px; }
+
+/* Monkey ------------------------------------------------------------------ */
+
+.seasonal-monkey { position: relative; width: 68px; height: 86px; }
+
+.seasonal-monkey .monkey-ear {
+  position: absolute;
+  top: 8px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #a97142, #7c4a24 70%);
+}
+
+.seasonal-monkey .ear-l { left: 1px; }
+.seasonal-monkey .ear-r { right: 1px; }
+
+.seasonal-monkey .monkey-head {
+  position: absolute;
+  left: 8px;
+  top: 6px;
+  width: 52px;
+  height: 48px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #a97142, #7c4a24 72%);
+  box-shadow: inset -4px -5px 10px rgba(60, 33, 12, 0.35);
+}
+
+.seasonal-monkey .monkey-muzzle {
+  position: absolute;
+  left: 50%;
+  top: 22px;
+  width: 34px;
+  height: 24px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 30%, #f7dfc2, #e7c8a8);
+}
+
+.seasonal-monkey .monkey-eye {
+  position: absolute;
+  top: 15px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #2d1b10;
+}
+
+.seasonal-monkey .eye-l { left: 16px; }
+.seasonal-monkey .eye-r { right: 16px; }
+
+.seasonal-monkey .monkey-smile {
+  position: absolute;
+  left: 50%;
+  top: 27px;
+  width: 14px;
+  height: 7px;
+  transform: translateX(-50%);
+  border-bottom: 2px solid rgba(77, 45, 22, 0.7);
+  border-radius: 0 0 10px 10px;
+  z-index: 1;
+}
+
+.seasonal-monkey .monkey-body {
+  position: absolute;
+  left: 16px;
+  top: 48px;
+  width: 36px;
+  height: 30px;
+  border-radius: 45% 45% 40% 40%;
+  background: radial-gradient(circle at 40% 25%, #a97142, #7c4a24 75%);
+}
+
+.seasonal-monkey .monkey-arm,
+.seasonal-monkey .monkey-foot {
+  position: absolute;
+  border-radius: 9999px;
+  background: linear-gradient(#8c5a2e, #6f421f);
+}
+
+.seasonal-monkey .monkey-arm {
+  top: 52px;
+  width: 9px;
+  height: 24px;
+}
+
+.seasonal-monkey .arm-l { left: 10px; transform: rotate(18deg); }
+.seasonal-monkey .arm-r { right: 10px; transform: rotate(-18deg); }
+
+.seasonal-monkey .monkey-foot {
+  top: 73px;
+  width: 13px;
+  height: 9px;
+}
+
+.seasonal-monkey .foot-l { left: 16px; }
+.seasonal-monkey .foot-r { right: 16px; }
+
+.seasonal-monkey .monkey-tail {
+  position: absolute;
+  right: -6px;
+  top: 58px;
+  width: 22px;
+  height: 18px;
+  border: 3px solid #7c4a24;
+  border-left-color: transparent;
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  transform: rotate(24deg);
+}
+
+/* Pendant lamp ------------------------------------------------------------ */
+
+.seasonal-lamp { position: relative; width: 120px; height: 104px; }
+
+.seasonal-lamp .lamp-socket {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 14px;
+  height: 9px;
+  transform: translateX(-50%);
+  border-radius: 4px;
+  background: #475569;
+}
+
+.seasonal-lamp .lamp-shade {
+  position: absolute;
+  left: 50%;
+  top: 7px;
+  width: 68px;
+  height: 36px;
+  transform: translateX(-50%);
+  clip-path: polygon(27% 0, 73% 0, 100% 100%, 0 100%);
+  background: linear-gradient(180deg, #fef3c7, #fcd34d 62%, #f59e0b);
+  box-shadow: inset 0 -6px 12px rgba(180, 83, 9, 0.35);
+}
+
+.seasonal-lamp .lamp-rim {
+  position: absolute;
+  left: 50%;
+  top: 41px;
+  width: 72px;
+  height: 5px;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #b45309, #fbbf24, #b45309);
+}
+
+.seasonal-lamp .lamp-bulb {
+  position: absolute;
+  left: 50%;
+  top: 44px;
+  width: 13px;
+  height: 13px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 40% 35%, #fffbeb, #fbbf24 60%, #f97316);
+  box-shadow: 0 0 18px 7px rgba(251, 191, 36, 0.55);
+}
+
+.seasonal-lamp .lamp-glow {
+  position: absolute;
+  left: 50%;
+  top: 52px;
+  width: 300px;
+  height: 210px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(251, 191, 36, 0.34), rgba(251, 191, 36, 0.12) 42%, transparent 72%);
+  filter: blur(6px);
+  animation: seasonGlow 7s ease-in-out infinite;
+}
+
+/* Pumpkin lamp ------------------------------------------------------------ */
+
+.seasonal-pumpkin { position: relative; width: 70px; height: 84px; }
+
+.seasonal-pumpkin .pumpkin-stem {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 8px;
+  height: 12px;
+  transform: translateX(-50%) rotate(8deg);
+  border-radius: 3px 4px 2px 4px;
+  background: linear-gradient(160deg, #4d7c0f, #365314);
+}
+
+.seasonal-pumpkin .pumpkin-body {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 62px;
+  height: 54px;
+  transform: translateX(-50%);
+  border-radius: 48% 48% 42% 42%;
+  background:
+    radial-gradient(ellipse at 22% 40%, rgba(255, 237, 213, 0.35), transparent 55%),
+    radial-gradient(ellipse at 78% 40%, rgba(124, 45, 18, 0.35), transparent 55%),
+    radial-gradient(circle at 40% 30%, #fdba74, #f97316 58%, #c2410c);
+  box-shadow: inset -8px -8px 16px rgba(120, 53, 15, 0.4), 0 6px 16px rgba(120, 53, 15, 0.3);
+}
+
+.seasonal-pumpkin .pumpkin-face {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  transform: translateX(-50%);
+  width: 42px;
+  height: 22px;
+}
+
+.seasonal-pumpkin .pumpkin-eye {
+  position: absolute;
+  top: 0;
+  width: 10px;
+  height: 9px;
+  background: #fde047;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+  filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.85));
+}
+
+.seasonal-pumpkin .pumpkin-eye-l { left: 6px; }
+.seasonal-pumpkin .pumpkin-eye-r { right: 6px; }
+
+.seasonal-pumpkin .pumpkin-mouth {
+  position: absolute;
+  left: 50%;
+  bottom: 0;
+  width: 26px;
+  height: 8px;
+  transform: translateX(-50%);
+  background: #fde047;
+  clip-path: polygon(0 0, 100% 0, 88% 100%, 74% 35%, 60% 100%, 46% 35%, 32% 100%, 18% 35%, 6% 100%);
+  filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.85));
+}
+
+.seasonal-pumpkin .pumpkin-glow {
+  position: absolute;
+  left: 50%;
+  top: 48px;
+  width: 300px;
+  height: 200px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 0%, rgba(249, 115, 22, 0.34), rgba(249, 115, 22, 0.12) 44%, transparent 72%);
+  filter: blur(6px);
+  animation: seasonGlow 8s ease-in-out infinite;
+}
+
+/* Candle ------------------------------------------------------------------ */
+
+.seasonal-candle { position: relative; width: 60px; height: 92px; }
+
+.seasonal-candle .candle-wax {
+  position: absolute;
+  left: 50%;
+  top: 36px;
+  width: 28px;
+  height: 50px;
+  transform: translateX(-50%);
+  border-radius: 7px 7px 4px 4px;
+  background: linear-gradient(100deg, #fffbeb, #f5e6c8 45%, #e3d3b4);
+  box-shadow: inset -4px 0 8px rgba(180, 140, 90, 0.25), 0 5px 12px rgba(120, 80, 40, 0.18);
+}
+
+.seasonal-candle .candle-drip {
+  position: absolute;
+  top: 34px;
+  width: 7px;
+  height: 12px;
+  border-radius: 0 0 9999px 9999px;
+  background: linear-gradient(#fffbeb, #f5e6c8);
+}
+
+.seasonal-candle .drip-l { left: 18px; }
+.seasonal-candle .drip-r { right: 18px; }
+
+.seasonal-candle .candle-wick {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  width: 2px;
+  height: 7px;
+  transform: translateX(-50%);
+  background: #3f2b22;
+  border-radius: 1px;
+}
+
+.seasonal-candle .candle-flame {
+  position: absolute;
+  left: 50%;
+  top: 12px;
+  width: 14px;
+  height: 20px;
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  background: radial-gradient(circle at 50% 72%, #fffbeb 0%, #fde047 38%, #fb923c 72%, #ea580c 100%);
+  box-shadow: 0 0 18px 6px rgba(251, 191, 36, 0.5), 0 0 42px 14px rgba(251, 146, 60, 0.22);
+  animation: seasonFlame 1.6s ease-in-out infinite;
+}
+
+.seasonal-candle .candle-halo {
+  position: absolute;
+  left: 50%;
+  top: 4px;
+  width: 150px;
+  height: 170px;
+  transform: translateX(-50%);
+  background: radial-gradient(ellipse at 50% 30%, rgba(251, 191, 36, 0.28), rgba(251, 146, 60, 0.08) 52%, transparent 72%);
+  filter: blur(5px);
+  animation: seasonGlow 5.5s ease-in-out infinite;
+}
+
+
 /* Hover/tap utilities */
 .hover-lift { @apply transition-transform duration-200 hover:-translate-y-1; }
 .hover-grow { @apply transition-transform duration-200 hover:scale-105; }
@@ -692,3 +1269,18 @@ html {
   .nav-progress { display: none; }
 }
 
+
+@media (prefers-reduced-motion: reduce) {
+  .seasonal-drop-motion,
+  .seasonal-hang,
+  .seasonal-spider .spider-leg,
+  .seasonal-candle .candle-flame {
+    animation: none;
+  }
+  .seasonal-lamp .lamp-glow,
+  .seasonal-pumpkin .pumpkin-glow,
+  .seasonal-candle .candle-halo {
+    animation: none;
+    opacity: 0.8;
+  }
+}

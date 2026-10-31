@@ -19,6 +19,7 @@ import {
   Zap,
 } from 'lucide-react'
 import ListingGrid from '@/components/listings/ListingGrid'
+import SeasonalDrop from '@/components/seasonal/SeasonalDrop'
 import SearchBar from '@/components/listings/SearchBar'
 import SortDropdown from '@/components/listings/SortDropdown'
 import FilterPanel from '@/components/listings/FilterPanel'
@@ -251,6 +252,8 @@ export default function HomePage() {
         <div className="hero-orb -left-24 top-10 h-64 w-64 bg-[#30B54A]/35" aria-hidden="true" />
         <div className="hero-orb -right-16 top-0 h-72 w-72 bg-blue-500/25" style={{ animationDelay: '1.5s' }} aria-hidden="true" />
         <div className="hero-orb bottom-0 left-1/3 h-52 w-52 bg-yellow-300/25" style={{ animationDelay: '2.5s' }} aria-hidden="true" />
+
+        <SeasonalDrop className="absolute right-6 top-0 z-0 hidden w-[120px] lg:block xl:right-16" thread={96} />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-12 sm:pt-16">
           <div className="max-w-3xl">

@@ -868,6 +868,284 @@ body {
   animation: seasonGlow 5.5s ease-in-out infinite;
 }
 
+/* Ghost (dark mode drop pool) ------------------------------------------- */
+
+.seasonal-ghost {
+  position: relative;
+  width: 60px;
+  height: 86px;
+  animation: seasonGhostBob 4.2s ease-in-out infinite;
+}
+
+.seasonal-ghost .ghost-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 46px;
+  height: 44px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
+  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.35);
+}
+
+.seasonal-ghost .ghost-body {
+  position: absolute;
+  left: 50%;
+  top: 30px;
+  width: 46px;
+  height: 48px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #f8fafc, #cbd5e1);
+  border-radius: 12px 12px 0 0;
+}
+
+.seasonal-ghost .ghost-tail {
+  position: absolute;
+  left: 50%;
+  top: 72px;
+  width: 16px;
+  height: 14px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #cbd5e1;
+}
+
+.seasonal-ghost .ghost-tail.tail-l { left: calc(50% - 15px); top: 74px; }
+.seasonal-ghost .ghost-tail.tail-r { left: calc(50% + 15px); top: 74px; }
+
+.seasonal-ghost .ghost-eye {
+  position: absolute;
+  top: 17px;
+  width: 6px;
+  height: 8px;
+  border-radius: 9999px;
+  background: #1e293b;
+}
+
+.seasonal-ghost .ghost-eye-l { left: 12px; }
+.seasonal-ghost .ghost-eye-r { right: 12px; }
+
+.seasonal-ghost .ghost-mouth {
+  position: absolute;
+  top: 29px;
+  left: 50%;
+  width: 10px;
+  height: 6px;
+  transform: translateX(-50%);
+  border-radius: 0 0 9999px 9999px;
+  background: #1e293b;
+}
+
+@keyframes seasonGhostBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(5px); }
+}
+
+/* Halloween scene (dark mode, home + auth). Random subset per refresh,    */
+/* purely decorative, hidden until the theme resolves, desktop only.       */
+/* ------------------------------------------------------------------------ */
+
+.seasonal-scene {
+  display: none;
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+@media (min-width: 1024px) {
+  .dark .seasonal-scene { display: block; }
+}
+
+/* Moon + drifting cloud wisps ------------------------------------------- */
+
+.seasonal-moon-wrap {
+  position: absolute;
+  left: 6%;
+  top: 9%;
+  width: 72px;
+  height: 72px;
+}
+
+.seasonal-moon {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 34%, #fefce8 0%, #fde68a 45%, #fcd34d 78%, rgba(252, 211, 77, 0) 100%);
+  box-shadow: 0 0 42px 16px rgba(253, 230, 138, 0.34);
+  animation: seasonMoonPulse 7s ease-in-out infinite;
+}
+
+@keyframes seasonMoonPulse {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.05); }
+}
+
+.seasonal-cloud {
+  position: absolute;
+  top: 6%;
+  width: 150px;
+  height: 26px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.22) 30%, rgba(148, 163, 184, 0.22) 70%, transparent);
+  filter: blur(6px);
+  animation: seasonCloudDrift 62s linear infinite;
+}
+
+.seasonal-cloud.cloud-a { left: -180px; }
+.seasonal-cloud.cloud-b { left: -220px; top: 15%; opacity: 0.7; animation-duration: 88s; animation-delay: -34s; }
+
+@keyframes seasonCloudDrift {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(135vw); }
+}
+
+/* Rising mist ------------------------------------------------------------ */
+
+.seasonal-mist {
+  position: absolute;
+  bottom: -60px;
+  width: 420px;
+  height: 120px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at 50% 100%, rgba(139, 92, 246, 0.22), rgba(139, 92, 246, 0.09) 45%, transparent 72%);
+  filter: blur(10px);
+  animation: seasonMistRise 18s ease-in-out infinite;
+}
+
+.seasonal-mist.mist-a { left: -10%; }
+.seasonal-mist.mist-b { left: 28%; width: 520px; animation-duration: 24s; animation-delay: -8s; opacity: 0.85; }
+.seasonal-mist.mist-c { left: 60%; width: 470px; animation-duration: 30s; animation-delay: -16s; }
+
+@keyframes seasonMistRise {
+  0%   { transform: translateY(80px); opacity: 0; }
+  25%  { opacity: 1; }
+  70%  { opacity: 0.7; }
+  100% { transform: translateY(-340px); opacity: 0; }
+}
+
+/* Bats flapping across --------------------------------------------------- */
+
+.seasonal-bat {
+  position: absolute;
+  top: 20%;
+  left: -90px;
+  width: 46px;
+  height: 26px;
+  animation: seasonBatFly 22s linear infinite;
+}
+
+.seasonal-bat.bat-b { top: 40%; opacity: 0.85; animation-duration: 28s; animation-delay: -12s; }
+
+@keyframes seasonBatFly {
+  0%   { transform: translateX(0) translateY(0); }
+  50%  { transform: translateX(58vw) translateY(-20px); }
+  100% { transform: translateX(132vw) translateY(8px); }
+}
+
+.seasonal-bat .bat-wing {
+  position: absolute;
+  top: 9px;
+  width: 24px;
+  height: 16px;
+  background: #0f172a;
+  clip-path: polygon(100% 0, 0 16%, 40% 50%, 8% 80%, 52% 64%, 30% 100%, 100% 80%);
+  transform-origin: center 55%;
+}
+
+.seasonal-bat .wing-l {
+  left: 0;
+  animation: seasonWingL 0.9s ease-in-out infinite;
+}
+
+.seasonal-bat .wing-r {
+  right: 0;
+  animation: seasonWingR 0.9s ease-in-out infinite;
+}
+
+.seasonal-bat .bat-body {
+  position: absolute;
+  left: 50%;
+  top: 11px;
+  width: 10px;
+  height: 8px;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: #0f172a;
+}
+
+@keyframes seasonWingL {
+  0%, 100% { transform: scaleX(-1) scaleY(1); }
+  50%      { transform: scaleX(-1) scaleY(0.35); }
+}
+
+@keyframes seasonWingR {
+  0%, 100% { transform: scaleY(1); }
+  50%      { transform: scaleY(0.35); }
+}
+
+/* Fireflies -------------------------------------------------------------- */
+
+.seasonal-firefly {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fef3c7 0%, rgba(253, 230, 138, 0.7) 40%, transparent 72%);
+  box-shadow: 0 0 10px 3px rgba(253, 230, 138, 0.55);
+  animation: seasonTwinkle 3.4s ease-in-out infinite;
+}
+
+@keyframes seasonTwinkle {
+  0%, 100% { opacity: 0.1; transform: scale(0.8); }
+  50%      { opacity: 0.95; transform: scale(1.15); }
+}
+
+/* Corner spider web ------------------------------------------------------- */
+
+.seasonal-web {
+  position: absolute;
+  left: -14px;
+  bottom: -14px;
+  width: 240px;
+  height: 240px;
+  background:
+    repeating-radial-gradient(circle at 0% 100%, transparent 0 15px, rgba(203, 213, 225, 0.28) 15px 16px),
+    repeating-conic-gradient(from 90deg at 0% 100%, rgba(203, 213, 225, 0.26) 0 9deg, transparent 9deg 24deg);
+  clip-path: polygon(0 100%, 0 0, 100% 100%);
+  opacity: 0.9;
+}
+
+.seasonal-web-spider {
+  position: absolute;
+  left: 20px;
+  bottom: 18px;
+  width: 9px;
+  height: 7px;
+  border-radius: 50%;
+  background: #0f172a;
+  animation: seasonSpiderBob 5s ease-in-out infinite;
+}
+
+@keyframes seasonSpiderBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(4px); }
+}
+
+/* Halloween hero tint (dark only) ---------------------------------------- */
+
+.dark .seasonal-hero .text-gradient {
+  background-image: linear-gradient(92deg, #fb923c, #a855f7 55%, #f472b6);
+}
+
+.dark .seasonal-hero .seasonal-cta-glow {
+  background-image: linear-gradient(90deg, #f97316, #9333ea);
+  animation: seasonCtaGlow 4.5s ease-in-out infinite;
+}
+
+@keyframes seasonCtaGlow {
+  0%, 100% { box-shadow: 0 10px 26px -8px rgba(249, 115, 22, 0.55); }
+  50%      { box-shadow: 0 10px 36px -4px rgba(147, 51, 234, 0.6); }
+}
+
 
 /* Hover/tap utilities */
 .hover-lift { @apply transition-transform duration-200 hover:-translate-y-1; }
@@ -1274,7 +1552,16 @@ html {
   .seasonal-drop-motion,
   .seasonal-hang,
   .seasonal-spider .spider-leg,
-  .seasonal-candle .candle-flame {
+  .seasonal-candle .candle-flame,
+  .seasonal-ghost,
+  .seasonal-moon,
+  .seasonal-cloud,
+  .seasonal-mist,
+  .seasonal-bat,
+  .seasonal-bat .bat-wing,
+  .seasonal-firefly,
+  .seasonal-web-spider,
+  .dark .seasonal-hero .seasonal-cta-glow {
     animation: none;
   }
   .seasonal-lamp .lamp-glow,
@@ -1283,4 +1570,6 @@ html {
     animation: none;
     opacity: 0.8;
   }
+  .seasonal-bat { left: 130vw; }
+  .seasonal-firefly { opacity: 0.5; }
 }

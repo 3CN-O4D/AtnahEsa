@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import SeasonalDrop from '@/components/seasonal/SeasonalDrop'
+import SeasonalScene from '@/components/seasonal/SeasonalScene'
 
 /**
  * Shared frame for sign-in / sign-up. The animated top line and soft orbs keep
@@ -9,6 +10,7 @@ export default function AuthShell({ children }: { children: ReactNode }) {
   return (
     <div className="relative mx-auto w-full max-w-md px-4 py-10 sm:py-14">
       <div aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden">
+        <SeasonalScene className="absolute inset-0" />
         <div className="absolute -left-16 top-6 h-44 w-44 rounded-full bg-emerald-300/30 blur-3xl animate-float dark:bg-emerald-500/10" />
         <div className="absolute -right-20 bottom-2 h-52 w-52 rounded-full bg-blue-400/25 blur-3xl animate-float [animation-delay:1.8s] dark:bg-blue-500/10" />
       </div>

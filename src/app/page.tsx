@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import ListingGrid from '@/components/listings/ListingGrid'
 import SeasonalDrop from '@/components/seasonal/SeasonalDrop'
+import SeasonalScene from '@/components/seasonal/SeasonalScene'
 import SearchBar from '@/components/listings/SearchBar'
 import SortDropdown from '@/components/listings/SortDropdown'
 import FilterPanel from '@/components/listings/FilterPanel'
@@ -247,12 +248,13 @@ export default function HomePage() {
   return (
     <div>
       {/* Hero */}
-      <section className="mesh-hero relative overflow-hidden border-b border-gray-100 dark:border-slate-800">
+      <section className="mesh-hero seasonal-hero relative overflow-hidden border-b border-gray-100 dark:border-slate-800">
         <div className="grid-lines absolute inset-0 opacity-80" aria-hidden="true" />
         <div className="hero-orb -left-24 top-10 h-64 w-64 bg-[#30B54A]/35" aria-hidden="true" />
         <div className="hero-orb -right-16 top-0 h-72 w-72 bg-blue-500/25" style={{ animationDelay: '1.5s' }} aria-hidden="true" />
         <div className="hero-orb bottom-0 left-1/3 h-52 w-52 bg-yellow-300/25" style={{ animationDelay: '2.5s' }} aria-hidden="true" />
 
+        <SeasonalScene className="absolute inset-0 z-0" />
         <SeasonalDrop className="absolute right-6 top-0 z-0 hidden w-[120px] lg:block xl:right-16" thread={96} />
 
         <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-12 sm:pt-16">
@@ -277,7 +279,7 @@ export default function HomePage() {
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center animate-fadeInUp" style={{ animationDelay: '0.18s' }}>
               <a
                 href="#homes"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#30B54A] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#30B54A] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95 seasonal-cta-glow"
               >
                 Explore homes
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />

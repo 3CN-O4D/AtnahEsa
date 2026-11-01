@@ -13,9 +13,9 @@ import { useTheme } from '@/lib/ThemeProvider'
  * flashes the wrong family. All motion lives behind a reduced-motion override.
  */
 
-type Variant = 'spider' | 'lamp' | 'pumpkin' | 'candle' | 'doll' | 'monkey'
+type Variant = 'spider' | 'lamp' | 'pumpkin' | 'candle' | 'ghost' | 'doll' | 'monkey'
 
-const DARK_VARIANTS: Variant[] = ['spider', 'lamp', 'pumpkin', 'candle']
+const DARK_VARIANTS: Variant[] = ['spider', 'lamp', 'pumpkin', 'candle', 'ghost']
 const LIGHT_VARIANTS: Variant[] = ['doll', 'monkey']
 
 const legStyle = (top: number, rotate: number): CSSProperties =>
@@ -126,6 +126,22 @@ function Candle() {
   )
 }
 
+function Ghost() {
+  return (
+    <div className="seasonal-ghost">
+      <span className="ghost-head">
+        <span className="ghost-eye ghost-eye-l" />
+        <span className="ghost-eye ghost-eye-r" />
+        <span className="ghost-mouth" />
+      </span>
+      <span className="ghost-body" />
+      <span className="ghost-tail" />
+      <span className="ghost-tail tail-l" />
+      <span className="ghost-tail tail-r" />
+    </div>
+  )
+}
+
 function Creature({ variant }: { variant: Variant }) {
   switch (variant) {
     case 'spider':
@@ -140,6 +156,8 @@ function Creature({ variant }: { variant: Variant }) {
       return <Pumpkin />
     case 'candle':
       return <Candle />
+    case 'ghost':
+      return <Ghost />
   }
 }
 

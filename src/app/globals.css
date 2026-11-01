@@ -1566,6 +1566,57 @@ html {
     transition: none;
   }
   .nav-progress { display: none; }
+  .notfound-orb { animation: none; }
+  .notfound-sign { animation: none; }
+  .notfound-key { animation: none; }
+  .notfound-stamp { animation: none; }
+}
+
+/* 404 page: house-hunting themed animations. */
+.notfound-grid {
+  background-size: 28px 28px;
+  background-image:
+    linear-gradient(currentColor 1px, transparent 1px),
+    linear-gradient(90deg, currentColor 1px, transparent 1px);
+}
+.notfound-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(56px);
+  opacity: 0.45;
+  animation: notfoundFloat 10s ease-in-out infinite;
+}
+.notfound-sign {
+  animation: notfoundSignSwing 3s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+.notfound-key {
+  animation: notfoundKeyJiggle 2.5s ease-in-out infinite;
+  transform-origin: center;
+}
+.notfound-stamp {
+  animation: notfoundStamp 2s ease-in-out infinite alternate;
+}
+@keyframes notfoundFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  33% { transform: translateY(-14px) rotate(2deg); }
+  66% { transform: translateY(-6px) rotate(-1deg); }
+}
+@keyframes notfoundSignSwing {
+  0%, 100% { transform: rotate(0deg); }
+  25% { transform: rotate(-6deg); }
+  75% { transform: rotate(6deg); }
+}
+@keyframes notfoundKeyJiggle {
+  0%, 100% { transform: translateX(0) rotate(0deg); }
+  20% { transform: translateX(-4px) rotate(-2deg); }
+  40% { transform: translateX(4px) rotate(2deg); }
+  60% { transform: translateX(-4px) rotate(-1deg); }
+  80% { transform: translateX(4px) rotate(1deg); }
+}
+@keyframes notfoundStamp {
+  0% { transform: scale(0.85) rotate(-2deg); opacity: 0.7; }
+  100% { transform: scale(1.05) rotate(2deg); opacity: 0.95; }
 }
 
 
@@ -1594,3 +1645,10 @@ html {
   .seasonal-bat { left: 130vw; }
   .seasonal-firefly { opacity: 0.5; }
 }
+
+/* 404 spin utility */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+.animate-spin-slow { animation: spin 8s linear infinite; }

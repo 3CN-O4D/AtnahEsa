@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
-import { MapPin, AlertTriangle, Video, ArrowLeft, Calendar, Home, Info, Star, User, Flag, Phone as PhoneIcon, BadgeCheck, ExternalLink, MessageCircle, Heart, ShieldCheck } from 'lucide-react'
+import { MapPin, AlertTriangle, Video, ArrowLeft, Calendar, Home, Info, Star, User, Flag, Phone as PhoneIcon, BadgeCheck, ExternalLink, MessageCircle, Heart, ShieldCheck, Maximize2 } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
 import { createClient } from '@/lib/supabase/client'
 import { useFavorites } from '@/lib/favorites'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
-import { formatPrice } from '@/lib/utils'
+import { formatPrice, resolveVideoSrc, youTubeVideoId, tikTokVideoId } from '@/lib/utils'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import ListingCard from '@/components/listings/ListingCard'
@@ -20,20 +20,13 @@ import { SAFE_LISTING_COLUMNS, readDetailCache, writeDetailCache } from '@/lib/l
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
 const ImageViewer = dynamic(() => import('@/components/ui/ImageViewer'), { ssr: false })
+const VideoLightbox = dynamic(() => import('@/components/ui/VideoLightbox'), { ssr: false })
 const ReportModal = dynamic(() => import('@/components/reports/ReportModal'), { ssr: false })
 
 const LISTING_SUPPORT_LINK = getWhatsAppLink(
   WHATSAPP_NUMBER,
   `Hi ${APP_NAME}, I need help with a house listing on the website.`
 )
-
-function videoSrc(url: string): string {
-  if (url.startsWith('https://') && url.includes('/storage/v1/s3/')) {
-    const parts = url.split('/storage/v1/s3/')
-    if (parts[1]) return `/api/video?key=${encodeURIComponent(parts[1].replace(/^[^/]+\//, ''))}`
-  }
-  return url
-}
 
 function Stars({ rating, interactive, onChange }: { rating: number; interactive?: boolean; onChange?: (r: number) => void }) {
   return (
@@ -63,6 +56,8 @@ export default function ListingDetailPage() {
   const [loading, setLoading] = useState(() => !readDetailCache(id))
   const [showViewer, setShowViewer] = useState(false)
   const [viewerIndex, setViewerIndex] = useState(0)
+  const [playerOpen, setPlayerOpen] = useState(false)
+  const [playerIndex, setPlayerIndex] = useState(0)
   const [myRating, setMyRating] = useState(0)
   const [myComment, setMyComment] = useState('')
   const [myAnonymous, setMyAnonymous] = useState(false)
@@ -248,14 +243,16 @@ export default function ListingDetailPage() {
 
   const videos = [
     ...((listing.video_urls?.length ? listing.video_urls : (listing.video_url ? [listing.video_url] : [])).map((u: string) => ({ type: 'direct' as const, url: u, id: '' }))),
-    ...((listing.youtube_urls?.length ? listing.youtube_urls : (listing.youtube_url ? [listing.youtube_url] : [])).map((u: string) => {
-      const m = u.match(/(?:youtube\.com\/(?:watch\?v=|embed\/|v\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-      return { type: 'youtube' as const, url: u, id: m?.[1] || '' }
-    }).filter((v) => v.id)),
-    ...((listing.tiktok_urls?.length ? listing.tiktok_urls : (listing.tiktok_url ? [listing.tiktok_url] : [])).map((u: string) => {
-      const m = u.match(/tiktok\.com\/(?:@[^/]+\/(?:video|photo)\/|embed\/(?:v2\/)?|v\/)(\d+)/)
-      return { type: 'tiktok' as const, url: u, id: m?.[1] || '' }
-    }).filter((v) => v.id)),
+    ...((listing.youtube_urls?.length ? listing.youtube_urls : (listing.youtube_url ? [listing.youtube_url] : [])).map((u: string) => ({
+      type: 'youtube' as const,
+      url: u,
+      id: youTubeVideoId(u) || '',
+    })).filter((v) => v.id)),
+    ...((listing.tiktok_urls?.length ? listing.tiktok_urls : (listing.tiktok_url ? [listing.tiktok_url] : [])).map((u: string) => ({
+      type: 'tiktok' as const,
+      url: u,
+      id: tikTokVideoId(u) || '',
+    })).filter((v) => v.id)),
   ]
 
   const avgRating = reviews.length > 0 ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length * 10) / 10 : 0
@@ -278,6 +275,9 @@ export default function ListingDetailPage() {
         />
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-black/10" />
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
+        {playerOpen && videos.length > 0 && (
+          <VideoLightbox videos={videos} initialIndex={playerIndex} onClose={() => setPlayerOpen(false)} />
+        )}
 
         {/* Save control stays on the hero so it is available without scrolling. */}
         <button
@@ -415,18 +415,18 @@ export default function ListingDetailPage() {
                   <Video className="w-5 h-5 text-red-500" /> Video Tours
                   <span className="text-xs font-normal text-gray-400">({videos.length})</span>
                 </h2>
-                <p className="text-xs text-gray-400">Tap a video to play. Use fullscreen for the best view.</p>
+                <p className="text-xs text-gray-400">Hit Enlarge for a big, resizable player. YouTube Shorts work too.</p>
               </div>
               <div className={`grid gap-5 ${videos.length > 1 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1'}`}>
                 {videos.map((v, i) => {
                   const isTikTok = v.type === 'tiktok'
                   const label = isTikTok ? 'TikTok tour' : v.type === 'youtube' ? 'YouTube tour' : 'Video tour'
                   return (
-                    <div key={i} className={isTikTok ? 'mx-auto w-full max-w-[380px]' : 'w-full'}>
+                    <div key={i} className={isTikTok ? 'mx-auto w-full max-w-[420px]' : 'w-full'}>
                       <div className={`relative overflow-hidden rounded-2xl bg-black shadow-xl ring-1 ring-black/10 dark:ring-white/10 ${isTikTok ? 'aspect-[9/16]' : 'aspect-video'}`}>
                         {v.type === 'direct' ? (
                           <video controls preload="metadata" className="w-full h-full object-contain" playsInline>
-                            <source src={videoSrc(v.url)} />
+                            <source src={resolveVideoSrc(v.url)} />
                           </video>
                         ) : isTikTok ? (
                           <iframe
@@ -446,6 +446,15 @@ export default function ListingDetailPage() {
                             className="w-full h-full"
                           />
                         )}
+                        <button
+                          type="button"
+                          onClick={() => { setPlayerIndex(i); setPlayerOpen(true) }}
+                          aria-label={`Play ${label} in the large player`}
+                          title="Open the large, resizable player"
+                          className="absolute top-2 right-2 z-10 flex items-center gap-1.5 rounded-full bg-black/60 px-2.5 py-1.5 text-xs font-medium text-white backdrop-blur transition hover:bg-black/85"
+                        >
+                          <Maximize2 className="h-3.5 w-3.5" /> Enlarge
+                        </button>
                       </div>
                       <div className="mt-2 flex items-center justify-between gap-2 px-0.5">
                         <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ${

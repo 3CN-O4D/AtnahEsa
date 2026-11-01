@@ -403,7 +403,7 @@ export default function UploadPage() {
           label="YouTube Video URL (optional)"
           id="youtube"
           type="url"
-          placeholder="https://youtube.com/watch?v=..."
+          placeholder="https://youtube.com/watch?v=... or https://youtube.com/shorts/..."
           value={youtubeUrl}
           onChange={(e) => setYoutubeUrl(e.target.value)}
         />

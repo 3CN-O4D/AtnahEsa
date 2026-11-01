@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     'Masharti kamili, kwa Kiswahili rahisi, yanayosimamia matumizi yako ya AseHanta — uwekaji nafasi, uhifadhi wa pesa (escrow), malipo, marejesho, faragha na zaidi.',
 }
 
-const sections: TermsSection[] = [
+export const sections: TermsSection[] = [
   {
     id: 'utangulizi',
     number: '1',

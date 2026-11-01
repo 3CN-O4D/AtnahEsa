@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     'The full, plain-English terms that govern your use of AseHanta — bookings, escrow, payouts, refunds, privacy and more.',
 }
 
-const sections: TermsSection[] = [
+export const sections: TermsSection[] = [
   {
     id: 'introduction',
     number: '1',

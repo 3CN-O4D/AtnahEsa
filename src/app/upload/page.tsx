@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Upload } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
@@ -191,7 +192,7 @@ export default function UploadPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
-        <img src="/images/asehanta-logo.jpeg" alt="AseHanta" className="h-10 w-10 rounded-full object-cover" />
+        <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" width={40} height={40} className="rounded-full object-cover" />
         <h1 className="text-2xl font-bold">List Your House</h1>
       </div>
 

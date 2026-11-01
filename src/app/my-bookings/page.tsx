@@ -3,6 +3,7 @@
 import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, Home, Star, ThumbsUp, ThumbsDown, Loader2, Phone, MessageCircle, Receipt } from 'lucide-react'
 import { SkeletonBooking } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
@@ -777,8 +778,8 @@ function MyBookingsInner() {
           {currentBookings.map((b) => (
             <div key={b.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="flex gap-4 p-4">
-                <div className="w-24 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
-                  <img src={b.listing.images?.[0] || '/placeholder.jpg'} alt="" className="w-full h-full object-cover" />
+                <div className="relative w-24 h-20 flex-shrink-0 rounded-lg overflow-hidden bg-gray-100">
+                  <Image src={b.listing.images?.[0] || '/placeholder.jpg'} alt="" fill sizes="96px" className="object-cover" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">

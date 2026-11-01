@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
+import Image from 'next/image'
 import { ChevronLeft, ChevronRight, ImageOff } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -55,7 +56,7 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
     if (images.length <= 1) return
     const nextUrl = images[(current + 1) % images.length]
     if (!nextUrl) return
-    const img = new Image()
+    const img = new window.Image()
     img.src = nextUrl
   }, [current, images])
 
@@ -108,16 +109,18 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
         </div>
       ) : (
         <div className="absolute inset-0 transition-opacity duration-300" style={{ opacity: isAnimating ? 0.5 : 1 }}>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
+          <Image
             src={src}
             alt={`Slide ${current + 1} of ${images.length}`}
+            fill
+            sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+            quality={75}
             loading={current === 0 ? 'eager' : 'lazy'}
             decoding="async"
             onLoad={() => setLoaded((prev) => (prev[src] ? prev : { ...prev, [src]: true }))}
             onError={() => setFailed((prev) => ({ ...prev, [src]: true }))}
             className={cn(
-              'pointer-events-none h-full w-full object-cover transition-all duration-500 group-hover:scale-150',
+              'pointer-events-none object-cover transition-all duration-500 group-hover:scale-150',
               isLoaded ? 'opacity-100' : 'opacity-0'
             )}
           />

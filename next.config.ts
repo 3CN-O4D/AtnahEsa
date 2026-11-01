@@ -26,6 +26,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: 'img.youtube.com' },
       { protocol: 'https', hostname: 'pub-*.r2.dev' },
+      { protocol: 'https', hostname: 'lh3.googleusercontent.com' },
       ...(R2_PUBLIC_URL ? [{ protocol: 'https' as const, hostname: new URL(R2_PUBLIC_URL).hostname }] : []),
     ],
   },

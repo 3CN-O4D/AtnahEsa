@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import Image from 'next/image'
 import { Search, SlidersHorizontal, X, MapPin, Home, ArrowRight, Loader2 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
@@ -211,10 +212,9 @@ export default function SearchBar({ onSearch, onToggleFilters }: SearchBarProps)
                         active ? 'bg-[#e8f8eb] dark:bg-[#30B54A]/15' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
                       }`}
                     >
-                      <span className="flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-slate-800">
+                      <span className="relative flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-slate-800">
                         {house.image ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={house.image} alt="" className="h-full w-full object-cover" />
+                          <Image src={house.image} alt="" fill sizes="48px" className="object-cover" />
                         ) : (
                           <Home className="h-4 w-4 text-gray-400" />
                         )}

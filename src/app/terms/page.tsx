@@ -1,215 +1,412 @@
-'use client'
-
-import { useState } from 'react'
+import type { Metadata } from 'next'
 import Link from 'next/link'
+import TermsLayout, { type TermsSection } from '@/components/terms/TermsLayout'
+
+export const metadata: Metadata = {
+  title: 'Terms & Conditions',
+  description:
+    'The full, plain-English terms that govern your use of AseHanta — bookings, escrow, payouts, refunds, privacy and more.',
+}
+
+const sections: TermsSection[] = [
+  {
+    id: 'introduction',
+    number: '1',
+    title: 'Introduction — What You Are Agreeing To',
+    body: (
+      <>
+        <p>
+          Welcome to AseHanta. These Terms &amp; Conditions (&ldquo;Terms&rdquo;) form a legally binding agreement
+          between you (whether you use the platform as a house hunter, a lister, or simply a visitor) and AseHanta,
+          the company behind the platform. The words <strong>&ldquo;we&rdquo;</strong>, <strong>&ldquo;us&rdquo;</strong>
+          and <strong>&ldquo;our&rdquo;</strong> refer to AseHanta; the words <strong>&ldquo;you&rdquo;</strong> and
+          <strong> &ldquo;your&rdquo;</strong> refer to the person reading and using the platform.
+        </p>
+        <p>
+          By creating an account, paying a booking fee, listing a house, or simply continuing to browse this website,
+          you confirm that you have read, understood, and accepted these Terms in full. If you do not agree with any
+          part of them, please do not use the platform. These Terms work together with our Privacy commitments, our
+          refund rules and any other policies we publish, all of which form one set of rules that apply every time you
+          use AseHanta.
+        </p>
+        <p>In these Terms, the following words mean:</p>
+        <ul>
+          <li><strong>Platform</strong> — the AseHanta website, applications and services, available at asehanta.com.</li>
+          <li><strong>House Hunter (Hunter)</strong> — a user who searches for, books and views properties.</li>
+          <li><strong>Lister</strong> — a user who publishes a property on the platform, also called the house owner or agent.</li>
+          <li><strong>Listing</strong> — a property advertisement published by a lister.</li>
+          <li><strong>Booking Fee</strong> — the escrow-protected amount a hunter pays to book a viewing.</li>
+          <li><strong>Escrow</strong> — the safe-holding arrangement in which your booking fee is kept until a viewing is confirmed or a dispute is resolved.</li>
+          <li><strong>Viewing</strong> — the agreed visit by the hunter to see the listed property.</li>
+          <li><strong>Taken House</strong> — a property that has been booked and viewed, and whose status is now &ldquo;taken&rdquo; rather than available.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'account',
+    number: '2',
+    title: 'Eligibility and Your Account',
+    body: (
+      <>
+        <p>
+          To use most parts of the platform you must be at least <strong>18 years old</strong> and legally able to
+          enter into binding agreements under the laws of the Republic of Kenya. By registering you promise that the
+          details you provide — your name, phone number, email address and role — are true, accurate and up to date.
+        </p>
+        <ul>
+          <li>You may hold <strong>one account</strong>; creating duplicate accounts to avoid restrictions or to boost listings is not allowed.</li>
+          <li>You are responsible for keeping your login details private. Never share your password, and tell us immediately if you suspect someone else has accessed your account.</li>
+          <li>Accounts cannot be transferred, sold, or given to another person.</li>
+          <li>If your account has no activity for a long time, we may suspend or close it and contact you first.</li>
+          <li>You remain responsible for everything that happens under your account while it is in use.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'hunter',
+    number: '3',
+    title: 'House Hunters — Your Responsibilities',
+    body: (
+      <>
+        <p>
+          As a hunter you are here to find a home, and we want that to be easy and fair for everyone involved. That
+          starts with treating every booking request as a real commitment, not a casual click.
+        </p>
+        <ul>
+          <li>Only request viewings for properties you are genuinely interested in. Unserious requests waste the lister&apos;s time and slow down genuine hunters.</li>
+          <li>Show up on time for approved viewings. If you cannot make it, contact the lister or support <strong>before</strong> the agreed time so the lister is not left waiting.</li>
+          <li>Treat the property and the lister with respect during the viewing. You are a guest in someone&apos;s home.</li>
+          <li>Do not use a booking to gain a lister&apos;s contact details and then try to arrange the same deal privately, off-platform. That bypasses the escrow protection that keeps both sides safe.</li>
+          <li>Repeated no-shows, cancellations, or unserious requests may result in a refund review, a warning, or suspension of your account.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'lister',
+    number: '4',
+    title: 'Listers — Your Responsibilities',
+    body: (
+      <>
+        <p>
+          As a lister you are promising hunters an accurate picture of a real, available property. Your listing is the
+          first thing a hunter sees, and your honesty is what makes the platform trustworthy.
+        </p>
+        <ul>
+          <li>Every detail you publish — price, rent, location, photos, videos, amenities, and availability — must be truthful and current. Photos must be of the actual property you are listing.</li>
+          <li>Update or withdraw your listing the moment the property becomes unavailable or its details change.</li>
+          <li>Respond to viewing requests within <strong>48 hours</strong> and honour viewings you have approved.</li>
+          <li>Show up for approved viewings on time. If a lister does not show up for an approved viewing, the hunter may be entitled to a <strong>100% refund</strong> of the booking fee.</li>
+          <li>Disclose known issues — water supply, security, neighbourhood noise, pending repairs — honestly and in advance.</li>
+          <li>Deliberately misleading or fake listings will be removed, and may lead to suspension and forfeiture of unpaid earnings.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'escrow',
+    number: '5',
+    title: 'Bookings and the Escrow Process',
+    body: (
+      <>
+        <p>
+          When a hunter books a viewing, the booking fee is paid through our payment partner (M-Pesa via Safaricom)
+          and held in <strong>escrow</strong>. Holding the money this way protects both sides: the lister knows the
+          hunter is serious, and the hunter knows their money is safe until the viewing has actually happened.
+        </p>
+        <ul>
+          <li>After payment, a <strong>24-hour view window</strong> begins in which the hunter is expected to visit the property.</li>
+          <li>During the view window, the hunter unlocks the lister&apos;s contact details so the two parties can coordinate the visit directly.</li>
+          <li>After the viewing, the hunter confirms on the platform whether they were satisfied or not. The money is not released to either side until the hunter has answered.</li>
+          <li>If the hunter reports a problem, the escrow remains frozen and an <strong>admin reviews the case</strong>. The admin may contact both the hunter and the lister before making a decision, and will record what happened.</li>
+          <li>No money moves — to the lister or back to the hunter — until an admin has recorded the outcome with the required proof.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'payments',
+    number: '6',
+    title: 'Payments, Payouts and Refunds',
+    body: (
+      <>
+        <p>
+          <strong>When you are satisfied.</strong> If the viewing went well and you confirm you are pleased, the
+          lister is paid their share of the booking fee. That payout is recorded only after an admin verifies the
+          transfer using the M-Pesa message you paste as proof. The lister&apos;s share is a fixed proportion of the
+          booking fee, and the remainder covers the platform&apos;s service and payment-processing costs.
+        </p>
+        <p>
+          <strong>When things go wrong.</strong> If the viewing does not go well, you can tell us what happened and an
+          admin will review the case with both parties. Depending on what occurred, the hunter is refunded a proportion
+          of the booking fee:
+        </p>
+        <ul>
+          <li><strong>100% refund</strong> — when the lister did not show up, or the listing turned out to be fake or fundamentally different from what was advertised.</li>
+          <li><strong>85% refund</strong> — when the viewing took place but the house did not match the listing and you were genuinely displeased.</li>
+          <li><strong>50% refund</strong> — when both the hunter and the lister share blame for what went wrong.</li>
+        </ul>
+        <p>
+          Refunds are recorded only after an admin verifies the M-Pesa refund message pasted as proof, and the amount
+          in the message must match the agreed percentage exactly. After a refund, the admin also decides what happens
+          to the house — it can go back onto the listings for other hunters, be removed, or stay in its current state.
+        </p>
+        <p>
+          Please remember that refunds and payouts depend on M-Pesa processing times, which are controlled by the
+          payment provider and can occasionally take longer than expected.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'taken',
+    number: '7',
+    title: 'Taken Houses and Media Retention',
+    body: (
+      <>
+        <p>
+          Once a house has been viewed and booked, it is marked as <strong>taken</strong> and no longer shows as
+          available. This protects everyone: it tells other hunters the house is no longer open for bookings, and it
+          reflects the true state of the property.
+        </p>
+        <ul>
+          <li>To keep storage costs manageable and the platform fast, the photos and videos of a taken house are <strong>deleted from our media storage 48 hours</strong> after the house is marked taken.</li>
+          <li>The listing itself stays visible with a &ldquo;taken&rdquo; badge so the history of the property is preserved.</li>
+          <li>If you are the lister and need to reuse your media later, save copies of your photos and videos before that 48-hour window closes.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'conduct',
+    number: '8',
+    title: 'Communication and Conduct',
+    body: (
+      <>
+        <p>
+          AseHanta connects real people, and every conversation should be professional and respectful. When the
+          platform shares your contact details with the other party, it does so only in the context of the property
+          you are dealing with.
+        </p>
+        <ul>
+          <li>Use the platform for its intended purpose: finding, listing, booking and viewing homes.</li>
+          <li>Do not spam, harass, threaten, or mislead anyone, whether on the platform or after you have exchanged contact details.</li>
+          <li>Keep all payments inside the platform. Transactions agreed off-platform are <strong>not protected by escrow</strong>, and we cannot help you recover money paid outside the system.</li>
+          <li>Report abusive or suspicious users to support rather than responding in kind.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'privacy',
+    number: '9',
+    title: 'Privacy and Your Data',
+    body: (
+      <>
+        <p>
+          We collect the information we need to run the platform: your name, phone number, email address, the details
+          you add to your account, and records of your bookings, payments and messages. We use this information to
+          manage your account, process payments, send you booking and payment notifications, and improve the service.
+        </p>
+        <ul>
+          <li>Your contact details are shared with the other party <strong>only when there is an active booking or viewing</strong> between you.</li>
+          <li>Transactional notifications are sent <strong>only to the people involved</strong> in that transaction — a hunter only sees notifications about their own bookings, and a lister only about their own houses.</li>
+          <li>We never sell your email address, phone number, or personal name to third parties.</li>
+          <li>We may use aggregated, anonymous data to understand how the platform is used and to improve it.</li>
+          <li>You can request full deletion of your account and data at any time by contacting support. Deleting a lister account also removes your active listings.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'security',
+    number: '10',
+    title: 'Security',
+    body: (
+      <>
+        <p>
+          Protecting your information is part of protecting the platform. We follow widely accepted security
+          practices, and we also rely on you to do your part.
+        </p>
+        <ul>
+          <li>Passwords are stored with industry-standard hashing — never in plain text.</li>
+          <li>Database access is controlled by row-level security so your private data is visible only to you and authorised staff.</li>
+          <li>API endpoints enforce authentication and rate limiting to prevent automated abuse.</li>
+          <li>Payment details and M-Pesa messages are used solely to verify bookings, payouts and refunds.</li>
+          <li>You should use a strong, unique password and never share your login details. If you believe your account has been compromised, contact us immediately.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'prohibited',
+    number: '11',
+    title: 'Prohibited Behaviour and Enforcement',
+    body: (
+      <>
+        <p>You agree never to use the platform to:</p>
+        <ul>
+          <li>Create fake accounts, fake listings, or fake reviews that mislead other users.</li>
+          <li>Scam, defraud, or attempt to defraud other users or the platform.</li>
+          <li>Circumvent booking fees, escrow, or our payment process.</li>
+          <li>Collect user data (scraping) or otherwise abuse the platform&apos;s systems and APIs.</li>
+          <li>Post illegal content or use the platform for any unlawful purpose.</li>
+          <li>Impersonate other people, businesses, or AseHanta staff.</li>
+        </ul>
+        <p>
+          Depending on the severity, we may warn you, remove content, suspend your account, or terminate it
+          permanently. Where fraud is involved, held funds may be forfeited and we may report the matter to the
+          authorities. Our enforcement decisions are made fairly and can be discussed with our support team.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'ip',
+    number: '12',
+    title: 'Intellectual Property and Content',
+    body: (
+      <>
+        <p>
+          The AseHanta name, logo, design and platform code are our property (or our licensors&apos;). Nothing in
+          these Terms gives you any right to copy, reproduce, or reuse them without permission.
+        </p>
+        <p>
+          When you add content to the platform — such as a listing, photos, or a video tour — you keep ownership of
+          that content, but you grant us a licence to host, display, and distribute it on the platform for the purpose
+          of running the service. You promise that the content you upload is yours to share and does not infringe
+          anyone else&apos;s rights. We will remove content when asked where the law requires it or where it clearly
+          violates these Terms.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'liability',
+    number: '13',
+    title: 'Liability and Disclaimers',
+    body: (
+      <>
+        <p>
+          AseHanta is an <strong>intermediary platform</strong>. We provide the marketplace, the escrow protection and
+          the tools, but we are not the landlord and we are not the tenant. The rental contract, if any, is between
+          the hunter and the lister, and we are not a party to it.
+        </p>
+        <ul>
+          <li>We review listings and user reports to keep the platform safe, but we cannot guarantee that every listing is perfect, and we are not liable for the acts or omissions of individual users.</li>
+          <li>We do our best to keep the platform available and accurate, but we do not guarantee that it will be uninterrupted or free from errors.</li>
+          <li>To the maximum extent permitted by law, our total liability for any claim arising from your use of the platform is limited to the booking fees you actually paid us in connection with that claim.</li>
+          <li>We are not responsible for delays caused by third parties such as payment providers, telecom networks, or hosting services.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'disputes',
+    number: '14',
+    title: 'Dispute Resolution',
+    body: (
+      <>
+        <p>
+          We hope disagreements are rare, and we try to resolve them quickly and fairly. The escrow review process
+          described in section 6 is the first and primary way booking disputes are settled, and an admin&apos;s
+          decision, once recorded, closes that specific case.
+        </p>
+        <ul>
+          <li>Contact our support team first — most issues are resolved with a short conversation.</li>
+          <li>If we cannot resolve a dispute informally, it will be governed by the laws of the Republic of Kenya, and the courts of Eldoret, Kenya shall have jurisdiction.</li>
+          <li>Any claim must be brought within twelve months of the event that gave rise to it, unless the law says otherwise.</li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    id: 'changes',
+    number: '15',
+    title: 'Changes to These Terms',
+    body: (
+      <>
+        <p>
+          The platform grows, and these Terms may need to grow with it. We will post any changes on this page and,
+          for changes that significantly affect you, we will notify you in advance through an in-app notification or
+          email before the new version takes effect.
+        </p>
+        <p>
+          If you continue using the platform after updated Terms are published, you accept the new version. If you do
+          not agree with the changes, you are free to stop using the platform and close your account.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'termination',
+    number: '16',
+    title: 'Termination',
+    body: (
+      <>
+        <p>
+          You may stop using the platform and close your account at any time by contacting support. When an account is
+          closed, your active listings are removed, and any escrow funds relating to ongoing bookings are handled
+          according to the relevant booking&apos;s status at that time.
+        </p>
+        <p>
+          We may suspend or terminate your access if you breach these Terms, if your conduct harms other users, or if
+          continued access would expose us or others to unreasonable risk. Termination for serious violations may be
+          immediate and without prior notice, but it never removes your legal rights to money you are genuinely owed.
+        </p>
+      </>
+    ),
+  },
+  {
+    id: 'contact',
+    number: '17',
+    title: 'Contact',
+    body: (
+      <>
+        <p>
+          Questions, feedback, and support requests are always welcome. The fastest way to reach us is through the
+          contact options below, and we aim to respond within two working days.
+        </p>
+        <ul>
+          <li><strong>Email:</strong> asehanta@gmail.com</li>
+          <li><strong>Phone / WhatsApp:</strong> +254 748 275 079</li>
+          <li><strong>Location:</strong> Eldoret, Kenya</li>
+          <li><strong>Report a bug or abuse:</strong> use the &ldquo;Report a bug&rdquo; link in the site menu, and mention the listing or booking concerned.</li>
+        </ul>
+      </>
+    ),
+  },
+]
 
 export default function TermsPage() {
-  const [tab, setTab] = useState<'lister' | 'hunter'>('hunter')
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-3xl mx-auto px-4 py-12">
-        <Link href="/" className="text-blue-600 hover:underline text-sm">&larr; Back to home</Link>
-
-        <h1 className="text-3xl font-bold mt-6 mb-2">Terms &amp; Conditions</h1>
-        <p className="text-gray-500 text-sm mb-8">Last updated: August 2026</p>
-
-        {/* Tab selector */}
-        <div className="flex gap-1 bg-gray-200 rounded-xl p-1 mb-8">
-          <button
-            onClick={() => setTab('hunter')}
-            className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-colors ${tab === 'hunter' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-800'}`}
-          >
-            I&apos;m a House Hunter
-          </button>
-          <button
-            onClick={() => setTab('lister')}
-            className={`flex-1 py-2.5 text-sm font-medium rounded-xl transition-colors ${tab === 'lister' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-600 hover:text-gray-800'}`}
-          >
-            I&apos;m a Lister
-          </button>
-        </div>
-
-        {tab === 'hunter' ? <HunterTerms /> : <ListerTerms />}
-
-        <div className="mt-10 pt-6 border-t text-center text-sm text-gray-500">
-          <p>By signing up, you agree to the terms above.</p>
-          <Link href="/auth/signup" className="text-blue-600 hover:underline font-medium">Create Account</Link>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function HunterTerms() {
-  return (
-    <div className="prose prose-gray max-w-none space-y-6">
-      <Section title="What You're Accepting">
-        <p>
-          When you create a <strong>House Hunter</strong> account on AseHanta, you are agreeing to the following rules
-          that protect you, the property listers, and the platform as a whole.
-        </p>
-      </Section>
-
-      <Section title="1. Bookings &amp; Viewings">
-        <p><strong>What happens:</strong> You can request to view a listed property. The lister reviews your request and decides whether to approve it.</p>
-        <p><strong>Why:</strong> This gives listers control over who visits their property and keeps the process organised. Only approved viewings go ahead.</p>
-        <ul>
-          <li>You agree not to request viewings for properties you have no serious interest in.</li>
-          <li>You agree to show up on time for approved viewings.</li>
-          <li>Repeated no-shows or unserious requests may lead to account suspension.</li>
-        </ul>
-      </Section>
-
-      <Section title="2. Communication">
-        <p><strong>What happens:</strong> When you contact a lister through the platform, your message is shared with them along with your contact details.</p>
-        <p><strong>Why:</strong> We connect you directly so you can coordinate viewing times and ask property-specific questions. We do not intermediate these conversations.</p>
-        <ul>
-          <li>You agree not to use the platform to send spam, scam, or harassing messages.</li>
-          <li>You agree not to take conversations off-platform to bypass the booking system.</li>
-        </ul>
-      </Section>
-
-      <Section title="3. Payments &amp; Deposits">
-        <p><strong>What happens:</strong> If a listing requires a booking deposit, you pay it through our payment partner (M-Pesa via Safaricom). The funds are held securely until the viewing occurs or the deposit is released.</p>
-        <p><strong>Why:</strong> Deposits protect listers against no-shows and signal your commitment. They also give you peace of mind that the lister is serious about showing the property.</p>
-        <ul>
-          <li>If you attend the viewing, the deposit is released to the lister.</li>
-          <li>If the lister cancels, you receive a full refund.</li>
-          <li>If you cancel with less than 24 hours notice, a partial refund (minus a service fee) applies.</li>
-        </ul>
-      </Section>
-
-      <Section title="4. Your Data">
-        <p><strong>What we collect:</strong> Your name, email, phone number, and usage data to operate the platform.</p>
-        <p><strong>How we use it:</strong> We use your data to operate your account, process transactions, send booking and payment notifications, and improve our services. We may use aggregated, non-personally-identifying data for marketing and platform improvement.</p>
-        <p><strong>What we will never do:</strong> We will <strong>never</strong> share or sell your email address or personal name with third parties.</p>
-        <ul>
-          <li>Your phone number and email are shared with a lister only when you request a viewing of their property.</li>
-          <li>Transaction-related messages (booking confirmations, payment receipts) are sent to you directly.</li>
-          <li>You can request full deletion of your data at any time by contacting support.</li>
-        </ul>
-      </Section>
-
-      <Section title="5. Data Security &amp; Privacy">
-        <p><strong>How we protect you:</strong> We handle your personal data with care and follow privacy-oriented practices:</p>
-        <ul>
-          <li>Passwords are stored using industry-standard bcrypt hashing — they are never stored in plain text.</li>
-          <li>Database access is restricted by role-based row-level security; your private data is only visible to you and authorised staff.</li>
-          <li>All API endpoints enforce authentication and rate limiting to prevent abuse.</li>
-          <li>Payment data (M-Pesa messages, transaction codes) is used solely for verifying bookings and is not shared externally.</li>
-          <li>We do not track or sell your browsing behaviour to advertisers.</li>
-        </ul>
-        <p>If you suspect unauthorised access to your account, contact us immediately so we can secure it.</p>
-      </Section>
-
-      <Section title="6. Prohibited Behaviour">
-        <p>You agree not to:</p>
-        <ul>
-          <li>Create fake accounts or misrepresent your identity.</li>
-          <li>Attempt to scam, defraud, or deceive other users or the platform.</li>
-          <li>Use the platform for any illegal purpose.</li>
-          <li>Reverse-engineer, scrape, or abuse the platform's APIs.</li>
-        </ul>
-        <p>Violation of these terms may result in immediate account termination without refund of any held deposits.</p>
-      </Section>
-    </div>
-  )
-}
-
-function ListerTerms() {
-  return (
-    <div className="prose prose-gray max-w-none space-y-6">
-      <Section title="What You're Accepting">
-        <p>
-          When you create a <strong>Lister</strong> account on AseHanta, you are agreeing to the following rules
-          that protect you, the house hunters, and the platform.
-        </p>
-      </Section>
-
-      <Section title="1. Listings &amp; Accuracy">
-        <p><strong>What happens:</strong> You upload property listings including photos, description, location, and price. These become visible to all house hunters on the platform.</p>
-        <p><strong>Why:</strong> Accurate listings build trust. Hunters rely on your information to decide whether to request a viewing. Misleading listings waste everyone's time.</p>
-        <ul>
-          <li>You agree that all listing details (price, location, availability, amenities) are truthful and current.</li>
-          <li>You agree to update or remove listings as soon as the property becomes unavailable.</li>
-          <li>Deliberately misleading listings may be taken down and your account may be suspended.</li>
-        </ul>
-      </Section>
-
-      <Section title="2. Viewing Requests">
-        <p><strong>What happens:</strong> Hunters request to view your property. You review their request and can approve or decline it.</p>
-        <p><strong>Why:</strong> You have full control over who visits your property. This keeps you safe and lets you manage your schedule.</p>
-        <ul>
-          <li>You agree to respond to viewing requests within 48 hours.</li>
-          <li>Once approved, you agree to show the property at the agreed time.</li>
-          <li>Repeated failure to show up for approved viewings may result in account suspension.</li>
-        </ul>
-      </Section>
-
-      <Section title="3. Payments &amp; Payouts">
-        <p><strong>What happens:</strong> When a hunter pays a booking deposit, the funds are held by our payment partner. After the viewing takes place, the deposit is released to you minus a platform service fee.</p>
-        <p><strong>Why:</strong> Deposits compensate you for your time if a hunter no-shows. The platform fee covers payment processing and operational costs.</p>
-        <ul>
-          <li>You will receive payouts to your registered M-Pesa number.</li>
-          <li>Current platform fee is <strong>5%</strong> of the deposit amount (capped at KES 500).</li>
-          <li>If you cancel a confirmed booking, the full deposit is refunded to the hunter and you forfeit the payout.</li>
-        </ul>
-      </Section>
-
-      <Section title="4. Communication">
-        <p><strong>What happens:</strong> When a hunter contacts you or requests a viewing, you receive their contact details so you can coordinate.</p>
-        <p><strong>Why:</strong> Direct communication speeds up the rental process. We provide the connection but don't manage your conversations.</p>
-        <ul>
-          <li>You agree to use hunter contact information solely for property-related communication.</li>
-          <li>You agree not to spam, harass, or misuse hunter data.</li>
-          <li>All financial transactions must go through the platform — off-platform payments are not covered by our protections.</li>
-        </ul>
-      </Section>
-
-      <Section title="5. Your Data">
-        <p><strong>What we collect:</strong> We collect your name, email, phone, and listing data to operate the platform.</p>
-        <p><strong>How we use it:</strong> We use your data to manage your account, display your listings, process payouts, and send transaction notifications. We may use aggregated, non-personally-identifying data for marketing and platform improvement.</p>
-        <p><strong>What we will never do:</strong> We will <strong>never</strong> share or sell your email address or personal name with third parties.</p>
-        <ul>
-          <li>Your phone number and email are shared with a hunter only when they request a viewing of your property.</li>
-          <li>You can request full data deletion at any time (note: this will remove all your active listings).</li>
-        </ul>
-      </Section>
-
-      <Section title="6. Data Security &amp; Privacy">
-        <p><strong>How we protect you:</strong> We handle your personal data with care and follow privacy-oriented practices:</p>
-        <ul>
-          <li>Passwords are stored using industry-standard bcrypt hashing — they are never stored in plain text.</li>
-          <li>Database access is restricted by role-based row-level security; your private data is only visible to you and authorised staff.</li>
-          <li>All API endpoints enforce authentication and rate limiting to prevent abuse.</li>
-          <li>Payment data (M-Pesa messages, transaction codes) is used solely for verifying bookings and is not shared externally.</li>
-          <li>We do not track or sell your browsing behaviour to advertisers.</li>
-        </ul>
-        <p>If you suspect unauthorised access to your account, contact us immediately so we can secure it.</p>
-      </Section>
-
-      <Section title="7. Prohibited Behaviour">
-        <p>You agree not to:</p>
-        <ul>
-          <li>Post fake or duplicate listings for the same property.</li>
-          <li>Attempt to charge hunters directly off-platform to avoid fees.</li>
-          <li>Create fake accounts to boost your listings or leave fake reviews.</li>
-          <li>Use the platform for any illegal purpose.</li>
-        </ul>
-        <p>Violation may result in immediate account termination, removal of all listings, and forfeiture of any unpaid earnings.</p>
-      </Section>
-    </div>
-  )
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200">
-      <h2 className="text-lg font-semibold mb-3">{title}</h2>
-      <div className="text-sm text-gray-700 space-y-2 [&_ul]:space-y-1 [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:font-semibold [&_strong]:text-gray-900">
-        {children}
-      </div>
-    </div>
+    <TermsLayout
+      lang="en"
+      eyebrow="Terms &amp; Conditions"
+      title="Find a home you'll love — and know exactly what you're agreeing to."
+      subtitle="These Terms explain, in plain language, how AseHanta works: how bookings and escrow protect you, how payouts and refunds are decided, what we expect from hunters and listers, and how your data is handled."
+      updated="Last updated: October 2026"
+      summary={{
+        title: 'The short version',
+        points: [
+          'Your booking fee is held in escrow until the viewing happens — nobody is paid before you confirm.',
+          'Satisfied with the viewing? The lister gets their payout, verified by an M-Pesa receipt.',
+          'Problem with the viewing? You can get 100%, 85% or 50% back depending on what happened.',
+          'Your data is only ever shared with the people involved in your booking, never sold.',
+          'Taken houses have their photos deleted from storage 48 hours after they are marked taken.',
+        ],
+      }}
+      sections={sections}
+      agreeNote={
+        <>
+          By creating an account or using the platform, you agree to these Terms and our Privacy commitments.
+          <Link href="/auth/signup" className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95">
+            Create an account
+          </Link>
+        </>
+      }
+    />
   )
 }

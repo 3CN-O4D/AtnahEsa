@@ -3,6 +3,7 @@
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import {
   AlertTriangle,
   ArrowLeft,
@@ -447,7 +448,7 @@ function PaymentPageInner() {
         <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-slate-800">
           {listing.images?.[0] && (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={listing.images[0]} alt="" className="h-40 w-full object-cover" />
+            <Image src={listing.images[0]} alt="" width={768} height={160} className="h-40 w-full object-cover" />
           )}
           <div className="space-y-3 p-4">
             <div>

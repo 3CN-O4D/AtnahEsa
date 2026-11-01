@@ -1366,6 +1366,26 @@ body {
   box-shadow: 0 0 12px rgba(48, 181, 74, 0.7);
 }
 
+/* Terms & Conditions pages: reading-progress bar and animated panel ring. */
+.terms-progress {
+  background-image: linear-gradient(90deg, #30b54a, #22d3ee, #2563eb, #a855f7);
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.55);
+}
+
+.terms-panel {
+  position: relative;
+  border-radius: 1rem;
+  padding: 1px;
+  background: linear-gradient(120deg, #30b54a, #22d3ee, #2563eb, #a855f7, #f472b6, #30b54a);
+  background-size: 300% 300%;
+  animation: termsGradientFlow 9s linear infinite;
+}
+
+@keyframes termsGradientFlow {
+  0%   { background-position: 0% 50%; }
+  100% { background-position: 300% 50%; }
+}
+
 /* Batch loading: a soft moving sheen on the progress fill. */
 @keyframes batchSheen {
   0%   { background-position: 0% 50%; }
@@ -1538,6 +1558,7 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .text-gradient { animation: none; }
   .hero-orb { animation: none; }
+  .terms-panel { animation: none; }
   .card-sheen::after { display: none; }
   .reveal {
     opacity: 1;

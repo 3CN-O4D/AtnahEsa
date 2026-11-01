@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Loader2, ShieldCheck, Smartphone } from 'lucide-react'
+import Image from 'next/image'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { signInUrl } from '@/lib/auth-redirect'
@@ -119,8 +120,7 @@ export default function BookingPage() {
 
       <div className="mt-6 overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-slate-800">
         {listing.images?.[0] && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={listing.images[0]} alt="" className="h-40 w-full object-cover" />
+          <Image src={listing.images[0]} alt="" width={768} height={160} className="h-40 w-full object-cover" />
         )}
         <div className="space-y-3 p-4">
           <div>

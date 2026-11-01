@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import { MapPin, AlertTriangle, BadgeCheck, Heart } from 'lucide-react'
 import Card from '@/components/ui/Card'
 import Slideshow from '@/components/ui/Slideshow'
+import TakenListingPanel from '@/components/listings/TakenListingPanel'
 import { formatPrice } from '@/lib/utils'
 import { useFavorites } from '@/lib/favorites'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
@@ -89,9 +90,15 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
         onMouseLeave={handleMouseLeave}
         className={`group/card relative rounded-2xl border ${statusTheme} transition-all duration-300 hover:-translate-y-1.5 hover:border-[#30B54A]/40 hover:shadow-2xl hover:shadow-slate-900/10 dark:hover:shadow-black/40`}
       >
-        <div className={`aspect-[4/3] relative overflow-hidden group ${isUnavailable ? 'grayscale-[0.4] brightness-90' : ''}`}>
-          <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/5 opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+        <div className={`aspect-[4/3] relative overflow-hidden group ${listing.status === 'booked' ? 'grayscale-[0.4] brightness-90' : ''}`}>
+          {listing.status === 'taken' ? (
+            <TakenListingPanel mediaPurged={listing.images.length === 0} className="h-full w-full" />
+          ) : (
+            <>
+              <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/5 opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
+            </>
+          )}
           
           {/* Favorite button */}
           <button
@@ -114,10 +121,8 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
           </button>
 
           {listing.status === 'taken' && (
-            <div className="absolute inset-0 bg-red-950/40 backdrop-blur-[1px] flex items-center justify-center">
-              <div className="absolute top-2.5 left-2.5 bg-red-600/95 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-1 ring-white/30">
-                Taken
-              </div>
+            <div className="absolute left-2.5 top-2.5 z-10 bg-red-600/95 text-white text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded-full shadow-lg ring-1 ring-white/30">
+              Taken
             </div>
           )}
           {listing.status === 'published' && (

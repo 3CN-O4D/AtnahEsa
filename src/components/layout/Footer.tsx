@@ -1,3 +1,4 @@
+import Image from 'next/image'
 import Link from 'next/link'
 import { APP_NAME, CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, CONTACT_LOCATION, WHATSAPP_NUMBER, SOCIAL_YOUTUBE, SOCIAL_TWITTER, SOCIAL_INSTAGRAM, SOCIAL_TIKTOK } from '@/lib/constants'
 
@@ -9,7 +10,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-2">
-              <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-7 w-7 rounded-full object-cover" />
+              <Image src="/images/asehanta-logo.jpeg" alt={APP_NAME} width={28} height={28} className="rounded-full object-cover" />
               <h3 className="text-blue-300 font-bold text-base">{APP_NAME}</h3>
             </div>
             <p className="text-xs leading-relaxed text-slate-500">
@@ -25,6 +26,7 @@ export default function Footer() {
               <li><Link href="/movers" className="hover:text-white transition-colors">Movers</Link></li>
               <li><Link href="/wifi" className="hover:text-white transition-colors">WiFi</Link></li>
               <li><Link href="/terms" className="hover:text-white transition-colors">Terms &amp; Conditions</Link></li>
+              <li><Link href="/terms/sw" className="hover:text-white transition-colors">Masharti na Masharti (Kiswahili)</Link></li>
               <li><a href="/contact" className="hover:text-white transition-colors">Contact Us</a></li>
               <li><Link href="/complaints" className="hover:text-white transition-colors">Report a Bug</Link></li>
             </ul>

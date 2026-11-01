@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Home, ArrowLeft } from 'lucide-react'
+import { Home, ArrowLeft, Lock, MapPin, Calendar } from 'lucide-react'
 import { SkeletonPage } from '@/components/ui/Skeleton'
 import type { Listing } from '@/types'
 
@@ -43,16 +43,33 @@ export default function TakenHousesPage() {
       ) : (
         <div className="space-y-3">
           {listings.map((listing) => (
-            <div key={listing.id} className="bg-white border border-gray-200 rounded-xl p-4">
-              <h3 className="font-semibold text-gray-900">{listing.title}</h3>
-              <p className="text-sm text-gray-500 mt-1">{listing.location}</p>
-              {listing.status === 'booked' ? (
-                <p className="text-sm text-amber-600 font-medium mt-2">Booked — a hunter has paid, visit being arranged.</p>
-              ) : (
-                <p className="text-sm text-gray-700 mt-2">
-                  Taken — this house is no longer available.
+            <div
+              key={listing.id}
+              className="group flex items-start gap-3.5 rounded-2xl border border-red-200/70 bg-white p-4 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-red-300 hover:shadow-lg dark:border-red-900/40 dark:bg-slate-900 dark:hover:border-red-800"
+            >
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-red-50 ring-1 ring-red-200/70 dark:bg-red-950/50 dark:ring-red-900/60">
+                {listing.status === 'booked' ? (
+                  <Calendar className="h-5 w-5 text-amber-500 dark:text-amber-400" />
+                ) : (
+                  <Lock className="h-5 w-5 text-red-500 dark:text-red-400" />
+                )}
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-semibold text-gray-900 dark:text-white">{listing.title}</h3>
+                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-white ${listing.status === 'booked' ? 'bg-amber-500' : 'bg-red-600'}`}>
+                    {listing.status === 'booked' ? 'Booked' : 'Taken'}
+                  </span>
+                </div>
+                <p className="mt-0.5 flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                  <MapPin className="h-3 w-3 shrink-0" /> {listing.location}
                 </p>
-              )}
+                <p className="mt-1.5 text-xs leading-relaxed text-gray-400 dark:text-gray-500">
+                  {listing.status === 'booked'
+                    ? 'Booked — a hunter has paid and the visit is being arranged.'
+                    : 'This house is no longer available. Photos are removed from storage 48 hours after it is taken.'}
+                </p>
+              </div>
             </div>
           ))}
         </div>

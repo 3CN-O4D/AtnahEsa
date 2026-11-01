@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { User, Lock, Mail, Phone, ArrowLeft, Eye, EyeOff, List, Camera, X, Check } from 'lucide-react'
 import { SkeletonProfile } from '@/components/ui/Skeleton'
@@ -615,7 +616,7 @@ export default function ProfilePage() {
         <div className="flex items-center gap-4">
           <div className="relative">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="Avatar" className="w-16 h-16 rounded-full object-cover" />
+              <Image src={profile.avatar_url} alt="Avatar" width={64} height={64} className="rounded-full object-cover" />
             ) : (
               <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
                 <User className="w-7 h-7 text-blue-600 dark:text-blue-300" />

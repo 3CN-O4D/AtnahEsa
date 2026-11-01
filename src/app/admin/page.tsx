@@ -2,6 +2,7 @@
 
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Search, Mail, MessageCircle, Phone } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
@@ -602,7 +603,7 @@ function AdminDashboardInner() {
 
           {filteredListings.map((listing) => (
             <div key={listing.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900 flex items-start gap-4">
-              <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
+              <Image src={listing.images[0] || '/placeholder.jpg'} alt="" width={80} height={64} className="rounded-lg object-cover shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold truncate">{listing.title}</h3>
@@ -944,7 +945,7 @@ function AdminDashboardInner() {
               return (
               <div key={listing.id} className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
                 <div className="flex items-start gap-4 mb-3">
-                  <img src={listing.images[0] || '/placeholder.jpg'} alt="" className="w-20 h-16 rounded-lg object-cover shrink-0" />
+                  <Image src={listing.images[0] || '/placeholder.jpg'} alt="" width={80} height={64} className="rounded-lg object-cover shrink-0" />
                   <div>
                     <h3 className="font-semibold text-gray-900">{listing.title}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">{listing.location} &mdash; {pending.length} video{pending.length !== 1 ? 's' : ''} pending</p>

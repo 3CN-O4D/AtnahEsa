@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import type { MouseEvent } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
 import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart, Bug } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
@@ -108,7 +109,7 @@ export default function Header() {
       <div className="flex items-center h-16">
         {/* Left: Logo + Name — flush to left edge */}
         <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">
-          <img src="/images/asehanta-logo.jpeg" alt={APP_NAME} className="h-8 w-8 rounded-full object-cover" />
+          <Image src="/images/asehanta-logo.jpeg" alt={APP_NAME} width={32} height={32} className="rounded-full object-cover" />
           <span className="text-lg sm:text-xl font-bold text-blue-600">{APP_NAME}</span>
         </Link>
 
@@ -161,9 +162,9 @@ export default function Header() {
                 onClick={() => setShowUserMenu(!showUserMenu)}
                   className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white"
                 >
-                  <div className="w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center overflow-hidden">
+                  <div className="relative w-7 h-7 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center overflow-hidden">
                     {avatarUrl ? (
-                      <img src={avatarUrl} alt="" className="w-full h-full object-cover" />
+                      <Image src={avatarUrl} alt="" fill sizes="28px" className="object-cover" />
                     ) : (
                       <UserIcon className="w-4 h-4 text-blue-600 dark:text-blue-300" />
                     )}

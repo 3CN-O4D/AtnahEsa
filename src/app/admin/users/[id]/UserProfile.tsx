@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Mail, Phone, Calendar, Shield, Home, BookOpen, DollarSign, Clock, CheckCircle, XCircle, RotateCcw, Star, MapPin, User as UserIcon } from 'lucide-react'
 import Button from '@/components/ui/Button'
@@ -71,9 +72,9 @@ export default function UserProfile({ profile, listings, bookings, transactions,
       {/* Profile Header */}
       <div className="bg-white border rounded-xl p-6 mb-6">
         <div className="flex items-start gap-5">
-          <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="relative w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center shrink-0 overflow-hidden">
             {profile.avatar_url ? (
-              <img src={profile.avatar_url} alt="" className="w-full h-full object-cover" />
+              <Image src={profile.avatar_url} alt="" fill sizes="64px" className="object-cover" />
             ) : (
               <UserIcon className="w-7 h-7 text-blue-600" />
             )}

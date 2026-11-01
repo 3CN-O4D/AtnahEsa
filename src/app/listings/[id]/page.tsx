@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
+import Image from 'next/image'
 import { MapPin, AlertTriangle, Video, ArrowLeft, Calendar, Home, Info, Star, User, Flag, Phone as PhoneIcon, BadgeCheck, ExternalLink, MessageCircle, Heart, ShieldCheck, Maximize2 } from 'lucide-react'
 import Slideshow from '@/components/ui/Slideshow'
 import Button from '@/components/ui/Button'
@@ -15,6 +16,7 @@ import { formatPrice, resolveVideoSrc, youTubeVideoId, tikTokVideoId } from '@/l
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
 import { getWhatsAppLink } from '@/lib/whatsapp'
 import ListingCard from '@/components/listings/ListingCard'
+import TakenListingPanel from '@/components/listings/TakenListingPanel'
 import { SkeletonDetail } from '@/components/ui/Skeleton'
 import { SAFE_LISTING_COLUMNS, readDetailCache, writeDetailCache } from '@/lib/listing-detail-cache'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
@@ -256,6 +258,7 @@ export default function ListingDetailPage() {
   ]
 
   const avgRating = reviews.length > 0 ? Math.round(reviews.reduce((s, r) => s + r.rating, 0) / reviews.length * 10) / 10 : 0
+  const isTaken = listing.status === 'taken'
 
   return (
     <div className="min-h-screen bg-[radial-gradient(80rem_40rem_at_50%_-10%,rgba(48,181,74,0.10),transparent_60%)] dark:bg-none">
@@ -268,12 +271,16 @@ export default function ListingDetailPage() {
       </button>
 
       <div className="relative mb-6 overflow-hidden rounded-3xl shadow-2xl shadow-slate-900/15 ring-1 ring-black/5 dark:ring-white/10">
-        <Slideshow
-          images={listing.images}
-          className="w-full aspect-[4/3] sm:aspect-[16/9]"
-          onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }}
-        />
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-black/10" />
+        {isTaken ? (
+          <TakenListingPanel mediaPurged={listing.images.length === 0} className="aspect-[4/3] w-full sm:aspect-[16/9]" />
+        ) : (
+          <Slideshow
+            images={listing.images}
+            className="w-full aspect-[4/3] sm:aspect-[16/9]"
+            onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }}
+          />
+        )}
+        {!isTaken && <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/65 via-black/5 to-black/10" />}
         {showViewer && <ImageViewer images={listing.images} initialIndex={viewerIndex} onClose={() => setShowViewer(false)} />}
         {playerOpen && videos.length > 0 && (
           <VideoLightbox videos={videos} initialIndex={playerIndex} onClose={() => setPlayerOpen(false)} />
@@ -313,9 +320,11 @@ export default function ListingDetailPage() {
               <MapPin className="h-3 w-3" /> {listing.location}
             </span>
           </div>
-          <span className="rounded-full bg-black/45 px-3 py-1 text-[11px] font-medium text-white/90 shadow-lg backdrop-blur">
-            {listing.images.length} photo{listing.images.length !== 1 ? 's' : ''}{videos.length ? ` · ${videos.length} video${videos.length !== 1 ? 's' : ''}` : ''}
-          </span>
+          {!isTaken && (
+            <span className="rounded-full bg-black/45 px-3 py-1 text-[11px] font-medium text-white/90 shadow-lg backdrop-blur">
+              {listing.images.length} photo{listing.images.length !== 1 ? 's' : ''}{videos.length ? ` · ${videos.length} video${videos.length !== 1 ? 's' : ''}` : ''}
+            </span>
+          )}
         </div>
       </div>
 
@@ -408,7 +417,7 @@ export default function ListingDetailPage() {
             </div>
           )}
 
-          {(videos.length > 0) && (
+          {(!isTaken && videos.length > 0) && (
             <div>
               <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
                 <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -490,11 +499,11 @@ export default function ListingDetailPage() {
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-950/60 dark:to-indigo-950/60 border border-blue-100 dark:border-blue-800/50 rounded-xl p-5 space-y-4">
               <h3 className="font-semibold flex items-center gap-2 text-blue-800 dark:text-white"><User className="w-4 h-4" /> Listed by</h3>
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
+                <div className="relative w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
                   {lister.role === 'admin' ? (
-                    <img src="/images/asehanta-logo.jpeg" alt="AseHanta" className="w-full h-full object-cover" />
+                    <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" fill sizes="56px" className="object-cover" />
                   ) : lister.avatar_url ? (
-                    <img src={lister.avatar_url} alt="" className="w-full h-full object-cover" />
+                    <Image src={lister.avatar_url} alt="" fill sizes="56px" className="object-cover" />
                   ) : (
                     lister.full_name?.charAt(0)?.toUpperCase() || 'L'
                   )}
@@ -544,13 +553,13 @@ export default function ListingDetailPage() {
           )}
 
           {/* Gallery — full-size images */}
-          {listing.images.length > 1 && (
+          {!isTaken && listing.images.length > 1 && (
             <div>
               <h2 className="text-lg font-semibold mb-3">Gallery</h2>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                 {listing.images.map((img, i) => (
                   <button key={i} onClick={() => { setViewerIndex(i); setShowViewer(true) }} className="group relative aspect-video overflow-hidden rounded-xl">
-                    <img src={img} alt={`${listing.title} ${i + 1}`} loading="lazy" className="w-full h-full object-cover group-hover:scale-150 transition-transform duration-500 ease-out" />
+                    <Image src={img} alt={`${listing.title} ${i + 1}`} fill sizes="(min-width: 640px) 33vw, 50vw" className="object-cover transition-transform duration-500 ease-out group-hover:scale-150" />
                   </button>
                 ))}
               </div>
@@ -666,9 +675,9 @@ export default function ListingDetailPage() {
               return (
                 <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-white shrink-0 overflow-hidden">
+                    <div className="relative w-6 h-6 rounded-full bg-blue-100 dark:bg-blue-900/50 flex items-center justify-center text-xs font-bold text-blue-600 dark:text-white shrink-0 overflow-hidden">
                       {!isAnonymous && rp?.avatar_url ? (
-                        <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
+                        <Image src={rp.avatar_url} alt="" fill sizes="24px" className="object-cover" />
                       ) : (
                         !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                       )}
@@ -695,9 +704,9 @@ export default function ListingDetailPage() {
                   return (
                     <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
                       <div className="flex items-center gap-2 mb-2">
-                        <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-300 shrink-0 overflow-hidden">
+                        <div className="relative w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-300 shrink-0 overflow-hidden">
                           {!isAnonymous && rp?.avatar_url ? (
-                            <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
+                            <Image src={rp.avatar_url} alt="" fill sizes="24px" className="object-cover" />
                           ) : (
                             !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                           )}
@@ -840,9 +849,9 @@ export default function ListingDetailPage() {
         <Modal open={listerModalOpen} onClose={() => setListerModalOpen(false)} title={`@${lister.username || lister.full_name || 'Anonymous'}`}>
           <div className="space-y-5">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0 overflow-hidden">
+              <div className="relative w-16 h-16 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-xl shadow-sm shrink-0 overflow-hidden">
                 {lister.avatar_url ? (
-                  <img src={lister.avatar_url} alt="" className="w-full h-full object-cover" />
+                  <Image src={lister.avatar_url} alt="" fill sizes="64px" className="object-cover" />
                 ) : (
                   lister.full_name?.charAt(0)?.toUpperCase() || 'L'
                 )}
@@ -885,9 +894,9 @@ export default function ListingDetailPage() {
                     return (
                       <div key={r.id || i} className="border-b border-gray-100 dark:border-gray-700 last:border-0 pb-3 last:pb-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <div className="w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-300 shrink-0 overflow-hidden">
+                          <div className="relative w-6 h-6 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center text-xs font-bold text-indigo-600 dark:text-indigo-300 shrink-0 overflow-hidden">
                             {!isAnonymous && rp?.avatar_url ? (
-                              <img src={rp.avatar_url} alt="" className="w-full h-full object-cover" />
+                              <Image src={rp.avatar_url} alt="" fill sizes="24px" className="object-cover" />
                             ) : (
                               !isAnonymous ? (rp?.full_name?.charAt(0)?.toUpperCase() || '?') : '?'
                             )}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Mail, Phone, MapPin, Send, MessageCircle, Home } from 'lucide-react'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
@@ -56,7 +57,7 @@ export default function ContactPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-4">
-        <img src="/images/asehanta-logo.jpeg" alt="AseHanta" className="h-10 w-10 rounded-full object-cover" />
+        <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" width={40} height={40} className="rounded-full object-cover" />
         <div>
           <h1 className="text-2xl font-bold">Contact Us</h1>
           <p className="text-gray-600 text-sm">

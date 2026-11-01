@@ -16,6 +16,7 @@ import {
   ArrowRight,
   PackageCheck,
 } from 'lucide-react'
+import Image from 'next/image'
 import Button from '@/components/ui/Button'
 import ReportModal from '@/components/reports/ReportModal'
 import { createClient } from '@/lib/supabase/client'
@@ -493,11 +494,12 @@ export default function MoversPage() {
                 >
                   <div className="relative h-40 shrink-0 overflow-hidden bg-gradient-to-br from-slate-200 to-slate-300 dark:from-slate-800 dark:to-slate-700">
                     {mover.image ? (
-                      <img
+                      <Image
                         src={mover.image}
                         alt={mover.name}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
+                        fill
+                        sizes="(min-width: 1280px) 25vw, (min-width: 640px) 50vw, 100vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
                       />
                     ) : (
                       <div className={`flex h-full w-full items-center justify-center bg-gradient-to-br ${tintFor(mover.id)}`}>

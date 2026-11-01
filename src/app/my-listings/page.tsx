@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import Image from 'next/image'
 import { Edit3, Trash2, Plus, Home, MapPin, Eye, Calendar, ArrowLeft, ExternalLink } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { SkeletonPage } from '@/components/ui/Skeleton'
@@ -140,8 +141,8 @@ export default function MyListingsPage() {
             <div key={listing.id} className="bg-white border rounded-xl overflow-hidden hover:shadow-md transition-shadow">
               <div className="flex flex-col sm:flex-row">
                 {listing.images.length > 0 && (
-                  <div className="sm:w-48 h-36 shrink-0">
-                    <img src={listing.images[0]} alt={listing.title} className="w-full h-full object-cover" />
+                  <div className="relative sm:w-48 h-36 shrink-0">
+                    <Image src={listing.images[0]} alt={listing.title} fill sizes="192px" className="object-cover" />
                   </div>
                 )}
                 <div className="flex-1 p-4 flex flex-col justify-between">

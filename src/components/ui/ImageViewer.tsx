@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import Image from 'next/image'
 import { X, ChevronLeft, ChevronRight } from 'lucide-react'
 
 interface ImageViewerProps {
@@ -75,9 +76,12 @@ export default function ImageViewer({ images, initialIndex, onClose }: ImageView
         onTouchEnd={handleTouchEnd}
         onClick={handleTap}
       >
-        <img
+        <Image
           src={images[current]}
           alt={`Image ${current + 1}`}
+          fill
+          sizes="100vw"
+          quality={85}
           className="max-w-full max-h-full object-contain transition-transform duration-300"
           style={{ transform: zoomed ? 'scale(2)' : 'scale(1)' }}
           draggable={false}

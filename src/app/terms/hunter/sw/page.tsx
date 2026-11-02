@@ -23,6 +23,7 @@ export default function TermsHunterPageSw() {
   return (
     <TermsLayout
       lang="sw"
+      role="hunter"
       eyebrow="Masharti — Watafuta Nyumba"
       title="Masharti kwa watafuta nyumba — tafuta, uangalie, na uingie makao kwa uaminifu."
       subtitle="Masharti haya yanaeleza, kwa lugha rahisi, tunachotarajia kutoka kwako mtafuta nyumba kwenye AseHanta: jinsi ada yako ya uwekaji nafasi huhifadhiwa (escrow), jinsi marejesho yanavyoamuliwa, na tunachotarajia kutoka kwako kabla, wakati, na baada ya utazamo."

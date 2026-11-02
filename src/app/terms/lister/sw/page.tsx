@@ -23,6 +23,7 @@ export default function TermsListerPageSw() {
   return (
     <TermsLayout
       lang="sw"
+      role="lister"
       eyebrow="Masharti — Wanaoorodhesha Nyumba"
       title="Masharti kwa wanaoorodhesha nyumba — orodhesha kwa uaminifu, ulipe kwa haki."
       subtitle="Masharti haya yanaeleza, kwa lugha rahisi, tunachotarajia kutoka kwako mmiliki au wakala kwenye AseHanta: jinsi kuweka tangazo la kweli na ya sasa, jinsi malipo yako yanaolipwa baada ya mtafuta athibitisha ridhiao, na jinsi marejesho yanavyoamuliwa."

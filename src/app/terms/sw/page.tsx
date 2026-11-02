@@ -3,7 +3,7 @@ import Link from 'next/link'
 import TermsLayout, { type TermsSection } from '@/components/terms/TermsLayout'
 
 export const metadata: Metadata = {
-  title: 'Masharti na Masharti (Kiswahili)',
+  title: 'Sheria na Masharti (Kiswahili)',
   description:
     'Masharti kamili, kwa Kiswahili rahisi, yanayosimamia matumizi yako ya AseHanta — uwekaji nafasi, uhifadhi wa pesa (escrow), malipo, marejesho, faragha na zaidi.',
 }
@@ -390,7 +390,8 @@ export default function TermsPageSw() {
   return (
     <TermsLayout
       lang="sw"
-      eyebrow="Masharti na Masharti"
+      role="all"
+      eyebrow="Sheria na Masharti"
       title="Tafuta nyumba unayopenda — na ujue haswa unachokubaliana nacho."
       subtitle="Masharti haya yanaeleza, kwa lugha rahisi, jinsi AseHanta inavyofanya kazi: jinsi uwekaji nafasi na uhifadhi (escrow) vinavyokulinda, jinsi malipo na marejesho yanavyoamuliwa, tunachotarajia kutoka kwa watafuta nyumba na wanaoorodhesha, na jinsi data yako inavyoshughulikiwa."
       updated="Imesasishwa mara ya mwisho: Oktoba 2026"

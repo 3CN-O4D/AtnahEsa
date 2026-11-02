@@ -23,6 +23,7 @@ export default function TermsHunterPage() {
   return (
     <TermsLayout
       lang="en"
+      role="hunter"
       eyebrow="Terms &amp; Conditions — for House Hunters"
       title="Terms for house hunters — book, view, and move in with confidence."
       subtitle="These terms explain what to expect as a hunter on AseHanta: how your booking fee is held in escrow, how refunds are decided, and what we expect from you before, during, and after a viewing."

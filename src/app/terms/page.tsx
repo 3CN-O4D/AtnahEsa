@@ -384,6 +384,7 @@ export default function TermsPage() {
   return (
     <TermsLayout
       lang="en"
+      role="all"
       eyebrow="Terms &amp; Conditions"
       title="Find a home you'll love — and know exactly what you're agreeing to."
       subtitle="These Terms explain, in plain language, how AseHanta works: how bookings and escrow protect you, how payouts and refunds are decided, what we expect from hunters and listers, and how your data is handled."

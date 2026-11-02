@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, notFound } from 'next/navigation'
 import dynamic from 'next/dynamic'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -51,6 +51,7 @@ export default function ListingDetailPage() {
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [listing, setListing] = useState<Listing | null>(() => readDetailCache(id))
+  const [missing, setMissing] = useState(false)
   const [lister, setLister] = useState<(Profile & { listing_count: number }) | null>(null)
   const [reviews, setReviews] = useState<Review[]>([])
   const [reviewProfiles, setReviewProfiles] = useState<Record<string, Profile>>({})
@@ -120,7 +121,12 @@ export default function ListingDetailPage() {
       }
 
       if (!listingData) {
-        if (!remembered) router.push('/')
+        if (!remembered) {
+          // Let Next render the proper 404 (with search and recovery) instead
+          // of silently dumping the visitor on the homepage.
+          setMissing(true)
+          setLoading(false)
+        }
         return
       }
 
@@ -236,6 +242,8 @@ export default function ListingDetailPage() {
   }
 
   const alreadyReviewed = user && reviews.some((r) => r.user_id === user.id)
+
+  if (missing) notFound()
 
   if (loading) {
     return <SkeletonDetail />

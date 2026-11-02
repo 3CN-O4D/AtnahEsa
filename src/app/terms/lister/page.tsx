@@ -23,6 +23,7 @@ export default function TermsListerPage() {
   return (
     <TermsLayout
       lang="en"
+      role="lister"
       eyebrow="Terms &amp; Conditions — for Listers"
       title="Terms for listers — list honestly, get paid fairly."
       subtitle="These terms explain what to expect as a lister on AseHanta: how to keep your listing accurate, how payouts are verified with an M-Pesa receipt, how refunds are decided, and what happens when your house is taken."

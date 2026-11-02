@@ -14,8 +14,38 @@ export type TermsSection = {
   body: ReactNode
 }
 
+export type TermsRole = 'all' | 'visitor' | 'hunter' | 'lister' | 'admin'
+
+const ROLE_PATHS: Record<TermsRole, { en: string; sw: string }> = {
+  all: { en: '/terms', sw: '/terms/sw' },
+  visitor: { en: '/terms/visitor', sw: '/terms/visitor/sw' },
+  hunter: { en: '/terms/hunter', sw: '/terms/hunter/sw' },
+  lister: { en: '/terms/lister', sw: '/terms/lister/sw' },
+  admin: { en: '/terms/admin', sw: '/terms/admin/sw' },
+}
+
+const ROLE_ORDER: TermsRole[] = ['all', 'visitor', 'hunter', 'lister', 'admin']
+
+const ROLE_LABELS: Record<'en' | 'sw', Record<TermsRole, string>> = {
+  en: {
+    all: 'All users',
+    visitor: 'Visitors',
+    hunter: 'Hunters',
+    lister: 'Listers',
+    admin: 'Admins',
+  },
+  sw: {
+    all: 'Watumiaji wote',
+    visitor: 'Wageni',
+    hunter: 'Watafuta nyumba',
+    lister: 'Wamiliki',
+    admin: 'Wasimamizi',
+  },
+}
+
 interface TermsLayoutProps {
   lang: 'en' | 'sw'
+  role?: TermsRole
   eyebrow: string
   title: string
   subtitle: string
@@ -33,6 +63,7 @@ interface TermsLayoutProps {
  */
 export default function TermsLayout({
   lang,
+  role = 'all',
   eyebrow,
   title,
   subtitle,
@@ -109,33 +140,69 @@ export default function TermsLayout({
             >
               <ArrowLeft className="h-4 w-4" /> {lang === 'en' ? 'Back to home' : 'Rudi nyumbani'}
             </Link>
-            <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white/90 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
-              <Globe2 className="ml-2 mr-1 h-4 w-4 text-gray-400" aria-hidden="true" />
-              <Link
-                href="/terms"
-                className={cn(
-                  'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                  lang === 'en'
-                    ? 'bg-[#30B54A] text-white shadow'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
-                )}
-              >
-                English
-              </Link>
-              <Link
-                href="/terms/sw"
-                className={cn(
-                  'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
-                  lang === 'sw'
-                    ? 'bg-[#30B54A] text-white shadow'
-                    : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
-                )}
-              >
-                Kiswahili
-              </Link>
-              <span className="sr-only">{lang === 'en' ? 'Switch to' : 'Badili lugha kwenda'} {otherLabel}</span>
+            <div className="flex items-center gap-2">
+              <span className="hidden text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500 sm:inline">
+                {lang === 'en' ? 'Language' : 'Lugha'}
+              </span>
+              <div className="flex items-center gap-1 rounded-full border border-gray-200 bg-white/90 p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900/90">
+                <Globe2 className="ml-2 mr-1 h-4 w-4 text-gray-400" aria-hidden="true" />
+                <Link
+                  href={ROLE_PATHS[role].en}
+                  aria-current={lang === 'en' ? 'page' : undefined}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                    lang === 'en'
+                      ? 'bg-[#30B54A] text-white shadow'
+                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
+                  )}
+                >
+                  English
+                </Link>
+                <Link
+                  href={ROLE_PATHS[role].sw}
+                  aria-current={lang === 'sw' ? 'page' : undefined}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
+                    lang === 'sw'
+                      ? 'bg-[#30B54A] text-white shadow'
+                      : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
+                  )}
+                >
+                  Kiswahili
+                </Link>
+                <span className="sr-only">{lang === 'en' ? 'Switch to' : 'Badili lugha kwenda'} {otherLabel}</span>
+              </div>
             </div>
           </div>
+        </Reveal>
+
+        {/* Role switcher */}
+        <Reveal delay={40}>
+          <nav
+            aria-label={lang === 'en' ? 'Terms by role' : 'Masharti kwa jukumu'}
+            className="mt-4 overflow-x-auto pb-1"
+          >
+            <div className="flex w-max min-w-full items-center gap-1 rounded-2xl border border-gray-200 bg-white/90 p-1.5 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/90">
+              <span className="shrink-0 px-2 text-[11px] font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                {lang === 'en' ? 'Read for' : 'Soma kwa'}
+              </span>
+              {ROLE_ORDER.map((r) => (
+                <Link
+                  key={r}
+                  href={ROLE_PATHS[r][lang]}
+                  aria-current={role === r ? 'page' : undefined}
+                  className={cn(
+                    'shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors',
+                    role === r
+                      ? 'bg-[#30B54A] text-white shadow'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-100'
+                  )}
+                >
+                  {ROLE_LABELS[lang][r]}
+                </Link>
+              ))}
+            </div>
+          </nav>
         </Reveal>
 
         {/* Hero */}

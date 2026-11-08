@@ -1,0 +1,426 @@
+import { createAdminClient } from '@/lib/supabase/admin'
+import { notifyAdmins } from '@/lib/notify'
+import { WIFI_INSTALLATION_FEE, WHATSAPP_NUMBER } from '@/lib/constants'
+import { isValidPhone, parseWhatsAppContact, canonicalWhatsAppContact, getWhatsAppLink } from '@/lib/whatsapp'
+import { extractRentRange } from './houseSearch'
+import { toolWifiPackages } from './tools'
+import type { ChatAction, ChatState } from './types'
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+export interface FlowStepResult {
+  reply: string
+  actions?: ChatAction[]
+  quickReplies?: string[]
+  state: ChatState
+  /** True when the flow completed and the draft was submitted. */
+  done?: boolean
+}
+
+export function isCancelMessage(msg: string): boolean {
+  return /^(cancel|stop|quit|exit|start over|restart|forget it|never mind|abort)\b/i.test(msg.trim())
+}
+
+export function isConfirmMessage(msg: string): boolean {
+  return /^(yes|yeah|yep|ok|okay|submit|confirm|go ahead|send it|proceed|correct|that's right|thats right|sure|done)\b/i.test(msg.trim()) || /^(yes|ok|okay|submit|confirm|go ahead|proceed)\b/i.test(msg.trim())
+}
+
+export function isRejectMessage(msg: string): boolean {
+  return /^(no|nope|nah|cancel|don't|dont|stop|start over|wrong|not that)\b/i.test(msg.trim())
+}
+
+function setStep(state: ChatState, step: string, reply: string, quickReplies?: string[]): FlowStepResult {
+  return { reply, quickReplies, state: { ...state, mode: 'house_request', step } }
+}
+
+// ---------------------------------------------------------------- house request
+
+const HOUSE_REQUEST_STEPS: Record<string, { ask: string; quick?: string[] }> = {
+  name: { ask: `Great — let's set up your house request. 🏠\n\nFirst, *what's your full name?*` },
+  email: { ask: `Thanks! And your *email address*?` },
+  phone: { ask: `Your *phone number*? (e.g. 0712 345 678)` },
+  whatsapp: { ask: `What's your preferred *WhatsApp contact* for the team to reach you?\n\nJust say *"same"* to use your phone number, or give a number / @username.` },
+  location: { ask: `Where would you like the house to be? E.g. *Kipkaren, Annex, Langas, Nairobi*…` },
+  rent: { ask: `What's your *monthly budget*?\n\nReply like *"15k to 25k"*, *"under 12k"*, or *"any"*.` , quick: ['any'] },
+  preferences: { ask: `Which *house type(s)* interest you?\n\nE.g. *bedsitter, studio, 1BR, 2BR, 3BR*… (or *"any"*).\n\nAfter that, mention water/token if you care, e.g. *"2BR, water included, self-contained"*.`, quick: ['any'] },
+  description: { ask: `Anything else we should know? (quiet area, parking, near town…)\n\nReply *"none"* to skip.`, quick: ['none'] },
+}
+
+const DESIGN_IDS: Array<{ id: string; re: RegExp }> = [
+  { id: 'bedsitter', re: /\bbedsitter\b/i },
+  { id: 'studio', re: /\bstudio\b/i },
+  { id: '1br', re: /\b1\s?br\b|\bone\s*bedroom\b/i },
+  { id: '2br', re: /\b2\s?br\b|\btwo\s*bedroom\b/i },
+  { id: '3br', re: /\b3\s?br\b|\bthree\s*bedroom\b/i },
+  { id: 'bungalow', re: /\bbungalow\b/i },
+  { id: 'apartment', re: /\bapartment\b/i },
+  { id: 'townhouse', re: /\btownhouse\b/i },
+]
+
+function extractDesigns(text: string): string[] {
+  return DESIGN_IDS.filter((d) => d.re.test(text)).map((d) => d.id)
+}
+
+function extractToken(text: string): string[] {
+  if (/self[-\s]?contained/i.test(text)) return ['self']
+  if (/\binclusive\b/i.test(text)) return ['inclusive']
+  if (/\bopen\b|\beither\b/i.test(text)) return ['either']
+  return []
+}
+
+function extractWater(text: string): string[] {
+  if (/(water|rent)[^.]{0,20}(included|inclusive)|(included|inclusive)[^.]{0,20}rent/i.test(text)) return ['included']
+  if (/own\s*borehole|borehole/i.test(text)) return ['own_borehole']
+  if (/\beither\b/i.test(text)) return ['either']
+  return []
+}
+
+export async function startHouseRequest(): Promise<FlowStepResult> {
+  const state: ChatState = { mode: 'house_request', step: 'name', draft: {} }
+  return setStep(state, 'name', HOUSE_REQUEST_STEPS.name.ask)
+}
+
+export async function continueHouseRequest(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const draft = { ...(state.draft ?? {}) }
+  const step = state.step ?? 'name'
+  const set = (next: string, reply: string, quick?: string[]): FlowStepResult =>
+    ({ reply, quickReplies: quick, state: { mode: 'house_request', step: next, draft } })
+
+  if (step === 'name') {
+    if (msg.trim().length < 2) return set('name', `Sorry, I didn't catch that. *What's your full name?*`)
+    draft.name = msg.trim()
+    return set('email', HOUSE_REQUEST_STEPS.email.ask)
+  }
+
+  if (step === 'email') {
+    const email = msg.trim().toLowerCase()
+    if (!EMAIL_RE.test(email)) return set('email', `That email doesn't look right — please try again (e.g. you@example.com).`)
+    draft.email = email
+    return set('phone', HOUSE_REQUEST_STEPS.phone.ask)
+  }
+
+  if (step === 'phone') {
+    if (!isValidPhone(msg.trim())) return set('phone', `That phone number doesn't look right. Please use something like *0712 345 678*.`)
+    draft.phone = msg.trim()
+    return set('whatsapp', HOUSE_REQUEST_STEPS.whatsapp.ask)
+  }
+
+  if (step === 'whatsapp') {
+    const input = msg.trim()
+    if (input && !/^(same|default|use phone|use my phone|phone)$/i.test(input)) {
+      const parsed = parseWhatsAppContact(input)
+      if (!parsed) {
+        return set('whatsapp', `Hmm, I couldn't read that contact. Use a phone number like *0712 345 678*, a username like *@janedoe*, or reply *"same"* to use your phone number.`)
+      }
+      draft.whatsapp = input
+    } else {
+      draft.whatsapp = draft.phone
+    }
+    return set('location', HOUSE_REQUEST_STEPS.location.ask)
+  }
+
+  if (step === 'location') {
+    const loc = msg.trim()
+    if (loc.length < 2) return set('location', `Please tell me the *area or town* you're looking in.`)
+    draft.location = loc
+    return set('rent', HOUSE_REQUEST_STEPS.rent.ask, HOUSE_REQUEST_STEPS.rent.quick)
+  }
+
+  if (step === 'rent') {
+    const text = msg.trim()
+    if (/^(any|no budget|none|skip|n\/a|flexible)$/i.test(text)) {
+      draft.min_rent = null
+      draft.max_rent = null
+      return set('preferences', HOUSE_REQUEST_STEPS.preferences.ask, HOUSE_REQUEST_STEPS.preferences.quick)
+    }
+    const { min, max } = extractRentRange(text)
+    if (min === null && max === null) {
+      return set('rent', `I couldn't pick a budget from that. Try *"15k to 25k"*, *"under 12k"*, or *"any"*.`)
+    }
+    draft.min_rent = min
+    draft.max_rent = max
+    return set('preferences', HOUSE_REQUEST_STEPS.preferences.ask, HOUSE_REQUEST_STEPS.preferences.quick)
+  }
+
+  if (step === 'preferences') {
+    const text = msg.trim()
+    if (!/^(any|none|skip|either|open)/i.test(text)) {
+      draft.house_designs = extractDesigns(text)
+      draft.token_options = extractToken(text)
+      draft.water_options = extractWater(text)
+    } else {
+      draft.house_designs = []
+      draft.token_options = []
+      draft.water_options = []
+    }
+    return set('description', HOUSE_REQUEST_STEPS.description.ask, HOUSE_REQUEST_STEPS.description.quick)
+  }
+
+  if (step === 'description') {
+    const text = msg.trim()
+    draft.description = /^(none|skip|n\/a|nothing)$/i.test(text) ? '' : text
+    return { reply: buildHouseSummary(draft), quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'house_request', step: 'confirm', draft } }
+  }
+
+  if (step === 'confirm') {
+    if (isRejectMessage(msg) || /start over/i.test(msg)) {
+      return { reply: `No problem — your draft is cleared. Is there anything else I can help with? 🙂`, state: { mode: 'chat', step: null, draft: {} } }
+    }
+    if (isConfirmMessage(msg)) {
+      const res = await submitHouseRequest(draft)
+      if (res.error) {
+        return { reply: `Sorry, I couldn't submit that just now: ${res.error} Please try again in a moment.`, state: { mode: 'chat', step: null, draft: {} } }
+      }
+      return {
+        reply: `✅ *Done! Your house request is in.*\n\nOur team will review it and reach you on WhatsApp (${(draft.whatsapp as string) || (draft.phone as string)}) within 24 hours.\n\nYou can also browse available houses now: https://www.asehanta.com`,
+        state: { mode: 'chat', step: null, draft: {} },
+        actions: [{ type: 'link', label: 'Browse houses', href: 'https://www.asehanta.com/' }],
+        quickReplies: ['🏠 Find me a house now', '📶 WiFi packages'],
+      }
+    }
+    return { reply: buildHouseSummary(draft) + `\n\nShall I submit this? Reply *yes* or *no*.`, quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'house_request', step: 'confirm', draft } }
+  }
+
+  return startHouseRequest()
+}
+
+function buildHouseSummary(d: Record<string, unknown>): string {
+  const rent = d.min_rent || d.max_rent
+    ? `${d.min_rent ? `KSh ${(d.min_rent as number).toLocaleString()}` : 'Any'} — ${d.max_rent ? `KSh ${(d.max_rent as number).toLocaleString()}` : 'Any'}`
+    : 'Any'
+  const designs = (d.house_designs as string[] | undefined)?.length ? (d.house_designs as string[]).join(', ') : 'Any'
+  const token = (d.token_options as string[] | undefined)?.length ? (d.token_options as string[]).join(', ') : 'Any'
+  const water = (d.water_options as string[] | undefined)?.length ? (d.water_options as string[]).join(', ') : 'Any'
+  return `*Confirm your house request*\n\n👤 Name: ${d.name}\n📧 Email: ${d.email}\n📱 Phone: ${d.phone}\n💬 WhatsApp: ${d.whatsapp}\n📍 Location: ${d.location}\n💰 Budget: ${rent}\n🏠 Type: ${designs}\n💧 Water: ${water}\n🔑 Token: ${token}\n📝 Notes: ${d.description || 'None'}\n\n_Everything correct?_`
+}
+
+async function submitHouseRequest(d: Record<string, unknown>): Promise<{ error?: string }> {
+  const supabase = createAdminClient()
+  const insert = {
+    name: d.name,
+    email: d.email,
+    phone: d.phone,
+    location: d.location,
+    min_rent: d.min_rent ?? null,
+    max_rent: d.max_rent ?? null,
+    token_options: d.token_options ?? [],
+    water_options: d.water_options ?? [],
+    house_designs: d.house_designs ?? [],
+    description: d.description ?? '',
+    whatsapp: canonicalWhatsAppContact((d.whatsapp as string) || '') || (d.phone as string),
+  }
+
+  let { error } = await supabase.from('house_requests').insert(insert)
+  if (error && /whatsapp/i.test(`${error.code || ''} ${error.message || ''}`)) {
+    const { whatsapp: _w, ...rest } = insert
+    ;({ error } = await supabase.from('house_requests').insert(rest))
+  }
+  if (error) return { error: error.message }
+
+  const designLabels: Record<string, string> = { bedsitter: 'Bedsitter', studio: 'Studio', '1br': '1 Bedroom', '2br': '2 Bedroom', '3br': '3 Bedroom', bungalow: 'Bungalow', apartment: 'Apartment', townhouse: 'Townhouse' }
+  const tokenLabels: Record<string, string> = { self: 'Self-contained', inclusive: 'Inclusive', either: 'Either' }
+  const waterLabels: Record<string, string> = { included: 'Included', own_borehole: 'Own borehole', either: 'Either' }
+  await notifyAdmins('New House Request', '🏠 New House Request (via Chatbot)', {
+    Name: String(d.name),
+    Email: String(d.email),
+    Phone: String(d.phone),
+    WhatsApp: String(d.whatsapp ?? d.phone),
+    Location: String(d.location),
+    'Rent Range': insert.min_rent || insert.max_rent ? `${insert.min_rent ? `KSh ${(insert.min_rent as number).toLocaleString()}` : 'Any'} — ${insert.max_rent ? `KSh ${(insert.max_rent as number).toLocaleString()}` : 'Any'}` : 'Not specified',
+    'House Design': (insert.house_designs as string[]).length ? (insert.house_designs as string[]).map((x) => designLabels[x] || x).join(', ') : 'Not specified',
+    Token: (insert.token_options as string[]).length ? (insert.token_options as string[]).map((x) => tokenLabels[x] || x).join(', ') : 'Not specified',
+    Water: (insert.water_options as string[]).length ? (insert.water_options as string[]).map((x) => waterLabels[x] || x).join(', ') : 'Not specified',
+    Description: String(insert.description ?? 'None'),
+    Source: 'Chatbot',
+  })
+  return {}
+}
+
+// ----------------------------------------------------------------- wifi booking
+
+export async function startWifiBooking(): Promise<FlowStepResult> {
+  const state: ChatState = { mode: 'wifi_booking', step: 'package', draft: {} }
+  const packages = await toolWifiPackages()
+  const quick: string[] = []
+  const actions: ChatAction[] = packages.cards?.slice(0, 6).map((c) => ({ type: 'link', label: c.title, href: `https://www.asehanta.com/wifi/${c.id}` })) ?? []
+  return {
+    reply: `Let's set up a *WiFi booking*. 📶\n\n${packages.text}\n\nTell me the *package name* you'd like (or browse them: https://www.asehanta.com/wifi).`,
+    quickReplies: quick,
+    actions,
+    state: { mode: 'wifi_booking', step: 'package', draft: {} },
+  }
+}
+
+const WIFI_STEPS: Record<string, { ask: string; quick?: string[] }> = {
+  name: { ask: `Thanks! What's your *full name*?` },
+  phone: { ask: `Your *phone number*? (e.g. 0712 345 678)` },
+  area: { ask: `Which *area* will the WiFi be installed? (e.g. Kipkaren, Annex, Langas…)` },
+  id_number: { ask: `Your *national ID number*?` },
+}
+
+export async function continueWifiBooking(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const draft = { ...(state.draft ?? {}) }
+  const step = state.step ?? 'package'
+  const set = (next: string, reply: string, quick?: string[]): FlowStepResult =>
+    ({ reply, quickReplies: quick, state: { mode: 'wifi_booking', step: next, draft } })
+
+  if (step === 'package') {
+    const name = msg.trim()
+    if (!name || name.length < 2) return set('package', `Which *package* would you like? Reply with the package name, e.g. *"Home Lite"*.`)
+    draft.package_name = name
+    return set('name', WIFI_STEPS.name.ask)
+  }
+  if (step === 'name') {
+    if (msg.trim().length < 2) return set('name', `What's your *full name*?`)
+    draft.name = msg.trim()
+    return set('phone', WIFI_STEPS.phone.ask)
+  }
+  if (step === 'phone') {
+    if (!isValidPhone(msg.trim())) return set('phone', `That phone number doesn't look right. Please use something like *0712 345 678*.`)
+    draft.phone = msg.trim()
+    return set('area', WIFI_STEPS.area.ask)
+  }
+  if (step === 'area') {
+    if (msg.trim().length < 2) return set('area', `Which *area* will the installation be in?`)
+    draft.area = msg.trim()
+    return set('id_number', WIFI_STEPS.id_number.ask)
+  }
+  if (step === 'id_number') {
+    const id = msg.trim().replace(/\D/g, '')
+    if (id.length < 5) return set('id_number', `That ID doesn't look right — please enter your *national ID number* (digits only).`)
+    draft.id_number = id
+    return {
+      reply: `*Confirm your WiFi booking*\n\n📶 Package: ${draft.package_name}\n👤 Name: ${draft.name}\n📱 Phone: ${draft.phone}\n📍 Area: ${draft.area}\n🪪 ID: ${id}\n\nInstallation fee is *KSh ${WIFI_INSTALLATION_FEE.toLocaleString()}* (one-time) plus the monthly package price.`,
+      quickReplies: ['Yes, submit it', 'No, start over'],
+      state: { mode: 'wifi_booking', step: 'confirm', draft },
+    }
+  }
+  if (step === 'confirm') {
+    if (isRejectMessage(msg)) {
+      return { reply: `No problem — cancelled. Anything else I can help with? 🙂`, state: { mode: 'chat', step: null, draft: {} } }
+    }
+    if (isConfirmMessage(msg)) {
+      const res = await submitWifiBooking(draft)
+      if (res.error) return { reply: `Sorry, I couldn't submit that: ${res.error}`, state: { mode: 'chat', step: null, draft: {} } }
+      return {
+        reply: `✅ *WiFi booking sent!*\n\nOur team will call you on ${draft.phone} to arrange installation in ${draft.area}.\n\nFirst payment will be about *KSh ${res.total.toLocaleString()}* (installation + first month).`,
+        actions: [{ type: 'link', label: 'Browse WiFi packages', href: 'https://www.asehanta.com/wifi' }],
+        quickReplies: ['🏠 Find me a house', '🚚 I need a mover'],
+        state: { mode: 'chat', step: null, draft: {} },
+      }
+    }
+    return { reply: `Shall I submit this WiFi booking? Reply *yes* or *no*.`, quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'wifi_booking', step: 'confirm', draft } }
+  }
+  return startWifiBooking()
+}
+
+async function submitWifiBooking(d: Record<string, unknown>): Promise<{ error?: string; total: number }> {
+  const supabase = createAdminClient()
+  const totalPrice = WIFI_INSTALLATION_FEE
+  const insert = {
+    package_id: null,
+    package_name: d.package_name,
+    package_speed: '',
+    package_price: 0,
+    installation_fee: WIFI_INSTALLATION_FEE,
+    total_price: totalPrice,
+    name: d.name,
+    phone: d.phone,
+    area: d.area,
+    id_number: d.id_number,
+  }
+  let { error } = await supabase.from('wifi_bookings').insert(insert)
+  // Older databases may not have the fee columns yet — insert without them and
+  // the defaults (or the migration) fill in the fee.
+  if (error && /installation_fee|total_price/i.test(`${error.code || ''} ${error.message || ''}`)) {
+    const { installation_fee: _fee, total_price: _total, ...base } = insert
+    ;({ error } = await supabase.from('wifi_bookings').insert(base))
+  }
+  if (error) return { error: error.message, total: totalPrice }
+  await notifyAdmins('WIFI NEEDED', 'WiFi Booking (via Chatbot)', {
+    Name: String(d.name),
+    Phone: String(d.phone),
+    Area: String(d.area),
+    'ID Number': String(d.id_number),
+    Package: String(d.package_name),
+    'Installation Fee': `KSh ${WIFI_INSTALLATION_FEE.toLocaleString()}`,
+    Source: 'Chatbot',
+  })
+  return { total: totalPrice }
+}
+
+// --------------------------------------------------------------- mover request
+
+export async function startMoverRequest(): Promise<FlowStepResult> {
+  const state: ChatState = { mode: 'mover_request', step: 'name', draft: {} }
+  return {
+    reply: `Let's set up a *mover request*. 🚚\n\nFirst, *what's your full name?*`,
+    state,
+  }
+}
+
+const MOVER_STEPS: Record<string, { ask: string }> = {
+  name: { ask: `What's your *full name*?` },
+  phone: { ask: `Thanks! Your *phone number*? (e.g. 0712 345 678)` },
+  details: { ask: `Where are you moving *from* and *to*?\n\nE.g. *"from Langas to Kipkaren"*, or *"anywhere within Eldoret"*.` },
+  mover: { ask: `Any *preferred mover*? Reply the mover's name, or *"any"* and we'll arrange the best available.` },
+  date: { ask: `When are you planning to *move*? (e.g. *next Saturday* or *this month*). Reply *"anytime"* if unsure.` },
+}
+
+export async function continueMoverRequest(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const draft = { ...(state.draft ?? {}) }
+  const step = state.step ?? 'name'
+  const set = (next: string, reply: string): FlowStepResult => ({ reply, state: { mode: 'mover_request', step: next, draft } })
+
+  if (step === 'name') {
+    if (msg.trim().length < 2) return set('name', `What's your *full name*?`)
+    draft.name = msg.trim()
+    return set('phone', MOVER_STEPS.phone.ask)
+  }
+  if (step === 'phone') {
+    if (!isValidPhone(msg.trim())) return set('phone', `That phone number doesn't look right. Please use something like *0712 345 678*.`)
+    draft.phone = msg.trim()
+    return set('details', MOVER_STEPS.details.ask)
+  }
+  if (step === 'details') {
+    draft.details = msg.trim()
+    return set('mover', MOVER_STEPS.mover.ask)
+  }
+  if (step === 'mover') {
+    draft.mover = msg.trim()
+    return set('date', MOVER_STEPS.date.ask)
+  }
+  if (step === 'date') {
+    draft.date = msg.trim()
+    return {
+      reply: `*Confirm your mover request*\n\n👤 Name: ${draft.name}\n📱 Phone: ${draft.phone}\n📍 Move: ${draft.details}\n🚚 Mover: ${draft.mover}\n📅 When: ${draft.date}\n\nShall I hand this to our team on WhatsApp?`,
+      quickReplies: ['Yes, continue on WhatsApp', 'No, start over'],
+      state: { mode: 'mover_request', step: 'confirm', draft },
+    }
+  }
+  if (step === 'confirm') {
+    if (isRejectMessage(msg)) {
+      return { reply: `No problem — cancelled. Anything else I can help with? 🙂`, state: { mode: 'chat', step: null, draft: {} } }
+    }
+    if (isConfirmMessage(msg)) {
+      const summary = `Hi AseHanta, I'd like a mover. 👤 ${draft.name} | 📱 ${draft.phone} | Move: ${draft.details} | Mover: ${draft.mover} | When: ${draft.date}`
+      const wa = getWhatsAppLink(WHATSAPP_NUMBER, summary)
+      await notifyAdmins('MOVER REQUEST', 'Mover Request (via Chatbot)', {
+        Name: String(draft.name),
+        Phone: String(draft.phone),
+        'Move Details': String(draft.details),
+        Mover: String(draft.mover),
+        When: String(draft.date),
+        Source: 'Chatbot',
+      })
+      return {
+        reply: `Done! ✅ Tap below to open WhatsApp so our team can arrange your mover.\n\nOr browse verified movers here: https://www.asehanta.com/movers`,
+        actions: wa ? [{ type: 'link', label: '💬 Continue on WhatsApp', href: wa }] : undefined,
+        quickReplies: ['🏠 Find me a house', '📶 WiFi packages'],
+        state: { mode: 'chat', step: null, draft: {} },
+      }
+    }
+    return { reply: `Shall I hand this to our team on WhatsApp? Reply *yes* or *no*.`, quickReplies: ['Yes, continue on WhatsApp', 'No, start over'], state: { mode: 'mover_request', step: 'confirm', draft } }
+  }
+  return startMoverRequest()
+}

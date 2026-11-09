@@ -536,6 +536,57 @@ const readTools: AdminTool[] = [
     },
   },
   {
+    name: 'admin_find_house_booking',
+    description:
+      'Find a house booking by hunter name, phone, listing title, M-Pesa receipt, or amount. Use this when the admin only gives a name or description ("payment for Millicent", "the KSh 600 Eldoret booking") and you need the booking id before verifying or paying out.',
+    kind: 'read',
+    schema: z.object({
+      name: z.string().max(120).optional(),
+      phone: z.string().max(30).optional(),
+      listing_title: z.string().max(120).optional(),
+      receipt: z.string().max(60).optional(),
+      min_amount: z.number().int().min(0).optional(),
+      max_amount: z.number().int().min(0).optional(),
+      status: z.enum(HOUSE_BOOKING_STATUSES).optional(),
+      release_status: z.enum(RELEASE_STATUSES).optional(),
+      limit: limitSchema,
+    }),
+    summarize: (a) => `Find house booking${a.name ? ` for ${String(a.name)}` : ''}${a.phone ? ` phone ${String(a.phone)}` : ''}`,
+    run: async (args, ctx) => {
+      let query = ctx.db
+        .from('house_bookings')
+        .select('id, listing_id, listing_title, listing_location, listing_price, name, phone, area, status, release_status, mpesa_receipt, mpesa_message, created_at, user_id')
+        .order('created_at', { ascending: false })
+        .limit(num(args, 'limit') ?? 10)
+      const name = optStr(args, 'name')
+      if (name) query = query.ilike('name', `%${name}%`)
+      const phone = optStr(args, 'phone')
+      if (phone) query = query.ilike('phone', `%${phone}%`)
+      const listingTitle = optStr(args, 'listing_title')
+      if (listingTitle) query = query.ilike('listing_title', `%${listingTitle}%`)
+      const receipt = optStr(args, 'receipt')
+      if (receipt) query = query.ilike('mpesa_receipt', `%${receipt}%`)
+      if (args.min_amount !== undefined) query = query.gte('listing_price', num(args, 'min_amount') ?? 0)
+      if (args.max_amount !== undefined) query = query.lte('listing_price', num(args, 'max_amount') ?? 0)
+      if (args.status) query = query.eq('status', String(args.status))
+      if (args.release_status) query = query.eq('release_status', String(args.release_status))
+      const { data, error } = await query
+      if (error) return fail(error.message)
+      const rows = (data ?? []) as Row[]
+      if (!rows.length) return ok('No house bookings matched.')
+      return ok(
+        [
+          `*House bookings found (${rows.length})*`,
+          ...rows.map(
+            (b) =>
+              `- ${b.name} — ${b.listing_title || 'House'} — ${money(b.listing_price)} — ${b.status} / ${b.release_status} — ${b.phone} — receipt ${b.mpesa_receipt || '—'} — id ${b.id}`
+          ),
+        ].join('\n'),
+        rows
+      )
+    },
+  },
+  {
     name: 'admin_list_wifi_bookings',
     description: 'List WiFi installation bookings with package, contact, area and status.',
     kind: 'read',
@@ -1140,6 +1191,34 @@ const writeTools: AdminTool[] = [
     },
   },
   {
+    name: 'admin_delete_house_request',
+    description:
+      'Permanently delete a house-hunting request. This is destructive and cannot be undone; the admin must explicitly confirm it.',
+    kind: 'write',
+    schema: z.object({ request_id: z.string().min(1), reason: z.string().max(300).optional() }),
+    summarize: (a) => `Permanently delete house request ${String(a.request_id)}${a.reason ? ` — ${String(a.reason)}` : ''}`,
+    run: async (args, ctx) => {
+      const id = str(args, 'request_id')
+      const { data: existing } = await ctx.db.from('house_requests').select('id, name, email, status').eq('id', id).maybeSingle()
+      if (!existing) return fail('House request not found.')
+      const { error } = await ctx.db.from('house_requests').delete().eq('id', id)
+      if (error) return fail(error.message)
+      await userInApp(
+        undefined,
+        'House request deleted',
+        'Your house-hunting request was removed by an administrator.',
+        '/request-house'
+      ).catch(() => {})
+      await notifyUser(
+        String(existing.email),
+        'House request removed',
+        'Your house-hunting request was removed by an administrator.',
+        { Name: String(existing.name || 'there'), Reason: optStr(args, 'reason') || 'Administrative action' }
+      ).catch(() => {})
+      return ok(`House request ${id.slice(0, 8)}… (${existing.name || '—'}) deleted permanently.`)
+    },
+  },
+  {
     name: 'admin_update_wifi_booking_status',
     description: 'Update a WiFi installation booking status.',
     kind: 'write',
@@ -1209,6 +1288,28 @@ const writeTools: AdminTool[] = [
         '/my-bookings'
       )
       return ok(`Transaction ${id.slice(0, 8)}… is now ${status}.`)
+    },
+  },
+  {
+    name: 'admin_delete_transaction',
+    description:
+      'Permanently delete a transaction record. This is destructive and cannot be undone; the admin must explicitly confirm it.',
+    kind: 'write',
+    schema: z.object({ transaction_id: z.string().min(1), reason: z.string().max(300).optional() }),
+    summarize: (a) => `Permanently delete transaction ${String(a.transaction_id)}${a.reason ? ` — ${String(a.reason)}` : ''}`,
+    run: async (args, ctx) => {
+      const id = str(args, 'transaction_id')
+      const { data: existing } = await ctx.db.from('transactions').select('id, user_id, amount, status').eq('id', id).maybeSingle()
+      if (!existing) return fail('Transaction not found.')
+      const { error } = await ctx.db.from('transactions').delete().eq('id', id)
+      if (error) return fail(error.message)
+      await userInApp(
+        existing.user_id as string | undefined,
+        'Transaction deleted',
+        'An administrator deleted one of your payment records.',
+        '/my-bookings'
+      ).catch(() => {})
+      return ok(`Transaction ${id.slice(0, 8)}… (${money(existing.amount)}) deleted permanently.`)
     },
   },
   {
@@ -1302,6 +1403,150 @@ const writeTools: AdminTool[] = [
         )
       }
       return ok(`Booking review updated: ${action.replace(/_/g, ' ')}.`)
+    },
+  },
+  {
+    name: 'admin_verify_payment_from_sms',
+    description:
+      'Verify a house payment from an M-Pesa confirmation SMS. Paste the exact SMS and optionally a reference (hunter name, phone, or listing title) to find the booking. This validates the SMS, extracts the transaction code and amount, checks PayWave, confirms escrow, and records the audit trail. Never invent or paraphrase an SMS.',
+    kind: 'write',
+    schema: z.object({
+      mpesa_message: z.string().min(10).max(1000),
+      reference: z.string().max(120).optional(),
+      percentage: z.number().min(1).max(100).optional(),
+    }),
+    summarize: (a) => `Verify payment from SMS for ${String(a.reference || 'a booking')}`,
+    run: async (args, ctx) => {
+      const sms = str(args, 'mpesa_message')
+      const reference = optStr(args, 'reference')
+      const db = ctx.db
+
+      if (!isValidMpesaMessage(sms)) {
+        return fail('That message is not an AseHanta M-Pesa confirmation. Nothing was changed.')
+      }
+      const receipt = extractTransactionCode(sms)
+      const amount = extractAmountFromMessage(sms)
+      if (!receipt) return fail('No M-Pesa transaction code found in that SMS.')
+      if (!amount) return fail('No amount found in that SMS.')
+
+      // Resolve the booking from the reference if given.
+      let hb: HouseBookingRow | null = null
+      if (reference) {
+        let query = db.from('house_bookings').select('*').order('created_at', { ascending: false }).limit(50)
+        query = query.or(`name.ilike.%${reference}%,phone.ilike.%${reference}%,listing_title.ilike.%${reference}%`)
+        const { data, error } = await query
+        if (error) return fail(error.message)
+        const rows = (data ?? []) as HouseBookingRow[]
+        if (rows.length === 0) return fail(`No house booking matched "${reference}". Provide the booking id or a clearer reference.`)
+        if (rows.length > 1) {
+          return ok(
+            `Multiple bookings matched "${reference}". Please specify which one:\n${rows
+              .map((r) => `- ${r.name} — ${r.listing_title || 'House'} — ${money(r.listing_price)} — ${r.release_status} — ${r.phone} — id ${r.id}`)
+              .join('\n')}`,
+            { candidates: rows }
+          )
+        }
+        hb = rows[0]
+      }
+
+      if (!hb) {
+        return fail('Provide a reference (hunter name, phone, or listing title) so I can find the booking to verify.')
+      }
+
+      const lookup = await lookupPayWavePayment(db, hb.id)
+      if (lookup.available && lookup.status === 'Completed') {
+        const check = checkSmsAgainstPayWave({ lookup, booking: hb, receipt, amount })
+        if (!check.ok) return fail(check.message)
+        const result = await confirmHouseBookingPayment(db, {
+          bookingId: hb.id,
+          amount: lookup.amount ?? amount,
+          receiptNumber: lookup.receipt as string,
+          paymentMethod: hb.payment_method || 'paywave',
+          phone: lookup.msisdn || hb.phone,
+          source: 'admin',
+          raw: { admin_id: ctx.userId, admin_verified: true, paywave_verified: true, mpesa_message: sms },
+        })
+        await db.from('house_bookings').update({ mpesa_message: sms }).eq('id', hb.id)
+        await auditAction(ctx, { tool: 'admin_verify_payment_from_sms', args: { reference, amount, receipt }, status: 'ok', summary: `Verified payment ${money(amount)} for ${hb.name}` })
+        return ok(result.alreadyProcessed ? 'This payment was already confirmed.' : `Payment verified. ${money(amount)} is now in escrow for ${VIEW_WINDOW_HOURS}h (booking ${hb.id}).`)
+      }
+      if (lookup.available && lookup.status === 'Pending') {
+        return fail('PayWave still shows this payment as pending. Wait for the M-Pesa confirmation, then verify again.')
+      }
+      const result = await confirmHouseBookingPayment(db, {
+        bookingId: hb.id,
+        amount,
+        receiptNumber: receipt,
+        paymentMethod: hb.payment_method || 'paywave',
+        phone: hb.phone,
+        source: 'admin',
+        raw: {
+          admin_id: ctx.userId,
+          admin_verified: true,
+          paywave_verified: false,
+          paywave_note: lookup.available ? `PayWave shows ${lookup.status}; admin verified manually.` : lookup.reason,
+          mpesa_message: sms,
+        },
+      })
+      await db.from('house_bookings').update({ mpesa_message: sms }).eq('id', hb.id)
+      await auditAction(ctx, { tool: 'admin_verify_payment_from_sms', args: { reference, amount, receipt }, status: 'ok', summary: `Manually verified payment ${money(amount)} for ${hb.name}` })
+      return ok(result.alreadyProcessed ? 'This payment was already confirmed.' : `Payment manually verified. ${money(amount)} is now in escrow for ${VIEW_WINDOW_HOURS}h (booking ${hb.id}).`)
+    },
+  },
+  {
+    name: 'admin_pay_lister_from_sms',
+    description:
+      'Record a lister payout from an M-Pesa payout SMS. Paste the exact SMS and optionally a reference (hunter name, phone, or listing title) to find the booking. This validates the SMS, pays the lister their share, and records the audit trail. Never invent or paraphrase an SMS.',
+    kind: 'write',
+    schema: z.object({
+      mpesa_message: z.string().min(10).max(1000),
+      reference: z.string().max(120).optional(),
+      percentage: z.number().min(1).max(100).optional(),
+    }),
+    summarize: (a) => `Pay lister from SMS for ${String(a.reference || 'a booking')}`,
+    run: async (args, ctx) => {
+      const sms = str(args, 'mpesa_message')
+      const reference = optStr(args, 'reference')
+      const percentage = num(args, 'percentage')
+      const db = ctx.db
+
+      if (!isValidMpesaMessage(sms)) {
+        return fail('That message is not an AseHanta M-Pesa confirmation. Nothing was changed.')
+      }
+
+      // Resolve the booking from the reference.
+      let hb: HouseBookingRow | null = null
+      if (reference) {
+        const { data, error } = await db.from('house_bookings').select('*').order('created_at', { ascending: false }).limit(50)
+        if (error) return fail(error.message)
+        const rows = (data ?? []) as HouseBookingRow[]
+        const match = rows.filter((r) =>
+          (r.name ?? '').toLowerCase().includes(reference.toLowerCase()) ||
+          (r.phone ?? '').includes(reference) ||
+          (r.listing_title ?? '').toLowerCase().includes(reference.toLowerCase())
+        )
+        if (match.length === 0) return fail(`No house booking matched "${reference}".`)
+        if (match.length > 1) {
+          return ok(
+            `Multiple bookings matched "${reference}". Please specify which one:\n${match
+              .map((r) => `- ${r.name} — ${r.listing_title || 'House'} — ${money(r.listing_price)} — ${r.release_status} — id ${r.id}`)
+              .join('\n')}`,
+            { candidates: match }
+          )
+        }
+        hb = match[0]
+      }
+
+      if (!hb) return fail('Provide a reference (hunter name, phone, or listing title) so I can find the booking to pay out.')
+
+      const result = await recordListerPayout(db, {
+        bookingId: hb.id,
+        mpesaMessage: sms,
+        adminId: ctx.userId,
+        percentage: percentage ? percentage / 100 : undefined,
+      })
+      await auditAction(ctx, { tool: 'admin_pay_lister_from_sms', args: { reference, percentage }, status: 'ok', summary: `Paid lister ${money(result.payoutAmount)} for ${hb.name}` })
+      return ok(`Lister paid. ${money(result.payoutAmount)} recorded with receipt ${result.receipt} (booking ${hb.id}).`)
     },
   },
   {

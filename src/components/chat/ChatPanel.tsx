@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react'
+import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft, Camera, Loader2 } from 'lucide-react'
 import { OPENING_MESSAGES, QUICK_START } from '@/lib/chat/messages'
 import { emptyState } from '@/lib/chat/types'
 import type { ChatAction, ChatState, ChatMessage, HouseCardData } from '@/lib/chat/types'
@@ -271,12 +271,23 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
         if (!res.ok) throw new Error(data?.error || 'Request failed')
 
         setChatState(data.state ?? emptyState())
-        append({
-          id: nextId(),
-          role: 'assistant',
-          content: data.reply || '…',
-          actions: data.actions,
-          quickReplies: data.quickReplies,
+
+        // Split assistant replies by blank lines into separate bubbles so the
+        // conversation feels more human — short bubbles like a real chat.
+        const parts = (data.reply || '…')
+          .split(/\n\s*\n/)
+          .map((p: string) => p.trim())
+          .filter(Boolean)
+
+        parts.forEach((part: string, index: number) => {
+          const isLast = index === parts.length - 1
+          append({
+            id: nextId(),
+            role: 'assistant',
+            content: part,
+            actions: isLast ? data.actions : undefined,
+            quickReplies: isLast ? data.quickReplies : undefined,
+          })
         })
       } catch {
         append({
@@ -430,32 +441,54 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
       >
         {isChangeDp ? (
           <>
-            <label
-              htmlFor="dp-upload"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#30B54A] text-white shadow-sm transition hover:bg-[#2a9c40] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              <input
-                id="dp-upload"
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp,image/avif"
-                onChange={(e) => {
-                  const file = e.target.files?.[0]
-                  if (file) void uploadAvatar(file)
-                  e.target.value = ''
-                }}
-                className="hidden"
-                disabled={uploading || loading}
-              />
-              <div className="flex flex-col items-center">
-                <span className="text-[10px] font-semibold uppercase tracking-tighter">{uploading ? 'Uploading…' : 'Photo'}</span>
-                {uploadError ? (
-                  <span className="text-[9px] text-red-500 mt-0.5">{uploadError}</span>
-                ) : (
-                  <span className="text-[9px] text-slate-400 mt-0.5">Tap to upload</span>
-                )}
-              </div>
-            </label>
+            <div className="flex items-center gap-2">
+              <label
+                htmlFor="dp-upload"
+                className="relative flex flex-col items-center gap-1 shrink-0"
+              >
+                <input
+                  id="dp-upload"
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp,image/avif"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (file) void uploadAvatar(file)
+                    e.target.value = ''
+                  }}
+                  className="hidden"
+                  disabled={uploading || loading}
+                />
+                <div
+                  className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-all ${
+                    uploading
+                      ? 'bg-[#30B54A]/20 text-[#30B54A] border border-[#30B54A]/40'
+                      : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-[#30B54A]/10 hover:text-[#30B54A]'
+                  } dark:${
+                    uploading
+                      ? 'bg-[#30B54A]/20 text-[#30B54A] border border-[#30B54A]/40'
+                      : 'bg-slate-700 text-slate-400 border border-slate-600 hover:bg-[#30B54A]/10 hover:text-[#30B54A]'
+                  } disabled:opacity-50 disabled:cursor-not-allowed`}
+                >
+                  {uploading ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Camera className="h-4 w-4" />
+                  )}
+                </div>
+                <span className="text-[10px] font-semibold uppercase tracking-tighter text-gray-500 dark:text-slate-400">
+                  {uploading ? 'Uploading…' : 'Photo'}
+                </span>
+              </label>
+              {uploadError && (
+                <span className="text-[10px] text-red-500 dark:text-red-400 font-medium">{uploadError}</span>
+              )}
+              {!uploading && !uploadError && (
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-medium max-w-xs">
+                  JPG, PNG, WebP, AVIF · Max 4MB
+                </span>
+              )}
+            </div>
             <button
               type="button"
               onClick={() => {
@@ -463,10 +496,10 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
                 setUploadError('')
                 setChatState(emptyState())
               }}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-50 text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-slate-700 dark:text-slate-300"
+              className="flex h-10 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-50 px-3 text-gray-600 text-[12px] font-semibold transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-600 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600/50"
               disabled={uploading || loading}
             >
-              <span className="text-[10px] font-semibold">Cancel</span>
+              Cancel
             </button>
           </>
         ) : (

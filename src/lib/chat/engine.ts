@@ -228,11 +228,11 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
         quickReplies: ['📝 Request a house', '📶 WiFi packages'],
       }
     }
-    // No results — offer to submit a request.
+    // No results — offer to submit a request in three human bubbles.
     const q = parseHouseQuery(msg)
     const described = [q.locations.join(', '), q.bedrooms.join(', '), q.rent.max ? `under KSh ${q.rent.max.toLocaleString()}` : ''].filter(Boolean).join(' · ')
     return {
-      reply: `Sorry — I couldn't find any *available* houses matching "${msg}".${described ? `\n\nYou searched for: ${described}` : ''}\n\nWant me to submit a *house request* instead? Our team will hunt for it and reach you on WhatsApp.`,
+      reply: `Sorry — I couldn't find any *available* houses matching "${msg}".\n\n${described ? `You searched for: ${described}.\n\nThe closest I could find were outside your budget or in a different area.` : `I searched the area but nothing came up.`}\n\nWant me to submit a *house request* instead? Our team will hunt for it and reach you on WhatsApp.`,
       state: emptyState(),
       quickReplies: ['📝 Yes, request a house', '🏠 Search something else'],
     }

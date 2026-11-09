@@ -244,7 +244,7 @@ export async function startWifiBooking(): Promise<FlowStepResult> {
   const quick: string[] = []
   const actions: ChatAction[] = packages.cards?.slice(0, 6).map((c) => ({ type: 'link', label: c.title, href: `https://www.asehanta.com/wifi/${c.id}` })) ?? []
   return {
-    reply: `Let's set up a *WiFi booking*. 📶\n\n${packages.text}\n\nTell me the *package name* you'd like (or browse them: https://www.asehanta.com/wifi).`,
+    reply: `Let's set up a *WiFi booking*. 📶\n\n${packages.text}\n\nInstallation is a one-time *KSh ${WIFI_INSTALLATION_FEE.toLocaleString()}* (router free), done within 48hrs. You can pay before or after.\n\nYou'll need your full name, phone, installation area and national ID.\n\nTell me the *package name* you'd like (or browse them: https://www.asehanta.com/wifi).`,
     quickReplies: quick,
     actions,
     state: { mode: 'wifi_booking', step: 'package', draft: {} },

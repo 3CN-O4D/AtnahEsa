@@ -1,6 +1,6 @@
 import type { ChatRequest, ChatResponse, ChatState, ChatAction } from './types'
 import { emptyState } from './types'
-import { FAQ, PAGE_LINKS, CONTACT_INFO } from './knowledge'
+import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
 import { toolStats, toolSearchHouses, toolWifiPackages, toolMovers, toolContact } from './tools'
 import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, isCancelMessage } from './flows'
@@ -49,7 +49,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   if (/\b(request a house|house request|submit a request|make a request|submit a house request|let me request|log a request)\b/.test(low)) {
     return startHouseRequest()
   }
-  if (/\b(book wifi|arrange wifi|need wifi|install wifi|wifi booking|get wifi|wifi installation|fibre|connect wifi|new wifi)\b/.test(low)) {
+  if (/\b(book wifi|arrange wifi|wifi booking|sign up for wifi|sign me up for wifi|subscribe to wifi|order wifi|get wifi installed|install wifi for me)\b/.test(low)) {
     return startWifiBooking()
   }
   if (/\b(request a mover|need a mover|arrange a mover|book a mover|help me move|get a mover|moving company|hire movers?|request movers?)\b/.test(low)) {
@@ -108,7 +108,20 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return { reply: stats.text, state: emptyState(), actions: [linkAction('📊 View full stats', PAGE_LINKS.stats.href)], quickReplies: quickStart() }
   }
 
-  // 7. WiFi.
+  // 7a. WiFi requirements — answer "what do I need?" instead of dumping plans.
+  if (
+    /\b(wifi|internet|router)\b/.test(low) &&
+    /\b(what (do|would) i need|requirements?|require|documents?|need to (get|apply|book)|needed for|need for)\b/.test(low)
+  ) {
+    return {
+      reply: WIFI_REQUIREMENTS,
+      state: emptyState(),
+      actions: [linkAction('📶 Browse WiFi plans', PAGE_LINKS.wifi.href)],
+      quickReplies: ['📶 Book a WiFi package'],
+    }
+  }
+
+  // 7b. WiFi packages.
   if (/\b(wifi|internet|router|wifi package|packages)\b/.test(low)) {
     const res = await toolWifiPackages()
     return { reply: res.text, state: emptyState(), actions: [linkAction('📶 Browse WiFi page', PAGE_LINKS.wifi.href)], quickReplies: ['📶 Book a WiFi package'] }

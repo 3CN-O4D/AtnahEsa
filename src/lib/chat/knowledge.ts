@@ -7,6 +7,9 @@ import {
   ESCROW_HOURS,
 } from '@/lib/constants'
 
+/** Everything a customer needs before a WiFi installation can be booked. */
+export const WIFI_REQUIREMENTS = `*To get WiFi you'll need*\n\n- Your full name\n- Phone number\n- The area where it'll be installed\n- National ID number\n- The package you want\n\nInstallation is a one-time *KSh ${WIFI_INSTALLATION_FEE.toLocaleString()}* and the router is free.\nWe install within 48 hours — you can pay before or after installation.\n\nBrowse plans: https://www.asehanta.com/wifi\nOr say *book wifi* and I'll take your details.`
+
 export interface FaqEntry {
   id: string
   /** Keywords that trigger this FAQ (lower-cased). */
@@ -55,6 +58,11 @@ export const FAQ: FaqEntry[] = [
     id: 'deposit',
     keywords: ['deposit', 'deposit refundable', 'security deposit'],
     answer: `*Deposits*\n\nEach listing shows its deposit amount and whether it's refundable. That's the deposit the landlord asks for when you move in — it's separate from the small booking fee you pay on AseHanta to secure a viewing.`,
+  },
+  {
+    id: 'wifi_requirements',
+    keywords: ['what do i need for wifi', 'what do i need to get wifi', 'wifi requirements', 'requirements for wifi', 'documents for wifi', 'need to get wifi', 'needed for wifi', 'require for wifi'],
+    answer: WIFI_REQUIREMENTS,
   },
   {
     id: 'wifi',

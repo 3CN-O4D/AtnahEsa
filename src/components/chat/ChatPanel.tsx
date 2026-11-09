@@ -232,9 +232,14 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   const [chatState, setChatState] = useState<ChatState>(emptyState())
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadError, setUploadError] = useState('')
   // Number of opening bubbles already shown.
   const [introStep, setIntroStep] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement | null>(null)
+
+  const isChangeDp = chatState.mode === 'change_dp'
 
   const append = useCallback((msg: UiMessage) => {
     setMessages((prev) => [...prev, msg])
@@ -286,6 +291,54 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
     },
     [append, chatState, loading, messages]
   )
+
+  const uploadAvatar = async (file: File) => {
+    const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
+    const MAX_SIZE = 4 * 1024 * 1024
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setUploadError('Use a JPG, PNG, WebP or AVIF image.')
+      return
+    }
+    if (file.size > MAX_SIZE) {
+      setUploadError('Profile pictures must be 4MB or smaller.')
+      return
+    }
+
+    setUploading(true)
+    setUploadError('')
+
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+
+      const res = await fetch('/api/upload-avatar', {
+        method: 'POST',
+        body: formData,
+      })
+
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data?.error || 'Upload failed')
+
+      setUploading(false)
+      setInput('')
+      setUploadError('')
+
+      // Exit the change_dp flow locally.
+      setChatState(emptyState())
+
+      append({
+        id: nextId(),
+        role: 'assistant',
+        content: `✅ *Profile picture updated!* Your new photo is live.\n\nOpen your profile to see it: https://www.asehanta.com/profile`,
+        actions: [{ type: 'link', label: '👤 View profile', href: 'https://www.asehanta.com/profile' }],
+        quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
+      })
+    } catch {
+      setUploading(false)
+      setUploadError('Upload failed. Please try again.')
+    }
+  }
 
   // Opening messages — sent one bubble at a time, the way a person texts on WhatsApp.
   // The first four bubbles each "type" for a random 1.5–2.5s before landing, then
@@ -375,22 +428,67 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
         }}
         className="flex items-center gap-2 border-t border-gray-100 bg-white px-3 py-2.5 dark:border-gray-700 dark:bg-slate-800"
       >
-        <input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Message Ase…"
-          aria-label="Message Ase"
-          maxLength={600}
-          className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-2 text-[13.5px] text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/20 dark:border-gray-600 dark:bg-slate-700 dark:text-slate-100"
-        />
-        <button
-          type="submit"
-          disabled={!input.trim() || loading}
-          aria-label="Send message"
-          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#30B54A] text-white shadow-sm transition hover:bg-[#2a9c40] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
-        >
-          <Send className="h-4 w-4" />
-        </button>
+        {isChangeDp ? (
+          <>
+            <label
+              htmlFor="dp-upload"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#30B54A] text-white shadow-sm transition hover:bg-[#2a9c40] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <input
+                id="dp-upload"
+                ref={fileInputRef}
+                type="file"
+                accept="image/jpeg,image/png,image/webp,image/avif"
+                onChange={(e) => {
+                  const file = e.target.files?.[0]
+                  if (file) void uploadAvatar(file)
+                  e.target.value = ''
+                }}
+                className="hidden"
+                disabled={uploading || loading}
+              />
+              <div className="flex flex-col items-center">
+                <span className="text-[10px] font-semibold uppercase tracking-tighter">{uploading ? 'Uploading…' : 'Photo'}</span>
+                {uploadError ? (
+                  <span className="text-[9px] text-red-500 mt-0.5">{uploadError}</span>
+                ) : (
+                  <span className="text-[9px] text-slate-400 mt-0.5">Tap to upload</span>
+                )}
+              </div>
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setInput('')
+                setUploadError('')
+                setChatState(emptyState())
+              }}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-gray-50 text-gray-600 transition hover:bg-gray-100 dark:border-gray-600 dark:bg-slate-700 dark:text-slate-300"
+              disabled={uploading || loading}
+            >
+              <span className="text-[10px] font-semibold">Cancel</span>
+            </button>
+          </>
+        ) : (
+          <>
+            <input
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Message Ase…"
+              aria-label="Message Ase"
+              maxLength={600}
+              className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-2 text-[13.5px] text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/20 dark:border-gray-600 dark:bg-slate-700 dark:text-slate-100"
+            />
+            <button
+              type="submit"
+              disabled={!input.trim() || loading}
+              aria-label="Send message"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#30B54A] text-white shadow-sm transition hover:bg-[#2a9c40] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              <Send className="h-4 w-4" />
+            </button>
+          </>
+        )}
       </form>
 
       {isPage && (

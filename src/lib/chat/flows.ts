@@ -444,8 +444,8 @@ export function startPasswordReset(): FlowStepResult {
 export async function continuePasswordReset(state: ChatState, msg: string): Promise<FlowStepResult> {
   const draft = { ...(state.draft ?? {}) }
   const step = state.step ?? 'email'
-  const set = (next: string, reply: string, quickReplies?: string[]): FlowStepResult =>
-    ({ reply, quickReplies, state: { mode: 'password_reset', step: next, draft } })
+  const set = (next: string, reply: string, quickReplies?: string[], actions?: { type: 'link'; label: string; href: string }[]): FlowStepResult =>
+    ({ reply, quickReplies, actions, state: { mode: 'password_reset', step: next, draft } })
 
   if (step === 'email') {
     const email = msg.trim().toLowerCase()
@@ -528,8 +528,9 @@ export async function continuePasswordReset(state: ChatState, msg: string): Prom
     }
 
     return {
-      reply: `✅ *Password updated successfully!*\n\nYou can now sign in with your new password at https://www.asehanta.com/auth/signin`,
+      reply: `✅ *Password updated successfully!*\n\nYou can now sign in with your new password.`,
       state: { mode: 'chat', step: null, draft: {} },
+      actions: [{ type: 'link', label: '🔑 Sign in', href: 'https://www.asehanta.com/auth/signin' }],
       quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
     }
   }
@@ -551,8 +552,8 @@ export function startChangeEmail(): FlowStepResult {
 export async function continueChangeEmail(state: ChatState, msg: string): Promise<FlowStepResult> {
   const draft = { ...(state.draft ?? {}) }
   const step = state.step ?? 'current_email'
-  const set = (next: string, reply: string, quickReplies?: string[]): FlowStepResult =>
-    ({ reply, quickReplies, state: { mode: 'change_email', step: next, draft } })
+  const set = (next: string, reply: string, quickReplies?: string[], actions?: { type: 'link'; label: string; href: string }[]): FlowStepResult =>
+    ({ reply, quickReplies, actions, state: { mode: 'change_email', step: next, draft } })
 
   if (step === 'current_email') {
     const email = msg.trim().toLowerCase()
@@ -659,8 +660,9 @@ export async function continueChangeEmail(state: ChatState, msg: string): Promis
     await supabase.from('profiles').update({ email: draft.new_email as string }).eq('id', user.id)
 
     return {
-      reply: `✅ *Email changed successfully!*\n\nYour AseHanta account email is now ${draft.new_email as string}.\n\nYou can sign in with the new email at https://www.asehanta.com/auth/signin`,
+      reply: `✅ *Email changed successfully!*\n\nYour AseHanta account email is now ${draft.new_email as string}.\n\nYou can sign in with the new email.`,
       state: { mode: 'chat', step: null, draft: {} },
+      actions: [{ type: 'link', label: '🔑 Sign in', href: 'https://www.asehanta.com/auth/signin' }],
       quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
     }
   }
@@ -682,8 +684,8 @@ export function startDeleteAccount(): FlowStepResult {
 export async function continueDeleteAccount(state: ChatState, msg: string): Promise<FlowStepResult> {
   const draft = { ...(state.draft ?? {}) }
   const step = state.step ?? 'email'
-  const set = (next: string, reply: string, quickReplies?: string[]): FlowStepResult =>
-    ({ reply, quickReplies, state: { mode: 'delete_account', step: next, draft } })
+  const set = (next: string, reply: string, quickReplies?: string[], actions?: { type: 'link'; label: string; href: string }[]): FlowStepResult =>
+    ({ reply, quickReplies, actions, state: { mode: 'delete_account', step: next, draft } })
 
   if (step === 'email') {
     const email = msg.trim().toLowerCase()
@@ -747,12 +749,14 @@ export async function continueDeleteAccount(state: ChatState, msg: string): Prom
       return {
         reply: `Your profile was deleted, but the auth account couldn't be removed: ${authError.message}. Please contact support.`,
         state: { mode: 'chat', step: null, draft: {} },
+        actions: [{ type: 'link', label: '📞 Contact support', href: 'https://www.asehanta.com/contact' }],
         quickReplies: ['🏠 Find me a house', '📞 Contact'],
       }
     }
     return {
       reply: `✅ *Account deleted permanently.*\n\nYour AseHanta account and all associated data have been removed.\n\nWe're sorry to see you go.`,
       state: { mode: 'chat', step: null, draft: {} },
+      actions: [{ type: 'link', label: '🏠 Find a house', href: 'https://www.asehanta.com' }],
       quickReplies: ['🏠 Find me a house', '📞 Contact'],
     }
   }
@@ -764,8 +768,9 @@ export async function continueDeleteAccount(state: ChatState, msg: string): Prom
 
 export function startChangeDP(): FlowStepResult {
   return {
-    reply: `📸 *Change Profile Picture*\n\nUpload a new photo on your profile page:\n\n👉 https://www.asehanta.com/profile\n\nOpen your profile, tap your avatar, and upload a JPG/PNG/WebP/AVIF image (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.`,
+    reply: `📸 *Change Profile Picture*\n\nUpload a new photo on your profile page.\n\nOpen your profile, tap your avatar, and upload a JPG/PNG/WebP/AVIF image (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.`,
     state: { mode: 'chat', step: null, draft: {} },
+    actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
     quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
   }
 }
@@ -776,8 +781,9 @@ export async function continueDeleteDP(state: ChatState, msg: string): Promise<F
     // The actual deletion happens client-side via /api/delete-avatar; here we
     // just confirm and point them to the button.
     return {
-      reply: `🗑 Go to https://www.asehanta.com/profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\nIs there anything else I can help with?`,
+      reply: `🗑 Go to your profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\nIs there anything else I can help with?`,
       state: { mode: 'chat', step: null, draft: {} },
+      actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
       quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
     }
   }

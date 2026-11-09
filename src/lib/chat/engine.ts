@@ -3,7 +3,7 @@ import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
 import { toolStats, toolSearchHouses, toolWifiPackages, toolMovers, toolContact } from './tools'
-import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, isCancelMessage } from './flows'
+import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, isCancelMessage } from './flows'
 import { aiChat, aiEnabled } from './ai'
 import { QUICK_START } from './messages'
 
@@ -42,6 +42,9 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   if (prevState.mode === 'mover_request' && prevState.step) {
     return continueMoverRequest(prevState, msg)
   }
+  if (prevState.mode === 'password_reset' && prevState.step) {
+    return continuePasswordReset(prevState, msg)
+  }
 
   const low = msg.toLowerCase()
 
@@ -54,6 +57,9 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   }
   if (/\b(request a mover|need a mover|arrange a mover|book a mover|help me move|get a mover|moving company|hire movers?|request movers?)\b/.test(low)) {
     return startMoverRequest()
+  }
+  if (/\b(forgot ?password|reset ?password|change ?password|password ?reset|forgotten password|can't ?login|cannot ?login|unable to ?sign ?in|lock ?out|reset my ?password)\b/.test(low)) {
+    return startPasswordReset()
   }
 
   // 4. AI-first — DeepSeek thinks, calls its tools in the background (house

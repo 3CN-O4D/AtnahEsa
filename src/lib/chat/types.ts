@@ -1,4 +1,4 @@
-export type ChatMode = 'chat' | 'house_request' | 'wifi_booking' | 'mover_request'
+export type ChatMode = 'chat' | 'house_request' | 'wifi_booking' | 'mover_request' | 'password_reset'
 
 export interface HouseCardData {
   id: string

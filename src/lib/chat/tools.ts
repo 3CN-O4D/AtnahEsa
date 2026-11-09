@@ -12,18 +12,33 @@ export interface ToolResult {
   error?: string
 }
 
-/** Live house counts across the platform. */
+/** Live house counts across the platform, broken down by listing status. */
 export async function toolStats(): Promise<ToolResult> {
   const supabase = createAdminClient()
-  const [listings, hunters, listers] = await Promise.all([
+  const [
+    listings,
+    published,
+    booked,
+    taken,
+    pending,
+    rejected,
+    hunters,
+    listers,
+  ] = await Promise.all([
     supabase.from('listings').select('*', { count: 'exact', head: true }),
+    supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'published'),
+    supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'booked'),
+    supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'taken'),
+    supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'hunter'),
     supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'lister'),
   ])
   const total = listings.count ?? 0
+  const available = published.count ?? 0
   return {
     ok: true,
-    text: `Here's the latest 👇\n\n🏠 *${total}* houses listed\n👥 *${hunters.count ?? 0}* hunters\n🏡 *${listers.count ?? 0}* listers\n\nWant me to find you one?`,
+    text: `Here's the latest 👇\n\n🏠 *${total}* houses listed\n✅ *${available}* available\n⏳ *${booked.count ?? 0}* being viewed\n❌ *${taken.count ?? 0}* taken\n⏱ *${pending.count ?? 0}* awaiting approval\n🚫 *${rejected.count ?? 0}* rejected\n👥 *${hunters.count ?? 0}* hunters\n🏡 *${listers.count ?? 0}* listers\n\nWant me to find you one?`,
   }
 }
 

@@ -1,10 +1,15 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
 import { notifyAdmins } from '@/lib/notify'
 import { WIFI_INSTALLATION_FEE, WHATSAPP_NUMBER } from '@/lib/constants'
+import { sendOtpEmail } from '@/lib/email'
 import { isValidPhone, parseWhatsAppContact, canonicalWhatsAppContact, getWhatsAppLink } from '@/lib/whatsapp'
+import { findValidOtp, recordOtpFailure } from '@/lib/otp'
+import { checkRateLimit } from '@/lib/rate-limit'
 import { extractRentRange } from './houseSearch'
 import { toolWifiPackages } from './tools'
 import type { ChatAction, ChatState } from './types'
+import { randomInt } from 'crypto'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -423,4 +428,111 @@ export async function continueMoverRequest(state: ChatState, msg: string): Promi
     return { reply: `Shall I hand this to our team on WhatsApp? Reply *yes* or *no*.`, quickReplies: ['Yes, continue on WhatsApp', 'No, start over'], state: { mode: 'mover_request', step: 'confirm', draft } }
   }
   return startMoverRequest()
+}
+
+// --------------------------------------------------------------- password reset
+
+export function startPasswordReset(): FlowStepResult {
+  const state: ChatState = { mode: 'password_reset', step: 'email', draft: {} }
+  return {
+    reply: `🔐 *Password Reset*\n\nI can help you reset your password. First, *what's the email address* on your AseHanta account?`,
+    state,
+    quickReplies: ['Cancel'],
+  }
+}
+
+export async function continuePasswordReset(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const draft = { ...(state.draft ?? {}) }
+  const step = state.step ?? 'email'
+  const set = (next: string, reply: string, quickReplies?: string[]): FlowStepResult =>
+    ({ reply, quickReplies, state: { mode: 'password_reset', step: next, draft } })
+
+  if (step === 'email') {
+    const email = msg.trim().toLowerCase()
+    if (!EMAIL_RE.test(email)) {
+      return set('email', `That email doesn't look right — please try again (e.g. you@example.com).`)
+    }
+
+    // Rate limit: max 10 OTP sends per hour per email
+    const { allowed, retryAfter } = await checkRateLimit(`password-reset-send:${email}`, 10, 3600)
+    if (!allowed) {
+      return set('email', `Too many reset code requests for this email. Please try again in ${retryAfter} seconds.`)
+    }
+
+    const supabase = createAdminClient()
+    const user = await findAuthUserByEmail(email)
+    if (!user) {
+      return set('email', `I couldn't find an account with that email. Please double-check or try a different email.`)
+    }
+
+    const otp = String(randomInt(100000, 999999))
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+
+    // Invalidate any previous unused OTPs for this email
+    await supabase.from('otps').update({ used: true }).eq('email', email).eq('type', 'password_reset').eq('used', false)
+
+    const { error: dbError } = await supabase.from('otps').insert({ email, otp, type: 'password_reset', expires_at: expiresAt })
+    if (dbError) {
+      return set('email', `Sorry, I couldn't generate a reset code just now. Please try again in a moment.`)
+    }
+
+    try {
+      await sendOtpEmail(email, otp, 'password_reset')
+    } catch (emailErr) {
+      console.error('Failed to send OTP email:', emailErr)
+      return set('email', `Failed to send the reset code to your email. Please try again.`)
+    }
+
+    draft.email = email
+    return set('otp', `I've sent a *6-digit reset code* to ${email}. It expires in 10 minutes.\n\nPlease enter the code here.`)
+  }
+
+  if (step === 'otp') {
+    const code = msg.trim()
+    if (!/^\d{6}$/.test(code)) {
+      return set('otp', `Please enter the full *6-digit code* you received by email.`)
+    }
+
+    const { allowed, retryAfter } = await checkRateLimit(`password-reset-verify:${draft.email as string}`, 10, 3600)
+    if (!allowed) {
+      return set('otp', `Too many attempts. Please try again in ${retryAfter} seconds.`)
+    }
+
+    const supabase = createAdminClient()
+    const otpRow = await findValidOtp(supabase, draft.email as string, code, ['password_reset'])
+    if (!otpRow) {
+      await recordOtpFailure(supabase, draft.email as string, ['password_reset'])
+      return set('otp', `Invalid or expired code. Please check your email and try again, or ask for a new code.`)
+    }
+
+    await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
+    draft.otpVerified = true
+    return set('password', `✅ Code verified.\n\nNow, *what's your new password?* (at least 8 characters)`)
+  }
+
+  if (step === 'password') {
+    const password = msg.trim()
+    if (password.length < 8) {
+      return set('password', `Your password needs to be at least *8 characters*. Please try again.`)
+    }
+
+    const supabase = createAdminClient()
+    const user = await findAuthUserByEmail(draft.email as string)
+    if (!user) {
+      return set('password', `Account not found. Please start over.`)
+    }
+
+    const { error: updateError } = await supabase.auth.admin.updateUserById(user.id, { password })
+    if (updateError) {
+      return set('password', `Sorry, I couldn't update your password: ${updateError.message}`)
+    }
+
+    return {
+      reply: `✅ *Password updated successfully!*\n\nYou can now sign in with your new password at https://www.asehanta.com/auth/signin`,
+      state: { mode: 'chat', step: null, draft: {} },
+      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
+    }
+  }
+
+  return startPasswordReset()
 }

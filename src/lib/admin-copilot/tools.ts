@@ -658,14 +658,17 @@ const readTools: AdminTool[] = [
   },
   {
     name: 'admin_list_house_requests',
-    description: 'List house-hunting requests with requester contact, area, budget and status.',
+    description:
+      'List house-hunting requests with requester contact, area, budget and status. Optionally filter by date range (start_date/end_date as ISO strings) to find old requests from a specific month.',
     kind: 'read',
     schema: z.object({
       status: z.enum(HOUSE_REQUEST_STATUSES).optional(),
       search: z.string().max(120).optional(),
+      start_date: z.string().optional(),
+      end_date: z.string().optional(),
       limit: limitSchema,
     }),
-    summarize: (a) => `List house requests${a.status ? ` (${String(a.status)})` : ''}`,
+    summarize: (a) => `List house requests${a.status ? ` (${String(a.status)})` : ''}${a.start_date ? ` from ${String(a.start_date)}` : ''}${a.end_date ? ` to ${String(a.end_date)}` : ''}`,
     run: async (args, ctx) => {
       let query = ctx.db
         .from('house_requests')
@@ -675,6 +678,8 @@ const readTools: AdminTool[] = [
       if (args.status) query = query.eq('status', String(args.status))
       const search = optStr(args, 'search')
       if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,phone.ilike.%${search}%,location.ilike.%${search}%`)
+      if (args.start_date) query = query.gte('created_at', String(args.start_date))
+      if (args.end_date) query = query.lte('created_at', String(args.end_date))
       const { data, error } = await query
       if (error) return fail(error.message)
       const rows = (data ?? []) as Row[]
@@ -684,7 +689,7 @@ const readTools: AdminTool[] = [
           `*House requests (${rows.length})*`,
           ...rows.map(
             (r) =>
-              `- ${r.name} — ${r.location} — ${money(r.min_rent)}–${money(r.max_rent)} — ${r.status} — ${r.phone} — id ${r.id}`
+              `- ${r.name} — ${r.location} — ${money(r.min_rent)}–${money(r.max_rent)} — ${r.status} — ${r.phone} — id ${r.id} — ${r.created_at ? new Date(String(r.created_at)).toLocaleDateString('en-KE') : '—'}`
           ),
         ].join('\n'),
         rows
@@ -1216,6 +1221,125 @@ const writeTools: AdminTool[] = [
         { Name: String(existing.name || 'there'), Reason: optStr(args, 'reason') || 'Administrative action' }
       ).catch(() => {})
       return ok(`House request ${id.slice(0, 8)}… (${existing.name || '—'}) deleted permanently.`)
+    },
+  },
+  {
+    name: 'admin_delete_house_requests_batch',
+    description:
+      'Permanently delete multiple house-hunting requests at once. Provide a comma-separated list of request IDs. This is destructive and cannot be undone; the admin must explicitly confirm it. Use this to clean up old requests from a specific date range (find them first with admin_list_house_requests using start_date/end_date).',
+    kind: 'write',
+    schema: z.object({
+      request_ids: z.string().min(1),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.request_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch delete ${ids.length} house request(s)${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.request_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one request ID.')
+      if (rawIds.length > 50) return fail('Maximum 50 requests per batch.')
+
+      // Verify all exist first
+      const { data: existing, error: readError } = await ctx.db
+        .from('house_requests')
+        .select('id, name, email, status, created_at')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching house requests found.')
+
+      const names = existing.map((r) => r.name || '—').join(', ')
+      const { error } = await ctx.db.from('house_requests').delete().in('id', rawIds)
+      if (error) return fail(error.message)
+
+      // Notify affected requesters
+      await Promise.allSettled(
+        existing.map((r) =>
+          notifyUser(String(r.email), 'House request removed', 'Your house-hunting request was removed by an administrator.', {
+            Name: String(r.name || 'there'),
+            Reason: optStr(args, 'reason') || 'Administrative batch deletion',
+          }).catch(() => {})
+        )
+      )
+
+      return ok(`Deleted ${existing.length} house request(s) permanently: ${names}.`)
+    },
+  },
+  {
+    name: 'admin_batch_edit_house_requests',
+    description:
+      'Batch update the status of multiple house-hunting requests at once. Provide comma-separated request IDs and the new status (pending, contacted, fulfilled, closed). Use this to flip 10+ requests in one confirmation. Find the request IDs first with admin_list_house_requests.',
+    kind: 'write',
+    schema: z.object({
+      request_ids: z.string().min(1),
+      status: z.enum(HOUSE_REQUEST_STATUSES),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.request_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch set ${ids.length} house request(s) to ${String(a.status)}${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.request_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one request ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 requests per batch.')
+      const status = str(args, 'status')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('house_requests')
+        .select('id, name, email, status')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching house requests found.')
+
+      const { error } = await ctx.db.from('house_requests').update({ status }).in('id', rawIds)
+      if (error) return fail(error.message)
+
+      const names = existing.map((r) => r.name || '—').join(', ')
+      return ok(`Updated ${existing.length} house request(s) to ${status}: ${names}.`)
+    },
+  },
+  {
+    name: 'admin_broadcast_to_requesters',
+    description:
+      'Send a broadcast email to multiple house-hunting requesters. Provide comma-separated request IDs, a subject, and a message. The email goes in English. Find requester IDs first with admin_list_house_requests.',
+    kind: 'write',
+    schema: z.object({
+      request_ids: z.string().min(1),
+      subject: z.string().min(3).max(120),
+      message: z.string().min(3).max(4000),
+    }),
+    summarize: (a) => {
+      const ids = String(a.request_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Broadcast email to ${ids.length} requester(s): "${String(a.subject)}"`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.request_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one request ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 requesters per batch.')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('house_requests')
+        .select('id, name, email')
+        .in('id', rawIds)
+        .not('email', 'is', null)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No requesters with email addresses found.')
+
+      const subject = str(args, 'subject').replace(/[\r\n]/g, ' ')
+      const message = str(args, 'message')
+
+      await Promise.allSettled(
+        existing.map((r) =>
+          notifyUser(String(r.email), subject, subject, {
+            Name: String(r.name || 'there'),
+            Message: message,
+          }).catch(() => {})
+        )
+      )
+
+      return ok(`Broadcast email sent to ${existing.length} requester(s) with subject "${subject}".`)
     },
   },
   {

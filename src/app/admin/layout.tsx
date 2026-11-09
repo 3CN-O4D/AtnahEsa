@@ -24,6 +24,7 @@ import {
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import AdminCopilot from '@/components/admin/AdminCopilot'
 
 const navGroups = [
   {
@@ -243,6 +244,8 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
 
         <main className="min-h-[calc(100vh-3.5rem)]">{children}</main>
       </div>
+
+      <AdminCopilot />
     </div>
   )
 }

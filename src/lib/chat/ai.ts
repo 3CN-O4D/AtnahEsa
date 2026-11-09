@@ -78,12 +78,12 @@ export function aiEnabled(): boolean {
   return Boolean(process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.TOKENHARBOR_API_KEY)
 }
 
-function aiKey(): string {
+export function aiKey(): string {
   return process.env.NVIDIA_API_KEY || process.env.AI_API_KEY || process.env.TOKENHARBOR_API_KEY || ''
 }
 
 /** NVIDIA, TokenHarbor or any OpenAI-compatible provider (via AI_BASE_URL). */
-function aiProvider(): 'nvidia' | 'tokenharbor' | 'openai' {
+export function aiProvider(): 'nvidia' | 'tokenharbor' | 'openai' {
   const explicit = (process.env.AI_PROVIDER || '').toLowerCase()
   if (explicit === 'nvidia') return 'nvidia'
   if (explicit === 'tokenharbor') return 'tokenharbor'
@@ -94,14 +94,14 @@ function aiProvider(): 'nvidia' | 'tokenharbor' | 'openai' {
   return 'openai'
 }
 
-function aiEndpoint(): string {
+export function aiEndpoint(): string {
   const base =
     process.env.AI_BASE_URL ||
     (aiProvider() === 'nvidia' ? 'https://integrate.api.nvidia.com/v1' : 'https://tokenharbor.ai/v1')
   return base.replace(/\/$/, '') + '/chat/completions'
 }
 
-function aiModel(): string {
+export function aiModel(): string {
   if (process.env.AI_MODEL) return process.env.AI_MODEL
   if (aiProvider() === 'nvidia') return 'nvidia/nemotron-3.5-lightning-30b-a3b'
   return 'deepseek-v4.1-flash:free'

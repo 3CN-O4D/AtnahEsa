@@ -1179,6 +1179,235 @@ body {
 .ease-bounce  { animation-timing-function: cubic-bezier(0.68, -0.55, 0.265, 1.55); }
 .ease-expo    { animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1); }
 
+/* ---------------------------------------------------------------------------
+   Ase — the animated floating chatbot mascot
+   The bot is drawn with CSS; face parts are sized in em relative to the
+   font-size on .ase-mascot (big on the FAB, small in inline CTA buttons).
+   The floating button wanders gently around its corner, bobs, blinks and
+   glows. A hint bubble invites visitors to check out with Ase.
+--------------------------------------------------------------------------- */
+
+@keyframes aseWander {
+  0%   { transform: translate3d(0, 0, 0); }
+  20%  { transform: translate3d(-38px, -22px, 0); }
+  38%  { transform: translate3d(-12px, -44px, 0); }
+  55%  { transform: translate3d(10px, -20px, 0); }
+  72%  { transform: translate3d(-26px, 2px, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+@keyframes aseBob {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-7px); }
+}
+
+@keyframes aseBlink {
+  0%, 44%, 56%, 100% { transform: scaleY(1); }
+  48%, 52% { transform: scaleY(0.1); }
+}
+
+@keyframes aseAntennaGlow {
+  0%, 100% { opacity: 0.75; box-shadow: 0 0 3px 1px rgba(74, 222, 128, 0.6); }
+  50%      { opacity: 1; box-shadow: 0 0 12px 4px rgba(74, 222, 128, 0.95); }
+}
+
+@keyframes asePingRing {
+  0%   { transform: scale(0.85); opacity: 0.5; }
+  70%  { transform: scale(1.9); opacity: 0; }
+  100% { transform: scale(1.9); opacity: 0; }
+}
+
+@keyframes aseHintPop {
+  0%   { opacity: 0; transform: translateY(10px) scale(0.94); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes aseSpark {
+  0%, 100% { transform: rotate(0deg) translate(0, 0); opacity: 0.2; }
+  50%      { transform: rotate(40deg) translate(-5px, -11px); opacity: 0.9; }
+}
+
+/* Floating button — wanders around its corner of the page. */
+.ase-fab {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  z-index: 70;
+  animation: aseWander 26s ease-in-out infinite;
+  will-change: transform;
+}
+.ase-fab:hover { animation-play-state: paused; }
+.ase-fab--open { animation: none; }
+
+.ase-fab-inner {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.55);
+  background: radial-gradient(circle at 32% 26%, #4ade80, #30b54a 55%, #239f40);
+  box-shadow:
+    0 12px 26px -10px rgba(48, 181, 74, 0.65),
+    inset 0 2px 4px rgba(255, 255, 255, 0.35);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s ease;
+}
+.ase-fab:hover .ase-fab-inner {
+  transform: scale(1.1) rotate(-6deg);
+  box-shadow: 0 16px 34px -10px rgba(48, 181, 74, 0.8), inset 0 2px 4px rgba(255, 255, 255, 0.4);
+}
+.ase-fab:active .ase-fab-inner { transform: scale(0.94); }
+
+/* Expanding ping ring behind the bot. */
+.ase-ring {
+  position: absolute;
+  inset: -5px;
+  border-radius: 9999px;
+  border: 3px solid rgba(74, 222, 128, 0.55);
+  animation: asePingRing 2.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+/* Mascot — all face parts are sized in em relative to this font-size. */
+.ase-mascot {
+  position: relative;
+  display: block;
+  width: 1em;
+  height: 1em;
+  flex-shrink: 0;
+}
+.ase-bot { font-size: 56px; animation: aseBob 3.4s ease-in-out infinite; }
+.ase-mascot--sm { font-size: 22px; display: inline-block; }
+
+.ase-mascot .ase-antenna {
+  position: absolute;
+  left: 50%;
+  top: -0.28em;
+  width: 0.05em;
+  height: 0.26em;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: linear-gradient(#4ade80, rgba(74, 222, 128, 0.25));
+}
+.ase-mascot .ase-antenna::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: -0.1em;
+  width: 0.16em;
+  height: 0.16em;
+  transform: translateX(-50%);
+  border-radius: 9999px;
+  background: radial-gradient(circle at 40% 35%, #dcfce7, #22c55e 55%, #15803d);
+  animation: aseAntennaGlow 2.4s ease-in-out infinite;
+}
+
+.ase-mascot .ase-visor {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 0.8em;
+  height: 0.44em;
+  transform: translate(-50%, -54%);
+  border-radius: 0.22em;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: inset 0 -2px 4px rgba(15, 23, 42, 0.08), 0 1px 3px rgba(15, 23, 42, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: space-evenly;
+}
+
+.ase-mascot .ase-eye {
+  display: block;
+  width: 0.15em;
+  height: 0.18em;
+  border-radius: 9999px;
+  background: #1e293b;
+  animation: aseBlink 4.2s ease-in-out infinite;
+}
+.ase-mascot .ase-eye-r { animation-delay: 0.08s; }
+
+.ase-mascot .ase-smile {
+  position: absolute;
+  left: 50%;
+  top: 68%;
+  width: 0.24em;
+  height: 0.13em;
+  transform: translateX(-50%);
+  border-bottom: 0.05em solid #14532d;
+  border-radius: 0 0 9999px 9999px;
+}
+
+.ase-mascot .ase-spark {
+  position: absolute;
+  top: -0.16em;
+  right: -0.08em;
+  width: 0.2em;
+  height: 0.2em;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 8px 2px rgba(255, 255, 255, 0.7);
+  animation: aseSpark 5.5s ease-in-out infinite;
+}
+
+/* Invitation bubble shown near the bot. */
+.ase-hint {
+  position: fixed;
+  right: 5.25rem;
+  bottom: 2.3rem;
+  z-index: 69;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+  max-width: min(20rem, calc(100vw - 8.5rem));
+  padding: 0.7rem 1rem;
+  border-radius: 1rem 1rem 1rem 0.3rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(48, 181, 74, 0.3);
+  box-shadow: 0 16px 34px -14px rgba(15, 23, 42, 0.35);
+  color: #14532d;
+  font-size: 0.85rem;
+  font-weight: 600;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: aseHintPop 0.45s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+.ase-hint:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 20px 40px -14px rgba(48, 181, 74, 0.45);
+}
+.dark .ase-hint {
+  background: rgba(15, 23, 42, 0.92);
+  border-color: rgba(48, 181, 74, 0.45);
+  color: #d1fae5;
+}
+.ase-hint-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 9999px;
+  background: #30b54a;
+  box-shadow: 0 0 0 3px rgba(48, 181, 74, 0.16);
+  flex-shrink: 0;
+  animation: pulse 2.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ase-fab { animation: none; }
+  .ase-bot { animation: none; }
+  .ase-mascot .ase-antenna::after { animation: none; }
+  .ase-mascot .ase-eye { animation: none; }
+  .ase-ring { animation: none; }
+  .ase-mascot .ase-spark { animation: none; }
+  .ase-hint { animation: none; }
+  .ase-hint-dot { animation: none; }
+}
+
 /* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   .animate-fadeIn,

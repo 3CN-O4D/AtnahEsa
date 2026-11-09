@@ -1,18 +1,50 @@
 'use client'
 
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
-import { MessageCircle, X } from 'lucide-react'
 import ChatPanel from './ChatPanel'
 
 /**
- * Floating chat button.
- * Only appears when the backend AI is configured (`enabled`) and the current
- * page actually benefits from it — never on the full-page chat or admin areas.
+ * Floating Ase — an animated chatbot mascot that drifts around the corner of
+ * every page, blinks, glows and invites visitors to check out with Ase.
+ * Opens the chat on click, or when an inline <AseCta /> fires "ase:open".
+ * Hidden on the full-page chat and admin areas, and when AI isn't configured.
  */
 export default function ChatWidget({ enabled = false }: { enabled?: boolean }) {
   const [open, setOpen] = useState(false)
+  const [hint, setHint] = useState(false)
   const pathname = usePathname()
+
+  // Inline "Check out with Ase" buttons anywhere on the page open this widget.
+  useEffect(() => {
+    const onOpen = () => {
+      setOpen(true)
+      setHint(false)
+    }
+    window.addEventListener('ase:open', onOpen)
+    return () => window.removeEventListener('ase:open', onOpen)
+  }, [])
+
+  // Invite people to chat a few seconds after load, then let the bubble drift away.
+  useEffect(() => {
+    if (open) return
+    const show = window.setTimeout(() => setHint(true), 4500)
+    const hide = window.setTimeout(() => setHint(false), 15000)
+    return () => {
+      window.clearTimeout(show)
+      window.clearTimeout(hide)
+    }
+  }, [open])
+
+  const toggle = useCallback(() => {
+    setOpen((o) => !o)
+    setHint(false)
+  }, [])
+
+  const openChat = useCallback(() => {
+    setOpen(true)
+    setHint(false)
+  }, [])
 
   if (!enabled) return null
   if (pathname?.startsWith('/chat') || pathname?.startsWith('/admin')) return null
@@ -25,17 +57,35 @@ export default function ChatWidget({ enabled = false }: { enabled?: boolean }) {
         </div>
       )}
 
+      {!open && hint && (
+        <button type="button" onClick={openChat} className="ase-hint" aria-label="Chat with Ase">
+          <span className="ase-hint-dot" aria-hidden="true" />
+          <span>Check out with Ase — I&apos;ll find you a home 🏠</span>
+        </button>
+      )}
+
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
+        onMouseEnter={() => {
+          if (!open) setHint(true)
+        }}
+        onMouseLeave={() => setHint(false)}
         aria-label={open ? 'Close Ase chat' : 'Chat with Ase'}
-        className="fixed bottom-6 right-6 z-[70] flex h-14 w-14 items-center justify-center rounded-full bg-[#30B54A] text-white shadow-lg transition-all hover:scale-110 hover:bg-[#2a9c40] active:scale-95"
+        className={`ase-fab${open ? ' ase-fab--open' : ''}`}
       >
-        {open ? (
-          <X className="h-6 w-6" />
-        ) : (
-          <MessageCircle className="h-6 w-6" />
-        )}
+        <span className="ase-fab-inner">
+          <span className="ase-ring" aria-hidden="true" />
+          <span className="ase-mascot ase-bot" aria-hidden="true">
+            <span className="ase-antenna" />
+            <span className="ase-visor">
+              <span className="ase-eye ase-eye-l" />
+              <span className="ase-eye ase-eye-r" />
+            </span>
+            <span className="ase-smile" />
+            <span className="ase-spark" />
+          </span>
+        </span>
       </button>
     </>
   )

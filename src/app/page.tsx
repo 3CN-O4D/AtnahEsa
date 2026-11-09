@@ -18,6 +18,7 @@ import {
   Wallet,
   Zap,
 } from 'lucide-react'
+import AseCta from '@/components/chat/AseCta'
 import ListingGrid from '@/components/listings/ListingGrid'
 import SeasonalDrop from '@/components/seasonal/SeasonalDrop'
 import SeasonalScene from '@/components/seasonal/SeasonalScene'
@@ -276,7 +277,7 @@ export default function HomePage() {
               same place. House hunting, minus the guesswork.
             </p>
 
-            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:items-center animate-fadeInUp" style={{ animationDelay: '0.18s' }}>
+            <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center animate-fadeInUp" style={{ animationDelay: '0.18s' }}>
               <a
                 href="#homes"
                 className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#30B54A] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95 seasonal-cta-glow"
@@ -290,6 +291,7 @@ export default function HomePage() {
               >
                 <Search className="h-4 w-4" /> Request a house
               </Link>
+              <AseCta variant="outline" label="Check out with Ase" />
               <Link
                 href={listAHouseLink}
                 className="text-sm font-semibold text-blue-600 underline-offset-4 transition-colors hover:text-blue-700 hover:underline dark:text-blue-400"
@@ -579,13 +581,14 @@ export default function HomePage() {
                   contact you on WhatsApp.
                 </p>
               </div>
-              <div className="flex shrink-0 flex-col gap-2 sm:flex-row">
+              <div className="flex shrink-0 flex-col gap-2 sm:flex-row sm:flex-wrap">
                 <Link
                   href="/request-house"
                   className="inline-flex items-center justify-center gap-2 rounded-xl bg-[#30B54A] px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40]"
                 >
                   Request a house <ArrowRight className="h-4 w-4" />
                 </Link>
+                <AseCta variant="onDark" />
                 <Link
                   href={listAHouseLink}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Mail, Phone, MapPin, Send, MessageCircle, Home } from 'lucide-react'
 import Input from '@/components/ui/Input'
+import AseCta from '@/components/chat/AseCta'
 import Button from '@/components/ui/Button'
 import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, CONTACT_LOCATION, WHATSAPP_NUMBER } from '@/lib/constants'
 
@@ -148,6 +149,14 @@ export default function ContactPage() {
               <p className="text-blue-100 text-xs">Browse listings and find your perfect home</p>
             </div>
           </Link>
+
+          <div className="rounded-xl border border-[#30B54A]/25 bg-[#e8f8eb]/60 p-4 dark:border-[#30B54A]/30 dark:bg-[#30B54A]/10">
+            <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Need an answer right now?</p>
+            <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">
+              Ase can search homes, explain packages and pass urgent requests to our team in seconds.
+            </p>
+            <AseCta className="mt-3 w-full" label="Check out with Ase" />
+          </div>
         </div>
       </div>
     </div>

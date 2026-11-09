@@ -536,3 +536,254 @@ export async function continuePasswordReset(state: ChatState, msg: string): Prom
 
   return startPasswordReset()
 }
+
+// --------------------------------------------------------------- change email
+
+export function startChangeEmail(): FlowStepResult {
+  const state: ChatState = { mode: 'change_email', step: 'current_email', draft: {} }
+  return {
+    reply: `📧 *Change Email Address*\n\nI can help you change the email on your AseHanta account.\n\nFirst, *what is your current account email?*`,
+    state,
+    quickReplies: ['Cancel'],
+  }
+}
+
+export async function continueChangeEmail(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const draft = { ...(state.draft ?? {}) }
+  const step = state.step ?? 'current_email'
+  const set = (next: string, reply: string, quickReplies?: string[]): FlowStepResult =>
+    ({ reply, quickReplies, state: { mode: 'change_email', step: next, draft } })
+
+  if (step === 'current_email') {
+    const email = msg.trim().toLowerCase()
+    if (!EMAIL_RE.test(email)) {
+      return set('current_email', `That email doesn't look right — please try again (e.g. you@example.com).`)
+    }
+    const { allowed, retryAfter } = await checkRateLimit(`change-email-send:${email}`, 10, 3600)
+    if (!allowed) {
+      return set('current_email', `Too many requests. Please try again in ${retryAfter} seconds.`)
+    }
+    const supabase = createAdminClient()
+    const user = await findAuthUserByEmail(email)
+    if (!user) {
+      return set('current_email', `I couldn't find an account with that email. Please double-check.`)
+    }
+    const otp = String(randomInt(100000, 999999))
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    await supabase.from('otps').update({ used: true }).eq('email', email).eq('type', 'email_change').eq('used', false)
+    const { error: dbError } = await supabase.from('otps').insert({ email, otp, type: 'email_change', expires_at: expiresAt })
+    if (dbError) {
+      return set('current_email', `Sorry, I couldn't generate a code just now. Try again in a moment.`)
+    }
+    try {
+      await sendOtpEmail(email, otp, 'email_change')
+    } catch {
+      return set('current_email', `Failed to send the code to your email. Please try again.`)
+    }
+    draft.current_email = email
+    return set('otp_current', `I've sent a *6-digit code* to ${email}. It expires in 10 minutes.\n\nEnter the code here to confirm it's you.`)
+  }
+
+  if (step === 'otp_current') {
+    const code = msg.trim()
+    if (!/^\d{6}$/.test(code)) {
+      return set('otp_current', `Please enter the full *6-digit code* from your email.`)
+    }
+    const { allowed, retryAfter } = await checkRateLimit(`change-email-verify:${draft.current_email}`, 10, 3600)
+    if (!allowed) {
+      return set('otp_current', `Too many attempts. Try again in ${retryAfter} seconds.`)
+    }
+    const supabase = createAdminClient()
+    const otpRow = await findValidOtp(supabase, draft.current_email as string, code, ['email_change'])
+    if (!otpRow) {
+      await recordOtpFailure(supabase, draft.current_email as string, ['email_change'])
+      return set('otp_current', `Invalid or expired code. Check your email and try again.`)
+    }
+    await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
+    draft.otp_current_verified = true
+    return set('new_email', `✅ Current email verified.\n\n*What is your new email address?*`)
+  }
+
+  if (step === 'new_email') {
+    const newEmail = msg.trim().toLowerCase()
+    if (!EMAIL_RE.test(newEmail)) {
+      return set('new_email', `That email doesn't look right — please try again (e.g. you@example.com).`)
+    }
+    if (newEmail === draft.current_email) {
+      return set('new_email', `That's the same as your current email. Please enter a different one.`)
+    }
+    const { allowed, retryAfter } = await checkRateLimit(`change-email-send:${newEmail}`, 10, 3600)
+    if (!allowed) {
+      return set('new_email', `Too many requests for that email. Try again in ${retryAfter} seconds.`)
+    }
+    const supabase = createAdminClient()
+    const otp = String(randomInt(100000, 999999))
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    await supabase.from('otps').update({ used: true }).eq('email', newEmail).eq('type', 'email_change').eq('used', false)
+    const { error: dbError } = await supabase.from('otps').insert({ email: newEmail, otp, type: 'email_change', expires_at: expiresAt })
+    if (dbError) {
+      return set('new_email', `Sorry, I couldn't generate a code just now. Try again in a moment.`)
+    }
+    try {
+      await sendOtpEmail(newEmail, otp, 'email_change')
+    } catch {
+      return set('new_email', `Failed to send the code to ${newEmail}. Please try again.`)
+    }
+    draft.new_email = newEmail
+    return set('otp_new', `I've sent a *6-digit code* to ${newEmail}. It expires in 10 minutes.\n\nEnter the code here to confirm your new email.`)
+  }
+
+  if (step === 'otp_new') {
+    const code = msg.trim()
+    if (!/^\d{6}$/.test(code)) {
+      return set('otp_new', `Please enter the full *6-digit code* from your email.`)
+    }
+    const { allowed, retryAfter } = await checkRateLimit(`change-email-verify:${draft.new_email}`, 10, 3600)
+    if (!allowed) {
+      return set('otp_new', `Too many attempts. Try again in ${retryAfter} seconds.`)
+    }
+    const supabase = createAdminClient()
+    const otpRow = await findValidOtp(supabase, draft.new_email as string, code, ['email_change'])
+    if (!otpRow) {
+      await recordOtpFailure(supabase, draft.new_email as string, ['email_change'])
+      return set('otp_new', `Invalid or expired code. Check your email and try again.`)
+    }
+    await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
+
+    const user = await findAuthUserByEmail(draft.current_email as string)
+    if (!user) {
+      return set('otp_new', `Account not found. Please start over.`)
+    }
+
+    await supabase.auth.admin.updateUserById(user.id, { email: draft.new_email as string })
+    await supabase.from('profiles').update({ email: draft.new_email as string }).eq('id', user.id)
+
+    return {
+      reply: `✅ *Email changed successfully!*\n\nYour AseHanta account email is now ${draft.new_email as string}.\n\nYou can sign in with the new email at https://www.asehanta.com/auth/signin`,
+      state: { mode: 'chat', step: null, draft: {} },
+      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
+    }
+  }
+
+  return startChangeEmail()
+}
+
+// --------------------------------------------------------------- delete account
+
+export function startDeleteAccount(): FlowStepResult {
+  const state: ChatState = { mode: 'delete_account', step: 'email', draft: {} }
+  return {
+    reply: `🗑 *Delete Account*\n\nI can help you permanently delete your AseHanta account.\n\n⚠️ *This cannot be undone.* Your profile, listings, bookings and payment history will be removed.\n\nFirst, *what is your account email?*`,
+    state,
+    quickReplies: ['Cancel'],
+  }
+}
+
+export async function continueDeleteAccount(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const draft = { ...(state.draft ?? {}) }
+  const step = state.step ?? 'email'
+  const set = (next: string, reply: string, quickReplies?: string[]): FlowStepResult =>
+    ({ reply, quickReplies, state: { mode: 'delete_account', step: next, draft } })
+
+  if (step === 'email') {
+    const email = msg.trim().toLowerCase()
+    if (!EMAIL_RE.test(email)) {
+      return set('email', `That email doesn't look right — please try again (e.g. you@example.com).`)
+    }
+    const { allowed, retryAfter } = await checkRateLimit(`delete-account-send:${email}`, 10, 3600)
+    if (!allowed) {
+      return set('email', `Too many requests. Please try again in ${retryAfter} seconds.`)
+    }
+    const supabase = createAdminClient()
+    const user = await findAuthUserByEmail(email)
+    if (!user) {
+      return set('email', `I couldn't find an account with that email. Please double-check.`)
+    }
+    const otp = String(randomInt(100000, 999999))
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString()
+    await supabase.from('otps').update({ used: true }).eq('email', email).eq('type', 'delete_account').eq('used', false)
+    const { error: dbError } = await supabase.from('otps').insert({ email, otp, type: 'delete_account', expires_at: expiresAt })
+    if (dbError) {
+      return set('email', `Sorry, I couldn't generate a code just now. Try again in a moment.`)
+    }
+    try {
+      await sendOtpEmail(email, otp, 'delete_account')
+    } catch {
+      return set('email', `Failed to send the code to your email. Please try again.`)
+    }
+    draft.email = email
+    draft.user_id = user.id
+    return set('otp', `I've sent a *6-digit code* to ${email}. It expires in 10 minutes.\n\nEnter the code here to confirm it's you.`)
+  }
+
+  if (step === 'otp') {
+    const code = msg.trim()
+    if (!/^\d{6}$/.test(code)) {
+      return set('otp', `Please enter the full *6-digit code* from your email.`)
+    }
+    const { allowed, retryAfter } = await checkRateLimit(`delete-account-verify:${draft.email}`, 10, 3600)
+    if (!allowed) {
+      return set('otp', `Too many attempts. Try again in ${retryAfter} seconds.`)
+    }
+    const supabase = createAdminClient()
+    const otpRow = await findValidOtp(supabase, draft.email as string, code, ['delete_account'])
+    if (!otpRow) {
+      await recordOtpFailure(supabase, draft.email as string, ['delete_account'])
+      return set('otp', `Invalid or expired code. Check your email and try again.`)
+    }
+    await supabase.from('otps').update({ used: true }).eq('id', otpRow.id)
+    draft.otp_verified = true
+    return set('confirm', `⚠️ *Final confirmation — this permanently deletes your account.*\n\nYour profile, listings, bookings and payment history will be removed and cannot be recovered.\n\nType *DELETE MY ACCOUNT* to confirm, or anything else to cancel.`)
+  }
+
+  if (step === 'confirm') {
+    if (!/^DELETE MY ACCOUNT$/i.test(msg.trim())) {
+      return set('confirm', `Account deletion cancelled. Nothing was changed.\n\nType *DELETE MY ACCOUNT* to confirm, or anything else to cancel.`)
+    }
+    const supabase = createAdminClient()
+    await supabase.from('profiles').delete().eq('id', draft.user_id as string)
+    const { error: authError } = await supabase.auth.admin.deleteUser(draft.user_id as string)
+    if (authError) {
+      return {
+        reply: `Your profile was deleted, but the auth account couldn't be removed: ${authError.message}. Please contact support.`,
+        state: { mode: 'chat', step: null, draft: {} },
+        quickReplies: ['🏠 Find me a house', '📞 Contact'],
+      }
+    }
+    return {
+      reply: `✅ *Account deleted permanently.*\n\nYour AseHanta account and all associated data have been removed.\n\nWe're sorry to see you go.`,
+      state: { mode: 'chat', step: null, draft: {} },
+      quickReplies: ['🏠 Find me a house', '📞 Contact'],
+    }
+  }
+
+  return startDeleteAccount()
+}
+
+// --------------------------------------------------------------- change DP
+
+export function startChangeDP(): FlowStepResult {
+  return {
+    reply: `📸 *Change Profile Picture*\n\nUpload a new photo on your profile page:\n\n👉 https://www.asehanta.com/profile\n\nOpen your profile, tap your avatar, and upload a JPG/PNG/WebP/AVIF image (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.`,
+    state: { mode: 'chat', step: null, draft: {} },
+    quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
+  }
+}
+
+export async function continueDeleteDP(state: ChatState, msg: string): Promise<FlowStepResult> {
+  const low = msg.trim().toLowerCase()
+  if (/^(remove dp|delete dp|remove avatar|delete avatar|yes|remove it|delete it)$/i.test(low)) {
+    // The actual deletion happens client-side via /api/delete-avatar; here we
+    // just confirm and point them to the button.
+    return {
+      reply: `🗑 Go to https://www.asehanta.com/profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\nIs there anything else I can help with?`,
+      state: { mode: 'chat', step: null, draft: {} },
+      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
+    }
+  }
+  return {
+    reply: `Reply *remove dp* to confirm deletion, or anything else to keep your current picture.`,
+    state,
+    quickReplies: ['remove dp', 'keep it'],
+  }
+}

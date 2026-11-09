@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import cloudinary from 'cloudinary'
 import { createClient } from '@/lib/supabase/server'
 import { withRateLimit, addSecurityHeaders } from '@/lib/security'
+import { deleteR2Object, r2KeyFromUrl } from '@/lib/s3'
 
 cloudinary.v2.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME!,
@@ -15,6 +16,41 @@ cloudinary.v2.config({
 const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
 const MAX_SIZE = 4 * 1024 * 1024
 
+function cloudinaryPublicId(url: string): string | null {
+  try {
+    const parsed = new URL(url)
+    if (parsed.hostname !== 'res.cloudinary.com') return null
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    const uploadIndex = parts.indexOf('upload')
+    if (uploadIndex === -1) return null
+    const afterUpload = parts.slice(uploadIndex + 1).filter((p) => !/^v\d+$/.test(p))
+    if (!afterUpload.length) return null
+    const withExt = afterUpload.join('/')
+    return withExt.replace(/\.[a-z0-9]+$/i, '') || null
+  } catch {
+    return null
+  }
+}
+
+async function deleteOldAvatar(avatarUrl: string | null | undefined): Promise<void> {
+  if (!avatarUrl) return
+
+  // R2-hosted avatar
+  const r2Key = r2KeyFromUrl(avatarUrl)
+  if (r2Key) {
+    try {
+      await deleteR2Object(r2Key).catch(() => {})
+    } catch {}
+    return
+  }
+
+  // Cloudinary-hosted avatar
+  const publicId = cloudinaryPublicId(avatarUrl)
+  if (publicId) {
+    await cloudinary.v2.uploader.destroy(publicId).catch(() => {})
+  }
+}
+
 export async function POST(req: Request) {
   const { allowed, headers } = await withRateLimit(req, 'upload')
   if (!allowed) return NextResponse.json({ error: 'Too many uploads' }, { status: 429, headers })
@@ -23,6 +59,9 @@ export async function POST(req: Request) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return addSecurityHeaders(NextResponse.json({ error: 'Unauthorized' }, { status: 401 }))
+
+    // Fetch current avatar so we can delete it after the new one is uploaded.
+    const { data: profile } = await supabase.from('profiles').select('avatar_url').eq('id', user.id).single()
 
     let formData: FormData
     try {
@@ -56,6 +95,9 @@ export async function POST(req: Request) {
     })
 
     await supabase.from('profiles').update({ avatar_url: result.secure_url }).eq('id', user.id)
+
+    // Delete the old avatar to free storage space.
+    await deleteOldAvatar(profile?.avatar_url ?? null)
 
     return addSecurityHeaders(NextResponse.json({ url: result.secure_url }))
   } catch (err) {

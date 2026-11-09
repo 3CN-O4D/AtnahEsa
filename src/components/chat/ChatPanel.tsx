@@ -233,6 +233,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
+  const [bubbling, setBubbling] = useState(false)
   const [uploadError, setUploadError] = useState('')
   // Number of opening bubbles already shown.
   const [introStep, setIntroStep] = useState(0)
@@ -272,23 +273,40 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
 
         setChatState(data.state ?? emptyState())
 
-        // Split assistant replies by blank lines into separate bubbles so the
-        // conversation feels more human — short bubbles like a real chat.
+        // Split assistant replies by an explicit bubble marker (--- on its own
+        // line) so the AI can control how the conversation flows. If no marker
+        // is present the reply renders as a single bubble.
         const parts = (data.reply || '…')
-          .split(/\n\s*\n/)
+          .split(/\n\s*---\s*\n/)
           .map((p: string) => p.trim())
           .filter(Boolean)
 
-        parts.forEach((part: string, index: number) => {
-          const isLast = index === parts.length - 1
+        // Show each bubble one at a time with a random human delay (1–1.8s),
+        // like a real person texting. Only the last bubble gets actions/buttons.
+        const delay = () => 1000 + Math.random() * 800
+        let i = 0
+        setBubbling(true)
+        const showNext = () => {
+          if (i >= parts.length) {
+            setBubbling(false)
+            return
+          }
+          const isLast = i === parts.length - 1
           append({
             id: nextId(),
             role: 'assistant',
-            content: part,
+            content: parts[i],
             actions: isLast ? data.actions : undefined,
             quickReplies: isLast ? data.quickReplies : undefined,
           })
-        })
+          i += 1
+          if (i < parts.length) {
+            setTimeout(showNext, delay())
+          } else {
+            setBubbling(false)
+          }
+        }
+        showNext()
       } catch {
         append({
           id: nextId(),
@@ -423,7 +441,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
         {messages.map((m) => (
           <Bubble key={m.id} msg={m} />
         ))}
-        {(introTyping || loading) && <TypingDots />}
+        {(introTyping || loading || bubbling) && <TypingDots />}
         {!introTyping && !loading && !messages.some((m) => m.role === 'user') && (
           <p className="mx-auto max-w-xs text-center text-[11px] leading-relaxed text-gray-400">
             I remember our conversation only in this window — refresh to start fresh.
@@ -514,7 +532,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
             />
             <button
               type="submit"
-              disabled={!input.trim() || loading}
+              disabled={!input.trim() || loading || bubbling}
               aria-label="Send message"
               className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#30B54A] text-white shadow-sm transition hover:bg-[#2a9c40] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >

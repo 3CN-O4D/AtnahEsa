@@ -8,7 +8,8 @@ import { findValidOtp, recordOtpFailure } from '@/lib/otp'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { extractRentRange } from './houseSearch'
 import { toolWifiPackages } from './tools'
-import type { ChatAction, ChatState } from './types'
+import { aiEnabled, aiEndpoint, aiKey, aiModel } from './ai'
+import type { ChatAction, ChatState, ChatMessage } from './types'
 import { randomInt } from 'crypto'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -183,6 +184,78 @@ export async function continueHouseRequest(state: ChatState, msg: string): Promi
         quickReplies: ['🏠 Find me a house now', '📶 WiFi packages'],
       }
     }
+
+    // Not a yes/no — let the AI handle modification requests
+    // (e.g. "reformat notes to be professional", "change location to Eldoret").
+    if (aiEnabled()) {
+      const history: ChatMessage[] = [
+        { role: 'system', content: `You are helping an admin finalize a house request draft. The current draft is:
+
+Name: ${draft.name || '—'}
+Email: ${draft.email || '—'}
+Phone: ${draft.phone || '—'}
+WhatsApp: ${draft.whatsapp || '—'}
+Location: ${draft.location || '—'}
+Budget: ${draft.min_rent || 'Any'} — ${draft.max_rent || 'Any'}
+Type: ${(draft.house_designs as string[] | undefined)?.join(', ') || 'Any'}
+Water: ${(draft.water_options as string[] | undefined)?.join(', ') || 'Any'}
+Token: ${(draft.token_options as string[] | undefined)?.join(', ') || 'Any'}
+Notes: ${draft.description || '—'}
+
+The user wants to modify the draft: "${msg}"
+
+Return ONLY the updated draft as JSON with these exact keys:
+name, email, phone, whatsapp, location, min_rent, max_rent, house_designs (array of strings), water_options (array of strings), token_options (array of strings), description (string).
+
+If the user wants to keep a field unchanged, return its current value. If they want to clear it, return null or empty string.` },
+        { role: 'user', content: msg },
+      ]
+
+      try {
+        const res = await fetch(aiEndpoint(), {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${aiKey()}` },
+          body: JSON.stringify({
+            model: aiModel(),
+            messages: history,
+            temperature: 0.2,
+            max_tokens: 1000,
+          }),
+          signal: AbortSignal.timeout(15_000),
+        })
+
+        if (res.ok) {
+          const data = await res.json()
+          const text = data?.choices?.[0]?.message?.content || ''
+          let updated: Record<string, unknown>
+          try {
+            updated = JSON.parse(text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim())
+          } catch {
+            // Fall back to showing the same summary if AI returns unparseable JSON
+            return { reply: buildHouseSummary(draft) + `\n\nShall I submit this? Reply *yes* or *no*.`, quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'house_request', step: 'confirm', draft } }
+          }
+
+          // Merge updated fields into draft
+          const newDraft = { ...draft }
+          if (updated.name) newDraft.name = updated.name
+          if (updated.email) newDraft.email = updated.email
+          if (updated.phone) newDraft.phone = updated.phone
+          if (updated.whatsapp) newDraft.whatsapp = updated.whatsapp
+          if (updated.location) newDraft.location = updated.location
+          if (updated.min_rent !== undefined) newDraft.min_rent = updated.min_rent
+          if (updated.max_rent !== undefined) newDraft.max_rent = updated.max_rent
+          if (updated.house_designs) newDraft.house_designs = updated.house_designs
+          if (updated.water_options) newDraft.water_options = updated.water_options
+          if (updated.token_options) newDraft.token_options = updated.token_options
+          if (updated.description !== undefined) newDraft.description = updated.description
+
+          return { reply: buildHouseSummary(newDraft) + `\n\nShall I submit this? Reply *yes* or *no*.`, quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'house_request', step: 'confirm', draft: newDraft } }
+        }
+      } catch {
+        // Fall through to hardcoded fallback
+      }
+    }
+
     return { reply: buildHouseSummary(draft) + `\n\nShall I submit this? Reply *yes* or *no*.`, quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'house_request', step: 'confirm', draft } }
   }
 

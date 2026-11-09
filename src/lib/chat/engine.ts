@@ -3,7 +3,7 @@ import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
 import { toolStats, toolSearchHouses, toolWifiPackages, toolMovers, toolContact } from './tools'
-import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, startChangeEmail, continueChangeEmail, startDeleteAccount, continueDeleteAccount, startChangeDP, continueDeleteDP, isCancelMessage } from './flows'
+import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, startChangeEmail, continueChangeEmail, startDeleteAccount, continueDeleteAccount, startChangeDP, isCancelMessage } from './flows'
 import { aiChat, aiEnabled } from './ai'
 import { QUICK_START } from './messages'
 
@@ -52,7 +52,9 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return continueDeleteAccount(prevState, msg)
   }
   if (prevState.mode === 'change_dp' && prevState.step) {
-    return continueDeleteDP(prevState, msg)
+    // DP upload is handled client-side via the file input in ChatPanel.
+    // Keep the flow active until the user uploads or cancels.
+    return { reply: '', state: prevState, quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'] }
   }
 
   const low = msg.toLowerCase()
@@ -80,7 +82,12 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return startChangeDP()
   }
   if (/\b(remove ?dp|delete ?dp|remove ?avatar|delete ?avatar)\b/.test(low)) {
-    return continueDeleteDP({ mode: 'chat', step: null, draft: {} }, msg)
+    return {
+      reply: `🗑 Go to your profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\nIs there anything else I can help with?`,
+      state: emptyState(),
+      actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
+      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
+    }
   }
 
   // 4. AI-first — DeepSeek thinks, calls its tools in the background (house

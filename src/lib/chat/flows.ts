@@ -768,8 +768,8 @@ export async function continueDeleteAccount(state: ChatState, msg: string): Prom
 
 export function startChangeDP(): FlowStepResult {
   return {
-    reply: `📸 *Change Profile Picture*\n\nUpload a new photo on your profile page.\n\nOpen your profile, tap your avatar, and upload a JPG/PNG/WebP/AVIF image (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.`,
-    state: { mode: 'chat', step: null, draft: {} },
+    reply: `📸 *Change Profile Picture*\n\nUpload a new photo right here in the chat — tap the *Photo* button below the input box.\n\nAccepts JPG/PNG/WebP/AVIF (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.`,
+    state: { mode: 'change_dp', step: 'upload', draft: {} },
     actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
     quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
   }

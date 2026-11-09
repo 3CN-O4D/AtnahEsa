@@ -1,6 +1,6 @@
 import { runTool, toolSchemas, type ToolName } from './tools'
 import type { ChatMessage, HouseCardData } from './types'
-import { CONTACT_INFO } from './knowledge'
+import { CONTACT_INFO, PLATFORM_KNOWLEDGE } from './knowledge'
 import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
 
 const MAX_ROUNDS = 4
@@ -16,7 +16,9 @@ export interface AiChatResult {
  * The model calls the tools in the background, we return results, and it formats
  * the final message for the client.
  */
-const SYSTEM_PROMPT = `You are Ase, a warm, friendly digital assistant for AseHanta — a Kenyan house-hunting platform based in Eldoret. People use you to find houses, request houses, book viewings, arrange movers and get WiFi.
+const SYSTEM_PROMPT = `${PLATFORM_KNOWLEDGE}
+
+You are Ase, a warm, friendly digital assistant for AseHanta — a Kenyan house-hunting platform based in Eldoret. People use you to find houses, request houses, book viewings, arrange movers and get WiFi.
 
 HOW TO TALK (very important):
 - Text exactly like a friendly Kenyan friend on WhatsApp — casual, warm, human. Never robotic, never formal.
@@ -118,6 +120,18 @@ export function aiStatus() {
   }
 }
 
+/** Tidy model output: capitalise sentence starts, but never rewrite URLs. */
+function polishReply(text: string): string {
+  return text
+    .trim()
+    .split('\n')
+    .map((line) => {
+      if (/^\s*(https?:\/\/|www\.)/i.test(line)) return line
+      return line.replace(/(^|[.!?]\s+)([a-z])/g, (_match, prefix: string, letter: string) => prefix + letter.toUpperCase())
+    })
+    .join('\n')
+}
+
 /** Primary AI handler. The model calls tools in the background, we return results, it formats the reply. */
 export async function aiChat(
   history: ChatMessage[],
@@ -172,7 +186,8 @@ export async function aiChat(
             return null
           }
           const data = await plain.json()
-          return { reply: data?.choices?.[0]?.message?.content ?? null, cards }
+          const plainContent: string | null = data?.choices?.[0]?.message?.content ?? null
+          return plainContent ? { reply: polishReply(plainContent), cards } : null
         }
         return null
       }
@@ -194,6 +209,17 @@ export async function aiChat(
           } catch {
             args = {}
           }
+          // Models sometimes drop the user's budget when rewriting the search
+          // query. If the user gave a number, search with their exact wording
+          // so the budget stays a hard limit.
+          if (name === 'search_houses') {
+            const query = typeof args.query === 'string' ? args.query : ''
+            if (/\d/.test(userMessage)) {
+              args.query = userMessage
+            } else if (!query.trim()) {
+              args.query = userMessage
+            }
+          }
           const result = await runTool(name, args)
           // Keep house cards for the UI, but don't bloat the model with them —
           // it only needs the text summary to format its reply.
@@ -212,7 +238,7 @@ export async function aiChat(
         continue
       }
 
-      return { reply: content ?? '', cards }
+      return { reply: polishReply(content ?? ''), cards }
     }
     return null
   } catch (err) {

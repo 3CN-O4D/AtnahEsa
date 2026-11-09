@@ -141,14 +141,14 @@ export function scoreListing(l: RawListing, q: HouseSearchQuery): number {
   if (q.storey && (building.includes('storey') || building.includes('upstairs'))) score += 4
   if (q.noIssues && (l.issues_count ?? 0) === 0) score += 4
 
-  const rent = l.rent ?? 0
+  const rent = l.rent ?? l.price ?? 0
   if (q.rent.min !== null && q.rent.max !== null) {
-    if (rent >= q.rent.min && rent <= q.rent.max) score += 6
-    else if (rent > 0 && rent <= q.rent.max * 1.2) score += 2
-  } else if (q.rent.max !== null && rent > 0 && rent <= q.rent.max) {
-    score += 4
-  } else if (q.rent.min !== null && rent > 0 && rent >= q.rent.min) {
-    score += 4
+    if (rent >= q.rent.min && rent <= q.rent.max) score += 12
+  } else if (q.rent.max !== null) {
+    // Budget is a hard requirement — reward every house that actually fits.
+    if (rent > 0 && rent <= q.rent.max) score += 10 + Math.min(4, (q.rent.max - rent) / q.rent.max * 4)
+  } else if (q.rent.min !== null) {
+    if (rent > 0 && rent >= q.rent.min) score += 10
   }
 
   if (q.locations.length === 0 && q.bedrooms.length === 0 && !q.waterIncluded && !q.selfContained && q.rent.min === null) {
@@ -173,10 +173,28 @@ export async function searchHouses(queryText: string, limit = 5): Promise<{ card
   }
 
   const raw = (data ?? []) as RawListing[]
-  const scored = raw
+  // A stated budget is a hard limit: never show a card above it (or with no
+  // known rent) just because the area matched.
+  const withinBudget = raw.filter((l) => {
+    if (q.rent.min === null && q.rent.max === null) return true
+    const rent = l.rent ?? l.price ?? 0
+    if (rent <= 0) return false
+    if (q.rent.max !== null && rent > q.rent.max) return false
+    if (q.rent.min !== null && rent < q.rent.min) return false
+    return true
+  })
+
+  const scored = withinBudget
     .map((l) => ({ l, score: scoreListing(l, q) }))
     .filter((s) => s.score > 0)
-    .sort((a, b) => b.score - a.score || (a.l.status === 'published' ? -1 : 1) - (b.l.status === 'published' ? -1 : 1))
+    .sort((a, b) => {
+      const byScore = b.score - a.score
+      if (byScore !== 0) return byScore
+      const aPublished = a.l.status === 'published' ? 1 : 0
+      const bPublished = b.l.status === 'published' ? 1 : 0
+      if (aPublished !== bPublished) return bPublished - aPublished
+      return (a.l.rent ?? a.l.price ?? 0) - (b.l.rent ?? b.l.price ?? 0)
+    })
 
   const top = scored.slice(0, limit)
   const cards: HouseCardData[] = top.map(({ l }) => ({
@@ -184,8 +202,8 @@ export async function searchHouses(queryText: string, limit = 5): Promise<{ card
     title: l.title ?? 'Untitled house',
     location: l.location ?? 'Unknown area',
     descriptive_location: l.descriptive_location,
-    rent: l.rent ?? 0,
-    price: l.price ?? 0,
+    rent: l.rent ?? l.price ?? 0,
+    price: l.price ?? l.rent ?? 0,
     house_type: l.house_type,
     water: l.water,
     deposit: l.deposit,

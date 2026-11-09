@@ -383,6 +383,50 @@ const readTools: AdminTool[] = [
     },
   },
   {
+    name: 'admin_user_growth',
+    description:
+      'Count how many user accounts were created each month since launch, broken out by role (hunter / lister / admin). Use this for "users gained per month" questions. Note: deleted accounts are not tracked, so only signups (gains) are shown, not losses.',
+    kind: 'read',
+    schema: z.object({}),
+    summarize: () => 'Monthly user growth since launch',
+    run: async (_args, ctx) => {
+      const { data, error } = await ctx.db
+        .from('profiles')
+        .select('id, role, created_at')
+        .order('created_at', { ascending: true })
+      if (error) return fail(error.message)
+      const rows = (data ?? []) as Row[]
+      if (!rows.length) return ok('No users found.')
+
+      const byMonth = new Map<string, { total: number; hunter: number; lister: number; admin: number }>()
+      for (const row of rows) {
+        const d = new Date(String(row.created_at))
+        if (Number.isNaN(d.getTime())) continue
+        const key = d.toLocaleString('en-KE', { month: 'long', year: 'numeric' })
+        const bucket = byMonth.get(key) || { total: 0, hunter: 0, lister: 0, admin: 0 }
+        bucket.total += 1
+        const role = String(row.role || '').toLowerCase()
+        if (role === 'hunter') bucket.hunter += 1
+        else if (role === 'lister') bucket.lister += 1
+        else if (role === 'admin') bucket.admin += 1
+        byMonth.set(key, bucket)
+      }
+
+      const total = rows.length
+      const lines = [`*Users gained per month since launch (total: ${total})*`]
+      for (const [month, b] of byMonth.entries()) {
+        lines.push(
+          `${month}: ${b.total} total — ${b.hunter} hunters, ${b.lister} listers, ${b.admin} admins`
+        )
+      }
+      lines.push(
+        '',
+        'Note: account deletions are not tracked, so this shows signups (gains) only, not losses.'
+      )
+      return ok(lines.join('\n'), { total, monthly: Object.fromEntries(byMonth) })
+    },
+  },
+  {
     name: 'admin_get_user',
     description:
       'Look up one user by id, email, phone, username or name. Returns profile plus their listings, bookings and transactions. This is a sensitive read and is audited.',

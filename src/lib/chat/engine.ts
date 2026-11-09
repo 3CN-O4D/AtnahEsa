@@ -97,6 +97,11 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     const ai = await aiChat(history, msg)
     if (ai && ai.reply) {
       const actions: ChatAction[] = (ai.cards ?? []).slice(0, 5).map((c) => ({ type: 'card', card: c }))
+      // If AI found no houses and this looks like a house search, offer to
+      // start a house request so our team can hunt for one.
+      if (actions.length === 0 && isHouseSearchIntent(low)) {
+        return startHouseRequest()
+      }
       return { reply: ai.reply, actions: actions.length ? actions : undefined, state: emptyState(), quickReplies: quickStart() }
     }
   }
@@ -264,3 +269,12 @@ function linkAction(label: string, href: string): ChatAction {
 
 // Re-export helper used by the API route for defaults.
 export { toolSearchHouses }
+
+/** Detects house-search intent so we can offer a request flow when no results. */
+function isHouseSearchIntent(text: string): boolean {
+  const isSearchAsk = /(find|search|show|is there|do you have|any house|any homes|available houses|available homes|looking for|want|need a house|need a home|list houses|houses? (in|around|near|within))/.test(text)
+  const isArea = AREA_WORDS.some((a) => text.includes(a))
+  const isBedroom = BEDROOM_RE.test(text)
+  const isRent = /(rent|budget)/.test(text)
+  return isSearchAsk || isArea || isBedroom || (isRent && /(house|home|room|apartment|bed|br|studio|bedsitter)/.test(text))
+}

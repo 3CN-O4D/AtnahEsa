@@ -5,7 +5,6 @@ import Footer from '@/components/layout/Footer'
 import CookieBanner from '@/components/layout/CookieBanner'
 import RouteProgress from '@/components/layout/RouteProgress'
 import ChatWidget from '@/components/chat/ChatWidget'
-import { aiEnabled } from '@/lib/chat/ai'
 import { ThemeProvider } from '@/lib/ThemeProvider'
 import { FavoritesProvider } from '@/lib/favorites'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
@@ -56,8 +55,8 @@ export default function RootLayout({
           </FavoritesProvider>
         </ThemeProvider>
 
-        {/* Floating Ase chatbot — only when the AI backend is configured */}
-        <ChatWidget enabled={aiEnabled()} />
+        {/* Floating Ase launcher — available on every public page */}
+        <ChatWidget />
 
         {/* Floating WhatsApp (moved to bottom-left so it doesn't clash with Ase) */}
         <a

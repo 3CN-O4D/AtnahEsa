@@ -1,5 +1,7 @@
 import { z } from 'zod'
 import { createNotification } from '@/lib/notifications'
+import { normalizeAudiences, type NotificationAudience } from '@/lib/notification-audience'
+import { auditAction } from './audit'
 import { notifyUser } from '@/lib/notify'
 import { invalidateCached } from '@/lib/server-cache'
 import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
@@ -1524,6 +1526,73 @@ const writeTools: AdminTool[] = [
       await notifyUser(email, subject, subject, { Message: message }).catch(() => {})
       await userInApp(userId, subject, message, optStr(args, 'link') || '/notifications')
       return ok(`Notification sent to ${email}.`)
+    },
+  },
+  {
+    name: 'admin_notify_broadcast',
+    description:
+      'Send an in-app notification to a notification group: everyone, hunters, listers, admins, or all groups at once. Use this to broadcast announcements, system alerts or new-house adverts to every notification group.',
+    kind: 'write',
+    schema: z.object({
+      audience: z.enum(['everyone', 'hunter', 'lister', 'admin', 'all']).default('everyone'),
+      title: z.string().min(3).max(120),
+      message: z.string().min(3).max(4000),
+      link: z.string().max(300).optional(),
+      category: z.enum(['advert', 'new_house', 'transaction', 'linking', 'booking', 'listing', 'system']).optional(),
+    }),
+    summarize: (a) => `Broadcast to ${String(a.audience)}: ${String(a.title)}`,
+    run: async (args, ctx) => {
+      const audience = str(args, 'audience') || 'everyone'
+      const title = str(args, 'title').replace(/[\r\n]/g, ' ')
+      const message = str(args, 'message')
+      const link = optStr(args, 'link') || '/notifications'
+      const category = (optStr(args, 'category') || 'system') as
+        | 'advert'
+        | 'new_house'
+        | 'transaction'
+        | 'linking'
+        | 'booking'
+        | 'listing'
+        | 'system'
+
+      const targets: NotificationAudience[] =
+        audience === 'all'
+          ? ['everyone', 'hunter', 'lister', 'admin']
+          : normalizeAudiences([audience])
+
+      const results = await Promise.allSettled(
+        targets.map((target) =>
+          createNotification({
+            audiences: [target],
+            broadcast: true,
+            category,
+            title,
+            body: message,
+            link,
+          }).then(() => target)
+        )
+      )
+
+      const sent = results
+        .filter(
+          (r): r is PromiseFulfilledResult<NotificationAudience> =>
+            r.status === 'fulfilled'
+        )
+        .map((r) => r.value)
+      const failed = results.filter((r) => r.status === 'rejected').length
+
+      if (sent.length === 0) return fail('No notifications were created.')
+
+      await auditAction(ctx, {
+        tool: 'admin_notify_broadcast',
+        args: { audience, title, message, link, category },
+        status: 'ok',
+        summary: `Broadcast to ${sent.join(', ')}`,
+      })
+
+      return ok(
+        `Broadcast “${title}” sent to ${sent.join(', ')}${failed ? ` (${failed} group(s) failed)` : ''}.`
+      )
     },
   },
   {

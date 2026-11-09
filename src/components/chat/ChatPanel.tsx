@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Home as HomeIcon, Send, MessageCircle, X, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react'
-import { OPENING_MESSAGE, QUICK_START } from '@/lib/chat/messages'
+import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft } from 'lucide-react'
+import { OPENING_MESSAGES, QUICK_START } from '@/lib/chat/messages'
 import { emptyState } from '@/lib/chat/types'
 import type { ChatAction, ChatState, ChatMessage, HouseCardData } from '@/lib/chat/types'
 import { formatPrice } from '@/lib/utils'
@@ -232,6 +232,8 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   const [chatState, setChatState] = useState<ChatState>(emptyState())
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
+  // Number of opening bubbles already shown.
+  const [introStep, setIntroStep] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
 
   const append = useCallback((msg: UiMessage) => {
@@ -242,6 +244,8 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
     async (raw: string) => {
       const text = raw.trim()
       if (!text || loading) return
+      // User is talking — stop the intro sequence so no more opening bubbles pop in.
+      setIntroStep(OPENING_MESSAGES.length)
       setInput('')
       setMessages((prev) => [...prev, { id: nextId(), role: 'user', content: text }])
       setLoading(true)
@@ -283,12 +287,22 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
     [append, chatState, loading, messages]
   )
 
-  // Opening message (only once, in memory — purged on refresh).
+  // Opening messages — sent one bubble at a time, the way a person texts on WhatsApp.
   useEffect(() => {
-    if (messages.length === 0) {
-      append({ id: nextId(), role: 'assistant', content: OPENING_MESSAGE, quickReplies: QUICK_START })
-    }
-  }, [append, messages.length])
+    if (introStep >= OPENING_MESSAGES.length) return
+    const id = setTimeout(() => {
+      append({
+        id: nextId(),
+        role: 'assistant',
+        content: OPENING_MESSAGES[introStep],
+        quickReplies: introStep === OPENING_MESSAGES.length - 1 ? QUICK_START : undefined,
+      })
+      setIntroStep((s) => s + 1)
+    }, introStep === 0 ? 600 : 900)
+    return () => clearTimeout(id)
+  }, [introStep, append])
+
+  const introTyping = introStep < OPENING_MESSAGES.length
 
   // Quick-chip clicks.
   useEffect(() => {
@@ -303,7 +317,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   useEffect(() => {
     const el = scrollRef.current
     if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' })
-  }, [messages, loading])
+  }, [messages, loading, introTyping])
 
   const isPage = variant === 'page'
 
@@ -342,10 +356,10 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
         {messages.map((m) => (
           <Bubble key={m.id} msg={m} />
         ))}
-        {loading && <TypingDots />}
-        {messages.length === 1 && !loading && (
+        {(introTyping || loading) && <TypingDots />}
+        {!introTyping && !loading && !messages.some((m) => m.role === 'user') && (
           <p className="mx-auto max-w-xs text-center text-[11px] leading-relaxed text-gray-400">
-            Chatting with Ase. I remember our conversation only in this window — refresh to start fresh. Your messages are processed on our server.
+            I remember our conversation only in this window — refresh to start fresh.
           </p>
         )}
       </div>

@@ -1,4 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createNotification } from '@/lib/notifications'
+import { notifyAdmins } from '@/lib/notify'
 import { searchHouses } from './houseSearch'
 import type { HouseCardData } from './types'
 import { PAGE_LINKS, CONTACT_INFO } from './knowledge'
@@ -91,6 +93,85 @@ export function toolLinks(page?: string): ToolResult {
   }
 }
 
+const CHAT_CATEGORIES = ['complaint', 'bug', 'payment', 'listing', 'account', 'feature', 'other'] as const
+const CHAT_PRIORITIES = ['low', 'normal', 'high', 'urgent'] as const
+
+/**
+ * Email the AseHanta admin team about anything important that needs a human —
+ * complaints, bug reports, urgent issues, payment/listing problems, feature
+ * requests, partnership/business inquiries, or escalation. Also files it in
+ * the admin complaints panel and raises an in-app admin notification.
+ */
+export async function toolNotifyAdmin(args: Record<string, unknown>): Promise<ToolResult> {
+  const rawCategory = String(args.category ?? '').trim().toLowerCase()
+  const category = (CHAT_CATEGORIES as readonly string[]).includes(rawCategory) ? rawCategory : 'other'
+  const rawPriority = String(args.priority ?? '').trim().toLowerCase()
+  const priority = (CHAT_PRIORITIES as readonly string[]).includes(rawPriority) ? rawPriority : 'normal'
+  // Free-text label for the email, e.g. "partnership inquiry" or "urgent issue".
+  const topic = String(args.topic ?? '').trim().slice(0, 100) || category
+  const subject = String(args.subject ?? '').trim().slice(0, 140)
+  const message = String(args.message ?? '').trim().slice(0, 4000)
+  const name = String(args.name ?? '').trim().slice(0, 100)
+  const email = String(args.email ?? '').trim().toLowerCase().slice(0, 200)
+  const phone = String(args.phone ?? '').trim().slice(0, 30)
+  const relatedListingId = String(args.related_listing_id ?? '').trim()
+
+  if (subject.length < 3) {
+    return { ok: false, text: 'Please include a short subject — a few words is enough.', error: 'missing subject' }
+  }
+  if (message.length < 10) {
+    return { ok: false, text: 'Please describe the matter in a sentence or two so the team can act.', error: 'message too short' }
+  }
+
+  const supabase = createAdminClient()
+  const { data: row, error } = await supabase
+    .from('complaints')
+    .insert({
+      user_id: null,
+      name: name || 'Ase chat user',
+      email,
+      phone,
+      category,
+      priority,
+      subject,
+      message,
+      related_listing_id: relatedListingId || null,
+    })
+    .select('id, subject, category, priority')
+    .single()
+
+  if (error) {
+    console.error('Chat report insert failed:', error)
+    return { ok: false, text: `Sorry, I couldn't send that just now. Please try again in a moment.`, error: error.message }
+  }
+
+  await createNotification({
+    role: 'admin',
+    category: 'system',
+    title: `${priority === 'urgent' ? '🚨 ' : ''}New ${topic} via chat: ${subject}`,
+    body: `${name || 'Ase chat user'} · ${email || phone || 'no contact'} · priority: ${priority}`,
+    link: '/admin/complaints',
+    data: { complaint_id: row.id, category: row.category, priority: row.priority },
+  })
+
+  await notifyAdmins(`New ${topic} via Chatbot`, subject, {
+    Topic: topic,
+    Category: category,
+    Priority: priority.toUpperCase(),
+    Name: name || 'Not provided',
+    Email: email || 'Not provided',
+    Phone: phone || 'Not provided',
+    Message: message,
+    'Related Listing': relatedListingId || 'None',
+    Source: 'Ase chatbot',
+  })
+
+  return {
+    ok: true,
+    text: `Sent — the AseHanta team has been notified about "${subject}" (ref ${row.id.slice(0, 8)}). They usually respond within 24 hours.`,
+  }
+}
+
 /** Unified tool map used by the AI tool-calling loop. */
 export const TOOLS = {
   search_houses: { desc: 'Search available houses by area, bedrooms, budget, water/token preferences.', run: (a: Record<string, unknown>) => toolSearchHouses(typeof a?.query === 'string' ? a.query : ''), params: { query: 'string' } },
@@ -99,6 +180,11 @@ export const TOOLS = {
   movers: { desc: 'List verified movers.', run: toolMovers, params: {} },
   contact_info: { desc: 'Get AseHanta contact details.', run: toolContact, params: {} },
   page_links: { desc: 'Get shortcut links to site pages.', run: (a: Record<string, unknown>) => toolLinks(typeof a?.page === 'string' ? a.page : undefined), params: { page: 'string' } },
+  notify_admin: {
+    desc: 'Email the AseHanta admin team about anything important that needs a real human: complaints, bug reports, urgent problems, payment/listing issues, feature requests, partnership/business inquiries, or escalation. Collect the user\'s name, contact (email or phone) and a short message first, then call this with topic, subject, message, priority and category.',
+    run: (a: Record<string, unknown>) => toolNotifyAdmin(a),
+    params: { topic: 'string', category: 'string', priority: 'string', subject: 'string', name: 'string', email: 'string', phone: 'string', message: 'string', related_listing_id: 'string' },
+  },
 } as const
 
 export type ToolName = keyof typeof TOOLS

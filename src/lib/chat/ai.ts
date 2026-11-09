@@ -2,33 +2,57 @@ import { runTool, toolSchemas, type ToolName } from './tools'
 import type { ChatMessage, HouseCardData } from './types'
 import { CONTACT_INFO } from './knowledge'
 
-const MAX_ROUNDS = 3
+const MAX_ROUNDS = 4
 
 export interface AiChatResult {
   reply: string
   cards?: HouseCardData[]
 }
 
-const SYSTEM_PROMPT = `You are Ase, the friendly digital assistant for AseHanta (asehanta.com), a Kenyan house-hunting platform in Eldoret and beyond. Introduce yourself as "Ase" when asked, and briefly tell users what you can help with (house search, house requests, WiFi, movers, stats, terms/escrow, contact), then offer help.
+/**
+ * System prompt for Ase. It tells the model exactly what tools are available,
+ * when to use them, and how to format replies like a friendly Kenyan on WhatsApp.
+ * The model calls the tools in the background, we return results, and it formats
+ * the final message for the client.
+ */
+const SYSTEM_PROMPT = `You are Ase, a warm, friendly digital assistant for AseHanta — a Kenyan house-hunting platform based in Eldoret. People use you to find houses, request houses, book viewings, arrange movers and get WiFi.
 
-WHAT ASEHANTA IS:
-- Listings of available houses (book a viewing), taken houses, verified movers, and home WiFi packages (e.g. Jambonet).
-- Booking: a hunter pays a small booking fee via M-Pesa (PayWave Express STK push), held in escrow for a 24-hour view window. After viewing they confirm; then funds are released to the lister or refunded.
-- Refunds: 100% if lister no-show/fake listing, 85% if the house mismatched the advert, 50% when blame is shared.
-- Contact: email ${CONTACT_INFO.email}, phone ${CONTACT_INFO.phone}, WhatsApp ${CONTACT_INFO.whatsapp}.
+HOW TO TALK (very important):
+- Text exactly like a friendly Kenyan friend on WhatsApp — casual, warm, human. Never robotic, never formal.
+- Short lines. One idea per line. A blank line between each thought, like separate text messages.
+- No paragraphs. No long sentences. No essays. If a reply would be a paragraph, split it into short texts instead.
+- Use *bold* for emphasis and light emoji the way a real person texts.
+- Plain English with a light Kiswahili-English mix is fine.
+- Keep replies short — usually 2 to 6 short lines unless you are showing house matches.
 
-HOW TO BEHAVE:
-- Be warm and human, NOT robotic. Chat like a kind Kenyan friend on WhatsApp.
-- Write in short, natural lines — like texting. No long paragraphs, no formal essay-style replies.
-- Each idea on its own line. Use a line break between thoughts (like the message on this platform).
-- Keep replies short: usually 2–8 short lines. Only go longer when listing matching houses.
-- Format replies like WhatsApp: *bold* for emphasis, _italic_, - for lists.
-- Use a light touch of emoji, the way a real person texts.
-- To find houses, ALWAYS call the search_houses tool — never invent listings, prices or links.
-- Use get_stats, wifi_packages, movers, contact_info and page_links tools when the user asks about those topics.
-- If the user wants to book WiFi, request a mover, or submit a house request, guide them: either tell them to say things like "book wifi", "need a mover", or "request a house" so the guided assistant can collect their details.
-- Never reveal lister private contacts.
-- If unsure or off-topic, be friendly and point to the contact page: ${'https://www.asehanta.com/contact'}.`
+WHAT ASEHANTA OFFERS:
+- Available houses for viewing (booking fee via M-Pesa, held in escrow 24h)
+- Taken houses (already occupied)
+- Verified movers
+- Home WiFi packages (e.g. Jambonet)
+- Contact: email ${CONTACT_INFO.email}, phone ${CONTACT_INFO.phone}, WhatsApp ${CONTACT_INFO.whatsapp}
+
+TOOLS — ALWAYS call a tool when the user asks about its topic, even mid-conversation. Don't guess data yourself.
+- search_houses: Find real houses by area, bedrooms, budget, water/token. Call it for ANY house search — never invent listings. The tool returns real houses; after it returns, list the best 2-5 as short lines (name, area, price) and tell the user a card preview appears below.
+- get_stats: Current house/hunter/lister counts
+- wifi_packages: Real WiFi packages and prices
+- movers: Real verified movers
+- contact_info: AseHanta contact details
+- page_links: Shortcut links to site pages (home, listings, wifi, movers, request, upload, bookings, taken, terms, contact, stats, favorites, signup, signin)
+- notify_admin: Emails the AseHanta admin team and files a report. Use it for ANY important matter that needs a real human — complaints, bug reports, urgent problems, payment or listing issues, feature requests, partnership/business inquiries, or when the user wants to escalate or talk to the team. Ask for their name, a contact (email or phone) and a short message first; then call it with topic, subject, message and priority.
+
+GUIDED FLOWS (guide the user to start these; the UI walks them through it):
+- "request a house" → collect details and submit
+- "book wifi" → guided WiFi booking
+- "need a mover" → guided mover request (ends with WhatsApp link)
+
+RULES:
+- Never invent house listings, prices, or links — use search_houses and quote only what it returns.
+- Never reveal lister private contact details.
+- If the user greets you or chats socially, reply warmly and briefly, then ask how you can help.
+- If unsure or off-topic, be friendly and point to https://www.asehanta.com/contact
+- After a house search always mention the card preview that appears below your reply.
+- If the user raises anything important that needs the team — a complaint, a bug, an urgent problem, a payment/listing issue, a feature request, a partnership or business inquiry, or simply wants to talk to a real human — ALWAYS use notify_admin so the team is emailed. Use your judgment: don't email over small talk, but DO email whenever a real person needs to act. Ask for their name and contact first, then confirm it was sent with the reference. For urgent matters set priority to "urgent".`
 
 interface OpenAiMessage {
   role: 'system' | 'user' | 'assistant' | 'tool'
@@ -38,22 +62,39 @@ interface OpenAiMessage {
 }
 
 export function aiEnabled(): boolean {
-  return Boolean(process.env.AI_API_KEY || process.env.TOKENHARBOR_API_KEY)
-}
-
-function aiEndpoint(): string {
-  return (process.env.AI_BASE_URL || 'https://tokenharbor.ai/v1').replace(/\/$/, '') + '/chat/completions'
+  return Boolean(process.env.AI_API_KEY || process.env.NVIDIA_API_KEY || process.env.TOKENHARBOR_API_KEY)
 }
 
 function aiKey(): string {
-  return process.env.AI_API_KEY || process.env.TOKENHARBOR_API_KEY || ''
+  return process.env.NVIDIA_API_KEY || process.env.AI_API_KEY || process.env.TOKENHARBOR_API_KEY || ''
+}
+
+/** NVIDIA, TokenHarbor or any OpenAI-compatible provider (via AI_BASE_URL). */
+function aiProvider(): 'nvidia' | 'tokenharbor' | 'openai' {
+  const explicit = (process.env.AI_PROVIDER || '').toLowerCase()
+  if (explicit === 'nvidia') return 'nvidia'
+  if (explicit === 'tokenharbor') return 'tokenharbor'
+  if (explicit === 'openai') return 'openai'
+  const key = aiKey()
+  if (key.startsWith('nvapi-')) return 'nvidia'
+  if (key.startsWith('thk_')) return 'tokenharbor'
+  return 'openai'
+}
+
+function aiEndpoint(): string {
+  const base =
+    process.env.AI_BASE_URL ||
+    (aiProvider() === 'nvidia' ? 'https://integrate.api.nvidia.com/v1' : 'https://tokenharbor.ai/v1')
+  return base.replace(/\/$/, '') + '/chat/completions'
 }
 
 function aiModel(): string {
-  return process.env.AI_MODEL || 'deepseek-v4.1-flash:free'
+  if (process.env.AI_MODEL) return process.env.AI_MODEL
+  if (aiProvider() === 'nvidia') return 'nvidia/nemotron-3.5-lightning-30b-a3b'
+  return 'deepseek-v4.1-flash:free'
 }
 
-/** Call the AI. Returns text reply or null when unavailable/error. */
+/** Primary AI handler. The model calls tools in the background, we return results, it formats the reply. */
 export async function aiChat(
   history: ChatMessage[],
   userMessage: string,
@@ -67,6 +108,7 @@ export async function aiChat(
   ]
 
   const cards: HouseCardData[] = []
+  const seen = new Set<string>()
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -78,14 +120,14 @@ export async function aiChat(
           messages,
           tools: toolSchemas(),
           tool_choice: 'auto',
-          temperature: 0.6,
-          max_tokens: 600,
+          temperature: 0.7,
+          max_tokens: 900,
         }),
-        signal: AbortSignal.timeout(25_000),
+        signal: AbortSignal.timeout(20_000),
       })
 
       if (!res.ok) {
-        // Fall back to a tools-free call (some free models don't accept tools).
+        // Some free models don't accept tools — try a plain call once.
         if (round === 0) {
           const plain = await fetch(aiEndpoint(), {
             method: 'POST',
@@ -93,10 +135,10 @@ export async function aiChat(
             body: JSON.stringify({
               model: aiModel(),
               messages,
-              temperature: 0.6,
-              max_tokens: 600,
+              temperature: 0.7,
+              max_tokens: 900,
             }),
-            signal: AbortSignal.timeout(25_000),
+            signal: AbortSignal.timeout(20_000),
           })
           if (!plain.ok) return null
           const data = await plain.json()
@@ -123,8 +165,19 @@ export async function aiChat(
             args = {}
           }
           const result = await runTool(name, args)
-          if (result.cards) cards.push(...result.cards)
-          messages.push({ role: 'tool', tool_call_id: tc.id, content: JSON.stringify(result) })
+          // Keep house cards for the UI, but don't bloat the model with them —
+          // it only needs the text summary to format its reply.
+          for (const c of result.cards ?? []) {
+            if (!seen.has(c.id)) {
+              seen.add(c.id)
+              cards.push(c)
+            }
+          }
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: JSON.stringify({ ok: result.ok, text: result.text, error: result.error }),
+          })
         }
         continue
       }

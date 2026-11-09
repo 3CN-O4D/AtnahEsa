@@ -4,6 +4,8 @@ import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import CookieBanner from '@/components/layout/CookieBanner'
 import RouteProgress from '@/components/layout/RouteProgress'
+import ChatWidget from '@/components/chat/ChatWidget'
+import { aiEnabled } from '@/lib/chat/ai'
 import { ThemeProvider } from '@/lib/ThemeProvider'
 import { FavoritesProvider } from '@/lib/favorites'
 import { APP_NAME, WHATSAPP_NUMBER } from '@/lib/constants'
@@ -54,12 +56,15 @@ export default function RootLayout({
           </FavoritesProvider>
         </ThemeProvider>
 
-        {/* Floating WhatsApp */}
+        {/* Floating Ase chatbot — only when the AI backend is configured */}
+        <ChatWidget enabled={aiEnabled()} />
+
+        {/* Floating WhatsApp (moved to bottom-left so it doesn't clash with Ase) */}
         <a
           href={`https://wa.me/${WHATSAPP_NUMBER}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="fixed bottom-6 right-6 z-50 w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 hover:scale-110 transition-all"
+          className="fixed bottom-6 left-6 z-50 w-14 h-14 bg-green-500 text-white rounded-full flex items-center justify-center shadow-lg hover:bg-green-600 hover:scale-110 transition-all"
           aria-label="Chat on WhatsApp"
         >
           <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="currentColor">

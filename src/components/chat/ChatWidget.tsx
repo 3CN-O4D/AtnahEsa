@@ -1,11 +1,21 @@
 'use client'
 
 import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { MessageCircle, X } from 'lucide-react'
 import ChatPanel from './ChatPanel'
 
-export default function ChatWidget() {
+/**
+ * Floating chat button.
+ * Only appears when the backend AI is configured (`enabled`) and the current
+ * page actually benefits from it — never on the full-page chat or admin areas.
+ */
+export default function ChatWidget({ enabled = false }: { enabled?: boolean }) {
   const [open, setOpen] = useState(false)
+  const pathname = usePathname()
+
+  if (!enabled) return null
+  if (pathname?.startsWith('/chat') || pathname?.startsWith('/admin')) return null
 
   return (
     <>
@@ -24,10 +34,7 @@ export default function ChatWidget() {
         {open ? (
           <X className="h-6 w-6" />
         ) : (
-          <div className="relative grid h-full w-full place-items-center">
-            <MessageCircle className="h-6 w-6" />
-            <span className="absolute -top-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-white bg-amber-400 dark:border-slate-900" />
-          </div>
+          <MessageCircle className="h-6 w-6" />
         )}
       </button>
     </>

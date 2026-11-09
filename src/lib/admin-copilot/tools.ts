@@ -920,7 +920,7 @@ const writeTools: AdminTool[] = [
   {
     name: 'admin_update_listing',
     description:
-      'Update listing fields (title, description, prices, location, water, electricity, vacancy, video links, images, issues). Only send fields that should change.',
+      'Edit a listing: title, description, prices (booking fee/rent/deposit), location, descriptive location, house type, building type, floor number, water, electricity, vacancy status, why vacant, lister phone, images, YouTube links, TikTok links, video URLs, issues, and issues count. Categories: house_type (free text), building_type (storey/flat), vacancy (pending/vacant). Only send fields that should change.',
     kind: 'write',
     schema: z.object({
       listing_id: z.string().min(1),

@@ -288,11 +288,11 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   )
 
   // Opening messages — sent one bubble at a time, the way a person texts on WhatsApp.
-  // The first four bubbles each "type" for a random 2.5–4s before landing, then
+  // The first four bubbles each "type" for a random 1.5–2.5s before landing, then
   // the rest follow quickly.
   useEffect(() => {
     if (introStep >= OPENING_MESSAGES.length) return
-    const delay = introStep < 4 ? 2500 + Math.random() * 1500 : 900
+    const delay = introStep < 4 ? 1500 + Math.random() * 1000 : 900
     const id = setTimeout(() => {
       append({
         id: nextId(),

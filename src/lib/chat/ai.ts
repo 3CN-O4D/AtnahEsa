@@ -24,7 +24,9 @@ HOW TO TALK (very important):
 - No paragraphs. No long sentences. No essays. If a reply would be a paragraph, split it into short texts instead.
 - Use *bold* for emphasis and light emoji the way a real person texts.
 - Plain English with a light Kiswahili-English mix is fine.
+- Reply in the language the user uses. If they write Kiswahili or Sheng, answer in natural Kenyan Kiswahili/Sheng — not a word-for-word translation.
 - Write normal sentence case — capitalise the first letter of each line and proper names (AseHanta, Jambonet, Kenya). Don't write everything in lowercase.
+- If asked who you are or to explain AseHanta, say briefly: AseHanta is a Kenyan house-hunting platform (based in Eldoret) with verified homes, escrow-protected viewing fees, movers and home WiFi. Then ask what they need. Don't dump the full menu for simple acknowledgements like "sawa", "okay" or "you sure?".
 - Keep replies short — usually 2 to 6 short lines unless you are showing house matches.
 
 WHAT ASEHANTA OFFERS:
@@ -103,6 +105,19 @@ function aiModel(): string {
   return 'deepseek-v4.1-flash:free'
 }
 
+/** Safe, key-free snapshot for diagnostics. */
+export function aiStatus() {
+  return {
+    configured: aiEnabled(),
+    provider: aiProvider(),
+    model: aiModel(),
+    endpoint: aiEndpoint(),
+    hasNvidiaKey: Boolean(process.env.NVIDIA_API_KEY),
+    hasAiKey: Boolean(process.env.AI_API_KEY),
+    hasTokenHarborKey: Boolean(process.env.TOKENHARBOR_API_KEY),
+  }
+}
+
 /** Primary AI handler. The model calls tools in the background, we return results, it formats the reply. */
 export async function aiChat(
   history: ChatMessage[],
@@ -136,6 +151,8 @@ export async function aiChat(
       })
 
       if (!res.ok) {
+        const body = await res.text().catch(() => '')
+        console.error(`[chat] AI ${aiProvider()} returned ${res.status}: ${body.slice(0, 400)}`)
         // Some free models don't accept tools — try a plain call once.
         if (round === 0) {
           const plain = await fetch(aiEndpoint(), {
@@ -149,7 +166,11 @@ export async function aiChat(
             }),
             signal: AbortSignal.timeout(20_000),
           })
-          if (!plain.ok) return null
+          if (!plain.ok) {
+            const plainBody = await plain.text().catch(() => '')
+            console.error(`[chat] AI ${aiProvider()} plain call returned ${plain.status}: ${plainBody.slice(0, 400)}`)
+            return null
+          }
           const data = await plain.json()
           return { reply: data?.choices?.[0]?.message?.content ?? null, cards }
         }
@@ -194,7 +215,8 @@ export async function aiChat(
       return { reply: content ?? '', cards }
     }
     return null
-  } catch {
+  } catch (err) {
+    console.error('[chat] AI request failed:', err instanceof Error ? err.message : err)
     return null
   }
 }

@@ -92,6 +92,24 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   if (/\b(thanks|thank you|asante|asante sana|nice|awesome|cool|great|perfect)\b/.test(low) && msg.length < 60) {
     return { reply: `You're most welcome! 😊 Anything else I can do for you?`, state: emptyState(), quickReplies: QUICK_START }
   }
+  if (/^(sawa|sawa sawa|okay|ok|okey|sure|yes|yeah|yep|ndio|poa|fine|alright)\b/i.test(low) && msg.length < 25) {
+    return { reply: `Sawa! 😊 What would you like to do next?`, state: emptyState(), quickReplies: QUICK_START }
+  }
+  if (/^(you sure|are you sure|really|seriously|kweli)\b/i.test(low) && msg.length < 30) {
+    return {
+      reply: `Yes, I'm sure 😊 I'm Ase, the AseHanta assistant. I can help with houses, WiFi, movers, escrow or getting you in touch with the team.`,
+      state: emptyState(),
+      quickReplies: QUICK_START,
+    }
+  }
+  if (/(about|kuhusu|nieleze|eleza|explain).*(asehanta|platform|site|hii)|who are you|what is asehanta|what does asehanta do/.test(low)) {
+    return {
+      reply: `*AseHanta* is a Kenyan house-hunting platform based in Eldoret 🏠\n\nWe list verified homes with real prices, protect viewing fees with escrow, and connect you with trusted movers and home WiFi.\n\nWhat would you like to do first?`,
+      state: emptyState(),
+      actions: [linkAction('🏠 Browse homes', PAGE_LINKS.listings.href), linkAction('📞 Contact us', PAGE_LINKS.contact.href)],
+      quickReplies: QUICK_START,
+    }
+  }
   if (/^(help|what can you do|how can you help|menu|options)\b/.test(low)) {
     const greetings = ["Hi there 👋", "Hey 😊", "Hello! 👋", "Hi! How's it going?"]
     const pick = greetings[Math.floor(Math.random() * greetings.length)]

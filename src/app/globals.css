@@ -293,8 +293,10 @@ body {
 }
 
 /* ------------------------------------------------------------------------- */
-/* Seasonal hanging decoration (home + auth). Purely decorative, never         */
-/* interactive. Shapes are drawn with CSS so they render the same everywhere.  */
+/* Holiday season decoration (Thanksgiving → Christmas) for home + auth.      */
+/* Purely decorative: aria-hidden, no pointer events, and every animation is  */
+/* disabled by the reduced-motion override at the end of this file. Shapes    */
+/* are drawn with CSS so they render identically on every platform.           */
 /* ------------------------------------------------------------------------- */
 
 @keyframes seasonDrop {
@@ -304,15 +306,30 @@ body {
 }
 
 @keyframes seasonSwing {
-  0%, 100% { transform: rotate(-4.5deg); }
-  25%      { transform: rotate(5deg); }
-  55%      { transform: rotate(-2.5deg); }
-  78%      { transform: rotate(3deg); }
+  0%, 100% { transform: rotate(-3.5deg); }
+  25%      { transform: rotate(4deg); }
+  55%      { transform: rotate(-2deg); }
+  78%      { transform: rotate(2.5deg); }
 }
 
-@keyframes seasonGlow {
-  0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(0.96); }
-  50%      { opacity: 0.95; transform: translateX(-50%) scale(1.04); }
+@keyframes seasonPulse {
+  0%, 100% { opacity: 0.45; transform: translateX(-50%) scale(0.94); }
+  50%      { opacity: 0.92; transform: translateX(-50%) scale(1.06); }
+}
+
+@keyframes seasonPulseCenter {
+  0%, 100% { opacity: 0.4; transform: scale(0.92); }
+  50%      { opacity: 0.9; transform: scale(1.06); }
+}
+
+@keyframes seasonSparkle {
+  0%, 100% { opacity: 0.6; transform: scale(0.95) rotate(-3deg); }
+  50%      { opacity: 1; transform: scale(1.05) rotate(3deg); }
+}
+
+@keyframes seasonTwinkle {
+  0%, 100% { opacity: 0.4; filter: brightness(0.9); }
+  50%      { opacity: 1; filter: brightness(1.3); }
 }
 
 @keyframes seasonFlame {
@@ -321,10 +338,20 @@ body {
   60%      { transform: translateX(-50%) scale(0.95, 1.06) rotate(-1deg); }
 }
 
-@keyframes seasonLeg {
-  0%, 100% { transform: rotate(var(--leg-rotate)); }
-  50%      { transform: rotate(calc(var(--leg-rotate) + 3deg)); }
+@keyframes seasonSnowfall {
+  0%   { transform: translate3d(0, -12vh, 0); opacity: 0; }
+  10%  { opacity: var(--flake-opacity, 0.85); }
+  90%  { opacity: var(--flake-opacity, 0.85); }
+  100% { transform: translate3d(var(--drift, 14px), 112vh, 0); opacity: 0; }
 }
+
+@keyframes seasonAurora {
+  0%   { transform: translate3d(-2%, 0, 0) scale(1); }
+  50%  { transform: translate3d(1%, -2%, 0) scale(1.05); }
+  100% { transform: translate3d(3%, 1%, 0) scale(1.02); }
+}
+
+/* Hanging ornament base ---------------------------------------------------- */
 
 .seasonal-drop {
   pointer-events: none;
@@ -338,7 +365,7 @@ body {
 
 .seasonal-hang {
   transform-origin: top center;
-  animation: seasonSwing 5.5s ease-in-out 0.9s infinite both;
+  animation: seasonSwing 6s ease-in-out 0.9s infinite both;
 }
 
 .seasonal-thread {
@@ -346,11 +373,11 @@ body {
   width: 2px;
   margin: 0 auto;
   position: relative;
-  background: linear-gradient(to bottom, rgba(148, 163, 184, 0.06), rgba(148, 163, 184, 0.5));
+  background: linear-gradient(to bottom, rgba(180, 83, 9, 0.08), rgba(180, 83, 9, 0.45));
 }
 
 .dark .seasonal-thread {
-  background: linear-gradient(to bottom, rgba(148, 163, 184, 0.04), rgba(203, 213, 225, 0.45));
+  background: linear-gradient(to bottom, rgba(253, 230, 138, 0.05), rgba(253, 230, 138, 0.4));
 }
 
 .seasonal-thread::after {
@@ -362,7 +389,11 @@ body {
   height: 7px;
   transform: translateX(-50%);
   border-radius: 9999px;
-  border: 1.5px solid rgba(148, 163, 184, 0.6);
+  border: 1.5px solid rgba(180, 83, 9, 0.55);
+}
+
+.dark .seasonal-thread::after {
+  border-color: rgba(253, 230, 138, 0.7);
 }
 
 .seasonal-creature {
@@ -372,779 +403,648 @@ body {
   justify-content: center;
 }
 
-/* Spider ------------------------------------------------------------------ */
+/* Bauble ------------------------------------------------------------------- */
 
-.seasonal-spider { position: relative; width: 66px; height: 72px; }
-
-.seasonal-spider .spider-leg {
-  position: absolute;
-  width: 27px;
-  height: 2.5px;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, #334155, #1e293b);
-  transform: rotate(var(--leg-rotate));
-  animation: seasonLeg 2.4s ease-in-out infinite;
+.seasonal-bauble {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 60px;
+  height: 90px;
 }
 
-.seasonal-spider .leg-l { left: -14px; transform-origin: right center; }
-.seasonal-spider .leg-r { right: -14px; transform-origin: left center; }
+.bauble-loop {
+  width: 13px;
+  height: 11px;
+  border: 2.5px solid #d4a017;
+  border-bottom: none;
+  border-radius: 9px 9px 0 0;
+}
 
-.seasonal-spider .spider-body {
+.bauble-cap {
+  width: 17px;
+  height: 10px;
+  border-radius: 3px 3px 2px 2px;
+  background: linear-gradient(#fde68a, #b45309);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+.bauble-ball {
+  position: relative;
+  width: 58px;
+  height: 62px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 32% 26%, #fca5a5, #dc2626 44%, #7f1d1d 100%);
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.28), 0 8px 18px rgba(127, 29, 29, 0.22);
+}
+
+.bauble-ball::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 45%;
+  height: 7px;
+  background: linear-gradient(#fef3c7, #d97706 55%, #fde68a);
+  box-shadow: 0 1px 2px rgba(120, 53, 15, 0.35);
+}
+
+.bauble-shine {
   position: absolute;
   left: 11px;
-  top: 27px;
-  width: 44px;
-  height: 40px;
+  top: 9px;
+  width: 15px;
+  height: 22px;
   border-radius: 50%;
-  background: radial-gradient(circle at 34% 30%, #64748b, #1e293b 62%, #0f172a);
-  box-shadow: inset -5px -7px 12px rgba(0, 0, 0, 0.45), 0 5px 14px rgba(0, 0, 0, 0.35);
+  background: linear-gradient(140deg, rgba(255, 255, 255, 0.85), rgba(255, 255, 255, 0) 72%);
+  transform: rotate(-18deg);
 }
 
-.seasonal-spider .spider-head {
+.bauble-green .bauble-ball {
+  background: radial-gradient(circle at 32% 26%, #86efac, #16a34a 44%, #14532d 100%);
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.3), 0 8px 18px rgba(20, 83, 45, 0.22);
+}
+
+.bauble-gold .bauble-ball {
+  background: radial-gradient(circle at 32% 26%, #fef9c3, #f59e0b 44%, #92400e 100%);
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.25), 0 8px 18px rgba(146, 64, 14, 0.22);
+}
+
+.dark .bauble-ball {
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.35), 0 0 26px rgba(248, 113, 113, 0.32);
+}
+
+.dark .bauble-green .bauble-ball {
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.35), 0 0 26px rgba(74, 222, 128, 0.3);
+}
+
+.dark .bauble-gold .bauble-ball {
+  box-shadow: inset -8px -10px 18px rgba(0, 0, 0, 0.35), 0 0 26px rgba(251, 191, 36, 0.34);
+}
+
+/* Star --------------------------------------------------------------------- */
+
+.seasonal-star {
+  position: relative;
+  width: 62px;
+  height: 62px;
+}
+
+.star-halo {
   position: absolute;
-  left: 18px;
-  top: 8px;
-  width: 30px;
-  height: 26px;
+  inset: -20px;
   border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #64748b, #1e293b 68%);
-  box-shadow: inset -3px -4px 8px rgba(0, 0, 0, 0.4);
+  background: radial-gradient(circle, rgba(251, 191, 36, 0.42), rgba(251, 191, 36, 0) 70%);
+  animation: seasonPulseCenter 4.2s ease-in-out infinite;
 }
 
-.seasonal-spider .spider-eye {
+.star-body {
   position: absolute;
-  top: 7px;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: #f8fafc;
-  box-shadow: inset -2px -2px 0 rgba(15, 23, 42, 0.85);
+  inset: 0;
+  background: radial-gradient(circle at 40% 32%, #fffbeb, #fbbf24 46%, #b45309);
+  clip-path: polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%);
+  filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.55));
+  animation: seasonSparkle 3.8s ease-in-out infinite;
 }
 
-.seasonal-spider .spider-eye-l { left: 4px; }
-.seasonal-spider .spider-eye-r { right: 4px; }
+.dark .star-body {
+  filter: drop-shadow(0 0 16px rgba(251, 191, 36, 0.75));
+}
 
-.seasonal-spider .spider-mouth {
+/* Snowflake ---------------------------------------------------------------- */
+
+.seasonal-snowflake {
+  position: relative;
+  width: 60px;
+  height: 60px;
+  animation: seasonSparkle 5.4s ease-in-out infinite;
+}
+
+.flake-arm {
   position: absolute;
   left: 50%;
-  bottom: 4px;
-  width: 12px;
-  height: 6px;
-  transform: translateX(-50%);
-  border-bottom: 2px solid rgba(248, 250, 252, 0.6);
-  border-radius: 0 0 10px 10px;
-}
-
-/* Doll -------------------------------------------------------------------- */
-
-.seasonal-doll { position: relative; width: 62px; height: 86px; }
-
-.seasonal-doll .doll-hair {
-  position: absolute;
-  left: 7px;
   top: 0;
-  width: 48px;
-  height: 46px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #8b5e3c, #5b3b2e 70%);
+  width: 3px;
+  height: 100%;
+  margin-left: -1.5px;
+  border-radius: 9999px;
+  transform-origin: 50% 50%;
+  background: linear-gradient(to bottom, rgba(56, 189, 248, 0), #7dd3fc 18%, #e0f2fe 50%, #7dd3fc 82%, rgba(56, 189, 248, 0));
 }
 
-.seasonal-doll .doll-bun {
+.flake-arm::before,
+.flake-arm::after {
+  content: '';
   position: absolute;
-  top: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #8b5e3c, #5b3b2e 70%);
+  left: 50%;
+  width: 15px;
+  height: 2.5px;
+  border-radius: 9999px;
+  background: #7dd3fc;
+  transform-origin: 0 50%;
 }
 
-.seasonal-doll .bun-l { left: 0; }
-.seasonal-doll .bun-r { right: 0; }
-
-.seasonal-doll .doll-face {
-  position: absolute;
-  left: 13px;
-  top: 8px;
-  width: 36px;
-  height: 34px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #fde3cd, #f3c6a5);
-  box-shadow: inset -3px -3px 6px rgba(180, 110, 80, 0.18);
+.flake-arm::before {
+  top: 24%;
+  transform: rotate(-34deg);
 }
 
-.seasonal-doll .doll-eye {
+.flake-arm::after {
+  bottom: 24%;
+  transform: rotate(-34deg);
+}
+
+.flake-core {
   position: absolute;
-  top: 12px;
+  left: 50%;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  margin: -5.5px 0 0 -5.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle, #ffffff, #7dd3fc);
+  box-shadow: 0 0 12px rgba(125, 211, 252, 0.8);
+}
+
+.dark .flake-arm {
+  background: linear-gradient(to bottom, rgba(224, 242, 254, 0), #e0f2fe 18%, #ffffff 50%, #e0f2fe 82%, rgba(224, 242, 254, 0));
+}
+
+.dark .flake-arm::before,
+.dark .flake-arm::after {
+  background: #e0f2fe;
+}
+
+/* Bell --------------------------------------------------------------------- */
+
+.seasonal-bell {
+  position: relative;
+  width: 56px;
+  height: 78px;
+}
+
+.bell-bow {
+  position: absolute;
+  left: 50%;
+  top: -2px;
+  width: 24px;
+  height: 13px;
+  margin-left: -12px;
+  background: radial-gradient(circle at 30% 35%, #f87171, #b91c1c 70%);
+  border-radius: 60% 40% 55% 45%;
+  box-shadow: inset -2px -2px 4px rgba(0, 0, 0, 0.25);
+  transform: rotate(-6deg);
+}
+
+.bell-body {
+  position: absolute;
+  left: 6px;
+  top: 9px;
+  width: 44px;
+  height: 45px;
+  border-radius: 50% 50% 14% 14%;
+  background: linear-gradient(145deg, #fef3c7, #f59e0b 44%, #b45309);
+  box-shadow: inset -7px -9px 15px rgba(120, 53, 15, 0.32);
+}
+
+.bell-rim {
+  position: absolute;
+  left: 2px;
+  top: 49px;
+  width: 52px;
+  height: 8px;
+  border-radius: 9999px;
+  background: linear-gradient(#fbbf24, #92400e);
+  box-shadow: 0 2px 4px rgba(120, 53, 15, 0.3);
+}
+
+.bell-clapper {
+  position: absolute;
+  left: 50%;
+  top: 57px;
+  width: 13px;
+  height: 13px;
+  margin-left: -6.5px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fde68a, #b45309);
+}
+
+.dark .bell-body {
+  box-shadow: inset -7px -9px 15px rgba(120, 53, 15, 0.32), 0 0 24px rgba(251, 191, 36, 0.28);
+}
+
+/* Candy cane --------------------------------------------------------------- */
+
+.seasonal-candycane {
+  position: relative;
+  width: 34px;
+  height: 84px;
+}
+
+.cane-hook {
+  position: absolute;
+  left: 2px;
+  top: 0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: repeating-conic-gradient(from 0deg, #dc2626 0 26deg, #ffffff 26deg 52deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 13px), #000 calc(100% - 12px));
+  clip-path: polygon(0 0, 100% 0, 100% 64%, 0 64%);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.18));
+}
+
+.cane-stick {
+  position: absolute;
+  left: 2px;
+  top: 15px;
+  width: 14px;
+  height: 67px;
+  border-radius: 0 0 8px 8px;
+  background: repeating-linear-gradient(-42deg, #dc2626 0 10px, #ffffff 10px 20px);
+  box-shadow: inset -3px 0 6px rgba(0, 0, 0, 0.18);
+}
+
+.dark .cane-stick,
+.dark .cane-hook {
+  filter: drop-shadow(0 0 10px rgba(248, 113, 113, 0.25));
+}
+
+/* Gingerbread -------------------------------------------------------------- */
+
+.seasonal-gingerbread {
+  position: relative;
+  width: 62px;
+  height: 82px;
+}
+
+.ginger-head {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: 28px;
+  height: 28px;
+  margin-left: -14px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 36% 30%, #d97706, #92400e 72%);
+  box-shadow: inset -3px -3px 6px rgba(0, 0, 0, 0.25);
+}
+
+.ginger-body {
+  position: absolute;
+  left: 50%;
+  top: 25px;
+  width: 34px;
+  height: 33px;
+  margin-left: -17px;
+  border-radius: 11px 11px 14px 14px;
+  background: linear-gradient(160deg, #c2410c, #7c2d12);
+}
+
+.ginger-arm {
+  position: absolute;
+  top: 29px;
+  width: 20px;
+  height: 10px;
+  border-radius: 9999px;
+  background: #a16207;
+}
+
+.ginger-arm.arm-l { left: -3px; transform: rotate(26deg); }
+.ginger-arm.arm-r { right: -3px; transform: rotate(-26deg); }
+
+.ginger-leg {
+  position: absolute;
+  top: 54px;
+  width: 13px;
+  height: 26px;
+  border-radius: 0 0 8px 8px;
+  background: #a16207;
+}
+
+.ginger-leg.leg-l { left: 13px; transform: rotate(6deg); }
+.ginger-leg.leg-r { right: 13px; transform: rotate(-6deg); }
+
+.ginger-eye {
+  position: absolute;
+  top: 10px;
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #3f2b22;
+  background: #fef3c7;
 }
 
-.seasonal-doll .doll-eye-l { left: 9px; }
-.seasonal-doll .doll-eye-r { right: 9px; }
+.ginger-eye.eye-l { left: 6px; }
+.ginger-eye.eye-r { right: 6px; }
 
-.seasonal-doll .doll-blush {
-  position: absolute;
-  top: 17px;
-  width: 7px;
-  height: 5px;
-  border-radius: 50%;
-  background: rgba(248, 113, 113, 0.35);
-}
-
-.seasonal-doll .blush-l { left: 4px; }
-.seasonal-doll .blush-r { right: 4px; }
-
-.seasonal-doll .doll-mouth {
+.ginger-smile {
   position: absolute;
   left: 50%;
-  top: 20px;
-  width: 10px;
-  height: 5px;
-  transform: translateX(-50%);
-  border-bottom: 2px solid rgba(120, 53, 44, 0.75);
-  border-radius: 0 0 8px 8px;
-}
-
-.seasonal-doll .doll-dress {
-  position: absolute;
-  left: 8px;
-  top: 41px;
-  width: 46px;
-  height: 33px;
-  clip-path: polygon(30% 0, 70% 0, 100% 100%, 0 100%);
-  background: linear-gradient(160deg, #fb7185, #e11d48);
-  box-shadow: inset -6px -4px 10px rgba(136, 19, 55, 0.25);
-}
-
-.seasonal-doll .doll-collar {
-  position: absolute;
-  left: 50%;
-  top: 38px;
-  width: 18px;
-  height: 7px;
-  transform: translateX(-50%);
-  border-radius: 9999px;
-  background: #fff7ed;
-}
-
-.seasonal-doll .doll-arm,
-.seasonal-doll .doll-shoe {
-  position: absolute;
-  border-radius: 9999px;
-}
-
-.seasonal-doll .doll-arm {
-  top: 45px;
-  width: 7px;
-  height: 22px;
-  background: linear-gradient(#f3c6a5, #e6b291);
-}
-
-.seasonal-doll .arm-l { left: 4px; transform: rotate(14deg); }
-.seasonal-doll .arm-r { right: 4px; transform: rotate(-14deg); }
-
-.seasonal-doll .doll-shoe {
-  top: 72px;
-  width: 12px;
-  height: 8px;
-  background: #7c3f52;
-}
-
-.seasonal-doll .shoe-l { left: 15px; }
-.seasonal-doll .shoe-r { right: 15px; }
-
-/* Monkey ------------------------------------------------------------------ */
-
-.seasonal-monkey { position: relative; width: 68px; height: 86px; }
-
-.seasonal-monkey .monkey-ear {
-  position: absolute;
-  top: 8px;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #a97142, #7c4a24 70%);
-}
-
-.seasonal-monkey .ear-l { left: 1px; }
-.seasonal-monkey .ear-r { right: 1px; }
-
-.seasonal-monkey .monkey-head {
-  position: absolute;
-  left: 8px;
-  top: 6px;
-  width: 52px;
-  height: 48px;
-  border-radius: 50%;
-  background: radial-gradient(circle at 35% 30%, #a97142, #7c4a24 72%);
-  box-shadow: inset -4px -5px 10px rgba(60, 33, 12, 0.35);
-}
-
-.seasonal-monkey .monkey-muzzle {
-  position: absolute;
-  left: 50%;
-  top: 22px;
-  width: 34px;
-  height: 24px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 30%, #f7dfc2, #e7c8a8);
-}
-
-.seasonal-monkey .monkey-eye {
-  position: absolute;
-  top: 15px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #2d1b10;
-}
-
-.seasonal-monkey .eye-l { left: 16px; }
-.seasonal-monkey .eye-r { right: 16px; }
-
-.seasonal-monkey .monkey-smile {
-  position: absolute;
-  left: 50%;
-  top: 27px;
+  bottom: 4px;
   width: 14px;
   height: 7px;
-  transform: translateX(-50%);
-  border-bottom: 2px solid rgba(77, 45, 22, 0.7);
-  border-radius: 0 0 10px 10px;
-  z-index: 1;
+  margin-left: -7px;
+  border-bottom: 2px solid rgba(254, 243, 199, 0.9);
+  border-radius: 0 0 12px 12px;
 }
 
-.seasonal-monkey .monkey-body {
+.ginger-button {
+  position: absolute;
+  left: 50%;
+  width: 5px;
+  height: 5px;
+  margin-left: -2.5px;
+  border-radius: 50%;
+  background: rgba(254, 243, 199, 0.9);
+}
+
+.ginger-button.btn-1 { top: 31px; }
+.ginger-button.btn-2 { top: 42px; }
+
+/* Pinecone ----------------------------------------------------------------- */
+
+.seasonal-pinecone {
+  position: relative;
+  width: 54px;
+  height: 74px;
+}
+
+.pinecone-stem {
+  position: absolute;
+  left: 50%;
+  top: -7px;
+  width: 9px;
+  height: 13px;
+  margin-left: -4.5px;
+  border-radius: 3px;
+  background: linear-gradient(#78716c, #44403c);
+}
+
+.pinecone-body {
+  position: absolute;
+  inset: 4px 0 0;
+  border-radius: 50% 50% 46% 46% / 38% 38% 62% 62%;
+  background:
+    repeating-radial-gradient(ellipse at 50% 18%, #b45309 0 6px, #92400e 6px 11px, #78350f 11px 16px);
+  box-shadow: inset -7px -9px 15px rgba(41, 21, 4, 0.42), 0 6px 14px rgba(68, 64, 60, 0.18);
+}
+
+.pinecone-body::after {
+  content: '';
   position: absolute;
   left: 16px;
-  top: 48px;
-  width: 36px;
+  top: 10px;
+  width: 11px;
   height: 30px;
-  border-radius: 45% 45% 40% 40%;
-  background: radial-gradient(circle at 40% 25%, #a97142, #7c4a24 75%);
-}
-
-.seasonal-monkey .monkey-arm,
-.seasonal-monkey .monkey-foot {
-  position: absolute;
-  border-radius: 9999px;
-  background: linear-gradient(#8c5a2e, #6f421f);
-}
-
-.seasonal-monkey .monkey-arm {
-  top: 52px;
-  width: 9px;
-  height: 24px;
-}
-
-.seasonal-monkey .arm-l { left: 10px; transform: rotate(18deg); }
-.seasonal-monkey .arm-r { right: 10px; transform: rotate(-18deg); }
-
-.seasonal-monkey .monkey-foot {
-  top: 73px;
-  width: 13px;
-  height: 9px;
-}
-
-.seasonal-monkey .foot-l { left: 16px; }
-.seasonal-monkey .foot-r { right: 16px; }
-
-.seasonal-monkey .monkey-tail {
-  position: absolute;
-  right: -6px;
-  top: 58px;
-  width: 22px;
-  height: 18px;
-  border: 3px solid #7c4a24;
-  border-left-color: transparent;
-  border-bottom-color: transparent;
   border-radius: 50%;
-  transform: rotate(24deg);
+  background: linear-gradient(140deg, rgba(253, 230, 138, 0.42), transparent 70%);
+  transform: rotate(-14deg);
 }
 
-/* Pendant lamp ------------------------------------------------------------ */
-
-.seasonal-lamp { position: relative; width: 120px; height: 104px; }
-
-.seasonal-lamp .lamp-socket {
-  position: absolute;
-  left: 50%;
-  top: 0;
-  width: 14px;
-  height: 9px;
-  transform: translateX(-50%);
-  border-radius: 4px;
-  background: #475569;
+.dark .pinecone-body {
+  box-shadow: inset -7px -9px 15px rgba(41, 21, 4, 0.42), 0 0 20px rgba(180, 83, 9, 0.22);
 }
 
-.seasonal-lamp .lamp-shade {
-  position: absolute;
-  left: 50%;
-  top: 7px;
-  width: 68px;
-  height: 36px;
-  transform: translateX(-50%);
-  clip-path: polygon(27% 0, 73% 0, 100% 100%, 0 100%);
-  background: linear-gradient(180deg, #fef3c7, #fcd34d 62%, #f59e0b);
-  box-shadow: inset 0 -6px 12px rgba(180, 83, 9, 0.35);
-}
+/* Lantern (dark mode) ------------------------------------------------------ */
 
-.seasonal-lamp .lamp-rim {
-  position: absolute;
-  left: 50%;
-  top: 41px;
-  width: 72px;
-  height: 5px;
-  transform: translateX(-50%);
-  border-radius: 9999px;
-  background: linear-gradient(90deg, #b45309, #fbbf24, #b45309);
-}
-
-.seasonal-lamp .lamp-bulb {
-  position: absolute;
-  left: 50%;
-  top: 44px;
-  width: 13px;
-  height: 13px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: radial-gradient(circle at 40% 35%, #fffbeb, #fbbf24 60%, #f97316);
-  box-shadow: 0 0 18px 7px rgba(251, 191, 36, 0.55);
-}
-
-.seasonal-lamp .lamp-glow {
-  position: absolute;
-  left: 50%;
-  top: 52px;
-  width: 300px;
-  height: 210px;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse at 50% 0%, rgba(251, 191, 36, 0.34), rgba(251, 191, 36, 0.12) 42%, transparent 72%);
-  filter: blur(6px);
-  animation: seasonGlow 7s ease-in-out infinite;
-}
-
-/* Pumpkin lamp ------------------------------------------------------------ */
-
-.seasonal-pumpkin { position: relative; width: 70px; height: 84px; }
-
-.seasonal-pumpkin .pumpkin-stem {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  width: 8px;
-  height: 12px;
-  transform: translateX(-50%) rotate(8deg);
-  border-radius: 3px 4px 2px 4px;
-  background: linear-gradient(160deg, #4d7c0f, #365314);
-}
-
-.seasonal-pumpkin .pumpkin-body {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  width: 62px;
-  height: 54px;
-  transform: translateX(-50%);
-  border-radius: 48% 48% 42% 42%;
-  background:
-    radial-gradient(ellipse at 22% 40%, rgba(255, 237, 213, 0.35), transparent 55%),
-    radial-gradient(ellipse at 78% 40%, rgba(124, 45, 18, 0.35), transparent 55%),
-    radial-gradient(circle at 40% 30%, #fdba74, #f97316 58%, #c2410c);
-  box-shadow: inset -8px -8px 16px rgba(120, 53, 15, 0.4), 0 6px 16px rgba(120, 53, 15, 0.3);
-}
-
-.seasonal-pumpkin .pumpkin-face {
-  position: absolute;
-  left: 50%;
-  top: 30px;
-  transform: translateX(-50%);
-  width: 42px;
-  height: 22px;
-}
-
-.seasonal-pumpkin .pumpkin-eye {
-  position: absolute;
-  top: 0;
-  width: 10px;
-  height: 9px;
-  background: #fde047;
-  clip-path: polygon(50% 0, 100% 100%, 0 100%);
-  filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.85));
-}
-
-.seasonal-pumpkin .pumpkin-eye-l { left: 6px; }
-.seasonal-pumpkin .pumpkin-eye-r { right: 6px; }
-
-.seasonal-pumpkin .pumpkin-mouth {
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  width: 26px;
-  height: 8px;
-  transform: translateX(-50%);
-  background: #fde047;
-  clip-path: polygon(0 0, 100% 0, 88% 100%, 74% 35%, 60% 100%, 46% 35%, 32% 100%, 18% 35%, 6% 100%);
-  filter: drop-shadow(0 0 6px rgba(253, 224, 71, 0.85));
-}
-
-.seasonal-pumpkin .pumpkin-glow {
-  position: absolute;
-  left: 50%;
-  top: 48px;
-  width: 300px;
-  height: 200px;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse at 50% 0%, rgba(249, 115, 22, 0.34), rgba(249, 115, 22, 0.12) 44%, transparent 72%);
-  filter: blur(6px);
-  animation: seasonGlow 8s ease-in-out infinite;
-}
-
-/* Candle ------------------------------------------------------------------ */
-
-.seasonal-candle { position: relative; width: 60px; height: 92px; }
-
-.seasonal-candle .candle-wax {
-  position: absolute;
-  left: 50%;
-  top: 36px;
-  width: 28px;
-  height: 50px;
-  transform: translateX(-50%);
-  border-radius: 7px 7px 4px 4px;
-  background: linear-gradient(100deg, #fffbeb, #f5e6c8 45%, #e3d3b4);
-  box-shadow: inset -4px 0 8px rgba(180, 140, 90, 0.25), 0 5px 12px rgba(120, 80, 40, 0.18);
-}
-
-.seasonal-candle .candle-drip {
-  position: absolute;
-  top: 34px;
-  width: 7px;
-  height: 12px;
-  border-radius: 0 0 9999px 9999px;
-  background: linear-gradient(#fffbeb, #f5e6c8);
-}
-
-.seasonal-candle .drip-l { left: 18px; }
-.seasonal-candle .drip-r { right: 18px; }
-
-.seasonal-candle .candle-wick {
-  position: absolute;
-  left: 50%;
-  top: 30px;
-  width: 2px;
-  height: 7px;
-  transform: translateX(-50%);
-  background: #3f2b22;
-  border-radius: 1px;
-}
-
-.seasonal-candle .candle-flame {
-  position: absolute;
-  left: 50%;
-  top: 12px;
-  width: 14px;
-  height: 20px;
-  transform: translateX(-50%);
-  transform-origin: bottom center;
-  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
-  background: radial-gradient(circle at 50% 72%, #fffbeb 0%, #fde047 38%, #fb923c 72%, #ea580c 100%);
-  box-shadow: 0 0 18px 6px rgba(251, 191, 36, 0.5), 0 0 42px 14px rgba(251, 146, 60, 0.22);
-  animation: seasonFlame 1.6s ease-in-out infinite;
-}
-
-.seasonal-candle .candle-halo {
-  position: absolute;
-  left: 50%;
-  top: 4px;
-  width: 150px;
-  height: 170px;
-  transform: translateX(-50%);
-  background: radial-gradient(ellipse at 50% 30%, rgba(251, 191, 36, 0.28), rgba(251, 146, 60, 0.08) 52%, transparent 72%);
-  filter: blur(5px);
-  animation: seasonGlow 5.5s ease-in-out infinite;
-}
-
-/* Ghost (dark mode drop pool) ------------------------------------------- */
-
-.seasonal-ghost {
+.seasonal-lantern {
   position: relative;
-  width: 60px;
-  height: 86px;
-  animation: seasonGhostBob 4.2s ease-in-out infinite;
+  width: 56px;
+  height: 80px;
 }
 
-.seasonal-ghost .ghost-head {
+.lantern-halo {
   position: absolute;
   left: 50%;
-  top: 0;
-  width: 46px;
-  height: 44px;
-  transform: translateX(-50%);
+  top: 42%;
+  width: 130px;
+  height: 130px;
+  margin: -65px 0 0 -65px;
   border-radius: 50%;
-  background: linear-gradient(180deg, #f8fafc, #e2e8f0);
-  box-shadow: 0 6px 16px rgba(2, 6, 23, 0.35);
+  background: radial-gradient(circle, rgba(253, 230, 138, 0.5), rgba(251, 191, 36, 0.16) 46%, transparent 72%);
+  animation: seasonPulseCenter 4.4s ease-in-out infinite;
 }
 
-.seasonal-ghost .ghost-body {
+.lantern-handle {
   position: absolute;
   left: 50%;
-  top: 30px;
-  width: 46px;
-  height: 48px;
-  transform: translateX(-50%);
-  background: linear-gradient(180deg, #f8fafc, #cbd5e1);
-  border-radius: 12px 12px 0 0;
-}
-
-.seasonal-ghost .ghost-tail {
-  position: absolute;
-  left: 50%;
-  top: 72px;
-  width: 16px;
+  top: -2px;
+  width: 22px;
   height: 14px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: #cbd5e1;
+  margin-left: -11px;
+  border: 2.5px solid #b45309;
+  border-bottom: none;
+  border-radius: 10px 10px 0 0;
 }
 
-.seasonal-ghost .ghost-tail.tail-l { left: calc(50% - 15px); top: 74px; }
-.seasonal-ghost .ghost-tail.tail-r { left: calc(50% + 15px); top: 74px; }
-
-.seasonal-ghost .ghost-eye {
+.lantern-top {
   position: absolute;
-  top: 17px;
-  width: 6px;
-  height: 8px;
-  border-radius: 9999px;
-  background: #1e293b;
-}
-
-.seasonal-ghost .ghost-eye-l { left: 12px; }
-.seasonal-ghost .ghost-eye-r { right: 12px; }
-
-.seasonal-ghost .ghost-mouth {
-  position: absolute;
-  top: 29px;
   left: 50%;
-  width: 10px;
-  height: 6px;
-  transform: translateX(-50%);
-  border-radius: 0 0 9999px 9999px;
-  background: #1e293b;
+  top: 10px;
+  width: 30px;
+  height: 8px;
+  margin-left: -15px;
+  border-radius: 3px;
+  background: linear-gradient(#fde68a, #b45309);
 }
 
-@keyframes seasonGhostBob {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(5px); }
+.lantern-glass {
+  position: absolute;
+  left: 9px;
+  top: 17px;
+  width: 38px;
+  height: 50px;
+  border-radius: 8px 8px 12px 12px;
+  background:
+    repeating-linear-gradient(90deg, rgba(120, 53, 15, 0.35) 0 1.5px, transparent 1.5px 12px),
+    linear-gradient(180deg, #fef3c7, #fbbf24 46%, #f59e0b);
+  box-shadow: inset 0 0 14px rgba(249, 115, 22, 0.55), 0 0 26px rgba(251, 191, 36, 0.45);
 }
 
-/* Halloween scene (dark mode, home + auth). Random subset per refresh,    */
-/* purely decorative, hidden until the theme resolves, desktop only.       */
-/* ------------------------------------------------------------------------ */
+.lantern-base {
+  position: absolute;
+  left: 50%;
+  top: 66px;
+  width: 34px;
+  height: 9px;
+  margin-left: -17px;
+  border-radius: 4px;
+  background: linear-gradient(#fbbf24, #92400e);
+}
+
+/* Scene ------------------------------------------------------------------- */
 
 .seasonal-scene {
-  display: none;
   position: absolute;
   inset: 0;
   overflow: hidden;
+  pointer-events: none;
 }
 
-@media (min-width: 1024px) {
-  .dark .seasonal-scene { display: block; }
-}
+/* Falling snow ------------------------------------------------------------- */
 
-/* Moon + drifting cloud wisps ------------------------------------------- */
-
-.seasonal-moon-wrap {
+.seasonal-snow {
   position: absolute;
-  left: 6%;
-  top: 9%;
-  width: 72px;
-  height: 72px;
+  top: 0;
+  border-radius: 50%;
+  background: #bfdbfe;
+  opacity: 0;
+  box-shadow: 0 0 6px rgba(191, 219, 254, 0.65);
+  animation-name: seasonSnowfall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
 }
 
-.seasonal-moon {
+.dark .seasonal-snow {
+  background: #ffffff;
+  box-shadow: 0 0 8px rgba(255, 255, 255, 0.8);
+}
+
+/* String lights ------------------------------------------------------------ */
+
+.seasonal-lights {
+  position: absolute;
+  inset: 0 0 auto;
+  height: 52px;
+  color: rgba(120, 53, 15, 0.35);
+}
+
+.dark .seasonal-lights {
+  color: rgba(148, 163, 184, 0.3);
+}
+
+.lights-wire {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.light-bulb {
+  position: absolute;
+  width: 8px;
+  height: 11px;
+  margin-left: -4px;
+  border-radius: 50% 50% 45% 45%;
+  background: var(--bulb, #fbbf24);
+  box-shadow: 0 0 8px 1px var(--bulb-glow, rgba(251, 191, 36, 0.65));
+  animation: seasonTwinkle 2.8s ease-in-out infinite;
+}
+
+.dark .light-bulb {
+  box-shadow: 0 0 12px 2px var(--bulb-glow, rgba(251, 191, 36, 0.8));
+}
+
+/* Warm haze / aurora ------------------------------------------------------- */
+
+.seasonal-aurora {
+  position: absolute;
+  left: -10%;
+  right: -10%;
+  top: -18%;
+  height: 62%;
+  filter: blur(46px);
+  opacity: 0.5;
+  background:
+    radial-gradient(58% 44% at 20% 62%, rgba(253, 186, 116, 0.55), transparent 70%),
+    radial-gradient(50% 52% at 55% 42%, rgba(248, 113, 113, 0.3), transparent 72%),
+    radial-gradient(46% 46% at 82% 62%, rgba(253, 224, 71, 0.42), transparent 72%);
+  animation: seasonAurora 18s ease-in-out infinite alternate;
+}
+
+.dark .seasonal-aurora {
+  opacity: 0.42;
+  background:
+    radial-gradient(58% 44% at 20% 62%, rgba(74, 222, 128, 0.42), transparent 70%),
+    radial-gradient(50% 52% at 55% 42%, rgba(56, 189, 248, 0.28), transparent 72%),
+    radial-gradient(46% 46% at 82% 62%, rgba(251, 191, 36, 0.32), transparent 72%);
+}
+
+/* Twinkling stars / golden dust ------------------------------------------- */
+
+.seasonal-star-dot {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle, #fef3c7 0%, rgba(253, 224, 71, 0.65) 45%, transparent 72%);
+  box-shadow: 0 0 8px 2px rgba(253, 224, 71, 0.35);
+  animation: seasonTwinkle 3.6s ease-in-out infinite;
+}
+
+.dark .seasonal-star-dot {
+  background: radial-gradient(circle, #ffffff 0%, rgba(226, 232, 240, 0.75) 45%, transparent 72%);
+  box-shadow: 0 0 10px 2px rgba(226, 232, 240, 0.45);
+}
+
+/* Evergreen wreath in the corner ------------------------------------------ */
+
+.seasonal-wreath {
+  position: absolute;
+  left: -46px;
+  bottom: -50px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  opacity: 0.4;
+  background: repeating-conic-gradient(from 12deg, #166534 0 11deg, #15803d 11deg 22deg);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 42px), #000 calc(100% - 40px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 42px), #000 calc(100% - 40px));
+}
+
+.dark .seasonal-wreath {
+  opacity: 0.5;
+  background: repeating-conic-gradient(from 12deg, #14532d 0 11deg, #166534 11deg 22deg);
+}
+
+.wreath-berries {
   position: absolute;
   inset: 0;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 34%, #fefce8 0%, #fde68a 45%, #fcd34d 78%, rgba(252, 211, 77, 0) 100%);
-  box-shadow: 0 0 42px 16px rgba(253, 230, 138, 0.34);
-  animation: seasonMoonPulse 7s ease-in-out infinite;
+  background:
+    radial-gradient(circle at 50% 6%, #dc2626 0 4px, transparent 4.5px),
+    radial-gradient(circle at 84% 30%, #dc2626 0 3.5px, transparent 4px),
+    radial-gradient(circle at 16% 30%, #dc2626 0 3.5px, transparent 4px),
+    radial-gradient(circle at 72% 82%, #dc2626 0 3px, transparent 3.5px);
 }
 
-@keyframes seasonMoonPulse {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.05); }
-}
-
-.seasonal-cloud {
-  position: absolute;
-  top: 6%;
-  width: 150px;
-  height: 26px;
-  border-radius: 9999px;
-  background: linear-gradient(90deg, transparent, rgba(148, 163, 184, 0.22) 30%, rgba(148, 163, 184, 0.22) 70%, transparent);
-  filter: blur(6px);
-  animation: seasonCloudDrift 62s linear infinite;
-}
-
-.seasonal-cloud.cloud-a { left: -180px; }
-.seasonal-cloud.cloud-b { left: -220px; top: 15%; opacity: 0.7; animation-duration: 88s; animation-delay: -34s; }
-
-@keyframes seasonCloudDrift {
-  0%   { transform: translateX(0); }
-  100% { transform: translateX(135vw); }
-}
-
-/* Rising mist ------------------------------------------------------------ */
-
-.seasonal-mist {
-  position: absolute;
-  bottom: -60px;
-  width: 420px;
-  height: 120px;
-  border-radius: 50%;
-  background: radial-gradient(ellipse at 50% 100%, rgba(139, 92, 246, 0.22), rgba(139, 92, 246, 0.09) 45%, transparent 72%);
-  filter: blur(10px);
-  animation: seasonMistRise 18s ease-in-out infinite;
-}
-
-.seasonal-mist.mist-a { left: -10%; }
-.seasonal-mist.mist-b { left: 28%; width: 520px; animation-duration: 24s; animation-delay: -8s; opacity: 0.85; }
-.seasonal-mist.mist-c { left: 60%; width: 470px; animation-duration: 30s; animation-delay: -16s; }
-
-@keyframes seasonMistRise {
-  0%   { transform: translateY(80px); opacity: 0; }
-  25%  { opacity: 1; }
-  70%  { opacity: 0.7; }
-  100% { transform: translateY(-340px); opacity: 0; }
-}
-
-/* Bats flapping across --------------------------------------------------- */
-
-.seasonal-bat {
-  position: absolute;
-  top: 20%;
-  left: -90px;
-  width: 46px;
-  height: 26px;
-  animation: seasonBatFly 22s linear infinite;
-}
-
-.seasonal-bat.bat-b { top: 40%; opacity: 0.85; animation-duration: 28s; animation-delay: -12s; }
-
-@keyframes seasonBatFly {
-  0%   { transform: translateX(0) translateY(0); }
-  50%  { transform: translateX(58vw) translateY(-20px); }
-  100% { transform: translateX(132vw) translateY(8px); }
-}
-
-.seasonal-bat .bat-wing {
-  position: absolute;
-  top: 9px;
-  width: 24px;
-  height: 16px;
-  background: #0f172a;
-  clip-path: polygon(100% 0, 0 16%, 40% 50%, 8% 80%, 52% 64%, 30% 100%, 100% 80%);
-  transform-origin: center 55%;
-}
-
-.seasonal-bat .wing-l {
-  left: 0;
-  animation: seasonWingL 0.9s ease-in-out infinite;
-}
-
-.seasonal-bat .wing-r {
-  right: 0;
-  animation: seasonWingR 0.9s ease-in-out infinite;
-}
-
-.seasonal-bat .bat-body {
+.wreath-bow {
   position: absolute;
   left: 50%;
-  top: 11px;
-  width: 10px;
-  height: 8px;
-  transform: translateX(-50%);
-  border-radius: 50%;
-  background: #0f172a;
+  bottom: 4px;
+  width: 34px;
+  height: 18px;
+  margin-left: -17px;
+  border-radius: 60% 40% 55% 45%;
+  background: radial-gradient(circle at 32% 32%, #f87171, #b91c1c 72%);
+  box-shadow: inset -3px -3px 5px rgba(0, 0, 0, 0.25);
+  transform: rotate(3deg);
 }
 
-@keyframes seasonWingL {
-  0%, 100% { transform: scaleX(-1) scaleY(1); }
-  50%      { transform: scaleX(-1) scaleY(0.35); }
+/* Festive hero accents (both themes) -------------------------------------- */
+
+.seasonal-hero .text-gradient {
+  background-image: linear-gradient(92deg, #b45309, #b91c1c 46%, #15803d);
 }
-
-@keyframes seasonWingR {
-  0%, 100% { transform: scaleY(1); }
-  50%      { transform: scaleY(0.35); }
-}
-
-/* Fireflies -------------------------------------------------------------- */
-
-.seasonal-firefly {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle, #fef3c7 0%, rgba(253, 230, 138, 0.7) 40%, transparent 72%);
-  box-shadow: 0 0 10px 3px rgba(253, 230, 138, 0.55);
-  animation: seasonTwinkle 3.4s ease-in-out infinite;
-}
-
-@keyframes seasonTwinkle {
-  0%, 100% { opacity: 0.1; transform: scale(0.8); }
-  50%      { opacity: 0.95; transform: scale(1.15); }
-}
-
-/* Corner spider web ------------------------------------------------------- */
-
-.seasonal-web {
-  position: absolute;
-  left: -14px;
-  bottom: -14px;
-  width: 240px;
-  height: 240px;
-  background:
-    repeating-radial-gradient(circle at 0% 100%, transparent 0 15px, rgba(203, 213, 225, 0.28) 15px 16px),
-    repeating-conic-gradient(from 90deg at 0% 100%, rgba(203, 213, 225, 0.26) 0 9deg, transparent 9deg 24deg);
-  clip-path: polygon(0 100%, 0 0, 100% 100%);
-  opacity: 0.9;
-}
-
-.seasonal-web-spider {
-  position: absolute;
-  left: 20px;
-  bottom: 18px;
-  width: 9px;
-  height: 7px;
-  border-radius: 50%;
-  background: #0f172a;
-  animation: seasonSpiderBob 5s ease-in-out infinite;
-}
-
-@keyframes seasonSpiderBob {
-  0%, 100% { transform: translateY(0); }
-  50%      { transform: translateY(4px); }
-}
-
-/* Halloween hero tint (dark only) ---------------------------------------- */
 
 .dark .seasonal-hero .text-gradient {
-  background-image: linear-gradient(92deg, #fb923c, #a855f7 55%, #f472b6);
+  background-image: linear-gradient(92deg, #fbbf24, #f87171 52%, #4ade80);
 }
 
-.dark .seasonal-hero .seasonal-cta-glow {
-  background-image: linear-gradient(90deg, #f97316, #9333ea);
+.seasonal-cta-glow {
   animation: seasonCtaGlow 4.5s ease-in-out infinite;
 }
 
-@keyframes seasonCtaGlow {
-  0%, 100% { box-shadow: 0 10px 26px -8px rgba(249, 115, 22, 0.55); }
-  50%      { box-shadow: 0 10px 36px -4px rgba(147, 51, 234, 0.6); }
+.dark .seasonal-cta-glow {
+  background-image: linear-gradient(90deg, #16a34a, #b91c1c 55%, #d97706);
 }
+
+@keyframes seasonCtaGlow {
+  0%, 100% { box-shadow: 0 10px 26px -8px rgba(185, 28, 28, 0.42); }
+  50%      { box-shadow: 0 10px 36px -4px rgba(217, 119, 6, 0.55); }
+}
+
 
 
 /* Hover/tap utilities */
@@ -1921,27 +1821,27 @@ html {
 @media (prefers-reduced-motion: reduce) {
   .seasonal-drop-motion,
   .seasonal-hang,
-  .seasonal-spider .spider-leg,
-  .seasonal-candle .candle-flame,
-  .seasonal-ghost,
-  .seasonal-moon,
-  .seasonal-cloud,
-  .seasonal-mist,
-  .seasonal-bat,
-  .seasonal-bat .bat-wing,
-  .seasonal-firefly,
-  .seasonal-web-spider,
-  .dark .seasonal-hero .seasonal-cta-glow {
+  .star-body,
+  .star-halo,
+  .seasonal-snowflake,
+  .seasonal-snow,
+  .light-bulb,
+  .seasonal-aurora,
+  .seasonal-star-dot,
+  .lantern-halo,
+  .seasonal-cta-glow {
     animation: none;
   }
-  .seasonal-lamp .lamp-glow,
-  .seasonal-pumpkin .pumpkin-glow,
-  .seasonal-candle .candle-halo {
-    animation: none;
+  .lantern-halo,
+  .star-halo {
     opacity: 0.8;
   }
-  .seasonal-bat { left: 130vw; }
-  .seasonal-firefly { opacity: 0.5; }
+  .light-bulb {
+    opacity: 1;
+  }
+  .seasonal-snow {
+    opacity: 0.5;
+  }
 }
 
 /* 404 spin utility */

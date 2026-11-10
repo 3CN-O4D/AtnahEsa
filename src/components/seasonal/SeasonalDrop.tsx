@@ -6,158 +6,150 @@ import { useTheme } from '@/lib/ThemeProvider'
 /**
  * Seasonal hanging decoration for the home + auth pages.
  *
- * Dark mode drops a spider, or sometimes a pendant lamp / pumpkin lamp / candle.
- * Light mode drops a doll or a friendly monkey. Shapes are pure CSS so they look
- * the same on every platform, they are `aria-hidden`, they never capture clicks,
- * and the whole thing only appears once the theme has been resolved so it never
- * flashes the wrong family. All motion lives behind a reduced-motion override.
+ * Holiday season (Thanksgiving → Christmas). Dark mode drops a glowing bauble,
+ * star, snowflake, bell, candy cane or lantern. Light mode drops a green bauble,
+ * gingerbread cookie, pinecone, star, snowflake, bell or candy cane. Shapes are
+ * pure CSS so they look the same on every platform, they are `aria-hidden`,
+ * they never capture clicks, and the whole thing only appears once the theme
+ * has been resolved so it never flashes the wrong family. All motion lives
+ * behind a reduced-motion override.
  */
 
-type Variant = 'spider' | 'lamp' | 'pumpkin' | 'candle' | 'ghost' | 'doll' | 'monkey'
+type Variant =
+  | 'bauble-red'
+  | 'bauble-green'
+  | 'bauble-gold'
+  | 'star'
+  | 'snowflake'
+  | 'bell'
+  | 'candycane'
+  | 'gingerbread'
+  | 'pinecone'
+  | 'lantern'
 
-const DARK_VARIANTS: Variant[] = ['spider', 'lamp', 'pumpkin', 'candle', 'ghost']
-const LIGHT_VARIANTS: Variant[] = ['doll', 'monkey']
+const DARK_VARIANTS: Variant[] = ['bauble-red', 'bauble-gold', 'star', 'snowflake', 'bell', 'candycane', 'lantern']
+const LIGHT_VARIANTS: Variant[] = ['bauble-green', 'gingerbread', 'pinecone', 'star', 'snowflake', 'bell', 'candycane']
 
-const legStyle = (top: number, rotate: number): CSSProperties =>
-  ({ top, '--leg-rotate': `${rotate}deg` }) as CSSProperties
+const FLAKE_ANGLES = [0, 30, 60, 90, 120, 150]
 
-function Spider() {
+function Bauble({ tone }: { tone: 'red' | 'green' | 'gold' }) {
   return (
-    <div className="seasonal-spider">
-      <span className="spider-leg leg-l" style={legStyle(31, -8)} />
-      <span className="spider-leg leg-l" style={legStyle(38, 6)} />
-      <span className="spider-leg leg-l" style={legStyle(45, 16)} />
-      <span className="spider-leg leg-l" style={legStyle(52, 26)} />
-      <span className="spider-leg leg-r" style={legStyle(31, 8)} />
-      <span className="spider-leg leg-r" style={legStyle(38, -6)} />
-      <span className="spider-leg leg-r" style={legStyle(45, -16)} />
-      <span className="spider-leg leg-r" style={legStyle(52, -26)} />
-      <span className="spider-body" />
-      <span className="spider-head">
-        <span className="spider-eye spider-eye-l" />
-        <span className="spider-eye spider-eye-r" />
-        <span className="spider-mouth" />
+    <div className={`seasonal-bauble bauble-${tone}`}>
+      <span className="bauble-loop" />
+      <span className="bauble-cap" />
+      <span className="bauble-ball">
+        <span className="bauble-shine" />
       </span>
     </div>
   )
 }
 
-function Doll() {
+function Star() {
   return (
-    <div className="seasonal-doll">
-      <span className="doll-hair" />
-      <span className="doll-bun bun-l" />
-      <span className="doll-bun bun-r" />
-      <span className="doll-face">
-        <span className="doll-eye doll-eye-l" />
-        <span className="doll-eye doll-eye-r" />
-        <span className="doll-blush blush-l" />
-        <span className="doll-blush blush-r" />
-        <span className="doll-mouth" />
+    <div className="seasonal-star">
+      <span className="star-halo" />
+      <span className="star-body" />
+    </div>
+  )
+}
+
+function Snowflake() {
+  return (
+    <div className="seasonal-snowflake">
+      {FLAKE_ANGLES.map((angle) => (
+        <span
+          key={angle}
+          className="flake-arm"
+          style={{ transform: `rotate(${angle}deg)` } as CSSProperties}
+        />
+      ))}
+      <span className="flake-core" />
+    </div>
+  )
+}
+
+function Bell() {
+  return (
+    <div className="seasonal-bell">
+      <span className="bell-bow" />
+      <span className="bell-body" />
+      <span className="bell-rim" />
+      <span className="bell-clapper" />
+    </div>
+  )
+}
+
+function CandyCane() {
+  return (
+    <div className="seasonal-candycane">
+      <span className="cane-hook" />
+      <span className="cane-stick" />
+    </div>
+  )
+}
+
+function Gingerbread() {
+  return (
+    <div className="seasonal-gingerbread">
+      <span className="ginger-arm arm-l" />
+      <span className="ginger-arm arm-r" />
+      <span className="ginger-leg leg-l" />
+      <span className="ginger-leg leg-r" />
+      <span className="ginger-body" />
+      <span className="ginger-head">
+        <span className="ginger-eye eye-l" />
+        <span className="ginger-eye eye-r" />
+        <span className="ginger-smile" />
       </span>
-      <span className="doll-dress" />
-      <span className="doll-collar" />
-      <span className="doll-arm arm-l" />
-      <span className="doll-arm arm-r" />
-      <span className="doll-shoe shoe-l" />
-      <span className="doll-shoe shoe-r" />
+      <span className="ginger-button btn-1" />
+      <span className="ginger-button btn-2" />
     </div>
   )
 }
 
-function Monkey() {
+function Pinecone() {
   return (
-    <div className="seasonal-monkey">
-      <span className="monkey-ear ear-l" />
-      <span className="monkey-ear ear-r" />
-      <span className="monkey-head">
-        <span className="monkey-muzzle" />
-        <span className="monkey-eye eye-l" />
-        <span className="monkey-eye eye-r" />
-        <span className="monkey-smile" />
-      </span>
-      <span className="monkey-body" />
-      <span className="monkey-arm arm-l" />
-      <span className="monkey-arm arm-r" />
-      <span className="monkey-foot foot-l" />
-      <span className="monkey-foot foot-r" />
-      <span className="monkey-tail" />
+    <div className="seasonal-pinecone">
+      <span className="pinecone-stem" />
+      <span className="pinecone-body" />
     </div>
   )
 }
 
-function Lamp() {
+function Lantern() {
   return (
-    <div className="seasonal-lamp">
-      <span className="lamp-glow" />
-      <span className="lamp-socket" />
-      <span className="lamp-shade" />
-      <span className="lamp-rim" />
-      <span className="lamp-bulb" />
-    </div>
-  )
-}
-
-function Pumpkin() {
-  return (
-    <div className="seasonal-pumpkin">
-      <span className="pumpkin-glow" />
-      <span className="pumpkin-stem" />
-      <span className="pumpkin-body" />
-      <span className="pumpkin-face">
-        <span className="pumpkin-eye pumpkin-eye-l" />
-        <span className="pumpkin-eye pumpkin-eye-r" />
-        <span className="pumpkin-mouth" />
-      </span>
-    </div>
-  )
-}
-
-function Candle() {
-  return (
-    <div className="seasonal-candle">
-      <span className="candle-halo" />
-      <span className="candle-flame" />
-      <span className="candle-wick" />
-      <span className="candle-wax" />
-      <span className="candle-drip drip-l" />
-      <span className="candle-drip drip-r" />
-    </div>
-  )
-}
-
-function Ghost() {
-  return (
-    <div className="seasonal-ghost">
-      <span className="ghost-head">
-        <span className="ghost-eye ghost-eye-l" />
-        <span className="ghost-eye ghost-eye-r" />
-        <span className="ghost-mouth" />
-      </span>
-      <span className="ghost-body" />
-      <span className="ghost-tail" />
-      <span className="ghost-tail tail-l" />
-      <span className="ghost-tail tail-r" />
+    <div className="seasonal-lantern">
+      <span className="lantern-halo" />
+      <span className="lantern-handle" />
+      <span className="lantern-top" />
+      <span className="lantern-glass" />
+      <span className="lantern-base" />
     </div>
   )
 }
 
 function Creature({ variant }: { variant: Variant }) {
   switch (variant) {
-    case 'spider':
-      return <Spider />
-    case 'doll':
-      return <Doll />
-    case 'monkey':
-      return <Monkey />
-    case 'lamp':
-      return <Lamp />
-    case 'pumpkin':
-      return <Pumpkin />
-    case 'candle':
-      return <Candle />
-    case 'ghost':
-      return <Ghost />
+    case 'bauble-red':
+      return <Bauble tone="red" />
+    case 'bauble-green':
+      return <Bauble tone="green" />
+    case 'bauble-gold':
+      return <Bauble tone="gold" />
+    case 'star':
+      return <Star />
+    case 'snowflake':
+      return <Snowflake />
+    case 'bell':
+      return <Bell />
+    case 'candycane':
+      return <CandyCane />
+    case 'gingerbread':
+      return <Gingerbread />
+    case 'pinecone':
+      return <Pinecone />
+    case 'lantern':
+      return <Lantern />
   }
 }
 

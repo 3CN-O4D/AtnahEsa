@@ -186,11 +186,6 @@ async function start() {
     const { version } = await fetchLatestBaileysVersion()
     let isRegistered = !!state?.creds?.registered
 
-    sock.ev.on('creds.update', () => {
-      saveCreds()
-      isRegistered = !!state?.creds?.registered
-    })
-
     sock = makeWASocket({
       version,
       logger,
@@ -201,7 +196,10 @@ async function start() {
       generateHighQualityLinkPreview: true,
     })
 
-    sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('creds.update', () => {
+      saveCreds()
+      isRegistered = !!state?.creds?.registered
+    })
 
     if (!state.creds.registered && WHATSAPP_PAIR_NUMBER) {
       try {

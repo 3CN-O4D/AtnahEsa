@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
+import { createClient } from '@/lib/supabase/server'
 import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
-import { notifyAdmins } from '@/lib/notify'
+import { notifyAdmins, notifyUser } from '@/lib/notify'
 import { WIFI_INSTALLATION_FEE, WHATSAPP_NUMBER } from '@/lib/constants'
 import { sendOtpEmail } from '@/lib/email'
 import { isValidPhone, parseWhatsAppContact, canonicalWhatsAppContact, getWhatsAppLink } from '@/lib/whatsapp'
@@ -526,8 +527,8 @@ export async function continuePasswordReset(state: ChatState, msg: string): Prom
       return set('email', `That email doesn't look right — please try again (e.g. you@example.com).`)
     }
 
-    // Rate limit: max 10 OTP sends per hour per email
-    const { allowed, retryAfter } = await checkRateLimit(`password-reset-send:${email}`, 10, 3600)
+    // Rate limit: max 3 OTP sends per 10 minutes per email (stricter to prevent guessing)
+    const { allowed, retryAfter } = await checkRateLimit(`password-reset-send:${email}`, 3, 600)
     if (!allowed) {
       return set('email', `Too many reset code requests for this email. Please try again in ${retryAfter} seconds.`)
     }
@@ -566,7 +567,7 @@ export async function continuePasswordReset(state: ChatState, msg: string): Prom
       return set('otp', `Please enter the full *6-digit code* you received by email.`)
     }
 
-    const { allowed, retryAfter } = await checkRateLimit(`password-reset-verify:${draft.email as string}`, 10, 3600)
+    const { allowed, retryAfter } = await checkRateLimit(`password-reset-verify:${draft.email as string}`, 3, 600)
     if (!allowed) {
       return set('otp', `Too many attempts. Please try again in ${retryAfter} seconds.`)
     }
@@ -637,6 +638,14 @@ export async function continueChangeEmail(state: ChatState, msg: string): Promis
     if (!allowed) {
       return set('current_email', `Too many requests. Please try again in ${retryAfter} seconds.`)
     }
+
+    // Verify the logged-in user owns this email before sending a code
+    const userClient = await createClient()
+    const { data: { user: sessionUser } } = await userClient.auth.getUser()
+    if (!sessionUser || sessionUser.email?.toLowerCase() !== email) {
+      return set('current_email', `That email doesn't match your account. You can only change the email for your own account (${sessionUser?.email || 'not signed in'}).`)
+    }
+
     const supabase = createAdminClient()
     const user = await findAuthUserByEmail(email)
     if (!user) {
@@ -732,6 +741,19 @@ export async function continueChangeEmail(state: ChatState, msg: string): Promis
     await supabase.auth.admin.updateUserById(user.id, { email: draft.new_email as string })
     await supabase.from('profiles').update({ email: draft.new_email as string }).eq('id', user.id)
 
+    // Notify the OLD email that their email was changed (security alert)
+    try {
+      await notifyUser(draft.current_email as string, 'Email Changed', 'Your AseHanta account email has been changed.', {
+        Name: draft.current_email as string,
+        'Old Email': draft.current_email as string,
+        'New Email': draft.new_email as string,
+        'Changed At': new Date().toLocaleString('en-KE'),
+        Action: 'If you did not request this, contact support immediately.',
+      })
+    } catch {
+      console.error('Failed to send old email change notification')
+    }
+
     return {
       reply: `✅ *Email changed successfully!*\n\nYour AseHanta account email is now ${draft.new_email as string}.\n\nYou can sign in with the new email.`,
       state: { mode: 'chat', step: null, draft: {} },
@@ -769,6 +791,14 @@ export async function continueDeleteAccount(state: ChatState, msg: string): Prom
     if (!allowed) {
       return set('email', `Too many requests. Please try again in ${retryAfter} seconds.`)
     }
+
+    // Verify the logged-in user owns this email before sending a code
+    const userClient = await createClient()
+    const { data: { user: sessionUser } } = await userClient.auth.getUser()
+    if (!sessionUser || sessionUser.email?.toLowerCase() !== email) {
+      return set('email', `That email doesn't match your account. You can only delete your own account (${sessionUser?.email || 'not signed in'}).`)
+    }
+
     const supabase = createAdminClient()
     const user = await findAuthUserByEmail(email)
     if (!user) {

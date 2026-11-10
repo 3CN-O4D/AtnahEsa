@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
-import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft, Camera, Loader2 } from 'lucide-react'
+import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft, Camera, Loader2, MessageCircle } from 'lucide-react'
 import { buildOpeningMessages } from '@/lib/chat/messages'
 import { splitBubbles } from '@/lib/chat/bubbles'
 import { emptyState } from '@/lib/chat/types'
@@ -238,6 +238,9 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   const [uploadError, setUploadError] = useState('')
   // Number of opening bubbles already shown.
   const [introStep, setIntroStep] = useState(0)
+  // Hand-off token from /chat?h=… (conversation started on WhatsApp).
+  const [handoffToken, setHandoffToken] = useState<string | null>(null)
+  const [handoffing, setHandoffing] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
 
@@ -327,6 +330,47 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
     [append, chatState, loading, messages, openingMsgs.length]
   )
 
+  /**
+   * Continue this same conversation on WhatsApp. We mint a single-use hand-off
+   * token carrying the engine state + recent messages, then open wa.me with a
+   * prefilled message. The bot redeems the token on first contact, so nothing
+   * has to be repeated.
+   */
+  const continueOnWhatsApp = useCallback(async () => {
+    if (handoffing || loading) return
+    setHandoffing(true)
+    try {
+      const history: ChatMessage[] = messages
+        .filter((m) => !m.error)
+        .slice(-12)
+        .map((m) => ({ role: m.role, content: m.content }))
+      const lastUser = [...messages].reverse().find((m) => m.role === 'user')
+
+      const res = await fetch('/api/chat/handoff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          direction: 'web_to_whatsapp',
+          state: chatState,
+          history,
+          summary: lastUser?.content?.slice(0, 300) ?? null,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok || typeof data?.url !== 'string') throw new Error(data?.error || 'Hand-off failed')
+      window.open(data.url, '_blank', 'noopener,noreferrer')
+    } catch {
+      append({
+        id: nextId(),
+        role: 'assistant',
+        content: `I couldn't open WhatsApp just now. Please try again in a moment. 🙏`,
+        error: true,
+      })
+    } finally {
+      setHandoffing(false)
+    }
+  }, [append, chatState, handoffing, loading, messages])
+
   const uploadAvatar = async (file: File) => {
     const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/avif']
     const MAX_SIZE = 4 * 1024 * 1024
@@ -375,9 +419,66 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
     }
   }
 
+  // Read a WhatsApp → web hand-off token from the URL after mount. The token is
+  // not known during SSR, so this has to land in state from the effect.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('h')
+    if (token) setHandoffToken(token)
+  }, [])
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Redeem it once: restore state + history, stop the intro, and say hello.
+  useEffect(() => {
+    if (!handoffToken) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const res = await fetch(`/api/chat/handoff?token=${encodeURIComponent(handoffToken)}`)
+        const data = await res.json().catch(() => null)
+        if (!res.ok || !data) throw new Error(data?.error || 'expired')
+        if (cancelled) return
+        const restored: UiMessage[] = Array.isArray(data.history)
+          ? data.history
+              .filter((m: ChatMessage) => m && typeof m.content === 'string' && m.content.trim())
+              .map((m: ChatMessage) => ({
+                id: nextId(),
+                role: m.role === 'user' ? 'user' : 'assistant',
+                content: String(m.content),
+              }))
+          : []
+        setMessages(restored)
+        setChatState(data.state ?? emptyState())
+        append({
+          id: nextId(),
+          role: 'assistant',
+          content: `Picked up from WhatsApp ✅ Everything we discussed is here — carry on wherever you left off.`,
+        })
+      } catch {
+        if (!cancelled) {
+          append({
+            id: nextId(),
+            role: 'assistant',
+            content: `That WhatsApp hand-off has expired or was already used. No problem — we can start fresh right here. 🙂`,
+          })
+        }
+      } finally {
+        if (!cancelled) {
+          window.history.replaceState({}, '', window.location.pathname)
+          setIntroStep(openingMsgs.length)
+          setHandoffToken(null)
+        }
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [append, handoffToken, openingMsgs.length])
+
   // Opening messages — sent one bubble at a time, the way a person texts on WhatsApp.
   // The first bubble is a time-based greeting.
   useEffect(() => {
+    if (handoffToken) return
     if (introStep >= openingMsgs.length) return
     const delay = introStep < 4 ? 1500 + Math.random() * 1000 : 900
     const id = setTimeout(() => {
@@ -390,7 +491,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
       setIntroStep((s) => s + 1)
     }, delay)
     return () => clearTimeout(id)
-  }, [introStep, append, openingMsgs])
+  }, [introStep, append, openingMsgs, handoffToken])
 
   const introTyping = introStep < openingMsgs.length
 
@@ -434,6 +535,17 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
             <ExternalLink className="h-3.5 w-3.5" /> Home
           </Link>
         )}
+        <button
+          type="button"
+          onClick={() => void continueOnWhatsApp()}
+          disabled={handoffing || loading}
+          title="Continue this chat on WhatsApp"
+          aria-label="Continue this chat on WhatsApp"
+          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#2a9c40] hover:bg-[#e8f8eb] disabled:opacity-50 dark:text-[#6fdc84] dark:hover:bg-[#30B54A]/10"
+        >
+          {handoffing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
+          <span className="hidden sm:inline">WhatsApp</span>
+        </button>
         {!isPage && onClose && (
           <button type="button" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700" aria-label="Close chat">
             <X className="h-4 w-4" />

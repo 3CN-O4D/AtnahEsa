@@ -2,7 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
 import { notifyAdmins } from '@/lib/notify'
 import { searchHouses } from './houseSearch'
-import type { HouseCardData } from './types'
+import type { AdminAlert, HouseCardData } from './types'
 import { PAGE_LINKS, CONTACT_INFO } from './knowledge'
 
 export interface ToolResult {
@@ -10,6 +10,8 @@ export interface ToolResult {
   text: string
   cards?: HouseCardData[]
   error?: string
+  /** Forwarded to the WhatsApp bridge so admins get a direct message too. */
+  adminAlert?: AdminAlert
 }
 
 /** Live house counts across the platform, broken down by listing status. */
@@ -65,6 +67,138 @@ export async function toolSearchHouses(query: string): Promise<ToolResult> {
   }
 }
 
+/** Columns safe to show outside the owner-only listing editor. */
+const PUBLIC_LISTING_COLUMNS =
+  'id,title,description,price,rent,location,descriptive_location,images,house_type,building_type,floor_number,water,electricity,electric_bill,deposit,deposit_refundable,vacancy,vacancy_type,why_vacant,status,issues,issues_count,youtube_url,tiktok_url,video_url,video_urls,created_at'
+
+interface LookupListing {
+  id: string
+  title: string | null
+  description: string | null
+  price: number | null
+  rent: number | null
+  location: string | null
+  descriptive_location: string | null
+  images: string[] | null
+  house_type: string | null
+  building_type: string | null
+  floor_number: string | null
+  water: string | null
+  electricity: string | null
+  electric_bill: string | null
+  deposit: number | null
+  deposit_refundable: boolean | null
+  vacancy: string | null
+  vacancy_type: string | null
+  why_vacant: string | null
+  status: string | null
+  issues: string[] | null
+  issues_count: number | null
+  youtube_url: string | null
+  tiktok_url: string | null
+  video_url: string | null
+  video_urls: string[] | null
+  created_at: string | null
+}
+
+/**
+ * Fetch one listing by id (or by a pasted listing link) and return everything a
+ * house hunter would see on the listing page, plus its photos as cards. This is
+ * what lets the assistant answer "what about listing <id>?" and send the images
+ * on WhatsApp instead of only the cover photo.
+ */
+export async function toolGetHouse(input: string): Promise<ToolResult> {
+  const raw = String(input ?? '').trim()
+  const match = raw.match(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i)
+  const id = match ? match[0] : raw
+
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return {
+      ok: false,
+      text: 'Send me the house link or the listing id and I will pull up the full details and photos.',
+      error: 'missing listing id',
+    }
+  }
+
+  const supabase = createAdminClient()
+  const { data, error } = await supabase
+    .from('listings')
+    .select(PUBLIC_LISTING_COLUMNS)
+    .eq('id', id)
+    .maybeSingle()
+
+  if (error) return { ok: false, text: 'Could not load that house right now.', error: error.message }
+  if (!data) return { ok: true, text: 'I could not find that house — it may have been removed. Want me to search for something similar?' }
+
+  const l = data as unknown as LookupListing
+  const rent = l.rent ?? l.price ?? 0
+  const photos = (l.images ?? []).filter(Boolean)
+  const statusLine =
+    l.status === 'taken'
+      ? '🚫 This one is already taken.'
+      : l.status === 'booked'
+        ? '⏳ Someone is currently viewing this one.'
+        : l.status === 'published'
+          ? '✅ Available for viewing.'
+          : `Status: ${l.status ?? 'unknown'}.`
+  const facts = [
+    l.house_type ? `🏠 ${l.house_type}` : '',
+    l.building_type ? `🏢 ${l.building_type}${l.floor_number ? ` · floor ${l.floor_number}` : ''}` : '',
+    l.water ? `💧 Water: ${l.water}` : '',
+    l.electricity ? `💡 Electricity: ${l.electricity}${l.electric_bill ? ` (${l.electric_bill})` : ''}` : '',
+    l.vacancy ? `📅 ${l.vacancy}` : '',
+    l.issues_count !== null && l.issues_count !== undefined ? `🔧 ${l.issues_count} known issue${l.issues_count === 1 ? '' : 's'}` : '',
+  ].filter(Boolean)
+  const money = [
+    rent ? `💰 *KSh ${rent.toLocaleString()}/month*` : '',
+    l.price ? `🔑 Viewing fee: KSh ${l.price.toLocaleString()}` : '',
+    l.deposit ? `🛡️ Deposit: KSh ${l.deposit.toLocaleString()}${l.deposit_refundable ? ' (refundable)' : ''}` : '',
+  ].filter(Boolean)
+  const description = (l.description ?? '').trim()
+  const shortDescription = description.length > 600 ? `${description.slice(0, 600).trimEnd()}…` : description
+  const link = `https://www.asehanta.com/listings/${l.id}`
+
+  const text = [
+    `*${l.title ?? 'House'}*`,
+    `📍 ${l.descriptive_location || l.location || 'Location not given'}`,
+    money.join('\n'),
+    facts.join(' · '),
+    statusLine,
+    shortDescription,
+    link,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+
+  const card: HouseCardData = {
+    id: l.id,
+    title: l.title ?? 'House',
+    location: l.location ?? 'Unknown area',
+    descriptive_location: l.descriptive_location,
+    rent,
+    price: l.price ?? rent,
+    house_type: l.house_type,
+    water: l.water,
+    deposit: l.deposit,
+    deposit_refundable: l.deposit_refundable,
+    vacancy: l.vacancy,
+    status: l.status,
+    image: photos[0] ?? null,
+    images: photos,
+    badges: [
+      l.house_type ?? '',
+      l.deposit_refundable ? 'Refundable deposit' : '',
+      l.status === 'published' ? 'Available now' : l.status === 'booked' ? 'Being viewed' : l.status === 'taken' ? 'Taken' : '',
+    ].filter(Boolean),
+  }
+
+  return {
+    ok: true,
+    text,
+    cards: [card],
+  }
+}
+
 export async function toolWifiPackages(): Promise<ToolResult> {
   const supabase = createAdminClient()
   const { data, error } = await supabase.from('wifi_packages').select('*').order('price', { ascending: true }).limit(12)
@@ -75,7 +209,6 @@ export async function toolWifiPackages(): Promise<ToolResult> {
     text: `*WiFi packages*\n${lines.join('\n')}\n\nBrowse all packages and book here: ${PAGE_LINKS.wifi.href}`,
   }
 }
-
 export async function toolMovers(): Promise<ToolResult> {
   const supabase = createAdminClient()
   const { data, error } = await supabase.from('movers').select('*').order('created_at', { ascending: false }).limit(10)
@@ -184,12 +317,27 @@ export async function toolNotifyAdmin(args: Record<string, unknown>): Promise<To
   return {
     ok: true,
     text: `Sent — the AseHanta team has been notified about "${subject}" (ref ${row.id.slice(0, 8)}). They usually respond within 24 hours.`,
+    adminAlert: {
+      topic,
+      subject,
+      priority: priority as AdminAlert['priority'],
+      message,
+      name: name || undefined,
+      phone: phone || undefined,
+      email: email || undefined,
+      listingId: relatedListingId || undefined,
+    },
   }
 }
 
 /** Unified tool map used by the AI tool-calling loop. */
 export const TOOLS = {
   search_houses: { desc: 'Search available houses by area, bedrooms, budget, water/token preferences.', run: (a: Record<string, unknown>) => toolSearchHouses(typeof a?.query === 'string' ? a.query : ''), params: { query: 'string' } },
+  get_house: {
+    desc: 'Look up one specific house by its listing id or a pasted listing link, then return the full details and photos. Use this whenever the user shares a listing link/id or asks about the house they were just shown. Never invent details for a specific listing.',
+    run: (a: Record<string, unknown>) => toolGetHouse(typeof a?.id === 'string' ? a.id : String(a?.url ?? '')),
+    params: { id: 'string' },
+  },
   get_stats: { desc: 'Get current house and user statistics.', run: toolStats, params: {} },
   wifi_packages: { desc: 'List current WiFi packages and prices.', run: toolWifiPackages, params: {} },
   movers: { desc: 'List verified movers.', run: toolMovers, params: {} },

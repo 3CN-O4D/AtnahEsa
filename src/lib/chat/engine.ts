@@ -2,9 +2,10 @@ import type { ChatRequest, ChatResponse, ChatState, ChatAction } from './types'
 import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
-import { toolStats, toolSearchHouses, toolWifiPackages, toolMovers, toolContact } from './tools'
+import { toolStats, toolSearchHouses, toolGetHouse, toolWifiPackages, toolMovers, toolContact } from './tools'
 import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, startChangeEmail, continueChangeEmail, startDeleteAccount, continueDeleteAccount, startChangeDP, continueDeleteDP, isCancelMessage } from './flows'
 import { aiChat, aiEnabled } from './ai'
+import { createHandoff } from './handoff'
 
 const AREA_WORDS = [
   'kipkaren', 'anex', 'annex', 'langas', 'kapsoya', 'pioneer', 'kokwas', 'juniorate', 'juniors',
@@ -16,6 +17,37 @@ const BEDROOM_RE = /\b(?:bedsitter|studio|bungalow|townhouse|apartment|1\s?br|2\
 
 const FALLBACK_REPLY =
   `Hmm, I'm not sure about that one yet 🙈\n\nI'm still learning, but I can help you find houses, show stats, help with WiFi or movers, explain escrow, or get you in touch with the team.\n\nWhat would you like?`
+
+/**
+ * Account-changing flows need the browser's signed-in session, which the
+ * WhatsApp bridge does not have. Match both a fresh intent and an already
+ * active flow so the chat never gets stuck waiting for an OTP it can't use.
+ */
+const WHATSAPP_WEB_INTENTS: { re: RegExp; what: string }[] = [
+  { re: /\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture|remove ?dp|delete ?dp)\b/, what: 'your profile picture' },
+  { re: /\b(change ?email|update ?email|new email|different email)\b/, what: 'your account email' },
+  { re: /\b(delete ?account|remove ?account|deactivate ?account|close ?account)\b/, what: 'your account' },
+]
+
+function whatsappBlockedIntent(state: ChatState, low: string): string | null {
+  const active =
+    state.mode === 'change_dp' || state.mode === 'change_email' || state.mode === 'delete_account'
+      ? state.mode
+      : null
+  const hit = WHATSAPP_WEB_INTENTS.find((i) => i.re.test(low)) ?? null
+  if (!active && !hit) return null
+
+  const what =
+    active === 'change_dp'
+      ? 'your profile picture'
+      : active === 'delete_account'
+        ? 'your account'
+        : active === 'change_email'
+          ? 'your account email'
+          : hit!.what
+
+  return `🔐 I can't change ${what} from WhatsApp — that needs a signed-in browser session for security.\n\nOpen https://www.asehanta.com/profile while signed in and do it there.\n\nAnything else I can help with?`
+}
 
 export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   const msg = (input.message || '').trim().slice(0, 600)
@@ -55,6 +87,14 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
 
   const low = msg.toLowerCase()
 
+  // 2b. WhatsApp can't touch the logged-in account: the bridge has no browser
+  // session. Send those intents to the website instead of letting the cookie
+  // flow fail with "not signed in".
+  if (input.channel === 'whatsapp') {
+    const blocked = whatsappBlockedIntent(prevState, low)
+    if (blocked) return { reply: blocked, state: emptyState() }
+  }
+
   // 3. Guided-flow STARTS — exact intents that need the state-machine wizard.
   // Check these BEFORE AI so the AI can't intercept and give text instructions instead.
   if (/\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture)\b/.test(low)) {
@@ -79,6 +119,41 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return startDeleteAccount()
   }
 
+  // 3b. A pasted listing link or listing id — fetch that exact house, with its
+  // photos. Works even when the AI is off, and never invents listing data.
+  const listingId = extractListingId(msg)
+  if (listingId) {
+    const house = await toolGetHouse(listingId)
+    return {
+      reply: house.text,
+      actions: house.cards?.length ? [{ type: 'card', card: house.cards[0] }] : [linkAction('🏠 Open listing', `https://www.asehanta.com/listings/${listingId}`)],
+      state: emptyState(),
+    }
+  }
+
+  // 3c. WhatsApp → website hand-off. The user wants to continue in a browser
+  // (better for forms, uploads and payments); mint a single-use token that
+  // carries this chat's state and history to /chat.
+  if (
+    input.channel === 'whatsapp' &&
+    /\b(continue|switch|move|open|use|go|take)\b[^.!?]{0,30}\b(web|website|browser|site|chat page)\b/.test(low)
+  ) {
+    try {
+      const handoff = await createHandoff({
+        direction: 'whatsapp_to_web',
+        state: prevState,
+        history: [...history, { role: 'user', content: msg }],
+      })
+      return {
+        reply: `Sure — open this link to continue this chat in your browser. Your history and any half-finished request come with you. 💬\n\n${handoff.url}`,
+        actions: [linkAction('💬 Open web chat', handoff.url)],
+        state: prevState,
+      }
+    } catch (err) {
+      console.error('[chat] web hand-off failed:', err)
+    }
+  }
+
   // 4. AI-first — the model thinks, calls its tools in the background, then
   // formats a human reply. Deterministic rules below act as fallback when AI
   // is off or down.
@@ -86,7 +161,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     const ai = await aiChat(history, msg)
     if (ai && ai.reply) {
       const actions: ChatAction[] = (ai.cards ?? []).slice(0, 5).map((c) => ({ type: 'card', card: c }))
-      return { reply: ai.reply, actions: actions.length ? actions : undefined, state: emptyState() }
+      return { reply: ai.reply, actions: actions.length ? actions : undefined, state: emptyState(), adminAlert: ai.adminAlert }
     }
   }
 
@@ -237,6 +312,14 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
 
 function linkAction(label: string, href: string): ChatAction {
   return { type: 'link', label, href }
+}
+
+/** Pull a listing id out of a pasted listing link or a bare UUID. */
+function extractListingId(text: string): string | null {
+  const link = text.match(/\/listings\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i)
+  if (link) return link[1]
+  const bare = text.match(/\b([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\b/i)
+  return bare ? bare[1] : null
 }
 
 // Re-export helper used by the API route for defaults.

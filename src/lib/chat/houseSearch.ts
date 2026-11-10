@@ -211,6 +211,7 @@ export async function searchHouses(queryText: string, limit = 5): Promise<{ card
     vacancy: l.vacancy,
     status: l.status,
     image: (l.images ?? [])[0] ?? null,
+    images: (l.images ?? []).filter(Boolean),
     badges: buildBadges(l),
   }))
 

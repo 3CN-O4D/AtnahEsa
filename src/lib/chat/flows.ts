@@ -10,7 +10,7 @@ import { checkRateLimit } from '@/lib/rate-limit'
 import { extractRentRange } from './houseSearch'
 import { toolWifiPackages } from './tools'
 import { aiEnabled, aiEndpoint, aiKey, aiModel } from './ai'
-import type { ChatAction, ChatState, ChatMessage } from './types'
+import type { AdminAlert, ChatAction, ChatState, ChatMessage } from './types'
 import { randomInt } from 'crypto'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -22,6 +22,8 @@ export interface FlowStepResult {
   state: ChatState
   /** True when the flow completed and the draft was submitted. */
   done?: boolean
+  /** Ping the admin team on WhatsApp as well as by email. */
+  adminAlert?: AdminAlert
 }
 
 export function isCancelMessage(msg: string): boolean {
@@ -183,6 +185,27 @@ export async function continueHouseRequest(state: ChatState, msg: string): Promi
         state: { mode: 'chat', step: null, draft: {} },
         actions: [{ type: 'link', label: 'Browse houses', href: 'https://www.asehanta.com/' }],
         quickReplies: ['🏠 Find me a house now', '📶 WiFi packages'],
+        adminAlert: {
+          topic: 'house request',
+          subject: `New house request — ${String(draft.location || 'any area')}`,
+          priority: 'normal',
+          message: [
+            `Name: ${draft.name}`,
+            `Phone: ${draft.phone}`,
+            `WhatsApp: ${draft.whatsapp || draft.phone}`,
+            `Email: ${draft.email}`,
+            `Location: ${draft.location}`,
+            `Budget: ${draft.min_rent || draft.max_rent ? `KSh ${draft.min_rent ? Number(draft.min_rent).toLocaleString() : 'any'} – ${draft.max_rent ? Number(draft.max_rent).toLocaleString() : 'any'}` : 'not given'}`,
+            `Type: ${(draft.house_designs as string[] | undefined)?.join(', ') || 'any'}`,
+            `Water: ${(draft.water_options as string[] | undefined)?.join(', ') || 'any'}`,
+            `Token: ${(draft.token_options as string[] | undefined)?.join(', ') || 'any'}`,
+            `Notes: ${draft.description || 'none'}`,
+            'Source: WhatsApp chatbot',
+          ].join('\n'),
+          name: String(draft.name ?? ''),
+          phone: String(draft.whatsapp || draft.phone || ''),
+          email: String(draft.email ?? ''),
+        },
       }
     }
 
@@ -386,6 +409,22 @@ export async function continueWifiBooking(state: ChatState, msg: string): Promis
         actions: [{ type: 'link', label: 'Browse WiFi packages', href: 'https://www.asehanta.com/wifi' }],
         quickReplies: ['🏠 Find me a house', '🚚 I need a mover'],
         state: { mode: 'chat', step: null, draft: {} },
+        adminAlert: {
+          topic: 'WiFi booking',
+          subject: `New WiFi booking — ${String(draft.area || 'unknown area')}`,
+          priority: 'normal',
+          message: [
+            `Name: ${draft.name}`,
+            `Phone: ${draft.phone}`,
+            `Area: ${draft.area}`,
+            `ID: ${draft.id_number}`,
+            `Package: ${draft.package_name}`,
+            `Installation fee: KSh ${res.total.toLocaleString()}`,
+            'Source: WhatsApp chatbot',
+          ].join('\n'),
+          name: String(draft.name ?? ''),
+          phone: String(draft.phone ?? ''),
+        },
       }
     }
     return { reply: `Shall I submit this WiFi booking? Reply *yes* or *no*.`, quickReplies: ['Yes, submit it', 'No, start over'], state: { mode: 'wifi_booking', step: 'confirm', draft } }
@@ -497,6 +536,21 @@ export async function continueMoverRequest(state: ChatState, msg: string): Promi
         actions: wa ? [{ type: 'link', label: '💬 Continue on WhatsApp', href: wa }] : undefined,
         quickReplies: ['🏠 Find me a house', '📶 WiFi packages'],
         state: { mode: 'chat', step: null, draft: {} },
+        adminAlert: {
+          topic: 'mover request',
+          subject: `New mover request — ${String(draft.mover || 'any mover')}`,
+          priority: 'normal',
+          message: [
+            `Name: ${draft.name}`,
+            `Phone: ${draft.phone}`,
+            `Move: ${draft.details}`,
+            `Mover: ${draft.mover}`,
+            `When: ${draft.date}`,
+            'Source: WhatsApp chatbot',
+          ].join('\n'),
+          name: String(draft.name ?? ''),
+          phone: String(draft.phone ?? ''),
+        },
       }
     }
     return { reply: `Shall I hand this to our team on WhatsApp? Reply *yes* or *no*.`, quickReplies: ['Yes, continue on WhatsApp', 'No, start over'], state: { mode: 'mover_request', step: 'confirm', draft } }

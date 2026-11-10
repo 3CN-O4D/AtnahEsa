@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { CONTACT_EMAIL, CONTACT_PHONE, CONTACT_PHONE_DISPLAY, WHATSAPP_NUMBER } from '@/lib/constants'
+import { enqueueWhatsApp, phoneForEmail, sendOtpWhatsApp } from '@/lib/whatsapp/outbox'
 
 const transporter = nodemailer.createTransport({
   host: process.env.BREVO_SMTP_HOST,
@@ -134,6 +135,9 @@ export async function sendOtpEmail(email: string, otp: string, type: string) {
     subject,
     html: baseHtml(body),
   })
+
+  // Same code on WhatsApp, when this account has a registered phone number.
+  await sendOtpWhatsApp(email, otp, type)
 }
 
 /**
@@ -257,6 +261,41 @@ export async function sendPaymentReceiptEmail(params: {
         }
       : {}),
   })
+
+  // Receipt on WhatsApp too: the same summary plus the PDF as a document.
+  try {
+    const phone = await phoneForEmail(to)
+    if (phone) {
+      const text = [
+        `🧾 *Payment received — ${amountText}*`,
+        `Your payment for *${listingTitle}* is safe in escrow.`,
+        '',
+        `• *Receipt:* ${receiptNumber || '—'}`,
+        `• *Held until:* ${heldText}`,
+        listingLocation ? `• *Location:* ${listingLocation}` : '',
+        listerName ? `• *Lister:* ${listerName}${listerPhone ? ` · ${listerPhone}` : ''}` : '',
+        '',
+        'Happy with the house? Confirm in My Bookings and we pay the lister.',
+        'Changed your mind? You get 85% back. Fake listing or no-show? 100% back.',
+        '',
+        `Open My Bookings: https://www.asehanta.com/my-bookings?tab=payments`,
+      ]
+        .filter(Boolean)
+        .join('\n')
+
+      await enqueueWhatsApp({
+        to: phone,
+        kind: 'receipt',
+        text,
+        mediaBase64: pdf ? pdf.toString('base64') : null,
+        mediaMime: pdf ? 'application/pdf' : null,
+        fileName: pdf ? `AseHanta-receipt-${bookingId.slice(0, 8)}.pdf` : null,
+        meta: { bookingId, receiptNumber, email: to },
+      })
+    }
+  } catch (err) {
+    console.error('Failed to mirror receipt to WhatsApp:', err)
+  }
 }
 
 /**

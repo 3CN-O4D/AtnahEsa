@@ -1,5 +1,5 @@
 import { runTool, toolSchemas, type ToolName } from './tools'
-import type { ChatMessage, HouseCardData } from './types'
+import type { AdminAlert, ChatMessage, HouseCardData } from './types'
 import { CONTACT_INFO, PLATFORM_KNOWLEDGE } from './knowledge'
 import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
 
@@ -8,6 +8,7 @@ const MAX_ROUNDS = 4
 export interface AiChatResult {
   reply: string
   cards?: HouseCardData[]
+  adminAlert?: AdminAlert
 }
 
 /**
@@ -73,6 +74,7 @@ LANGUAGE RULES (read twice):
 
 TOOLS — ALWAYS call a tool when the user asks about its topic, even mid-conversation. Don't guess data yourself.
 - search_houses: Find real houses by area, bedrooms, budget, water/token. Call it for ANY house search — never invent listings.
+- get_house: Look up ONE specific house by its listing id or a pasted listing link (e.g. https://www.asehanta.com/listings/<id>). Call it whenever the user asks about "that house", sends a listing link/id, or asks for more details or photos of a specific listing. Then summarise the details and mention that the photos/card are below.
 - get_stats: Current house/hunter/lister counts
 - wifi_packages: Real WiFi packages and prices
 - movers: Real verified movers
@@ -172,6 +174,7 @@ export async function aiChat(
 
   const cards: HouseCardData[] = []
   const seen = new Set<string>()
+  let adminAlert: AdminAlert | undefined
 
   try {
     for (let round = 0; round < MAX_ROUNDS; round++) {
@@ -211,7 +214,7 @@ export async function aiChat(
           }
           const data = await plain.json()
           const plainContent: string | null = data?.choices?.[0]?.message?.content ?? null
-          return plainContent ? { reply: polishReply(plainContent), cards } : null
+          return plainContent ? { reply: polishReply(plainContent), cards, adminAlert } : null
         }
         return null
       }
@@ -242,6 +245,7 @@ export async function aiChat(
             }
           }
           const result = await runTool(name, args)
+          if (result.adminAlert) adminAlert = result.adminAlert
           for (const c of result.cards ?? []) {
             if (!seen.has(c.id)) {
               seen.add(c.id)
@@ -257,7 +261,7 @@ export async function aiChat(
         continue
       }
 
-      return { reply: polishReply(content ?? ''), cards }
+      return { reply: polishReply(content ?? ''), cards, adminAlert }
     }
     return null
   } catch (err) {

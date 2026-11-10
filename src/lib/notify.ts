@@ -1,4 +1,5 @@
 import nodemailer from 'nodemailer'
+import { notifyAdminsWhatsApp, notifyUserWhatsApp } from '@/lib/whatsapp/outbox'
 
 const transporter = nodemailer.createTransport({
   host: process.env.BREVO_SMTP_HOST,
@@ -147,6 +148,9 @@ export async function notifyUser(to: string, subject: string, title: string, fie
   } catch (err) {
     console.error(`Failed to notify ${to}:`, err)
   }
+
+  // Mirror to WhatsApp when this user registered a phone number.
+  await notifyUserWhatsApp(to, safeSubject, title, fields)
 }
 
 function render(subject: string, title: string, fields: Record<string, string>) {
@@ -174,4 +178,7 @@ export async function notifyAdmins(subject: string, title: string, fields: Recor
       console.error(`❌ Failed to notify ${to}:`, err)
     }
   }
+
+  // Mirror admin alerts to the admin WhatsApp numbers too.
+  await notifyAdminsWhatsApp(safeSubject, title, fields)
 }

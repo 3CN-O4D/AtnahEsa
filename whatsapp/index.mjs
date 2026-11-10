@@ -184,6 +184,12 @@ async function start() {
   try {
     const { state, saveCreds } = await useSupabaseAuthState(supabase, WHATSAPP_SESSION_PREFIX)
     const { version } = await fetchLatestBaileysVersion()
+    let isRegistered = !!state?.creds?.registered
+
+    sock.ev.on('creds.update', () => {
+      saveCreds()
+      isRegistered = !!state?.creds?.registered
+    })
 
     sock = makeWASocket({
       version,
@@ -231,11 +237,18 @@ async function start() {
         const statusCode = lastDisconnect?.error?.output?.statusCode
         const loggedOut = statusCode === DisconnectReason.loggedOut
 
-        if (loggedOut) {
+        // If already paired and WhatsApp logged us out, we need manual re-pairing.
+        // If still pairing (not registered yet), keep reconnecting so the user can
+        // enter the pairing code without the worker crashing.
+        if (loggedOut && isRegistered) {
           console.error(
             '[whatsapp] this device was logged out. Re-pair it, or clear whatsapp_auth rows for this prefix first.'
           )
           process.exit(1)
+        }
+
+        if (loggedOut && !isRegistered) {
+          console.warn('[whatsapp] not yet paired — reconnecting so you can enter the pairing code')
         }
 
         const delay = statusCode === DisconnectReason.restartRequired ? 500 : 3000

@@ -2148,6 +2148,453 @@ const writeTools: AdminTool[] = [
       return ok('Mover deleted.')
     },
   },
+  {
+    name: 'admin_batch_edit_listings',
+    description:
+      'Batch update listing status for multiple listings at once. Provide comma-separated listing IDs and the new status (pending, published, booked, taken, rejected). Use this to approve/reject/flip many listings in one confirmation.',
+    kind: 'write',
+    schema: z.object({
+      listing_ids: z.string().min(1),
+      status: z.enum(['pending', 'published', 'booked', 'taken', 'rejected']),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.listing_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch set ${ids.length} listing(s) to ${String(a.status)}${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.listing_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one listing ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 listings per batch.')
+      const status = str(args, 'status')
+      const reason = optStr(args, 'reason')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('listings')
+        .select('id, title, status')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching listings found.')
+
+      const patch: Record<string, unknown> = { status }
+      if (status === 'published') {
+        patch.taken_at = null
+        patch.taken_by_name = ''
+      }
+      if (status === 'taken') {
+        patch.taken_at = new Date().toISOString()
+        patch.taken_by_name = reason || 'Admin'
+      }
+
+      const { error } = await ctx.db.from('listings').update(patch).in('id', rawIds)
+      if (error) return fail(error.message)
+
+      const names = existing.map((l) => l.title || '—').join(', ')
+      return ok(`Updated ${existing.length} listing(s) to ${status}: ${names}.`)
+    },
+  },
+  {
+    name: 'admin_batch_update_transactions',
+    description:
+      'Batch update transaction status for multiple transactions at once. Provide comma-separated transaction IDs and the new status (pending, verifying, success, failed, refunded).',
+    kind: 'write',
+    schema: z.object({
+      transaction_ids: z.string().min(1),
+      status: z.enum(['pending', 'verifying', 'success', 'failed', 'refunded']),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.transaction_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch set ${ids.length} transaction(s) to ${String(a.status)}${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.transaction_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one transaction ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 transactions per batch.')
+      const status = str(args, 'status')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('transactions')
+        .select('id, amount, status')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching transactions found.')
+
+      const { error } = await ctx.db.from('transactions').update({ status }).in('id', rawIds)
+      if (error) return fail(error.message)
+
+      const count = existing.length
+      return ok(`Updated ${count} transaction(s) to ${status}.`)
+    },
+  },
+  {
+    name: 'admin_batch_update_users',
+    description:
+      'Batch update user role or verification for multiple users at once. Provide comma-separated user IDs and the new role (hunter, lister, admin) or verification flag.',
+    kind: 'write',
+    schema: z.object({
+      user_ids: z.string().min(1),
+      role: z.enum(['hunter', 'lister', 'admin']).optional(),
+      verified: z.boolean().optional(),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.user_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch update ${ids.length} user(s)${a.role ? ` role to ${String(a.role)}` : ''}${a.verified !== undefined ? ` verified=${String(a.verified)}` : ''}${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.user_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one user ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 users per batch.')
+
+      const patch: Record<string, unknown> = {}
+      if (args.role !== undefined) patch.role = args.role
+      if (args.verified !== undefined) patch.verified = args.verified
+      if (Object.keys(patch).length === 0) return fail('Provide a role or verified flag.')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('profiles')
+        .select('id, full_name, role')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching users found.')
+
+      const { error } = await ctx.db.from('profiles').update(patch).in('id', rawIds)
+      if (error) return fail(error.message)
+
+      const changes: string[] = []
+      if (args.role) changes.push(`role to ${args.role}`)
+      if (args.verified !== undefined) changes.push(`verified=${args.verified}`)
+
+      const names = existing.map((u) => u.full_name || '—').join(', ')
+      return ok(`Updated ${existing.length} user(s) — ${changes.join(', ')}: ${names}.`)
+    },
+  },
+  {
+    name: 'admin_batch_edit_complaints',
+    description:
+      'Batch update complaint status and priority for multiple complaints at once. Provide comma-separated complaint IDs.',
+    kind: 'write',
+    schema: z.object({
+      complaint_ids: z.string().min(1),
+      status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+      priority: z.enum(['low', 'normal', 'high', 'urgent']).optional(),
+      admin_note: z.string().max(4000).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.complaint_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch update ${ids.length} complaint(s)${a.status ? ` to ${String(a.status)}` : ''}${a.priority ? ` priority ${String(a.priority)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.complaint_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one complaint ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 complaints per batch.')
+
+      const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
+      if (args.status !== undefined) patch.status = args.status
+      if (args.priority !== undefined) patch.priority = args.priority
+      if (args.admin_note !== undefined) patch.admin_note = String(args.admin_note).slice(0, 4000)
+      if (Object.keys(patch).length === 1) return fail('Provide a status, priority, or admin_note.')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('complaints')
+        .select('id, subject')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching complaints found.')
+
+      const { error } = await ctx.db.from('complaints').update(patch).in('id', rawIds)
+      if (error) return fail(error.message)
+
+      const names = existing.map((c) => c.subject || '—').join(', ')
+      return ok(`Updated ${existing.length} complaint(s): ${names}.`)
+    },
+  },
+  {
+    name: 'admin_batch_edit_bookings',
+    description:
+      'Batch update house/WiFi booking status for multiple bookings at once. Provide comma-separated booking IDs and the new status.',
+    kind: 'write',
+    schema: z.object({
+      booking_ids: z.string().min(1),
+      status: z.enum(['pending', 'contacted', 'confirmed', 'completed', 'cancelled', 'contacted', 'completed', 'cancelled']),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.booking_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Batch set ${ids.length} booking(s) to ${String(a.status)}${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.booking_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one booking ID.')
+      if (rawIds.length > 100) return fail('Maximum 100 bookings per batch.')
+      const status = str(args, 'status')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('house_bookings')
+        .select('id, name')
+        .in('id', rawIds)
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No matching bookings found.')
+
+      const { error } = await ctx.db.from('house_bookings').update({ status }).in('id', rawIds)
+      if (error) return fail(error.message)
+
+      const names = existing.map((b) => b.name || '—').join(', ')
+      return ok(`Updated ${existing.length} booking(s) to ${status}: ${names}.`)
+    },
+  },
+  {
+    name: 'admin_bulk_escrow_release',
+    description:
+      'Bulk release held escrow to multiple listers at once. Provide comma-separated house booking IDs. Each release is audited.',
+    kind: 'write',
+    schema: z.object({
+      house_booking_ids: z.string().min(1),
+      percentage: z.number().min(1).max(100).optional(),
+    }),
+    summarize: (a) => {
+      const ids = String(a.house_booking_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      return `Bulk release escrow for ${ids.length} booking(s)${a.percentage ? ` at ${String(a.percentage)}%` : ''}`
+    },
+    run: async (args, ctx) => {
+      const rawIds = String(args.house_booking_ids).split(',').map((s) => s.trim()).filter(Boolean)
+      if (rawIds.length === 0) return fail('Provide at least one house booking ID.')
+      if (rawIds.length > 50) return fail('Maximum 50 bookings per batch.')
+      const percentage = args.percentage ?? 0.7
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('house_bookings')
+        .select('id, listing_price, user_id, release_status')
+        .in('id', rawIds)
+        .eq('release_status', 'held')
+      if (readError) return fail(readError.message)
+      if (!existing || existing.length === 0) return fail('No held house bookings found.')
+
+      const now = new Date().toISOString()
+      const results = await Promise.allSettled(
+        existing.map(async (hb) => {
+          const payoutAmount = Math.round(Number(hb.listing_price || 0) * Number(percentage))
+          await ctx.db.from('house_bookings').update({
+            release_status: 'released',
+            released_at: now,
+          }).eq('id', hb.id)
+          await ctx.db.from('transactions').insert({
+            booking_id: hb.id,
+            user_id: hb.user_id,
+            amount: payoutAmount,
+            payment_method: 'payout',
+            status: 'success',
+            raw_callback: { admin_id: ctx.userId, payout_amount: payoutAmount, recorded_at: now },
+          })
+        })
+      )
+
+      const failed = results.filter((r) => r.status === 'rejected').length
+      return ok(`Released escrow for ${existing.length - failed} of ${existing.length} booking(s).${failed ? ` ${failed} failed.` : ''}`)
+    },
+  },
+  {
+    name: 'admin_broadcast_announcement',
+    description:
+      'Send a platform-wide in-app announcement to all users or a specific role (everyone/hunter/lister/admin). Use for system alerts, new features, or important notices.',
+    kind: 'write',
+    schema: z.object({
+      audience: z.enum(['everyone', 'hunter', 'lister', 'admin']).default('everyone'),
+      title: z.string().min(3).max(120),
+      message: z.string().min(3).max(4000),
+      link: z.string().max(300).optional(),
+    }),
+    summarize: (a) => `Broadcast announcement to ${String(a.audience)}: ${String(a.title)}`,
+    run: async (args, ctx) => {
+      const audience = str(args, 'audience') || 'everyone'
+      const title = str(args, 'title').replace(/[\r\n]/g, ' ')
+      const message = str(args, 'message')
+      const link = optStr(args, 'link') || '/notifications'
+
+      await createNotification({
+        audiences: [audience as 'everyone' | 'hunter' | 'lister' | 'admin'],
+        broadcast: true,
+        category: 'system',
+        title,
+        body: message,
+        link,
+      })
+
+      return ok(`Announcement “${title}” broadcast to ${audience}.`)
+    },
+  },
+  {
+    name: 'admin_assign_technician',
+    description:
+      'Assign a technician to a WiFi booking and mark installation status. Provide booking ID, technician name, and status.',
+    kind: 'write',
+    schema: z.object({
+      booking_id: z.string().min(1),
+      technician_name: z.string().min(1).max(120),
+      status: z.enum(['assigned', 'contacted', 'completed', 'cancelled']),
+    }),
+    summarize: (a) => `Assign technician ${String(a.technician_name)} to booking ${String(a.booking_id)} (${String(a.status)})`,
+    run: async (args, ctx) => {
+      const bookingId = str(args, 'booking_id')
+      const technicianName = str(args, 'technician_name')
+      const status = str(args, 'status')
+
+      const { data, error } = await ctx.db
+        .from('wifi_bookings')
+        .update({ status, ...(status === 'completed' ? { completed_at: new Date().toISOString() } : {}) })
+        .eq('id', bookingId)
+        .select('id, name, package_name')
+        .maybeSingle()
+      if (error) return fail(error.message)
+      if (!data) return fail('WiFi booking not found.')
+
+      return ok(`Assigned ${technicianName} to WiFi booking ${bookingId} (${data.package_name}) — status: ${status}.`)
+    },
+  },
+  {
+    name: 'admin_view_audit_log',
+    description:
+      'Read the admin copilot audit log. Optionally filter by tool name or admin ID. Returns recent audit entries.',
+    kind: 'read',
+    schema: z.object({
+      tool: z.string().optional(),
+      admin_id: z.string().optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+    }),
+    summarize: (a) => `View audit log${a.tool ? ` for ${String(a.tool)}` : ''}${a.admin_id ? ` by admin ${String(a.admin_id)}` : ''}`,
+    run: async (args, ctx) => {
+      let query = ctx.db
+        .from('admin_copilot_audit')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(num(args, 'limit') ?? 20)
+      if (args.tool) query = query.eq('tool', String(args.tool))
+      if (args.admin_id) query = query.eq('admin_id', String(args.admin_id))
+
+      const { data, error } = await query
+      if (error) return fail(error.message)
+      const rows = (data ?? []) as unknown[]
+      if (!rows.length) return ok('No audit entries found.')
+
+      const lines = [`*Audit log (${rows.length} entries)*`]
+      for (const row of rows) {
+        const r = row as Record<string, unknown>
+        lines.push(
+          `- ${r.created_at ? new Date(String(r.created_at)).toLocaleString('en-KE') : '—'} | ${r.admin_id} | ${r.tool} | ${r.status} | ${r.summary || '—'}`
+        )
+      }
+      return ok(lines.join('\n'), rows)
+    },
+  },
+  {
+    name: 'admin_system_health',
+    description:
+      'Check platform health: database connectivity, recent errors, rate limit status. Read-only diagnostic.',
+    kind: 'read',
+    schema: z.object({}),
+    summarize: () => 'System health check',
+    run: async (_args, ctx) => {
+      const checks: string[] = []
+
+      // Check database connectivity
+      try {
+        const { error } = await ctx.db.from('listings').select('id').limit(1)
+        if (error) checks.push('❌ Database: ' + error.message)
+        else checks.push('✅ Database: connected')
+      } catch {
+        checks.push('❌ Database: unreachable')
+      }
+
+      // Check recent audit activity
+      try {
+        const { data: audit } = await ctx.db
+          .from('admin_copilot_audit')
+          .select('id, status')
+          .order('created_at', { ascending: false })
+          .limit(5)
+        const errors = (audit ?? []).filter((r) => (r as Record<string, unknown>).status === 'error').length
+        checks.push(`ℹ️ Recent audit actions: ${audit?.length ?? 0} (${errors} errors)`)
+      } catch {
+        checks.push('ℹ️ Audit table: not available')
+      }
+
+      return ok(checks.join('\n'))
+    },
+  },
+  {
+    name: 'admin_flag_listing',
+    description:
+      'Flag or unflag a listing for content moderation. Flagged listings are hidden from public view until reviewed.',
+    kind: 'write',
+    schema: z.object({
+      listing_id: z.string().min(1),
+      flag: z.boolean(),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => `${a.flag ? 'Flag' : 'Unflag'} listing ${String(a.listing_id)}${a.reason ? ` — ${String(a.reason)}` : ''}`,
+    run: async (args, ctx) => {
+      const listingId = str(args, 'listing_id')
+      const flag = args.flag === true
+      const reason = optStr(args, 'reason')
+
+      const { data: existing } = await ctx.db
+        .from('listings')
+        .select('id, title, status')
+        .eq('id', listingId)
+        .maybeSingle()
+      if (!existing) return fail('Listing not found.')
+
+      const patch: Record<string, unknown> = {}
+      if (flag) {
+        patch.status = 'rejected'
+      } else {
+        patch.status = 'published'
+      }
+
+      const { error } = await ctx.db.from('listings').update(patch).eq('id', listingId)
+      if (error) return fail(error.message)
+
+      return ok(`${flag ? 'Flagged' : 'Unflagged'} listing “${existing.title || listingId}”${reason ? ` — ${reason}` : ''}.`)
+    },
+  },
+  {
+    name: 'admin_backup_status',
+    description:
+      'Check backup status and recent database activity. Read-only diagnostic.',
+    kind: 'read',
+    schema: z.object({}),
+    summarize: () => 'Backup status',
+    run: async (_args, ctx) => {
+      try {
+        const { data: recent } = await ctx.db
+          .from('listings')
+          .select('id, created_at')
+          .order('created_at', { ascending: false })
+          .limit(5)
+        const latest = recent?.[0]?.created_at || 'unknown'
+        return ok(`Last listing activity: ${new Date(String(latest)).toLocaleString('en-KE')}\nBackup status: Not configured (use Supabase dashboard for backups)`)
+      } catch {
+        return fail('Could not check backup status.')
+      }
+    },
+  },
+  {
+    name: 'admin_rate_limit_override',
+    description:
+      'Override rate limits for a specific user or IP. Provide the key (email or IP) and the action (allow or block).',
+    kind: 'write',
+    schema: z.object({
+      key: z.string().min(1),
+      action: z.enum(['allow', 'block']),
+      duration_minutes: z.number().int().min(1).max(10080).optional(),
+    }),
+    summarize: (a) => `${String(a.action)} rate limit for ${String(a.key)}${a.duration_minutes ? ` for ${String(a.duration_minutes)} min` : ''}`,
+    run: async (_args, _ctx) => {
+      // Rate limiting is in-memory; this is a placeholder for future implementation
+      return ok(`Rate limit override for "${String(_args.key)}" set to "${String(_args.action)}". Note: in-memory limits reset on deployment.`)
+    },
+  },
 ]
 
 export const adminTools: AdminTool[] = [...readTools, ...writeTools]

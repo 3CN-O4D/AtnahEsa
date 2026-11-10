@@ -3,9 +3,8 @@ import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
 import { toolStats, toolSearchHouses, toolWifiPackages, toolMovers, toolContact } from './tools'
-import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, startChangeEmail, continueChangeEmail, startDeleteAccount, continueDeleteAccount, startChangeDP, isCancelMessage } from './flows'
+import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, startChangeEmail, continueChangeEmail, startDeleteAccount, continueDeleteAccount, startChangeDP, continueDeleteDP, isCancelMessage } from './flows'
 import { aiChat, aiEnabled } from './ai'
-import { QUICK_START } from './messages'
 
 const AREA_WORDS = [
   'kipkaren', 'anex', 'annex', 'langas', 'kapsoya', 'pioneer', 'kokwas', 'juniorate', 'juniors',
@@ -28,7 +27,6 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return {
       reply: `Okay, I've cancelled that. Is there anything else I can help with? 🙂`,
       state: emptyState(),
-      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
     }
   }
 
@@ -52,9 +50,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return continueDeleteAccount(prevState, msg)
   }
   if (prevState.mode === 'change_dp' && prevState.step) {
-    // DP upload is handled client-side via the file input in ChatPanel.
-    // Keep the flow active until the user uploads or cancels.
-    return { reply: '', state: prevState, quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'] }
+    return continueDeleteDP(prevState, msg)
   }
 
   const low = msg.toLowerCase()
@@ -81,18 +77,10 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   if (/\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture)\b/.test(low)) {
     return startChangeDP()
   }
-  if (/\b(remove ?dp|delete ?dp|remove ?avatar|delete ?avatar)\b/.test(low)) {
-    return {
-      reply: `🗑 Go to your profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\nIs there anything else I can help with?`,
-      state: emptyState(),
-      actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
-      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
-    }
-  }
 
-  // 4. AI-first — DeepSeek thinks, calls its tools in the background (house
-  // search, stats, wifi, movers, contact...), then formats a human reply.
-  // The deterministic rules below act as a fallback when AI is off or down.
+  // 4. AI-first — the model thinks, calls its tools in the background, then
+  // formats a human reply. Deterministic rules below act as fallback when AI
+  // is off or down.
   if (aiEnabled()) {
     const ai = await aiChat(history, msg)
     if (ai && ai.reply) {
@@ -102,7 +90,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
       if (actions.length === 0 && isHouseSearchIntent(low)) {
         return startHouseRequest()
       }
-      return { reply: ai.reply, actions: actions.length ? actions : undefined, state: emptyState(), quickReplies: quickStart() }
+      return { reply: ai.reply, actions: actions.length ? actions : undefined, state: emptyState() }
     }
   }
 
@@ -116,29 +104,26 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     ]
     const pick = greetings[Math.floor(Math.random() * greetings.length)]
     return {
-      reply: `${pick}\n\nHow can I be of help today?\n\nHere's what I can do:\n🏠 Find you a house\n📝 Request a house for you\n📊 Show you our stats\n📶 Help with WiFi packages\n🚚 Arrange a mover\n📄 Explain escrow & terms\n📞 Get you in touch with our team\n\nJust ask 🙂`,
+      reply: `${pick}\n\nHow can I be of help today?\n\nJust ask me anything — I can help with houses, WiFi, movers, escrow or getting in touch with our team.`,
       state: emptyState(),
-      quickReplies: QUICK_START,
     }
   }
   if (/\b(how are you|hows you|how's it going|how you doing|you good|all good)\b/i.test(low) && msg.length < 60) {
     return {
-      reply: `I'm good, thanks for asking 😊\n\nHow about you? Anything I can help with today?\n\n🏠 Find a house\n📊 Stats\n📶 WiFi packages\n🚚 Movers\n📄 Terms & escrow\n📞 Contact`,
+      reply: `I'm good, thanks for asking 😊\n\nHow about you? Anything I can help with today?`,
       state: emptyState(),
-      quickReplies: QUICK_START,
     }
   }
   if (/\b(thanks|thank you|asante|asante sana|nice|awesome|cool|great|perfect)\b/.test(low) && msg.length < 60) {
-    return { reply: `You're most welcome! 😊 Anything else I can do for you?`, state: emptyState(), quickReplies: QUICK_START }
+    return { reply: `You're most welcome! 😊 Anything else I can do for you?`, state: emptyState() }
   }
   if (/^(sawa|sawa sawa|okay|ok|okey|sure|yes|yeah|yep|ndio|poa|fine|alright)\b/i.test(low) && msg.length < 25) {
-    return { reply: `Sawa! 😊 What would you like to do next?`, state: emptyState(), quickReplies: QUICK_START }
+    return { reply: `Sawa! 😊 What would you like to do next?`, state: emptyState() }
   }
   if (/^(you sure|are you sure|really|seriously|kweli)\b/i.test(low) && msg.length < 30) {
     return {
       reply: `Yes, I'm sure 😊 I'm Ase, the AseHanta assistant. I can help with houses, WiFi, movers, escrow or getting you in touch with the team.`,
       state: emptyState(),
-      quickReplies: QUICK_START,
     }
   }
   if (/(about|kuhusu|nieleze|eleza|explain).*(asehanta|platform|site|hii)|who are you|what is asehanta|what does asehanta do/.test(low)) {
@@ -146,7 +131,6 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
       reply: `*AseHanta* is a Kenyan house-hunting platform based in Eldoret 🏠\n\nWe list verified homes with real prices, protect viewing fees with escrow, and connect you with trusted movers and home WiFi.\n\nWhat would you like to do first?`,
       state: emptyState(),
       actions: [linkAction('🏠 Browse homes', PAGE_LINKS.listings.href), linkAction('📞 Contact us', PAGE_LINKS.contact.href)],
-      quickReplies: QUICK_START,
     }
   }
   if (/^(help|what can you do|how can you help|menu|options)\b/.test(low)) {
@@ -155,14 +139,13 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return {
       reply: `${pick}\n\nHere's what I can do:\n🏠 Find you a house\n📝 Request a house for you\n📊 Show you our stats\n📶 Help with WiFi packages\n🚚 Arrange a mover\n📄 Explain escrow & terms\n📞 Get you in touch with our team\n\nJust ask 🙂`,
       state: emptyState(),
-      quickReplies: QUICK_START,
     }
   }
 
   // 6. Statistics.
   if (/how many|stats|statistics|counts?|how many houses|numbers?|market data|current (listings|houses|users)/.test(low)) {
     const stats = await toolStats()
-    return { reply: stats.text, state: emptyState(), actions: [linkAction('📊 View full stats', PAGE_LINKS.stats.href)], quickReplies: quickStart() }
+    return { reply: stats.text, state: emptyState(), actions: [linkAction('📊 View full stats', PAGE_LINKS.stats.href)] }
   }
 
   // 7a. WiFi requirements — answer "what do I need?" instead of dumping plans.
@@ -174,26 +157,25 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
       reply: WIFI_REQUIREMENTS,
       state: emptyState(),
       actions: [linkAction('📶 Browse WiFi plans', PAGE_LINKS.wifi.href)],
-      quickReplies: ['📶 Book a WiFi package'],
     }
   }
 
   // 7b. WiFi packages.
   if (/\b(wifi|internet|router|wifi package|packages)\b/.test(low)) {
     const res = await toolWifiPackages()
-    return { reply: res.text, state: emptyState(), actions: [linkAction('📶 Browse WiFi page', PAGE_LINKS.wifi.href)], quickReplies: ['📶 Book a WiFi package'] }
+    return { reply: res.text, state: emptyState(), actions: [linkAction('📶 Browse WiFi page', PAGE_LINKS.wifi.href)] }
   }
 
   // 8. Movers.
   if (/\b(mover|movers|moving)\b/.test(low)) {
     const res = await toolMovers()
-    return { reply: res.text, state: emptyState(), actions: [linkAction('🚚 Browse movers', PAGE_LINKS.movers.href)], quickReplies: ['🚚 Request a mover'] }
+    return { reply: res.text, state: emptyState(), actions: [linkAction('🚚 Browse movers', PAGE_LINKS.movers.href)] }
   }
 
   // 9. Contact details.
   if (/\b(contact|phone number|email|reach you|talk to|call us|support|whatsapp|address|location|office)\b/.test(low) && !/contact page/.test(low)) {
     const c = toolContact()
-    return { reply: c.text, state: emptyState(), actions: [linkAction('💬 WhatsApp us', CONTACT_INFO.whatsapp), linkAction('📞 Contact page', PAGE_LINKS.contact.href)], quickReplies: quickStart() }
+    return { reply: c.text, state: emptyState(), actions: [linkAction('💬 WhatsApp us', CONTACT_INFO.whatsapp), linkAction('📞 Contact page', PAGE_LINKS.contact.href)] }
   }
 
   // 10. Terms / escrow / refunds / payments (knowledge base).
@@ -206,9 +188,9 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
         linkAction('🐾 Visitor terms', 'https://www.asehanta.com/terms/visitor'),
         linkAction('🏠 Hunter terms', 'https://www.asehanta.com/terms/hunter'),
         linkAction('🏡 Lister terms', 'https://www.asehanta.com/terms/lister'),
-      ], quickReplies: ['How does escrow work?', 'What about refunds?', '🏠 Find me a house'] }
+      ] }
     }
-    return { reply: faq.answer, state: emptyState(), actions: faqActions, quickReplies: quickStart() }
+    return { reply: faq.answer, state: emptyState(), actions: faqActions }
   }
 
   // 11. House search (deterministic) — this handles natural-language queries.
@@ -222,19 +204,17 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
       const cardsActions: ChatAction[] = cards.map((c) => ({ type: 'card', card: c }))
       const rentLine = total > cards.length ? `I found ${total} matching house${total === 1 ? '' : 's'} — here are the top ${cards.length}:` : `I found ${cards.length} matching house${cards.length === 1 ? '' : 's'}:`
       return {
-        reply: `${rentLine}\n${takenNote ? `\n${takenNote}` : ''}\n\nTap a card to open the full listing.`,
+        reply: `${rentLine}\n${takenNote ? `\n${takenNote}` : ''}\n\n---\n\nTap a card to open the full listing.`,
         actions: cardsActions,
         state: emptyState(),
-        quickReplies: ['📝 Request a house', '📶 WiFi packages'],
       }
     }
     // No results — offer to submit a request in three human bubbles.
     const q = parseHouseQuery(msg)
     const described = [q.locations.join(', '), q.bedrooms.join(', '), q.rent.max ? `under KSh ${q.rent.max.toLocaleString()}` : ''].filter(Boolean).join(' · ')
     return {
-      reply: `Sorry — I couldn't find any *available* houses matching "${msg}".\n\n${described ? `You searched for: ${described}.\n\nThe closest I could find were outside your budget or in a different area.` : `I searched the area but nothing came up.`}\n\nWant me to submit a *house request* instead? Our team will hunt for it and reach you on WhatsApp.`,
+      reply: `Sorry — I couldn't find any *available* houses matching "${msg}".\n\n---\n\n${described ? `You searched for: ${described}.\n\nThe closest I could find were outside your budget or in a different area.` : `I searched the area but nothing came up.`}\n\n---\n\nWant me to submit a *house request* instead? Our team will hunt for it and reach you on WhatsApp.`,
       state: emptyState(),
-      quickReplies: ['📝 Yes, request a house', '🏠 Search something else'],
     }
   }
 
@@ -252,15 +232,11 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   })
   if (linkKey) {
     const page = PAGE_LINKS[linkKey]
-    return { reply: `Here you go: *${page.label}*\n${page.href}`, state: emptyState(), actions: [linkAction(page.label, page.href)], quickReplies: quickStart() }
+    return { reply: `Here you go: *${page.label}*\n${page.href}`, state: emptyState(), actions: [linkAction(page.label, page.href)] }
   }
 
   // 13. Fallback.
-  return { reply: FALLBACK_REPLY, state: emptyState(), quickReplies: quickStart() }
-}
-
-function quickStart(): string[] {
-  return ['🏠 Find me a house', '📊 House stats', '📶 WiFi packages', '🚚 Movers', '📄 Terms & escrow', '📞 Contact']
+  return { reply: FALLBACK_REPLY, state: emptyState() }
 }
 
 function linkAction(label: string, href: string): ChatAction {

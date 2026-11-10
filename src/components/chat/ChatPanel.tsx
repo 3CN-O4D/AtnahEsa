@@ -1,9 +1,9 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft, Camera, Loader2 } from 'lucide-react'
-import { OPENING_MESSAGES, QUICK_START } from '@/lib/chat/messages'
+import { buildOpeningMessages } from '@/lib/chat/messages'
 import { emptyState } from '@/lib/chat/types'
 import type { ChatAction, ChatState, ChatMessage, HouseCardData } from '@/lib/chat/types'
 import { formatPrice } from '@/lib/utils'
@@ -242,6 +242,8 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
 
   const isChangeDp = chatState.mode === 'change_dp'
 
+  const openingMsgs = useMemo(() => buildOpeningMessages(), [])
+
   const append = useCallback((msg: UiMessage) => {
     setMessages((prev) => [...prev, msg])
   }, [])
@@ -251,7 +253,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
       const text = raw.trim()
       if (!text || loading) return
       // User is talking — stop the intro sequence so no more opening bubbles pop in.
-      setIntroStep(OPENING_MESSAGES.length)
+      setIntroStep(openingMsgs.length)
       setInput('')
       setMessages((prev) => [...prev, { id: nextId(), role: 'user', content: text }])
       setLoading(true)
@@ -273,16 +275,18 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
 
         setChatState(data.state ?? emptyState())
 
-        // Split assistant replies by an explicit bubble marker (--- on its own
-        // line) so the AI can control how the conversation flows. If no marker
-        // is present the reply renders as a single bubble.
-        const parts = (data.reply || '…')
-          .split(/\n\s*---\s*\n/)
+        // Split assistant replies by bubble markers (--- on its own line)
+        // so the AI can control how the conversation flows. Also extract
+        // [[button text|url]] markers into clickable action buttons.
+        const rawReply = data.reply || '…'
+        const parts = rawReply
+          .split(/\n\s*(?:-{2,}|—{2,})\s*\n/)
           .map((p: string) => p.trim())
           .filter(Boolean)
 
         // Show each bubble one at a time with a random human delay (1–1.8s),
-        // like a real person texting. Only the last bubble gets actions/buttons.
+        // like a real person texting. Only the last bubble gets actions/buttons,
+        // parsed from [[button text|url]] markers in the AI reply.
         const delay = () => 1000 + Math.random() * 800
         let i = 0
         setBubbling(true)
@@ -292,12 +296,23 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
             return
           }
           const isLast = i === parts.length - 1
+          const bubbleText = parts[i].replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, '').trim()
+          const buttonMatches = parts[i].match(/\[\[([^|\]]+)\|([^\]]+)\]\]/g) || []
+          const buttons: ChatAction[] = buttonMatches.map((m: string) => {
+            const inner = m.slice(2, -2)
+            const pipeIdx = inner.indexOf('|')
+            return {
+              type: 'link' as const,
+              label: inner.slice(0, pipeIdx).trim(),
+              href: inner.slice(pipeIdx + 1).trim(),
+            }
+          })
           append({
             id: nextId(),
             role: 'assistant',
-            content: parts[i],
-            actions: isLast ? data.actions : undefined,
-            quickReplies: isLast ? data.quickReplies : undefined,
+            content: bubbleText,
+            actions: isLast && buttons.length > 0 ? buttons : undefined,
+            quickReplies: undefined,
           })
           i += 1
           if (i < parts.length) {
@@ -318,7 +333,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
         setLoading(false)
       }
     },
-    [append, chatState, loading, messages]
+    [append, chatState, loading, messages, openingMsgs.length]
   )
 
   const uploadAvatar = async (file: File) => {
@@ -370,24 +385,23 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
   }
 
   // Opening messages — sent one bubble at a time, the way a person texts on WhatsApp.
-  // The first four bubbles each "type" for a random 1.5–2.5s before landing, then
-  // the rest follow quickly.
+  // The first bubble is a time-based greeting.
   useEffect(() => {
-    if (introStep >= OPENING_MESSAGES.length) return
+    if (introStep >= openingMsgs.length) return
     const delay = introStep < 4 ? 1500 + Math.random() * 1000 : 900
     const id = setTimeout(() => {
       append({
         id: nextId(),
         role: 'assistant',
-        content: OPENING_MESSAGES[introStep],
-        quickReplies: introStep === OPENING_MESSAGES.length - 1 ? QUICK_START : undefined,
+        content: openingMsgs[introStep],
+        quickReplies: undefined,
       })
       setIntroStep((s) => s + 1)
     }, delay)
     return () => clearTimeout(id)
-  }, [introStep, append])
+  }, [introStep, append, openingMsgs])
 
-  const introTyping = introStep < OPENING_MESSAGES.length
+  const introTyping = introStep < openingMsgs.length
 
   // Quick-chip clicks.
   useEffect(() => {

@@ -243,6 +243,11 @@ async function start() {
       if (qr) {
         console.log('\n[whatsapp] scan this QR with the official AseHanta number:')
         qrcode.generate(qr, { small: true })
+        // Also offer a pairing code when WHATSAPP_PAIR_NUMBER is set.
+        if (!isRegistered && WHATSAPP_PAIR_NUMBER) {
+          void requestPairingCode(sock)
+          startPairingRefresh()
+        }
       }
 
       if (connection === 'open') {

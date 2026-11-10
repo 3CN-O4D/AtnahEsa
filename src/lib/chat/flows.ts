@@ -841,10 +841,8 @@ export async function continueDeleteAccount(state: ChatState, msg: string): Prom
 
 export function startChangeDP(): FlowStepResult {
   return {
-    reply: `📸 *Change Profile Picture*\n\nUpload a new photo right here in the chat — tap the *Photo* button below the input box.\n\nAccepts JPG/PNG/WebP/AVIF (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.`,
+    reply: `📸 *Change Profile Picture*\n\nUpload a new photo right here in the chat — tap the *Photo* button below the input box.\n\nAccepts JPG/PNG/WebP/AVIF (max 4MB).\n\nWhen you upload a new photo, your old one is automatically deleted to save space.\n\nWant to *remove* your current profile picture instead? Reply *remove dp*.\n\n[[Go to profile|https://www.asehanta.com/profile]]`,
     state: { mode: 'change_dp', step: 'upload', draft: {} },
-    actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
-    quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
   }
 }
 
@@ -854,10 +852,8 @@ export async function continueDeleteDP(state: ChatState, msg: string): Promise<F
     // The actual deletion happens client-side via /api/delete-avatar; here we
     // just confirm and point them to the button.
     return {
-      reply: `🗑 Go to your profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\nIs there anything else I can help with?`,
+      reply: `🗑 Go to your profile and tap *Remove avatar* under your profile picture. The old image will be deleted from storage.\n\n[[Go to profile|https://www.asehanta.com/profile]]`,
       state: { mode: 'chat', step: null, draft: {} },
-      actions: [{ type: 'link', label: '👤 Go to profile', href: 'https://www.asehanta.com/profile' }],
-      quickReplies: ['🏠 Find me a house', '📊 House stats', '📞 Contact'],
     }
   }
   return {

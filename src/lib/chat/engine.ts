@@ -55,7 +55,31 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
 
   const low = msg.toLowerCase()
 
-  // 3. AI-first — the model thinks, calls its tools in the background, then
+  // 3. Guided-flow STARTS — exact intents that need the state-machine wizard.
+  // Check these BEFORE AI so the AI can't intercept and give text instructions instead.
+  if (/\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture)\b/.test(low)) {
+    return startChangeDP()
+  }
+  if (/\b(request a house|house request|submit a request|make a request|submit a house request|let me request|log a request)\b/.test(low)) {
+    return startHouseRequest()
+  }
+  if (/\b(book wifi|arrange wifi|wifi booking|sign up for wifi|sign me up for wifi|subscribe to wifi|order wifi|get wifi installed|install wifi for me)\b/.test(low)) {
+    return startWifiBooking()
+  }
+  if (/\b(request a mover|need a mover|arrange a mover|book a mover|help me move|get a mover|moving company|hire movers?|request movers?)\b/.test(low)) {
+    return startMoverRequest()
+  }
+  if (/\b(forgot ?password|reset ?password|change ?password|password ?reset|forgotten password|can't ?login|cannot ?login|unable to ?sign ?in|lock ?out|reset my ?password)\b/.test(low)) {
+    return startPasswordReset()
+  }
+  if (/\b(change ?email|update ?email|new email|different email)\b/.test(low)) {
+    return startChangeEmail()
+  }
+  if (/\b(delete ?account|remove ?account|deactivate ?account|close ?account)\b/.test(low)) {
+    return startDeleteAccount()
+  }
+
+  // 4. AI-first — the model thinks, calls its tools in the background, then
   // formats a human reply. Deterministic rules below act as fallback when AI
   // is off or down.
   if (aiEnabled()) {

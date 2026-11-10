@@ -141,6 +141,42 @@ async function sendAdminAlerts(alert, meta) {
   }
 }
 
+/** Request a fresh WhatsApp pairing code and print it to the logs. */
+async function requestPairingCode(socket) {
+  if (!WHATSAPP_PAIR_NUMBER) return
+  try {
+    const code = await socket.requestPairingCode(WHATSAPP_PAIR_NUMBER.replace(/\D/g, ''))
+    console.log('\n==============================================================')
+    console.log(` Pair AseHanta WhatsApp with: ${code}`)
+    console.log(' WhatsApp → Settings → Linked devices → Link with phone number')
+    console.log(' (code expires quickly — a new one prints on each reconnect)\n')
+    console.log('==============================================================\n')
+  } catch (error) {
+    console.error('[whatsapp] pairing code failed:', error?.message ?? error)
+  }
+}
+
+let pairingRefreshTimer = null
+const PAIRING_REFRESH_MS = 45000
+
+function startPairingRefresh() {
+  stopPairingRefresh()
+  pairingRefreshTimer = setInterval(async () => {
+    if (sock && !sock?.auth?.creds?.registered) {
+      await requestPairingCode(sock)
+    } else {
+      stopPairingRefresh()
+    }
+  }, PAIRING_REFRESH_MS)
+}
+
+function stopPairingRefresh() {
+  if (pairingRefreshTimer) {
+    clearInterval(pairingRefreshTimer)
+    pairingRefreshTimer = null
+  }
+}
+
 function extractText(message) {
   const m = message?.message
   if (!m) return ''
@@ -186,11 +222,6 @@ async function start() {
     const { version } = await fetchLatestBaileysVersion()
     let isRegistered = !!state?.creds?.registered
 
-    sock.ev.on('creds.update', () => {
-      saveCreds()
-      isRegistered = !!state?.creds?.registered
-    })
-
     sock = makeWASocket({
       version,
       logger,
@@ -201,18 +232,14 @@ async function start() {
       generateHighQualityLinkPreview: true,
     })
 
-    sock.ev.on('creds.update', saveCreds)
+    sock.ev.on('creds.update', () => {
+      saveCreds()
+      isRegistered = !!state?.creds?.registered
+    })
 
     if (!state.creds.registered && WHATSAPP_PAIR_NUMBER) {
-      try {
-        const code = await sock.requestPairingCode(WHATSAPP_PAIR_NUMBER.replace(/\D/g, ''))
-        console.log('\n==============================================================')
-        console.log(` Pair AseHanta WhatsApp with: ${code}`)
-        console.log(' WhatsApp → Settings → Linked devices → Link with phone number')
-        console.log('==============================================================\n')
-      } catch (error) {
-        console.error('[whatsapp] pairing code failed:', error?.message ?? error)
-      }
+      await requestPairingCode(sock)
+      startPairingRefresh()
     }
 
     sock.ev.on('connection.update', (update) => {
@@ -226,6 +253,7 @@ async function start() {
       if (connection === 'open') {
         connected = true
         starting = false
+        stopPairingRefresh()
         console.log('[whatsapp] connected and ready ✅')
         startOutbox()
       }
@@ -613,6 +641,7 @@ health.listen(Number(PORT), () => {
 async function shutdown(signal) {
   console.log(`[whatsapp] ${signal} received, closing`)
   stopOutbox()
+  stopPairingRefresh()
   health.close()
   try {
     sock?.end(undefined)

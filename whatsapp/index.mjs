@@ -237,6 +237,13 @@ async function start() {
       isRegistered = !!state?.creds?.registered
     })
 
+    // Request a pairing code right after socket creation (before connection opens).
+    // This initiates the pairing flow so the user gets a code to enter on their phone.
+    if (!state.creds.registered && WHATSAPP_PAIR_NUMBER) {
+      await requestPairingCode(sock)
+      startPairingRefresh()
+    }
+
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update
 
@@ -251,13 +258,6 @@ async function start() {
         stopPairingRefresh()
         console.log('[whatsapp] connected and ready ✅')
         startOutbox()
-
-        // Request a pairing code once the socket is connected (not before).
-        // Baileys needs an active WebSocket for requestPairingCode to work.
-        if (!isRegistered && WHATSAPP_PAIR_NUMBER) {
-          void requestPairingCode(sock)
-          startPairingRefresh()
-        }
       }
 
       if (connection === 'close') {

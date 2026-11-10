@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import Link from 'next/link'
 import { Home as HomeIcon, Send, X, ExternalLink, Sparkles, ArrowLeft, Camera, Loader2 } from 'lucide-react'
 import { buildOpeningMessages } from '@/lib/chat/messages'
+import { splitBubbles } from '@/lib/chat/bubbles'
 import { emptyState } from '@/lib/chat/types'
 import type { ChatAction, ChatState, ChatMessage, HouseCardData } from '@/lib/chat/types'
 import { formatPrice } from '@/lib/utils'
@@ -275,53 +276,43 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
 
         setChatState(data.state ?? emptyState())
 
-        // Split assistant replies by bubble markers (--- on its own line)
-        // so the AI can control how the conversation flows. Also extract
-        // [[button text|url]] markers into clickable action buttons.
-        const rawReply = data.reply || '…'
-        const parts = rawReply
-          .split(/\n\s*(?:-{2,}|—{2,})\s*\n/)
-          .map((p: string) => p.trim())
-          .filter(Boolean)
+        // Turn the reply into WhatsApp-style bubbles. The shared parser handles
+        // `---` markers in every messy form the model produces, strips
+        // [[button text|url]] markers into actions, and never emits a blank
+        // bubble (a button-only segment is folded into the previous bubble).
+        const bubbles = splitBubbles(data.reply || '…')
 
-        // Show each bubble one at a time with a random human delay (1–1.8s),
-        // like a real person texting. Only the last bubble gets actions/buttons,
-        // parsed from [[button text|url]] markers in the AI reply.
+        // Show each bubble one at a time with a random human delay, like a real
+        // person texting. Buttons render on the bubble they belong to.
         const delay = () => 1000 + Math.random() * 800
         let i = 0
         setBubbling(true)
         const showNext = () => {
-          if (i >= parts.length) {
+          if (i >= bubbles.length) {
             setBubbling(false)
             return
           }
-          const isLast = i === parts.length - 1
-          const bubbleText = parts[i].replace(/\[\[([^|\]]+)\|([^\]]+)\]\]/g, '').trim()
-          const buttonMatches = parts[i].match(/\[\[([^|\]]+)\|([^\]]+)\]\]/g) || []
-          const buttons: ChatAction[] = buttonMatches.map((m: string) => {
-            const inner = m.slice(2, -2)
-            const pipeIdx = inner.indexOf('|')
-            return {
-              type: 'link' as const,
-              label: inner.slice(0, pipeIdx).trim(),
-              href: inner.slice(pipeIdx + 1).trim(),
-            }
-          })
+          const bubble = bubbles[i]
           append({
             id: nextId(),
             role: 'assistant',
-            content: bubbleText,
-            actions: isLast && buttons.length > 0 ? buttons : undefined,
+            content: bubble.text,
+            actions: bubble.buttons.length > 0 ? bubble.buttons : undefined,
             quickReplies: undefined,
           })
           i += 1
-          if (i < parts.length) {
+          if (i < bubbles.length) {
             setTimeout(showNext, delay())
           } else {
             setBubbling(false)
           }
         }
-        showNext()
+        if (bubbles.length === 0) {
+          setBubbling(false)
+          append({ id: nextId(), role: 'assistant', content: '…' })
+        } else {
+          showNext()
+        }
       } catch {
         append({
           id: nextId(),

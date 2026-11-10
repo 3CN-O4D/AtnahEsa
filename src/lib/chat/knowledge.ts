@@ -91,7 +91,7 @@ export const FAQ: FaqEntry[] = [
   {
     id: 'about',
     keywords: ['about asehanta', 'what is asehanta', 'who owns', 'owner', 'founder', 'developer', 'ecnord', 'aginah', 'how does asehanta work', 'how do you work', 'how we work'],
-    answer: `*About AseHanta*\n\nI'm *Ase Hanta* — just call me Ase 😊\n\nAseHanta is a Kenyan house-hunting platform based in Eldoret. We list verified homes with real prices, protect viewing fees with escrow, and connect you with trusted movers and home WiFi.\n\n- Owner/founder: *Aginah Clurk*\n- Developer: *Ecnord*\n\nWant to browse homes, book a viewing, or ask about WiFi or movers?`,
+    answer: `*About AseHanta*\n\nI'm *Ase Hanta* — just call me Ase 😊\n\nAseHanta is a Kenyan house-hunting platform based in Eldoret. We list verified homes with real prices, protect viewing fees with escrow, and connect you with trusted movers and home WiFi.\n\n- Owner/founder: *Aginah Clurk*\n- Developer: *Ecnord* — WhatsApp: https://wa.me/ecnord\n\nWant to browse homes, book a viewing, or ask about WiFi or movers?`,
   },
   {
     id: 'account',

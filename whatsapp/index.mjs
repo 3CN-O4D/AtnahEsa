@@ -338,7 +338,8 @@ async function start() {
         reconnectAttempts = 0
         pair.qr = null
         pair.code = null
-        console.log('[whatsapp] connected and ready ✅')
+        const lid = socket?.authState?.creds?.me?.lid
+        console.log(`[whatsapp] connected and ready ✅${lid ? ` (lid ${lid})` : ''}`)
         startOutbox()
       }
 
@@ -407,15 +408,23 @@ async function start() {
 /* ------------------------------------------------------------- message flow */
 
 async function onMessage(message) {
-  const jid = message?.key?.remoteJid
-  if (!jid) return
+  const rawJid = message?.key?.remoteJid
+  if (!rawJid) return
   if (message.key.fromMe) return
-  if (jid === 'status@broadcast') return
-  if (jid.endsWith('@g.us')) return // group chats stay quiet
+  if (rawJid === 'status@broadcast') return
+  if (rawJid.endsWith('@g.us')) return // group chats stay quiet
 
   const id = message.key.id
   if (!id || seenMessages.has(id)) return
   remember(id)
+
+  /*
+   * WhatsApp is migrating DMs from phone-number JIDs to LIDs (`@lid`).
+   * `senderPn` carries the same person's phone-number JID, so key the
+   * conversation by that: one session per human instead of one per addressing
+   * mode, and the reply goes through Baileys' LID resolution.
+   */
+  const jid = message.key.senderPn || rawJid
 
   return enqueue(jid, () => handleMessage({ message, jid, id }))
 }

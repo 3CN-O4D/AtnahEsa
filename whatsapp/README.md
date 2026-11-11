@@ -122,6 +122,19 @@ which defaults to `WHATSAPP_BRIDGE_SECRET`):
 The process prints `connected and ready ✅` when the number is live.
 Leave it running (pm2, systemd, Docker, or the host's process manager).
 
+### LID-addressed chats
+
+WhatsApp now addresses most DMs by LID (`…@lid`) instead of phone number.
+The worker uses Baileys 7, which persists `lid-mapping` rows and migrates Signal
+sessions, and keys every conversation by the sender's phone-number JID
+(`senderPn`) so a person has one session regardless of addressing mode.
+
+An LID-addressed *incoming* message can only be decrypted once a Signal session
+exists under that LID. That session is created the first time the worker sends to
+the person (a reply or any outbox message). If a brand-new contact's very first
+message fails to decrypt, send them one message from the worker, then ask them to
+send it again — from then on their replies decrypt normally.
+
 ## 5. What it can do
 
 Identical to the website bot:

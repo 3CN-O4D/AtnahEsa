@@ -8,5 +8,6 @@ RUN npm install --omit=dev
 
 COPY . .
 
-EXPOSE 8080
+EXPOSE 10000
+ENV PORT=10000
 CMD ["node", "index.mjs"]

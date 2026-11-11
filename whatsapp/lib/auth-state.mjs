@@ -64,16 +64,22 @@ export async function useSupabaseAuthState(supabase, prefix = 'asehanta') {
   }
 
   /*
-   * requestPairingCode() writes a placeholder `me` plus the pairing code into
-   * creds before the phone has actually approved the link. Baileys chooses
-   * between "register a new companion" and "log in" based on `creds.me`, so a
-   * restart after an abandoned pairing attempt tries to log in as a device
-   * that doesn't exist yet — WhatsApp answers `<failure reason="401">` forever.
+   * requestPairingCode() writes a placeholder `me` (name "~") plus the pairing
+   * code into creds before the phone has actually approved the link. Baileys
+   * chooses between "register a new companion" and "log in" based on
+   * `creds.me`, so a restart after an abandoned pairing attempt tries to log in
+   * as a device that doesn't exist yet — WhatsApp answers `<failure reason="401">`
+   * forever.
    *
-   * While the device is unregistered, drop those ephemeral fields so every
-   * boot takes the registration path and can print a fresh code.
+   * Only drop that *unconfirmed placeholder*. A successful QR pairing leaves
+   * `registered === false` but writes a real `me`, `account` and
+   * `signalIdentities`; deleting those made every successful scan throw away
+   * its credentials and show a fresh QR.
    */
-  if (!creds.registered) {
+  const unconfirmedPairing =
+    !!creds.me && creds.me.name === '~' && !creds.account && !creds.signalIdentities?.length
+
+  if (!creds.registered && unconfirmedPairing) {
     delete creds.me
     delete creds.pairingCode
   }

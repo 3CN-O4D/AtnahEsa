@@ -292,6 +292,14 @@ async function start() {
        * macOS + Chrome is the combination that still links.
        */
       browser: Browsers.macOS('Chrome'),
+      /*
+       * A pairing code is only valid while this socket is alive. Baileys ends
+       * the socket once its QR refs run out (60s for the first, 20s after), so
+       * a code requested by phone number gets killed while the user is still
+       * navigating WhatsApp's menus. Hold the socket open long enough to type
+       * the code.
+       */
+      ...(pairedNumber ? { qrTimeout: 5 * 60 * 1000 } : {}),
       markOnline: false,
       syncFullHistory: false,
       generateHighQualityLinkPreview: true,
@@ -748,6 +756,75 @@ const health = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
   const registered = !!sock?.authState?.creds?.registered
 
+  if (url.pathname === '/qr') {
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+    const token = encodeURIComponent(url.searchParams.get('token') || '')
+    const html = `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AseHanta — WhatsApp pairing</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font-family: system-ui, sans-serif; margin: 0; min-height: 100vh; display: grid; place-items: center; background: #0b1120; color: #e2e8f0; }
+  main { text-align: center; padding: 24px; }
+  h1 { font-size: 1.1rem; font-weight: 600; margin: 0 0 4px; }
+  p { color: #94a3b8; font-size: .85rem; margin: 4px 0; }
+  img { width: min(78vw, 420px); height: auto; background: #fff; padding: 12px; border-radius: 12px; display: block; margin: 16px auto; }
+  .code { font-size: 2.4rem; letter-spacing: .35rem; font-weight: 700; color: #f8fafc; margin: 12px 0 0; font-family: ui-monospace, monospace; }
+  .ok { color: #4ade80; font-size: 1.4rem; font-weight: 700; }
+  .warn { color: #fbbf24; }
+</style>
+</head>
+<body><main>
+  <h1>Link the official AseHanta WhatsApp</h1>
+  <p id="status">Connecting to WhatsApp…</p>
+  <img id="qr" alt="WhatsApp QR" src="/qr.png?token=${token}&amp;t=0">
+  <p class="code" id="code"></p>
+  <p>WhatsApp → Settings → Linked devices → Link a device</p>
+  <p>Page refreshes by itself — scan whatever is on screen right now.</p>
+  <p>Only one phone? Use <b>Link with phone number</b> and the code above.</p>
+</main>
+<script>
+const token = ${JSON.stringify(url.searchParams.get('token') || '')};
+const img = document.getElementById('qr');
+const status = document.getElementById('status');
+const code = document.getElementById('code');
+let done = false;
+
+async function tick() {
+  if (done) return;
+  // cache-bust so the browser always fetches the QR that is live right now
+  img.src = '/qr.png?token=' + encodeURIComponent(token) + '&t=' + Date.now();
+  try {
+    const res = await fetch('/pair?token=' + encodeURIComponent(token), { cache: 'no-store' });
+    const data = await res.json();
+    if (data.connected) {
+      done = true;
+      status.textContent = '';
+      status.className = 'ok';
+      status.textContent = 'Connected ✅';
+      img.style.display = 'none';
+      code.textContent = '';
+      return;
+    }
+    status.className = data.code ? 'warn' : '';
+    status.textContent = data.registered ? 'Linked, starting…' : (data.hasQr ? 'Scan the QR, or enter the code' : 'Waiting for WhatsApp…');
+    code.textContent = data.code || '';
+  } catch {
+    status.textContent = 'Reconnecting…';
+  }
+}
+tick();
+setInterval(tick, 4000);
+</script>
+</body></html>`
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end(html)
+    return
+  }
+
   if (url.pathname === '/qr.png') {
     if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
     if (!pair.qr) return sendJson(res, 409, { error: 'no active QR', hint: 'wait for the next refresh' })
@@ -787,9 +864,39 @@ const health = createServer(async (req, res) => {
     if (registered || connected) {
       return sendJson(res, 409, { error: 'already paired' })
     }
+    /*
+     * A code belongs to one socket. Re-requesting on the same socket restarts
+     * the companion handshake (the old 401 loop), so drop the socket and let
+     * the reconnect print a genuinely fresh code.
+     */
     pair.requested = false
-    const code = await requestPairingCode(sock)
-    return sendJson(res, code ? 200 : 502, { number: formatPhone(pairedNumber), code, error: pair.error })
+    pair.code = null
+    pair.codeAt = 0
+    pair.error = null
+    try {
+      sock.end(undefined)
+    } catch {
+      /* already closed */
+    }
+    return sendJson(res, 202, { number: formatPhone(pairedNumber), restarted: true })
+  }
+
+  if (url.pathname === '/health' || url.pathname === '/live') {
+    /*
+     * Liveness for hosts like Render: must return 200 even before the number
+     * is paired. Their health check fs the service right after boot, so a
+     * "not connected yet" 503 gets the whole deploy marked unhealthy and rolled
+     * back. Readiness stays on "/" below.
+     */
+    return sendJson(res, 200, {
+      ok: true,
+      connected,
+      registered,
+      uptime: Math.round(process.uptime()),
+      pairing: pairedNumber
+        ? { number: formatPhone(pairedNumber), hasCode: Boolean(pair.code), hasQr: Boolean(pair.qr) }
+        : null,
+    })
   }
 
   sendJson(res, connected ? 200 : 503, {

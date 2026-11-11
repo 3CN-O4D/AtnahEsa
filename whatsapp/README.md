@@ -83,9 +83,10 @@ Fill in:
 | `CHAT_API_URL` | `https://www.asehanta.com` (or `http://localhost:3000` while developing) |
 | `WHATSAPP_BRIDGE_SECRET` | must match Vercel |
 | `WHATSAPP_PAIR_NUMBER` | optional, e.g. `254712345678` — prints a pairing code instead of a QR |
+| `WHATSAPP_PAIR_TOKEN` | optional secret for `/pair`, `/qr` and `/qr.png`; defaults to `WHATSAPP_BRIDGE_SECRET` |
 | `WHATSAPP_SESSION_PREFIX` | optional, defaults to `asehanta`; use another value for a test number |
 | `ADMIN_WHATSAPP_NUMBERS` | optional, comma-separated admin numbers (digits only) that get a WhatsApp copy of every request/booking/escalation |
-| `PORT` | health-check port, defaults to `8080` |
+| `PORT` | health-check port, defaults to `10000` in Docker (Render) and `8080` locally |
 | `WHATSAPP_OUTBOX_POLL_MS` | optional, how often to check the outbox, defaults to `3000` |
 | `WHATSAPP_OUTBOX_MAX_ATTEMPTS` | optional, delivery attempts before a row is marked failed, defaults to `3` |
 
@@ -116,7 +117,7 @@ which defaults to `WHATSAPP_BRIDGE_SECRET`):
 | --- | --- |
 | `GET /pair?token=…` | current code, its age, whether a QR is live, registration state |
 | `GET /qr.png?token=…` | the live QR as a scannable 512×512 PNG |
-| `GET /pair/new?token=…` | requests a fresh code on the current socket |
+| `GET /pair/new?token=…` | drops the current socket and prints a genuinely fresh code on reconnect |
 
 The process prints `connected and ready ✅` when the number is live.
 Leave it running (pm2, systemd, Docker, or the host's process manager).
@@ -191,11 +192,37 @@ delete from public.whatsapp_auth where key like 'asehanta:%';
 
 Then restart the worker.
 
-## 7. Docker
+## 7. Render
+
+The repo ships `whatsapp/Dockerfile`, so deploy this folder as a **Web Service
+(Docker)**:
+
+| Setting | Value |
+| --- | --- |
+| Root directory | `whatsapp` |
+| Dockerfile path | `Dockerfile` |
+| Health check path | `/health` |
+| Port | Render injects `PORT` (the image defaults to `10000`) |
+
+Set the same env vars as section 3, plus `WHATSAPP_PAIR_NUMBER` and
+`WHATSAPP_PAIR_TOKEN`. Then open
+`https://<service>.onrender.com/qr?token=<WHATSAPP_PAIR_TOKEN>` on a second
+screen to scan, or `/pair` to read the current code.
+
+`/health` always answers `200` (liveness). `/` is readiness and answers `503`
+until WhatsApp is connected. The health check **must** point at `/health`,
+otherwise Render rolls the deploy back while the number is still unpaired.
+
+Free instances sleep after 15 minutes without inbound traffic. An active
+WhatsApp socket usually counts as inbound WebSocket traffic, but Render reserves
+the right to restart free services at any time. For an always-on production bot,
+use the Starter plan, or ping `/health` every 10 minutes from an external cron.
+
+## 8. Docker
 
 ```bash
 docker build -t asehanta-whatsapp .
-docker run --env-file .env -p 8080:8080 asehanta-whatsapp
+docker run --env-file .env -p 10000:10000 asehanta-whatsapp
 ```
 
 Mount nothing — the auth state lives in Supabase.

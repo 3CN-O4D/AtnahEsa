@@ -92,6 +92,27 @@ export async function useSupabaseAuthState(supabase, prefix = 'asehanta') {
           const data = {}
           await Promise.all(
             ids.map(async (id) => {
+              /*
+               * Baileys 7's PN → LID bulk migration copies every PN device
+               * session onto the matching LID address and deletes the PN copy.
+               * Two problems make that unsafe here:
+               *
+               *   1. WhatsApp lists a "hosted" device (99) for some users.
+               *      Migration tries to copy it to a plain @lid address, which
+               *      throws "Unexpected non-hosted device JID with device 99"
+               *      *before* decryption, so the whole inbound DM is dropped.
+               *   2. It overwrites LID sessions that a recent outbound reply
+               *      just established, so the message encrypted with that
+               *      session can no longer be decrypted.
+               *
+               * LID sessions are created by normal sends and pre-key messages,
+               * so hide the device list and skip that bulk migration.
+               */
+              if (type === 'device-list') {
+                data[id] = undefined
+                return
+              }
+
               let value = await readData(`${type}-${id}`)
               if (type === 'app-state-sync-key' && value) {
                 value = proto.Message.AppStateSyncKeyData.fromObject(value)

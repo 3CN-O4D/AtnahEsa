@@ -48,7 +48,12 @@ if (missing.length) {
 
 const supabase = createSupabase()
 const askBrain = createBrain({ url: CHAT_API_URL, secret: WHATSAPP_BRIDGE_SECRET })
-const logger = pino({ level: process.env.LOG_LEVEL || 'warn' })
+const logger = pino({
+  level: process.env.LOG_LEVEL || 'warn',
+  // Baileys logs thrown errors under both `err` and `error`; without these the
+  // default serializer prints `{}` and hides the real message.
+  serializers: { err: pino.stdSerializers.err, error: pino.stdSerializers.err },
+})
 
 const RESET_RE = /^(reset|restart|start over|clear chat|new chat|fresh start)$/i
 

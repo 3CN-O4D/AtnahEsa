@@ -40,6 +40,7 @@ Run all three migrations on the production database:
 supabase/migration-whatsapp.sql
 supabase/migration-chat-handoff.sql
 supabase/migration-whatsapp-outbox.sql
+supabase/migration-whatsapp-control.sql
 ```
 
 They create:
@@ -47,9 +48,15 @@ They create:
 | Table | Purpose |
 | --- | --- |
 | `whatsapp_auth` | Baileys Signal credentials (one row per key) |
-| `whatsapp_sessions` | flow state + last 12 messages per chat, `last_message_id` for dedupe |
+| `whatsapp_sessions` | flow state + last 12 messages per chat, `last_message_id` for dedupe, `ai_enabled` / `handoff_at` for human takeover |
 | `chat_handoffs` | single-use web ⇄ WhatsApp hand-off tokens (state + history, 24h expiry) |
 | `whatsapp_outbox` | queued WhatsApp copies of emails, OTPs and receipt PDFs |
+| `whatsapp_bot_control` | singleton: pause, allow/block lists, marketing cadence |
+| `whatsapp_messages` | full conversation transcript (120 days) |
+| `whatsapp_urgent` | escalation feed for the admin panel |
+| `whatsapp_marketing` | approval queue for status/group posts |
+| `whatsapp_marketing_groups` | discovered groups, disabled until an admin enables them |
+| `whatsapp_control_audit` | who paused, allowed, blocked or approved what |
 
 All have RLS enabled with no policies, so only the service-role key can read
 them.
@@ -85,7 +92,10 @@ Fill in:
 | `WHATSAPP_PAIR_NUMBER` | optional, e.g. `254712345678` — prints a pairing code instead of a QR |
 | `WHATSAPP_PAIR_TOKEN` | optional secret for `/pair`, `/qr` and `/qr.png`; defaults to `WHATSAPP_BRIDGE_SECRET` |
 | `WHATSAPP_SESSION_PREFIX` | optional, defaults to `asehanta`; use another value for a test number |
-| `ADMIN_WHATSAPP_NUMBERS` | optional, comma-separated admin numbers (digits only) that get a WhatsApp copy of every request/booking/escalation |
+| `ADMIN_WHATSAPP_NUMBERS` | optional, comma-separated admin numbers (digits only) that get a WhatsApp copy of every request/booking/escalation and can issue bot commands |
+| `WHATSAPP_TTS_VOICE` | optional Edge TTS voice for urgent voice notes, defaults to `en-KE-AsiliaNeural` |
+| `URGENT_CALL_WEBHOOK` | optional POST target for real phone calls on urgent items |
+| `TWILIO_ACCOUNT_SID` / `TWILIO_AUTH_TOKEN` / `TWILIO_FROM_NUMBER` | optional direct Twilio calling when the webhook is not used |
 | `PORT` | health-check port, defaults to `10000` in Docker (Render) and `8080` locally |
 | `WHATSAPP_OUTBOX_POLL_MS` | optional, how often to check the outbox, defaults to `3000` |
 | `WHATSAPP_OUTBOX_MAX_ATTEMPTS` | optional, delivery attempts before a row is marked failed, defaults to `3` |
@@ -118,6 +128,7 @@ which defaults to `WHATSAPP_BRIDGE_SECRET`):
 | `GET /pair?token=…` | current code, its age, whether a QR is live, registration state |
 | `GET /qr.png?token=…` | the live QR as a scannable 512×512 PNG |
 | `GET /pair/new?token=…` | drops the current socket and prints a genuinely fresh code on reconnect |
+| `GET /transcript?token=…&phone=…&format=html` | printable conversation view (`txt` or `html`) |
 
 The process prints `connected and ready ✅` when the number is live.
 Leave it running (pm2, systemd, Docker, or the host's process manager).
@@ -188,14 +199,98 @@ base64 payload (receipt PDFs).
 Set `WHATSAPP_NOTIFICATIONS=off` on Vercel to disable mirroring without touching
 the worker. Failures here never break email, OTP or payment flows.
 
+## 5d. Admin control, transcripts and marketing
+
+The bot is controlled from **`/admin/whatsapp`** and from WhatsApp itself. Both
+read the singleton `whatsapp_bot_control` row, so a change in the panel takes
+effect within seconds without a redeploy.
+
+### WhatsApp commands
+
+Admins (the numbers in `ADMIN_WHATSAPP_NUMBERS`) can send these in a DM to the
+bot; the bot's own self-chat works too:
+
+| Command | Effect |
+| --- | --- |
+| `.pause` / `.start` | stop / resume all AI replies |
+| `.status` | connection, allow/block counts, marketing cadence |
+| `.allow <phone>` / `.deny <phone>` | allow or block one number |
+| `.allowlist` | show both lists |
+| `.handover <phone>` / `.ai <phone>` | human takeover / give the chat back to Ase |
+| `.chats` | recent conversations |
+| `.transcript <phone>` | send the full chat as a `.txt` file |
+| `.help` | the command list |
+
+When AI is paused, or a chat is handed over, the customer gets **one** polite
+holding message and the admin team is pinged once — never a bot reply, never a
+notification loop.
+
+### Human-style replies
+
+`lib/format.mjs` splits the engine reply on blank lines, `---` markers, sentence
+boundaries and word boundaries, capped at **10 bubbles**. The worker types each
+bubble with a delay proportional to its length, so a reply reads like a person
+texting rather than one wall of text.
+
+### Transcripts
+
+Every inbound and outbound message is mirrored into `whatsapp_messages`. Admins
+can:
+
+- pull `.txt` over WhatsApp (`.transcript <phone>`);
+- open the chat viewer in `/admin/whatsapp` (live JSON from
+  `/api/admin/whatsapp/transcript`);
+- open the **printable WhatsApp-style page** (`?format=html`), which is the
+  closest honest equivalent to a screenshot — WhatsApp exposes no screenshot API.
+
+OTP rows are stored with `kind = 'otp'` and hidden from exports.
+
+### Urgent alerts
+
+Escalations still go to the admin team as WhatsApp text. Urgent ones also get:
+
+- a spoken **voice note** (Edge TTS → ffmpeg OGG/Opus, no API key needed);
+- a real **phone call** when `URGENT_CALL_WEBHOOK` or the Twilio values are set.
+
+Baileys cannot originate WhatsApp voice calls (it only exposes `rejectCall`), so
+calling needs one of those two providers. Without them the text + voice note
+still go out.
+
+### Marketing
+
+The AI writes the wording from **real listing rows** (never invented facts), with
+a deterministic template as fallback. Statuses and group posts land in
+`whatsapp_marketing` as `draft` while `require_approval` is on; an admin approves,
+edits or skips them in the panel. The worker sends only approved rows that are due.
+
+Safety rails:
+
+- marketing defaults **off**, approval defaults **on**;
+- groups are discovered disabled and must be enabled one by one, each with its
+  own cadence;
+- account-wide daily caps for statuses and group posts;
+- status posts go to recent contacts, outbox recipients and admins (max 3000),
+  never the official number itself or a blocked contact;
+- real listing photos are used for the card; a branded gradient is the fallback,
+  never a fake house.
+
+Group blasting is the fastest way to lose a WhatsApp number. Keep the caps low
+and only enable groups where promotion is welcome.
+
 ## 6. Security
 
 - The brain endpoint requires `x-bridge-secret`; it is not reachable from the
   public website bundle.
 - Per-sender rate limit: 20 messages/minute on the brain, plus Baileys dedupe by
   message id.
-- Groups and status broadcasts are ignored.
-- Nothing is written to WhatsApp status; `markOnline` is off.
+- Groups are never AI-replied to; status broadcasts are ignored on the inbound
+  side. Outbound group posts and statuses only happen through the approval queue
+  and only for enabled groups.
+- `markOnline` is off. The number only posts to status/group when marketing is
+  enabled and a post is approved.
+- `.pause`, `.start` and the allow/block lists are writable only by admin
+  numbers, the self-chat, or an authenticated admin session in the panel; every
+  change is recorded in `whatsapp_control_audit`.
 - Hand-off tokens are unguessable, single-use and expire in 24 hours.
 - If the phone logs out all devices, clear the stored pairing and re-pair:
 

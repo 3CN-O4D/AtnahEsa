@@ -13,6 +13,10 @@ import { createSupabase, useSupabaseAuthState, clearAuthState } from './lib/auth
 import { loadSession, saveSession, resetSession } from './lib/session.mjs'
 import { emptyState } from './lib/chat-state.mjs'
 import { createBrain } from './lib/brain.mjs'
+import { createControl, digits } from './lib/control.mjs'
+import { logMessage, buildTranscript } from './lib/transcript.mjs'
+import { toWhatsAppVoiceNote, DEFAULT_TTS_VOICE } from './lib/voice.mjs'
+import { createMarketing, syncGroups } from './lib/marketing.mjs'
 import {
   splitBubbles,
   renderBubble,
@@ -32,6 +36,11 @@ const {
   WHATSAPP_PAIR_NUMBER,
   WHATSAPP_SESSION_PREFIX = 'asehanta',
   ADMIN_WHATSAPP_NUMBERS = '',
+  WHATSAPP_TTS_VOICE = DEFAULT_TTS_VOICE,
+  URGENT_CALL_WEBHOOK = '',
+  TWILIO_ACCOUNT_SID = '',
+  TWILIO_AUTH_TOKEN = '',
+  TWILIO_FROM_NUMBER = '',
   PORT = '8080',
 } = process.env
 
@@ -64,6 +73,45 @@ const HANDOFF_RE = /\bAS-([A-Za-z0-9_-]{16,64})\b/
 const adminNumbers = ADMIN_WHATSAPP_NUMBERS.split(',')
   .map((n) => n.replace(/\D/g, ''))
   .filter(Boolean)
+
+/*
+ * Admin control is a singleton row in Supabase, shared with the admin panel.
+ * An empty allowlist means "AI may reply to anyone", which is the default for a
+ * customer-facing number. Admins are recognised separately by phone number, so
+ * they can always issue commands even when the allowlist is narrowed.
+ */
+const control = createControl(supabase)
+
+/** The official number, filled from the linked credentials once connected. */
+let ownPhone = digits(WHATSAPP_PAIR_NUMBER || '')
+
+function isAdminNumber(phone) {
+  const clean = digits(phone)
+  return Boolean(clean) && adminNumbers.includes(clean)
+}
+
+/** Self-chat: a fromMe message in the bot's own conversation. */
+function isSelfChat(jid, phone) {
+  if (!ownPhone) return false
+  return digits(phone) === digits(ownPhone) || digits(jid) === digits(ownPhone)
+}
+
+/*
+ * Marketing runs inside the worker because only the worker holds the socket.
+ * Drafts and approval live in the app; this object only asks for a draft on
+ * the configured cadence and sends rows an admin has approved.
+ */
+const marketing = createMarketing({
+  supabase,
+  control,
+  apiUrl: CHAT_API_URL,
+  secret: WHATSAPP_BRIDGE_SECRET,
+  ownPhone: () => ownPhone,
+  adminNumbers,
+  sendText,
+})
+
+
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -139,16 +187,352 @@ function adminAlertText(alert, { phone, profileName }) {
 async function sendAdminAlerts(alert, meta) {
   if (!alert || adminNumbers.length === 0) return
   const text = adminAlertText(alert, meta)
-  for (const number of adminNumbers) {
+  const urgent = alert.priority === 'urgent'
+
+  /*
+   * Keep every escalation in the admin feed, even when WhatsApp delivery is
+   * down. The panel is the durable record; the messages are best-effort.
+   */
+  try {
+    await supabase.from('whatsapp_urgent').insert({
+      phone: digits(alert.phone || meta.phone) || null,
+      name: alert.name || meta.profileName || null,
+      topic: alert.topic || null,
+      subject: alert.subject || null,
+      message: String(alert.message || '').slice(0, 4000),
+      priority: urgent ? 'urgent' : 'normal',
+      meta: { source: 'whatsapp', brand: 'asehanta' },
+    })
+  } catch (error) {
+    console.error('[whatsapp] could not record urgent alert:', error?.message ?? error)
+  }
+
+  /*
+   * Urgent alerts also get a short spoken version. A voice note cuts through a
+   * muted phone in a way text does not, and it is the closest thing to a call
+   * that WhatsApp itself allows from a linked device.
+   */
+  let voice = null
+  if (urgent) {
     try {
-      await sock.sendMessage(`${number}@s.whatsapp.net`, { text })
+      voice = await toWhatsAppVoiceNote(
+        `Urgent AseHanta alert. ${alert.topic || 'New message'}. ${
+          alert.subject || ''
+        }. ${alert.message || ''}. Customer ${alert.name || meta.profileName || 'unknown'}, phone ${
+          alert.phone || meta.phone || 'unknown'
+        }.`,
+        { voice: WHATSAPP_TTS_VOICE }
+      )
+    } catch (error) {
+      console.error('[whatsapp] urgent voice note failed:', error?.message ?? error)
+    }
+  }
+
+  for (const number of adminNumbers) {
+    const jid = `${number}@s.whatsapp.net`
+    try {
+      await sock.sendMessage(jid, { text })
+      if (voice) {
+        await sock.sendMessage(jid, { audio: voice, mimetype: 'audio/ogg; codecs=opus', ptt: true })
+      }
     } catch (error) {
       console.error(`[whatsapp] admin alert to ${number} failed:`, error?.message ?? error)
     }
   }
+
+  if (urgent) void placeUrgentCall(alert, meta)
+}
+
+/**
+ * Place a real phone call for an urgent escalation.
+ *
+ * Baileys can only receive/hang up WhatsApp calls, so an outbound call needs a
+ * telephony provider. Two options are supported:
+ *
+ *   - `URGENT_CALL_WEBHOOK`: a provider-agnostic POST the team can point at
+ *     Africa's Talking, Twilio Functions, or their own switchboard.
+ *   - Twilio directly when the three TWILIO_* values are set.
+ *
+ * With neither configured this is a no-op; the WhatsApp text + voice note still
+ * go out.
+ */
+async function placeUrgentCall(alert, meta) {
+  const message = `Urgent AseHanta alert: ${alert.topic || 'customer needs help'}. ${
+    alert.message || ''
+  }`.slice(0, 400)
+
+  if (URGENT_CALL_WEBHOOK) {
+    try {
+      await fetch(URGENT_CALL_WEBHOOK, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          to: adminNumbers,
+          message,
+          phone: alert.phone || meta.phone || null,
+          name: alert.name || meta.profileName || null,
+          priority: 'urgent',
+        }),
+        signal: AbortSignal.timeout(10000),
+      })
+      return
+    } catch (error) {
+      console.error('[whatsapp] urgent call webhook failed:', error?.message ?? error)
+    }
+  }
+
+  if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM_NUMBER) return
+
+  const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')
+  const twiml = `<Response><Say voice="Polly.Joanna">${message.replace(
+    /[<>&"]/g,
+    (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[char]
+  )}</Say></Response>`
+
+  for (const number of adminNumbers) {
+    try {
+      await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`,
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Basic ${auth}`,
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({
+            To: `+${number}`,
+            From: TWILIO_FROM_NUMBER,
+            Twiml: twiml,
+          }),
+          signal: AbortSignal.timeout(15000),
+        }
+      )
+    } catch (error) {
+      console.error(`[whatsapp] urgent call to ${number} failed:`, error?.message ?? error)
+    }
+  }
+}
+
+
+/* -------------------------------------------------------- admin commands */
+
+const COMMAND_RE = /^[.!]\s*([a-z][a-z-]*)(?:\s+([\s\S]*))?$/i
+
+function helpText() {
+  return [
+    '*AseHanta WhatsApp controls*',
+    '',
+    '.pause — stop AI replies everywhere',
+    '.start — resume AI replies everywhere',
+    '.status — bot and marketing status',
+    '.allow <phone> — AI may chat with this number',
+    '.deny <phone> — never reply to this number',
+    '.allowlist — show the allow/block lists',
+    '.handover <phone> — a human takes over this chat',
+    '.ai <phone> — give this chat back to Ase',
+    '.chats — recent conversations',
+    '.transcript <phone> — send the full chat as a file',
+    '',
+    'Commands work from any admin number and from this number’s own self-chat.',
+  ].join('\n')
+}
+
+async function findChatByPhone(phone) {
+  const clean = digits(phone)
+  if (!clean) return null
+  const { data, error } = await supabase
+    .from('whatsapp_sessions')
+    .select('wa_jid, phone, profile_name, ai_enabled, updated_at')
+    .eq('phone', clean)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  if (error) console.error('[whatsapp] chat lookup failed:', error.message)
+  return data ?? null
+}
+
+/** @returns {Promise<boolean>} true when the text was an admin command. */
+async function handleAdminCommand({ jid, text, actor }) {
+  const match = COMMAND_RE.exec(String(text ?? '').trim())
+  if (!match) return false
+
+  const command = match[1].toLowerCase()
+  const arg = (match[2] || '').trim()
+  const who = digits(actor) || 'admin'
+  const reply = (body) => sendText(jid, body)
+
+  try {
+    switch (command) {
+      case 'help':
+        await reply(helpText())
+        return true
+
+      case 'pause': {
+        await control.setMode('paused', who)
+        await control.clearHandoffNotices()
+        await reply(
+          '⏸️ *AI paused.* Every chat now gets one holding message and the team is notified. Use .start when you are ready for Ase to reply again.'
+        )
+        return true
+      }
+
+      case 'start': {
+        await control.setMode('active', who)
+        await control.resumeAllChats(who)
+        await reply('▶️ *AI active.* Ase is replying to every allowed chat again.')
+        return true
+      }
+
+      case 'status': {
+        const snap = await control.read(true)
+        const answer = [
+          '*AseHanta WhatsApp status*',
+          '',
+          `AI: ${snap.mode === 'active' ? 'active ▶️' : 'paused ⏸️'}`,
+          `Connection: ${connected ? 'connected ✅' : 'offline ❌'}`,
+          `Number: ${ownPhone ? `+${ownPhone}` : 'not linked'}`,
+          `Allowlist: ${snap.allowlist.length ? `${snap.allowlist.length} number(s)` : 'everyone'}`,
+          `Blocklist: ${snap.blocklist.length} number(s)`,
+          '',
+          `Marketing: ${snap.marketing_enabled ? 'on' : 'off'}`,
+          `Approval: ${snap.require_approval ? 'admin approval required' : 'auto-send'}`,
+          `Statuses: every ${snap.status_interval_minutes} min · max ${snap.status_daily_limit}/day`,
+          `Group posts: every ${snap.group_interval_minutes} min · max ${snap.group_daily_limit}/day`,
+          '',
+          'Open the panel: https://www.asehanta.com/admin/whatsapp',
+        ].join('\n')
+        await reply(answer)
+        return true
+      }
+
+      case 'allow': {
+        const phone = digits(arg)
+        if (!phone) {
+          await reply('Usage: .allow <phone with country code>\nExample: .allow 254712345678')
+          return true
+        }
+        const snap = await control.addToList('allowlist', phone, who)
+        await reply(
+          `✅ Allowed *+${phone}*.\n${
+            snap.allowlist.length > 0
+              ? `The allowlist now has ${snap.allowlist.length} number(s), so everyone else gets a holding message.`
+              : 'The allowlist is empty, so AI replies to everyone.'
+          }`
+        )
+        return true
+      }
+
+      case 'deny': {
+        const phone = digits(arg)
+        if (!phone) {
+          await reply('Usage: .deny <phone with country code>\nExample: .deny 254712345678')
+          return true
+        }
+        await control.addToList('blocklist', phone, who)
+        await control.removeFromList('allowlist', phone, who)
+        await reply(`🚫 *+${phone}* is blocked. Ase will never reply to it.`)
+        return true
+      }
+
+      case 'allowlist': {
+        const snap = await control.read(true)
+        const list = (numbers) => (numbers.length ? numbers.map((n) => `+${n}`).join('\n') : '_none_')
+        await reply(
+          [
+            '*Allowlist* (AI may reply)',
+            snap.allowlist.length ? list(snap.allowlist) : '_empty — AI replies to everyone_',
+            '',
+            '*Blocklist* (never reply)',
+            list(snap.blocklist),
+          ].join('\n')
+        )
+        return true
+      }
+
+      case 'handover': {
+        const phone = digits(arg)
+        if (!phone) {
+          await reply('Usage: .handover <phone>\nAse will stop replying in that chat until .ai <phone>.')
+          return true
+        }
+        const chat = await findChatByPhone(phone)
+        const targetJid = chat?.wa_jid || `${phone}@s.whatsapp.net`
+        await control.setChatAI(targetJid, phone, false, who)
+        await reply(
+          `🙋 *+${phone}* is now handled by a human. Ase is silent there.\nUse .ai ${phone} to hand it back.`
+        )
+        return true
+      }
+
+      case 'ai': {
+        const phone = digits(arg)
+        if (!phone) {
+          await reply('Usage: .ai <phone>\nAse resumes replying in that chat.')
+          return true
+        }
+        const chat = await findChatByPhone(phone)
+        const targetJid = chat?.wa_jid || `${phone}@s.whatsapp.net`
+        await control.setChatAI(targetJid, phone, true, who)
+        await reply(`🤖 *+${phone}* is back with Ase.`)
+        return true
+      }
+
+      case 'chats': {
+        const { data, error } = await supabase
+          .from('whatsapp_sessions')
+          .select('phone, profile_name, ai_enabled, updated_at')
+          .not('phone', 'is', null)
+          .order('updated_at', { ascending: false })
+          .limit(15)
+        if (error) throw new Error(error.message)
+        const rows = (data ?? []).map((row) => {
+          const when = row.updated_at ? new Date(row.updated_at).toISOString().slice(5, 16).replace('T', ' ') : ''
+          const state = row.ai_enabled === false ? '🙋 human' : '🤖 Ase'
+          return `+${row.phone} · ${row.profile_name || 'unknown'} · ${state} · ${when}`
+        })
+        await reply(['*Recent chats*', '', ...(rows.length ? rows : ['_none yet_'])].join('\n'))
+        return true
+      }
+
+      case 'transcript': {
+        const phone = digits(arg)
+        if (!phone) {
+          await reply('Usage: .transcript <phone>\nExample: .transcript 254712345678')
+          return true
+        }
+        const transcript = await buildTranscript(supabase, { phone, limit: 400 })
+        if (!transcript.found) {
+          await reply(`No transcript for *+${phone}* yet.`)
+          return true
+        }
+        if (sock) {
+          await sock.sendMessage(jid, {
+            document: Buffer.from(transcript.text, 'utf8'),
+            mimetype: 'text/plain',
+            fileName: transcript.filename,
+          })
+        }
+        await reply(
+          `📄 *+${phone}* — ${transcript.count} message(s)${
+            transcript.limited ? ' (recent history only)' : ''
+          }.\nPrintable view: ${CHAT_API_URL.replace(/\/$/, '')}/admin/whatsapp?transcript=${phone}`
+        )
+        return true
+      }
+
+      default:
+        await reply(`Unknown command: .${command}\n\n${helpText()}`)
+        return true
+    }
+  } catch (error) {
+    console.error(`[whatsapp] admin command .${command} failed:`, error?.message ?? error)
+    await reply(`⚠️ .${command} failed: ${String(error?.message ?? error).slice(0, 200)}`)
+    return true
+  }
 }
 
 /* ------------------------------------------------------------------ pairing */
+
 
 /*
  * Pairing is deliberately *not* on a timer.
@@ -343,15 +727,23 @@ async function start() {
         reconnectAttempts = 0
         pair.qr = null
         pair.code = null
-        const lid = socket?.authState?.creds?.me?.lid
+
+        const me = socket?.authState?.creds?.me
+        const mePhone = digits(String(me?.id || '').split('@')[0].split(':')[0])
+        if (mePhone) ownPhone = mePhone
+
+        const lid = me?.lid
         console.log(`[whatsapp] connected and ready ✅${lid ? ` (lid ${lid})` : ''}`)
         startOutbox()
+        void syncGroups(socket, supabase)
+        marketing.start(socket)
       }
 
       if (connection === 'close') {
         connected = false
         starting = false
         stopOutbox()
+        marketing.stop()
         pair.qr = null
 
         const statusCode = lastDisconnect?.error?.output?.statusCode
@@ -415,7 +807,6 @@ async function start() {
 async function onMessage(message) {
   const rawJid = message?.key?.remoteJid
   if (!rawJid) return
-  if (message.key.fromMe) return
   if (rawJid === 'status@broadcast') return
   if (rawJid.endsWith('@g.us')) return // group chats stay quiet
 
@@ -430,9 +821,85 @@ async function onMessage(message) {
    * mode, and the reply goes through Baileys' LID resolution.
    */
   const jid = message.key.senderPn || rawJid
+  const phone = String(message.key.senderPn || jid).split('@')[0]
+  const fromMe = Boolean(message.key.fromMe)
+  const self = isSelfChat(jid, phone)
+  const text = extractText(message)
+
+  /*
+   * fromMe is either the bot's own send or a human reply typed on the linked
+   * phone. The self-chat doubles as the admin console: only commands typed
+   * there run, everything else is left alone so a human takeover is not
+   * answered by the bot.
+   */
+  if (fromMe) {
+    if (!self || !COMMAND_RE.test(text.trim())) return
+    return enqueue(jid, () => handleAdminCommand({ jid, text, actor: phone }))
+  }
+
+  // An admin messaging the bot is issuing a command, not chatting with Ase.
+  if (isAdminNumber(phone) && COMMAND_RE.test(text.trim())) {
+    return enqueue(jid, () => handleAdminCommand({ jid, text, actor: phone }))
+  }
 
   return enqueue(jid, () => handleMessage({ message, jid, id }))
 }
+
+const HOLDING = {
+  paused:
+    'Thanks for your message 🙏 AseHanta is online right now, so a team member will reply here shortly.',
+  handoff:
+    'Thanks for your message 🙏 A team member already has your chat and will reply here shortly.',
+  allowlist:
+    'Thanks for reaching out to AseHanta. Your message has been received — a team member will get back to you shortly.',
+}
+
+async function notifyAdminHandoff({ phone, profileName, reason }) {
+  if (!adminNumbers.length) return
+  const text = [
+    '🙋 *Customer needs a human*',
+    `Reason: ${reason}`,
+    `Name: ${profileName || 'unknown'}`,
+    `Phone: ${phone || 'unknown'}`,
+    phone ? `Open chat: https://wa.me/${digits(phone)}` : '',
+  ]
+    .filter(Boolean)
+    .join('\n')
+
+  for (const number of adminNumbers) {
+    try {
+      await sock.sendMessage(`${number}@s.whatsapp.net`, { text })
+    } catch (error) {
+      console.error(`[whatsapp] handoff notice to ${number} failed:`, error?.message ?? error)
+    }
+  }
+}
+
+/**
+ * One holding message per chat, then stay quiet until an admin uses .start or
+ * .ai. The transcript keeps recording inbound messages via handleMessage, so a
+ * human can catch up from the panel.
+ */
+async function sendHoldingMessage({ jid, phone, session, reason, profileName, id }) {
+  if (session.handoffAt) return
+
+  const body = HOLDING[reason] || HOLDING.paused
+  await sendText(jid, body)
+  await logMessage(supabase, { jid, phone, role: 'assistant', body })
+
+  await saveSession(supabase, jid, {
+    phone,
+    profileName,
+    state: session.state ?? emptyState(),
+    history: session.history ?? [],
+    lastMessageId: id,
+    aiEnabled: session.aiEnabled,
+    handoffAt: new Date().toISOString(),
+  })
+
+  await notifyAdminHandoff({ phone, profileName, reason })
+}
+
 
 async function handleMessage({ message, jid, id }) {
   let text = extractText(message)
@@ -487,8 +954,26 @@ async function handleMessage({ message, jid, id }) {
     return
   }
 
+  /*
+   * Admin control gate. A blocked number is ignored silently. Paused /
+   * handover / allowlist chats get one polite holding message and an admin
+   * ping, then Ase stays out of the way.
+   */
+  const gate = await control.gate({ phone, aiEnabled: session.aiEnabled })
+  if (gate.reason === 'blocked') {
+    await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
+    return
+  }
+  if (!gate.ai) {
+    await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
+    await sendHoldingMessage({ jid, phone, session, reason: gate.reason, profileName, id })
+    return
+  }
+
   try {
     await safePresence(jid, 'composing')
+
+    await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
 
     const result = await askBrain({
       message: text,
@@ -512,11 +997,17 @@ async function handleMessage({ message, jid, id }) {
     const quickLine = quickReplyLine(result.quickReplies)
     if (quickLine) bubbles[bubbles.length - 1].text += '\n\n' + quickLine
 
-    const outgoing = bubbles.slice(0, 8)
-    for (const bubble of outgoing) {
-      await sleep(outgoing.length > 1 ? 300 + Math.random() * 400 : 0)
+    /*
+     * Human pacing: up to ten bubbles, each typed on screen for roughly as long
+     * as a person would take to write it. The splitter already caps at ten.
+     */
+    for (const bubble of bubbles) {
+      const rendered = renderBubble(bubble)
+      const pause = Math.min(4200, 450 + rendered.length * 11)
+      await sleep(bubbles.length > 1 ? pause * (0.6 + Math.random() * 0.6) : 0)
       await safePresence(jid, 'composing')
-      await sendText(jid, renderBubble(bubble))
+      await sendText(jid, rendered)
+      await logMessage(supabase, { jid, phone, role: 'assistant', body: rendered })
     }
 
     // House results as image cards with a caption, like the web cards. When a
@@ -535,6 +1026,7 @@ async function handleMessage({ message, jid, id }) {
       if (gallery.length === 0) {
         try {
           await sock.sendMessage(jid, { text: caption })
+          await logMessage(supabase, { jid, phone, role: 'assistant', body: caption })
         } catch {
           /* card is best-effort; the text reply already listed it */
         }
@@ -547,6 +1039,9 @@ async function handleMessage({ message, jid, id }) {
             image: { url: gallery[i] },
             caption: i === 0 ? caption : undefined,
           })
+          if (i === 0) {
+            await logMessage(supabase, { jid, phone, role: 'assistant', body: caption })
+          }
         } catch {
           if (i === 0) {
             try {
@@ -895,6 +1390,38 @@ setInterval(tick, 4000);
     return sendJson(res, 202, { number: formatPhone(pairedNumber), restarted: true })
   }
 
+  if (url.pathname === '/transcript') {
+    /*
+     * Printable/downloadable conversation view for the admin panel. The panel
+     * links here instead of copying the whole chat into a WhatsApp message.
+     * WhatsApp offers no chat-screenshot API, so an HTML view is the closest
+     * honest equivalent.
+     */
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+
+    const phone = digits(url.searchParams.get('phone') || '')
+    const jid = (url.searchParams.get('jid') || '').trim() || null
+    if (!phone && !jid) return sendJson(res, 400, { error: 'phone or jid is required' })
+
+    const format = url.searchParams.get('format') === 'html' ? 'html' : 'txt'
+    const limit = Number(url.searchParams.get('limit')) || 200
+
+    try {
+      const transcript = await buildTranscript(supabase, { phone, jid, format, limit })
+      if (!transcript.found) return sendJson(res, 404, { error: 'no messages for that chat' })
+
+      res.writeHead(200, {
+        'Content-Type': format === 'html' ? 'text/html; charset=utf-8' : 'text/plain; charset=utf-8',
+        'Content-Disposition': `inline; filename="${transcript.filename}"`,
+        'Cache-Control': 'no-store',
+      })
+      res.end(format === 'html' ? transcript.html : transcript.text)
+    } catch (error) {
+      sendJson(res, 500, { error: String(error?.message ?? error) })
+    }
+    return
+  }
+
   if (url.pathname === '/health' || url.pathname === '/live') {
     /*
      * Liveness for hosts like Render: must return 200 even before the number
@@ -937,6 +1464,7 @@ health.listen(Number(PORT), () => {
 async function shutdown(signal) {
   console.log(`[whatsapp] ${signal} received, closing`)
   stopOutbox()
+  marketing.stop()
   health.close()
   try {
     sock?.end(undefined)

@@ -20,6 +20,7 @@ import {
   ClipboardCheck,
   ExternalLink,
   ChevronRight,
+  MessageCircle,
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -50,6 +51,7 @@ const navGroups = [
     label: 'Support',
     links: [
       { href: '/admin/complaints', label: 'Complaints', icon: MessageSquareWarning, badge: true },
+      { href: '/admin/whatsapp', label: 'WhatsApp', icon: MessageCircle },
       { href: '/admin/receipts', label: 'Receipts', icon: ReceiptText },
     ],
   },

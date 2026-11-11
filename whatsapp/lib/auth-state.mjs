@@ -46,6 +46,38 @@ export async function useSupabaseAuthState(supabase, prefix = 'asehanta') {
 
   const creds = (await readData('creds')) || initAuthCreds()
 
+  /*
+   * Heal credentials written by older builds that dropped required fields.
+   * A missing `pairingEphemeralKeyPair` makes requestPairingCode throw
+   * "Cannot read properties of undefined (reading 'public')".
+   */
+  const defaults = initAuthCreds()
+  for (const field of [
+    'noiseKey',
+    'pairingEphemeralKeyPair',
+    'signedIdentityKey',
+    'signedPreKey',
+    'registrationId',
+    'advSecretKey',
+  ]) {
+    if (creds[field] === undefined) creds[field] = defaults[field]
+  }
+
+  /*
+   * requestPairingCode() writes a placeholder `me` plus the pairing code into
+   * creds before the phone has actually approved the link. Baileys chooses
+   * between "register a new companion" and "log in" based on `creds.me`, so a
+   * restart after an abandoned pairing attempt tries to log in as a device
+   * that doesn't exist yet — WhatsApp answers `<failure reason="401">` forever.
+   *
+   * While the device is unregistered, drop those ephemeral fields so every
+   * boot takes the registration path and can print a fresh code.
+   */
+  if (!creds.registered) {
+    delete creds.me
+    delete creds.pairingCode
+  }
+
   return {
     state: {
       creds,

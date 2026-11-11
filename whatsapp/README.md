@@ -104,6 +104,20 @@ WhatsApp → Settings → Linked devices → Link a device → scan it.
 Linked devices → Link with phone number → enter the 8-character code printed in
 the terminal.
 
+Pairing codes are requested **once per socket**, only after the socket is ready.
+Do not poll `requestPairingCode` on a timer: each call starts a new companion
+handshake and WhatsApp answers `401 Connection Failure`. If a code expires the
+socket closes, a new socket is created and a fresh code is printed automatically.
+
+The worker also serves the live pairing state (protected by `WHATSAPP_PAIR_TOKEN`,
+which defaults to `WHATSAPP_BRIDGE_SECRET`):
+
+| Endpoint | What it returns |
+| --- | --- |
+| `GET /pair?token=…` | current code, its age, whether a QR is live, registration state |
+| `GET /qr.png?token=…` | the live QR as a scannable 512×512 PNG |
+| `GET /pair/new?token=…` | requests a fresh code on the current socket |
+
 The process prints `connected and ready ✅` when the number is live.
 Leave it running (pm2, systemd, Docker, or the host's process manager).
 

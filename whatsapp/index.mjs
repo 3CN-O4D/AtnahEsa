@@ -2,12 +2,14 @@ import { createServer } from 'node:http'
 import makeWASocket, {
   DisconnectReason,
   fetchLatestBaileysVersion,
+  fetchLatestWaWebVersion,
   Browsers,
 } from '@whiskeysockets/baileys'
 import pino from 'pino'
 import qrcode from 'qrcode-terminal'
+import QRCode from 'qrcode'
 
-import { createSupabase, useSupabaseAuthState } from './lib/auth-state.mjs'
+import { createSupabase, useSupabaseAuthState, clearAuthState } from './lib/auth-state.mjs'
 import { loadSession, saveSession, resetSession } from './lib/session.mjs'
 import { emptyState } from './lib/chat-state.mjs'
 import { createBrain } from './lib/brain.mjs'
@@ -141,40 +143,91 @@ async function sendAdminAlerts(alert, meta) {
   }
 }
 
-/** Request a fresh WhatsApp pairing code and print it to the logs. */
+/* ------------------------------------------------------------------ pairing */
+
+/*
+ * Pairing is deliberately *not* on a timer.
+ *
+ * Every `requestPairingCode` call starts a fresh companion-registration
+ * handshake. Requesting one every 45s (what this worker used to do) makes
+ * WhatsApp answer with `<failure reason="401">`, which Baileys reports as
+ * "Connection Failure" / loggedOut. One request per socket is enough: if the
+ * code expires the socket closes, the reconnect creates a new socket and a
+ * new code is printed automatically.
+ */
+const pair = {
+  qr: null,
+  qrAt: 0,
+  code: null,
+  codeAt: 0,
+  requested: false,
+  error: null,
+}
+
+const pairedNumber = String(WHATSAPP_PAIR_NUMBER || '').replace(/\D/g, '')
+
+if (WHATSAPP_PAIR_NUMBER && !/^\d{8,15}$/.test(pairedNumber)) {
+  console.error(
+    `[whatsapp] WHATSAPP_PAIR_NUMBER must be digits only with the country code and no "+": got "${WHATSAPP_PAIR_NUMBER}"`
+  )
+  process.exit(1)
+}
+
+/** 254791410625 -> "+254 791 410 625" so the number can be eyeballed in logs. */
+function formatPhone(number) {
+  const m = /^(\d{1,3})(\d{3})(\d{3})(\d{3})$/.exec(String(number))
+  return m ? `+${m[1]} ${m[2]} ${m[3]} ${m[4]}` : `+${number}`
+}
+
 async function requestPairingCode(socket) {
-  if (!WHATSAPP_PAIR_NUMBER) return
+  if (!pairedNumber || pair.requested) return pair.code
+  pair.requested = true
+
   try {
-    const code = await socket.requestPairingCode(WHATSAPP_PAIR_NUMBER.replace(/\D/g, ''))
+    const code = await socket.requestPairingCode(pairedNumber)
+    pair.code = code
+    pair.codeAt = Date.now()
+    pair.error = null
     console.log('\n==============================================================')
-    console.log(` Pair AseHanta WhatsApp with: ${code}`)
+    console.log(` Pair ${formatPhone(pairedNumber)} with: ${code}`)
     console.log(' WhatsApp → Settings → Linked devices → Link with phone number')
-    console.log(' (code expires quickly — a new one prints on each reconnect)\n')
     console.log('==============================================================\n')
+    return code
   } catch (error) {
-    console.error('[whatsapp] pairing code failed:', error?.message ?? error)
+    pair.error = String(error?.message ?? error)
+    console.error('[whatsapp] pairing code failed:', pair.error)
+    return null
   }
 }
 
-let pairingRefreshTimer = null
-const PAIRING_REFRESH_MS = 45000
-
-function startPairingRefresh() {
-  stopPairingRefresh()
-  pairingRefreshTimer = setInterval(async () => {
-    if (sock && !sock?.auth?.creds?.registered) {
-      await requestPairingCode(sock)
-    } else {
-      stopPairingRefresh()
-    }
-  }, PAIRING_REFRESH_MS)
+/** A new socket needs a new companion handshake, so forget the old code. */
+function resetPairForSocket() {
+  pair.qr = null
+  pair.qrAt = 0
+  pair.code = null
+  pair.codeAt = 0
+  pair.requested = false
+  pair.error = null
 }
 
-function stopPairingRefresh() {
-  if (pairingRefreshTimer) {
-    clearInterval(pairingRefreshTimer)
-    pairingRefreshTimer = null
+/**
+ * `fetchLatestWaWebVersion` tracks the live WhatsApp Web build; the Baileys
+ * table can lag and a stale build is rejected at registration.
+ */
+async function resolveVersion() {
+  try {
+    const live = await fetchLatestWaWebVersion()
+    if (live?.version?.length) return live.version
+  } catch {
+    /* fall through to the Baileys table */
   }
+  try {
+    const { version } = await fetchLatestBaileysVersion()
+    if (version?.length) return version
+  } catch {
+    /* let Baileys use its bundled default */
+  }
+  return null
 }
 
 function extractText(message) {
@@ -212,86 +265,125 @@ function hasUnsupportedMedia(message) {
 let sock = null
 let connected = false
 let starting = false
+let socketGen = 0
+let reconnectAttempts = 0
 
 async function start() {
   if (starting) return
   starting = true
+  const gen = ++socketGen
 
   try {
     const { state, saveCreds } = await useSupabaseAuthState(supabase, WHATSAPP_SESSION_PREFIX)
-    const { version } = await fetchLatestBaileysVersion()
-    let isRegistered = !!state?.creds?.registered
+    const version = await resolveVersion()
 
-    sock = makeWASocket({
-      version,
+    // A newer start() won the race while we were awaiting Supabase/version.
+    if (gen !== socketGen) return
+
+    resetPairForSocket()
+
+    const socket = makeWASocket({
+      ...(version ? { version } : {}),
       logger,
       auth: state,
-      browser: Browsers.ubuntu('AseHanta'),
+      /*
+       * WhatsApp rejects unknown browser names when registering a companion.
+       * The macOS "Desktop" sub-platform is also refused since mid-2026, so
+       * macOS + Chrome is the combination that still links.
+       */
+      browser: Browsers.macOS('Chrome'),
       markOnline: false,
       syncFullHistory: false,
       generateHighQualityLinkPreview: true,
     })
+    sock = socket
 
-    sock.ev.on('creds.update', () => {
+    socket.ev.on('creds.update', () => {
       saveCreds()
-      isRegistered = !!state?.creds?.registered
     })
 
-    sock.ev.on('connection.update', (update) => {
-      const { connection, lastDisconnect, qr } = update
+    socket.ev.on('connection.update', async (update) => {
+      if (gen !== socketGen) return
+      const { connection, lastDisconnect, qr, isNewLogin } = update
 
       if (qr) {
-        console.log('\n[whatsapp] scan this QR with the official AseHanta number:')
-        qrcode.generate(qr, { small: true })
-        // Also offer a pairing code when WHATSAPP_PAIR_NUMBER is set.
-        if (!isRegistered && WHATSAPP_PAIR_NUMBER) {
-          void requestPairingCode(sock)
-          startPairingRefresh()
+        pair.qr = qr
+        pair.qrAt = Date.now()
+
+        if (pairedNumber) {
+          // The socket is now talking to WhatsApp, which is the only moment
+          // requestPairingCode() can succeed. One call per socket.
+          void requestPairingCode(socket)
+        } else {
+          console.log('\n[whatsapp] scan this QR with the official AseHanta number:')
+          qrcode.generate(qr, { small: true })
         }
+      }
+
+      if (isNewLogin) {
+        console.log('[whatsapp] device linked — restarting the socket with the new credentials')
       }
 
       if (connection === 'open') {
         connected = true
         starting = false
-        stopPairingRefresh()
+        reconnectAttempts = 0
+        pair.qr = null
+        pair.code = null
         console.log('[whatsapp] connected and ready ✅')
         startOutbox()
-
-        // Request a pairing code once the socket is connected.
-        if (!isRegistered && WHATSAPP_PAIR_NUMBER) {
-          void requestPairingCode(sock)
-          startPairingRefresh()
-        }
       }
 
       if (connection === 'close') {
         connected = false
         starting = false
         stopOutbox()
+        pair.qr = null
+
         const statusCode = lastDisconnect?.error?.output?.statusCode
-        const loggedOut = statusCode === DisconnectReason.loggedOut
+        const registered = !!socket?.authState?.creds?.registered
+        const failure = lastDisconnect?.error?.data
+          ? JSON.stringify(lastDisconnect.error.data)
+          : ''
 
-        // If already paired and WhatsApp logged us out, we need manual re-pairing.
-        // If still pairing (not registered yet), keep reconnecting so the user can
-        // enter the pairing code without the worker crashing.
-        if (loggedOut && isRegistered) {
-          console.error(
-            '[whatsapp] this device was logged out. Re-pair it, or clear whatsapp_auth rows for this prefix first.'
-          )
-          process.exit(1)
+        if (statusCode === DisconnectReason.loggedOut && registered) {
+          /*
+           * WhatsApp removed this device, so the stored credentials are dead.
+           * Exiting here just makes a host restart loop on the same bad creds,
+           * so wipe them and pair again instead.
+           */
+          console.error('[whatsapp] this device was logged out of WhatsApp — clearing credentials to re-pair')
+          try {
+            await clearAuthState(supabase, WHATSAPP_SESSION_PREFIX)
+          } catch (error) {
+            console.error('[whatsapp] could not clear auth state:', error?.message ?? error)
+          }
+          resetPairForSocket()
+          reconnectAttempts = 0
+          setTimeout(start, 2000)
+          return
         }
 
-        if (loggedOut && !isRegistered) {
-          console.warn('[whatsapp] not yet paired — reconnecting so you can enter the pairing code')
+        reconnectAttempts += 1
+
+        let delay
+        if (statusCode === DisconnectReason.restartRequired) delay = 500
+        else if (statusCode === DisconnectReason.loggedOut) delay = 2000
+        else delay = Math.min(2000 * reconnectAttempts, 15000)
+
+        const detail = statusCode ? `${statusCode}${failure ? ` ${failure}` : ''}` : 'no status'
+        if (!registered) {
+          console.warn(`[whatsapp] pairing attempt ended (${detail}) — new code in ${delay}ms`)
+        } else {
+          console.warn(`[whatsapp] connection closed (${detail}), reconnecting in ${delay}ms`)
         }
 
-        const delay = statusCode === DisconnectReason.restartRequired ? 500 : 3000
-        console.warn(`[whatsapp] connection closed (${statusCode ?? 'unknown'}), reconnecting in ${delay}ms`)
         setTimeout(start, delay)
       }
     })
 
-    sock.ev.on('messages.upsert', (event) => {
+    socket.ev.on('messages.upsert', (event) => {
+      if (gen !== socketGen) return
       if (event.type !== 'notify') return
       for (const message of event.messages) {
         void onMessage(message)
@@ -631,23 +723,99 @@ function stopOutbox() {
 
 /* -------------------------------------------------------------- healthcheck */
 
-const health = createServer((req, res) => {
-  const payload = JSON.stringify({
+/*
+ * A QR rendered as ASCII in the logs is unreadable/truncated when it is copied
+ * into chat, which is why scanning kept "failing". These endpoints serve the
+ * live QR as a real PNG plus the current pairing code.
+ *
+ * They are protected by WHATSAPP_PAIR_TOKEN (defaults to the bridge secret) so
+ * a public host can't hand the bot's QR to somebody else.
+ */
+const PAIR_TOKEN = process.env.WHATSAPP_PAIR_TOKEN || WHATSAPP_BRIDGE_SECRET
+
+function pairingAuthorized(req, url) {
+  if (!PAIR_TOKEN) return false
+  const token = url.searchParams.get('token') || req.headers['x-pair-token']
+  return token === PAIR_TOKEN
+}
+
+function sendJson(res, status, body) {
+  res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
+  res.end(JSON.stringify(body))
+}
+
+const health = createServer(async (req, res) => {
+  const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
+  const registered = !!sock?.authState?.creds?.registered
+
+  if (url.pathname === '/qr.png') {
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+    if (!pair.qr) return sendJson(res, 409, { error: 'no active QR', hint: 'wait for the next refresh' })
+
+    try {
+      const png = await QRCode.toBuffer(pair.qr, {
+        width: 512,
+        margin: 2,
+        errorCorrectionLevel: 'M',
+      })
+      res.writeHead(200, { 'Content-Type': 'image/png', 'Cache-Control': 'no-store' })
+      res.end(png)
+    } catch (error) {
+      sendJson(res, 500, { error: String(error?.message ?? error) })
+    }
+    return
+  }
+
+  if (url.pathname === '/pair') {
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+    return sendJson(res, 200, {
+      number: pairedNumber ? formatPhone(pairedNumber) : null,
+      code: pair.code,
+      codeAgeSeconds: pair.codeAt ? Math.round((Date.now() - pair.codeAt) / 1000) : null,
+      error: pair.error,
+      hasQr: Boolean(pair.qr),
+      connected,
+      registered,
+    })
+  }
+
+  if (url.pathname === '/pair/new') {
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+    if (!sock || !pairedNumber) {
+      return sendJson(res, 409, { error: 'pairing is not configured' })
+    }
+    if (registered || connected) {
+      return sendJson(res, 409, { error: 'already paired' })
+    }
+    pair.requested = false
+    const code = await requestPairingCode(sock)
+    return sendJson(res, code ? 200 : 502, { number: formatPhone(pairedNumber), code, error: pair.error })
+  }
+
+  sendJson(res, connected ? 200 : 503, {
     ok: connected,
     service: 'asehanta-whatsapp',
     uptime: Math.round(process.uptime()),
+    registered,
+    pairing: pairedNumber
+      ? { number: formatPhone(pairedNumber), hasCode: Boolean(pair.code), hasQr: Boolean(pair.qr) }
+      : null,
   })
-  res.writeHead(connected ? 200 : 503, { 'Content-Type': 'application/json' })
-  res.end(payload)
 })
+
 health.listen(Number(PORT), () => {
   console.log(`[whatsapp] health check on :${PORT}`)
+  if (pairedNumber) {
+    console.log(`[whatsapp] pairing number: ${formatPhone(pairedNumber)}`)
+    console.log(
+      `[whatsapp] pair status: /pair?token=… | QR image: /qr.png?token=… | new code: /pair/new?token=…`
+    )
+  }
 })
 
 async function shutdown(signal) {
   console.log(`[whatsapp] ${signal} received, closing`)
   stopOutbox()
-  stopPairingRefresh()
   health.close()
   try {
     sock?.end(undefined)

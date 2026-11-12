@@ -326,11 +326,21 @@ export async function generateMarketingDraft(input: MarketingDraftInput) {
    *   autonomous → no waiting, send immediately
    *   regular    → queue for an admin
    *   off        → still let an admin generate, but queue it
+   *
+   * Before the autonomy migration the column still holds `active`/`paused`;
+   * autonomy is then encoded as `active` + require_approval = false.
    */
+  const mode =
+    control?.mode === 'active'
+      ? control?.require_approval === false
+        ? 'autonomous'
+        : 'regular'
+      : control?.mode
+
   const requireApproval =
-    control?.mode === 'autonomous'
+    mode === 'autonomous'
       ? false
-      : control?.mode === 'regular'
+      : mode === 'regular'
         ? true
         : control?.require_approval !== false
 

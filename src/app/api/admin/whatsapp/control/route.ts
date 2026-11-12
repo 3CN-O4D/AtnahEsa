@@ -16,6 +16,33 @@ export const dynamic = 'force-dynamic'
 
 const digits = (value: unknown) => String(value ?? '').replace(/\D/g, '')
 
+/**
+ * The live table may still carry the pre-autonomy `active|paused` constraint.
+ * Encode autonomy as `active` + `require_approval = false` and read it back the
+ * same way, so the three-state control works before the migration lands.
+ */
+const LEGACY_MODE_ERROR = /mode_check|violates check constraint/i
+
+function modeFromRow(row: { mode?: unknown; require_approval?: unknown } | null): 'autonomous' | 'regular' | 'off' {
+  if (!row) return 'regular'
+  if (row.mode === 'autonomous') return 'autonomous'
+  if (row.mode === 'off') return 'off'
+  if (row.mode === 'paused') return 'off'
+  if (row.mode === 'active') return row.require_approval === false ? 'autonomous' : 'regular'
+  return 'regular'
+}
+
+function legacyModePatch(patch: Record<string, unknown>) {
+  const legacy = { ...patch }
+  if (patch.mode === 'off') {
+    legacy.mode = 'paused'
+  } else {
+    legacy.mode = 'active'
+    legacy.require_approval = patch.mode === 'autonomous' ? false : true
+  }
+  return legacy
+}
+
 function normaliseList(value: unknown): string[] {
   if (!Array.isArray(value)) return []
   return [...new Set(value.map(digits).filter(Boolean))]
@@ -45,9 +72,7 @@ export async function GET(req: Request) {
   }
 
   // Rows created before the three-state model used `active` / `paused`.
-  if (control && !['autonomous', 'regular', 'off'].includes(String(control.mode))) {
-    control.mode = control.mode === 'paused' ? 'off' : 'regular'
-  }
+  if (control) control.mode = modeFromRow(control)
 
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
@@ -207,17 +232,27 @@ export async function PATCH(req: Request) {
     })
   }
 
-  const { data, error } = await db
-    .from('whatsapp_bot_control')
-    .update(patch)
-    .eq('id', 1)
-    .select('*')
-    .maybeSingle()
+  const apply = (values: Record<string, unknown>) =>
+    db.from('whatsapp_bot_control').update(values).eq('id', 1).select('*').maybeSingle()
+
+  let { data, error } = await apply(patch)
+
+  /*
+   * Pre-migration databases reject the new mode values. Retry with the legacy
+   * encoding instead of failing the admin's click.
+   */
+  if (error && patch.mode && LEGACY_MODE_ERROR.test(error.message)) {
+    const retry = await apply(legacyModePatch(patch))
+    data = retry.data
+    error = retry.error
+  }
 
   if (error) {
     console.error('[admin/whatsapp] control update failed:', error.message)
     return NextResponse.json({ error: 'Could not save the settings.' }, { status: 500 })
   }
+
+  if (data) data.mode = modeFromRow(data)
 
   if (actions.length) {
     await db.from('whatsapp_control_audit').insert(

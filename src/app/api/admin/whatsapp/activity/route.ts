@@ -31,6 +31,17 @@ export async function GET(req: Request) {
 
   const { data, error } = await query
   if (error) {
+    /*
+     * A pre-migration database has no `whatsapp_activity` table. Treat that as
+     * an empty diary with a flag instead of a scary load failure, so the panel
+     * can tell the admin exactly which SQL to run.
+     */
+    if (/does not exist|schema cache/i.test(error.message)) {
+      return NextResponse.json(
+        { items: [], kinds: [], migration_required: true },
+        { headers: { 'Cache-Control': 'no-store' } }
+      )
+    }
     console.error('[admin/whatsapp] activity query failed:', error.message)
     return NextResponse.json({ error: 'Could not load activity.' }, { status: 500 })
   }

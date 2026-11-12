@@ -188,6 +188,7 @@ export default function AdminWhatsAppPage() {
   const [activity, setActivity] = useState<Activity[]>([])
   const [activityKinds, setActivityKinds] = useState<string[]>([])
   const [activityKind, setActivityKind] = useState('')
+  const [activityMigrationRequired, setActivityMigrationRequired] = useState(false)
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; message: string } | null>(null)
@@ -239,6 +240,7 @@ export default function AdminWhatsAppPage() {
       if (activityRes.ok) {
         setActivity(activityData.items ?? [])
         setActivityKinds(activityData.kinds ?? [])
+        setActivityMigrationRequired(Boolean(activityData.migration_required))
       }
     } catch {
       showToast('error', 'Could not load WhatsApp controls.')
@@ -1136,7 +1138,19 @@ export default function AdminWhatsAppPage() {
             </select>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-slate-800">
-            {activity.length === 0 && (
+            {activityMigrationRequired && (
+              <div className="m-4 flex items-start gap-3 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>
+                  The activity diary is not enabled yet. Run{' '}
+                  <code className="rounded bg-amber-100 px-1 py-0.5 text-xs dark:bg-amber-500/20">
+                    supabase/migration-whatsapp-autonomy.sql
+                  </code>{' '}
+                  in the Supabase SQL Editor to start recording what Ase does.
+                </p>
+              </div>
+            )}
+            {activity.length === 0 && !activityMigrationRequired && (
               <p className="p-6 text-sm text-gray-500 dark:text-gray-400">Nothing recorded yet.</p>
             )}
             {activity.map((item) => (

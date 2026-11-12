@@ -24,7 +24,21 @@ export function normaliseMode(mode) {
   return 'regular'
 }
 
-export const isAutonomous = (snap) => normaliseMode(snap?.mode) === 'autonomous'
+/**
+ * Read the effective mode from a control row.
+ *
+ * Until `migration-whatsapp-autonomy.sql` has run, the database still enforces
+ * the old `active|paused` constraint. In that window autonomy is encoded as
+ * `active` + `require_approval = false`, so the three states keep working
+ * without a hard dependency on the migration.
+ */
+export function modeFromRow(row) {
+  if (!row) return 'regular'
+  if (row.mode === 'active') return row.require_approval === false ? 'autonomous' : 'regular'
+  return normaliseMode(row.mode)
+}
+
+export const isAutonomous = (snap) => modeFromRow(snap) === 'autonomous'
 
 export const controlDefaults = () => ({
   mode: 'regular',
@@ -59,7 +73,7 @@ export function createControl(supabase, { seedAllowlist = [], log = console } = 
     return {
       ...defaults,
       ...row,
-      mode: normaliseMode(row.mode),
+      mode: modeFromRow(row),
       allowlist: normalizeList(row.allowlist),
       blocklist: normalizeList(row.blocklist),
       status_interval_minutes: Number(row.status_interval_minutes) || defaults.status_interval_minutes,
@@ -107,12 +121,32 @@ export function createControl(supabase, { seedAllowlist = [], log = console } = 
   }
 
   async function write(patch, actor = 'system') {
-    const { data, error } = await supabase
-      .from('whatsapp_bot_control')
-      .update({ ...patch, updated_by: actor, updated_at: new Date().toISOString() })
-      .eq('id', 1)
-      .select('*')
-      .maybeSingle()
+    const apply = (values) =>
+      supabase
+        .from('whatsapp_bot_control')
+        .update({ ...values, updated_by: actor, updated_at: new Date().toISOString() })
+        .eq('id', 1)
+        .select('*')
+        .maybeSingle()
+
+    let { data, error } = await apply(patch)
+
+    /*
+     * Pre-migration databases reject `autonomous` / `regular` / `off`. Fall
+     * back to the legacy two-value column while keeping autonomy visible via
+     * `require_approval = false`. The migration removes the need for this.
+     */
+    if (error && patch.mode && /mode_check|violates check constraint/i.test(error.message)) {
+      const legacy = { ...patch }
+      if (patch.mode === 'off') {
+        legacy.mode = 'paused'
+      } else {
+        legacy.mode = 'active'
+        legacy.require_approval = patch.mode === 'autonomous' ? false : true
+      }
+      log.warn?.('[control] legacy mode column detected; storing mode as', legacy.mode)
+      ;({ data, error } = await apply(legacy))
+    }
 
     if (error) {
       log.error?.('[control] write failed:', error.message)

@@ -2,7 +2,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
 import { notifyAdmins } from '@/lib/notify'
 import { searchHouses } from './houseSearch'
-import type { AdminAlert, HouseCardData } from './types'
+import { submitForm, requestPasswordReset, completePasswordReset } from './forms'
+import type { AdminAlert, ChatAction, ChatState, HouseCardData } from './types'
 import { PAGE_LINKS, CONTACT_INFO } from './knowledge'
 
 export interface ToolResult {
@@ -10,6 +11,12 @@ export interface ToolResult {
   text: string
   cards?: HouseCardData[]
   error?: string
+  /** Structured details for the model (missing fields, saved draft, …). */
+  data?: unknown
+  /** Buttons/links the reply should carry. */
+  actions?: ChatAction[]
+  /** State patch to persist for the next turn (partial form drafts). */
+  state?: Partial<ChatState>
   /** Forwarded to the WhatsApp bridge so admins get a direct message too. */
   adminAlert?: AdminAlert
 }
@@ -348,6 +355,25 @@ export const TOOLS = {
     run: (a: Record<string, unknown>) => toolNotifyAdmin(a),
     params: { topic: 'string', category: 'string', priority: 'string', subject: 'string', name: 'string', email: 'string', phone: 'string', message: 'string', related_listing_id: 'string' },
   },
+  submit_form: {
+    desc: 'Save a partial or complete submission the user is making (house request, WiFi booking, mover request, house viewing, complaint). Pass every value collected so far; the server keeps the draft and returns exactly which fields are still missing or invalid. Call it again with corrections — never ask the same question in a loop.',
+    run: (a: Record<string, unknown>) =>
+      submitForm(
+        typeof a?.form === 'string' ? a.form : '',
+        a?.data && typeof a.data === 'object' ? (a.data as Record<string, unknown>) : {}
+      ),
+    params: { form: 'string', data: 'object' },
+  },
+  request_password_reset: {
+    desc: 'Email a 6-digit password-reset code to the account owner. Use this only after the user asks to reset their password. Then collect the code and their new password and call complete_password_reset.',
+    run: (a: Record<string, unknown>) => requestPasswordReset(a?.email),
+    params: { email: 'string' },
+  },
+  complete_password_reset: {
+    desc: 'Finish a password reset with the account email, the 6-digit code from the email, and the new password (at least 8 characters).',
+    run: (a: Record<string, unknown>) => completePasswordReset(a?.email, a?.code, a?.password),
+    params: { email: 'string', code: 'string', password: 'string' },
+  },
 } as const
 
 export type ToolName = keyof typeof TOOLS
@@ -370,7 +396,14 @@ export function toolSchemas() {
       description: t.desc,
       parameters: {
         type: 'object',
-        properties: Object.fromEntries(Object.keys(t.params).map((k) => [k, { type: t.params[k as keyof typeof t.params] === 'number' ? 'number' : 'string' }])),
+        properties: Object.fromEntries(
+          Object.entries(t.params).map(([k, type]) => [
+            k,
+            type === 'object'
+              ? { type: 'object', additionalProperties: true }
+              : { type: 'string' },
+          ])
+        ),
         additionalProperties: false,
       },
     },

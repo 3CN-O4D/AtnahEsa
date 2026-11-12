@@ -31,6 +31,73 @@ export async function GET(req: Request) {
   return NextResponse.json({ groups: data ?? [] }, { headers: { 'Cache-Control': 'no-store' } })
 }
 
+/**
+ * Ask the worker to re-read the WhatsApp group list.
+ *
+ * The worker owns the Baileys socket, so the app cannot enumerate groups on
+ * its own. This proxies a POST to the worker and returns the refreshed rows.
+ */
+export async function POST(req: Request) {
+  const auth = await requireAdminRequest(req)
+  if (!auth.ok) return auth.response
+  const { db, email } = auth.context
+
+  const worker = (
+    process.env.WHATSAPP_WORKER_URL || 'https://atnahesa.onrender.com'
+  ).replace(/\/$/, '')
+  const secret = process.env.WHATSAPP_BRIDGE_SECRET
+
+  if (!secret) {
+    return NextResponse.json({ error: 'WHATSAPP_BRIDGE_SECRET is not configured.' }, { status: 500 })
+  }
+
+  try {
+    const res = await fetch(`${worker}/groups/sync`, {
+      method: 'POST',
+      headers: { 'x-bridge-secret': secret },
+      signal: AbortSignal.timeout(25000),
+      cache: 'no-store',
+    })
+    const payload = (await res.json().catch(() => null)) as
+      | { ok?: boolean; groups?: number; error?: string }
+      | null
+
+    if (!res.ok) {
+      return NextResponse.json(
+        { error: payload?.error || 'The WhatsApp worker could not sync groups.' },
+        { status: res.status === 401 ? 502 : res.status }
+      )
+    }
+
+    const { data: groups } = await db
+      .from('whatsapp_marketing_groups')
+      .select('*')
+      .order('enabled', { ascending: false })
+      .order('name', { ascending: true })
+      .limit(200)
+
+    await db.from('whatsapp_control_audit').insert({
+      actor: email,
+      action: 'group:sync',
+      detail: { groups: payload?.groups ?? groups?.length ?? 0 },
+    })
+
+    return NextResponse.json(
+      { synced: payload?.groups ?? 0, groups: groups ?? [] },
+      { headers: { 'Cache-Control': 'no-store' } }
+    )
+  } catch (error) {
+    console.error(
+      '[admin/whatsapp] group sync failed:',
+      error instanceof Error ? error.message : error
+    )
+    return NextResponse.json(
+      { error: 'Could not reach the WhatsApp worker. Try again in a moment.' },
+      { status: 502 }
+    )
+  }
+}
+
 export async function PATCH(req: Request) {
   const auth = await requireAdminRequest(req)
   if (!auth.ok) return auth.response

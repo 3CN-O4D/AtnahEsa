@@ -202,17 +202,38 @@ async function askModel(channel: 'status' | 'group', topic: string, facts: Facts
   }
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000
+const WEEK_MS = 7 * DAY_MS
+
+/**
+ * Pick a listing that has not been marketed recently.
+ *
+ * The bot tracks its own activity: a listing may be posted at most once per
+ * 24 hours and at most twice per week. If every published house has already
+ * been covered today, return null so the caller writes a brand post instead
+ * of repeating one house five times (which is exactly what used to happen).
+ */
 async function pickListing(admin: ReturnType<typeof createAdminClient>, topic: string) {
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString()
+  const weekAgo = new Date(Date.now() - WEEK_MS).toISOString()
 
   const { data: recent } = await admin
     .from('whatsapp_marketing')
-    .select('listing_id')
+    .select('listing_id, channel, status, sent_at, created_at')
     .not('listing_id', 'is', null)
-    .gte('created_at', since)
-    .limit(300)
+    .gte('created_at', weekAgo)
+    .limit(500)
 
-  const used = new Set((recent ?? []).map((row) => row.listing_id).filter(Boolean))
+  const now = Date.now()
+  const postedToday = new Set<string>()
+  const weeklyCount = new Map<string, number>()
+
+  for (const row of recent ?? []) {
+    const id = row.listing_id as string | null
+    if (!id || row.status !== 'sent') continue
+    weeklyCount.set(id, (weeklyCount.get(id) ?? 0) + 1)
+    const sentAt = row.sent_at ? new Date(row.sent_at).getTime() : null
+    if (sentAt && now - sentAt < DAY_MS) postedToday.add(id)
+  }
 
   const { data, error } = await admin
     .from('listings')
@@ -231,10 +252,18 @@ async function pickListing(admin: ReturnType<typeof createAdminClient>, topic: s
   const listings = (data ?? []) as MarketingListing[]
   if (!listings.length) return null
 
-  const topicText = topic && topic !== 'auto' ? topic.toLowerCase() : ''
-  const fresh = listings.filter((listing) => !used.has(listing.id))
-  const pool = fresh.length ? fresh : listings
+  // Prefer houses untouched this week, then those posted once. Never today.
+  const eligible = listings.filter((listing) => !postedToday.has(listing.id))
+  const fresh = eligible.filter((listing) => (weeklyCount.get(listing.id) ?? 0) === 0)
+  const once = eligible.filter((listing) => (weeklyCount.get(listing.id) ?? 0) < 2)
+  const pool = fresh.length ? fresh : once
 
+  if (!pool.length) {
+    console.warn('[marketing] every published house was already posted today; using a brand post')
+    return null
+  }
+
+  const topicText = topic && topic !== 'auto' ? topic.toLowerCase() : ''
   if (topicText) {
     const match = pool.find((listing) =>
       `${listing.title ?? ''} ${listing.descriptive_location ?? ''} ${listing.location ?? ''} ${
@@ -288,11 +317,22 @@ export async function generateMarketingDraft(input: MarketingDraftInput) {
 
   const { data: control } = await admin
     .from('whatsapp_bot_control')
-    .select('require_approval')
+    .select('mode, require_approval')
     .eq('id', 1)
     .maybeSingle()
 
-  const requireApproval = control?.require_approval !== false
+  /*
+   * Mode is the single source of truth:
+   *   autonomous → no waiting, send immediately
+   *   regular    → queue for an admin
+   *   off        → still let an admin generate, but queue it
+   */
+  const requireApproval =
+    control?.mode === 'autonomous'
+      ? false
+      : control?.mode === 'regular'
+        ? true
+        : control?.require_approval !== false
 
   const { data: draft, error } = await admin
     .from('whatsapp_marketing')

@@ -17,6 +17,7 @@ import { createControl, digits } from './lib/control.mjs'
 import { logMessage, buildTranscript } from './lib/transcript.mjs'
 import { toWhatsAppVoiceNote, DEFAULT_TTS_VOICE } from './lib/voice.mjs'
 import { createMarketing, syncGroups } from './lib/marketing.mjs'
+import { recordActivity } from './lib/activity.mjs'
 import {
   splitBubbles,
   renderBubble,
@@ -43,6 +44,17 @@ const {
   TWILIO_FROM_NUMBER = '',
   PORT = '8080',
 } = process.env
+
+/*
+ * Public URL of this worker. Render sets RENDER_EXTERNAL_URL automatically;
+ * WORKER_PUBLIC_URL overrides it for other hosts. Twilio fetches the answer
+ * TwiML from here, so without it we fall back to a spoken message.
+ */
+const WORKER_PUBLIC_URL = (
+  process.env.WORKER_PUBLIC_URL ||
+  process.env.RENDER_EXTERNAL_URL ||
+  ''
+).replace(/\/$/, '')
 
 const missing = [
   ['SUPABASE_URL', SUPABASE_URL],
@@ -94,6 +106,37 @@ function isAdminNumber(phone) {
 function isSelfChat(jid, phone) {
   if (!ownPhone) return false
   return digits(phone) === digits(ownPhone) || digits(jid) === digits(ownPhone)
+}
+
+/*
+ * Outbound call context, keyed by the admin's phone.
+ *
+ * Twilio fetches `/twilio/answered` the moment the admin picks up. That route
+ * hangs the call up and sends the WhatsApp voice note of the message we were
+ * going to say, so the phone rings for a second instead of reading a long
+ * robot message down the line.
+ */
+const pendingCallText = new Map()
+
+function rememberCallText(number, text) {
+  const key = digits(number)
+  if (!key) return
+  pendingCallText.set(key, { text: String(text || '').slice(0, 1200), at: Date.now() })
+  if (pendingCallText.size > 50) {
+    const oldest = [...pendingCallText.entries()].sort((a, b) => a[1].at - b[1].at)[0]
+    if (oldest) pendingCallText.delete(oldest[0])
+  }
+}
+
+function takeCallText(number) {
+  const key = digits(number)
+  if (!key) return null
+  const entry = pendingCallText.get(key)
+  if (!entry) return null
+  pendingCallText.delete(key)
+  // A stale context is worse than none: do not read yesterday's alert.
+  if (Date.now() - entry.at > 10 * 60 * 1000) return null
+  return entry.text
 }
 
 /*
@@ -207,6 +250,20 @@ async function sendAdminAlerts(alert, meta) {
     console.error('[whatsapp] could not record urgent alert:', error?.message ?? error)
   }
 
+  await recordActivity(
+    supabase,
+    {
+      kind: urgent ? 'urgent_alert' : 'admin_alert',
+      subject: digits(alert.phone || meta.phone) || null,
+      detail: {
+        topic: alert.topic ?? null,
+        priority: urgent ? 'urgent' : 'normal',
+        name: alert.name || meta.profileName || null,
+      },
+    },
+    console
+  )
+
   /*
    * Urgent alerts also get a short spoken version. A voice note cuts through a
    * muted phone in a way text does not, and it is the closest thing to a call
@@ -261,6 +318,20 @@ async function placeUrgentCall(alert, meta) {
     alert.message || ''
   }`.slice(0, 400)
 
+  /*
+   * What the voice note should say when an admin answers. Keep it short and
+   * factual: the full alert is already in the WhatsApp text above it.
+   */
+  const spoken = [
+    `Urgent AseHanta alert. ${alert.topic || 'A customer needs help'}.`,
+    alert.subject || '',
+    alert.message || '',
+    alert.name || meta.profileName ? `Customer ${alert.name || meta.profileName}.` : '',
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .slice(0, 900)
+
   if (URGENT_CALL_WEBHOOK) {
     try {
       await fetch(URGENT_CALL_WEBHOOK, {
@@ -269,12 +340,22 @@ async function placeUrgentCall(alert, meta) {
         body: JSON.stringify({
           to: adminNumbers,
           message,
+          voice_text: spoken,
           phone: alert.phone || meta.phone || null,
           name: alert.name || meta.profileName || null,
           priority: 'urgent',
         }),
         signal: AbortSignal.timeout(10000),
       })
+      await recordActivity(
+        supabase,
+        {
+          kind: 'call_webhook',
+          subject: digits(alert.phone || meta.phone) || null,
+          detail: { to: adminNumbers, topic: alert.topic ?? null },
+        },
+        console
+      )
       return
     } catch (error) {
       console.error('[whatsapp] urgent call webhook failed:', error?.message ?? error)
@@ -284,14 +365,35 @@ async function placeUrgentCall(alert, meta) {
   if (!TWILIO_ACCOUNT_SID || !TWILIO_AUTH_TOKEN || !TWILIO_FROM_NUMBER) return
 
   const auth = Buffer.from(`${TWILIO_ACCOUNT_SID}:${TWILIO_AUTH_TOKEN}`).toString('base64')
-  const twiml = `<Response><Say voice="Polly.Joanna">${message.replace(
-    /[<>&"]/g,
-    (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[char]
-  )}</Say></Response>`
+  const escaped = message.replace(/[<>&"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[char])
+  const fallbackTwiml = `<Response><Say voice="Polly.Joanna">${escaped}</Say></Response>`
 
   for (const number of adminNumbers) {
+    rememberCallText(number, spoken)
+    const params = new URLSearchParams({
+      To: `+${number}`,
+      From: TWILIO_FROM_NUMBER,
+    })
+
+    /*
+     * When the worker has a public URL, Twilio asks it for TwiML on answer.
+     * `/twilio/answered` immediately hangs up and pushes the voice note, so the
+     * admin gets the details on WhatsApp instead of listening to a robot.
+     */
+    if (WORKER_PUBLIC_URL) {
+      params.set(
+        'Url',
+        `${WORKER_PUBLIC_URL}/twilio/answered?to=${digits(number)}&token=${encodeURIComponent(
+          PAIR_TOKEN || ''
+        )}`
+      )
+      params.set('Timeout', '25')
+    } else {
+      params.set('Twiml', fallbackTwiml)
+    }
+
     try {
-      await fetch(
+      const res = await fetch(
         `https://api.twilio.com/2010-04-01/Accounts/${TWILIO_ACCOUNT_SID}/Calls.json`,
         {
           method: 'POST',
@@ -299,13 +401,22 @@ async function placeUrgentCall(alert, meta) {
             Authorization: `Basic ${auth}`,
             'Content-Type': 'application/x-www-form-urlencoded',
           },
-          body: new URLSearchParams({
-            To: `+${number}`,
-            From: TWILIO_FROM_NUMBER,
-            Twiml: twiml,
-          }),
+          body: params,
           signal: AbortSignal.timeout(15000),
         }
+      )
+      if (!res.ok) {
+        const detail = await res.text().catch(() => '')
+        console.error(`[whatsapp] urgent call to ${number} failed:`, res.status, detail.slice(0, 200))
+      }
+      await recordActivity(
+        supabase,
+        {
+          kind: 'call_placed',
+          subject: number,
+          detail: { topic: alert.topic ?? null, ok: res.ok, hangup_on_answer: Boolean(WORKER_PUBLIC_URL) },
+        },
+        console
       )
     } catch (error) {
       console.error(`[whatsapp] urgent call to ${number} failed:`, error?.message ?? error)
@@ -322,9 +433,12 @@ function helpText() {
   return [
     '*AseHanta WhatsApp controls*',
     '',
-    '.pause — stop AI replies everywhere',
-    '.start — resume AI replies everywhere',
-    '.status — bot and marketing status',
+    '.auto — autonomous: Ase acts without approvals',
+    '.start — regular: Ase replies, marketing needs approval',
+    '.pause — off: AI goes silent everywhere',
+    '.status — connection, mode and marketing status',
+    '.groups — list/sync the groups Ase is in',
+    '.activity — what Ase did recently',
     '.allow <phone> — AI may chat with this number',
     '.deny <phone> — never reply to this number',
     '.allowlist — show the allow/block lists',
@@ -368,27 +482,52 @@ async function handleAdminCommand({ jid, text, actor }) {
         return true
 
       case 'pause': {
-        await control.setMode('paused', who)
+        await control.setMode('off', who)
         await control.clearHandoffNotices()
+        await recordActivity(supabase, { kind: 'control', subject: 'mode:off', detail: { actor: who } }, console)
         await reply(
-          '⏸️ *AI paused.* Every chat now gets one holding message and the team is notified. Use .start when you are ready for Ase to reply again.'
+          '⏸️ *AI is off.* Every chat now gets one holding message and the team is notified. Use .start for regular mode or .auto for autonomous.'
         )
         return true
       }
 
-      case 'start': {
-        await control.setMode('active', who)
+      case 'start':
+      case 'regular': {
+        await control.setMode('regular', who)
         await control.resumeAllChats(who)
-        await reply('▶️ *AI active.* Ase is replying to every allowed chat again.')
+        await recordActivity(supabase, { kind: 'control', subject: 'mode:regular', detail: { actor: who } }, console)
+        await reply(
+          '▶️ *Regular mode.* Ase replies to chats, and marketing posts wait for an admin to approve them.'
+        )
+        return true
+      }
+
+      case 'auto':
+      case 'autonomous': {
+        await control.setMode('autonomous', who)
+        await control.resumeAllChats(who)
+        await recordActivity(
+          supabase,
+          { kind: 'control', subject: 'mode:autonomous', detail: { actor: who } },
+          console
+        )
+        await reply(
+          '🤖 *Autonomous mode.* Ase replies, posts and acts without waiting for approvals. Use .start to put approvals back.'
+        )
         return true
       }
 
       case 'status': {
         const snap = await control.read(true)
+        const modeLabel = {
+          autonomous: 'autonomous 🤖 (no approvals)',
+          regular: 'regular 🔔 (approvals required)',
+          off: 'off ⏸️ (AI silent)',
+        }[snap.mode]
         const answer = [
           '*AseHanta WhatsApp status*',
           '',
-          `AI: ${snap.mode === 'active' ? 'active ▶️' : 'paused ⏸️'}`,
+          `Mode: ${modeLabel}`,
           `Connection: ${connected ? 'connected ✅' : 'offline ❌'}`,
           `Number: ${ownPhone ? `+${ownPhone}` : 'not linked'}`,
           `Allowlist: ${snap.allowlist.length ? `${snap.allowlist.length} number(s)` : 'everyone'}`,
@@ -402,6 +541,49 @@ async function handleAdminCommand({ jid, text, actor }) {
           'Open the panel: https://www.asehanta.com/admin/whatsapp',
         ].join('\n')
         await reply(answer)
+        return true
+      }
+
+      case 'groups': {
+        if (!sock || !connected) {
+          await reply('WhatsApp is not connected yet, so I cannot list groups.')
+          return true
+        }
+        const found = await syncGroups(sock, supabase)
+        const { data } = await supabase
+          .from('whatsapp_marketing_groups')
+          .select('name, jid, enabled')
+          .order('name', { ascending: true })
+          .limit(50)
+        const rows = (data ?? []).map(
+          (group) => `${group.enabled ? '✅' : '⚪'} ${group.name || group.jid}`
+        )
+        await reply(
+          [
+            `*Groups* — ${found} synced`,
+            '',
+            ...(rows.length ? rows : ['_none found_']),
+            '',
+            'Enable groups in the panel: https://www.asehanta.com/admin/whatsapp',
+          ].join('\n')
+        )
+        return true
+      }
+
+      case 'activity': {
+        const { data } = await supabase
+          .from('whatsapp_activity')
+          .select('kind, subject, detail, created_at')
+          .order('created_at', { ascending: false })
+          .limit(15)
+        const rows = (data ?? []).map((row) => {
+          const when = row.created_at
+            ? new Date(row.created_at).toISOString().slice(5, 16).replace('T', ' ')
+            : ''
+          const subject = row.subject ? ` · ${row.subject}` : ''
+          return `${when} · ${row.kind}${subject}`
+        })
+        await reply(['*Recent Ase activity*', '', ...(rows.length ? rows : ['_nothing yet_'])].join('\n'))
         return true
       }
 
@@ -795,6 +977,33 @@ async function start() {
         void onMessage(message)
       }
     })
+
+    socket.ev.on('call', (calls) => {
+      if (gen !== socketGen) return
+      for (const call of calls ?? []) {
+        if (call?.status === 'offer') void rejectIncomingCall(socket, call)
+      }
+    })
+
+    /*
+     * Group membership changes are the moment the dashboard list can go stale.
+     * Debounce a sync so adding ten people to a group is one Supabase write.
+     */
+    let groupSyncTimer = null
+    const scheduleGroupSync = () => {
+      if (gen !== socketGen) return
+      if (groupSyncTimer) clearTimeout(groupSyncTimer)
+      groupSyncTimer = setTimeout(() => {
+        groupSyncTimer = null
+        void syncGroups(socket, supabase).then((count) => {
+          if (count) console.log(`[whatsapp] group list refreshed (${count})`)
+        })
+      }, 4000)
+    }
+
+    socket.ev.on('groups.upsert', scheduleGroupSync)
+    socket.ev.on('groups.update', scheduleGroupSync)
+    socket.ev.on('group-participants.update', scheduleGroupSync)
   } catch (error) {
     starting = false
     console.error('[whatsapp] failed to start:', error)
@@ -846,8 +1055,8 @@ async function onMessage(message) {
 }
 
 const HOLDING = {
-  paused:
-    'Thanks for your message 🙏 AseHanta is online right now, so a team member will reply here shortly.',
+  off: 'Thanks for your message 🙏 AseHanta is online right now, so a team member will reply here shortly.',
+  paused: 'Thanks for your message 🙏 AseHanta is online right now, so a team member will reply here shortly.',
   handoff:
     'Thanks for your message 🙏 A team member already has your chat and will reply here shortly.',
   allowlist:
@@ -1093,6 +1302,83 @@ async function safePresence(jid, state) {
   }
 }
 
+/**
+ * Send a spoken WhatsApp voice note to one number. Used when an urgent call is
+ * answered (we hang up and leave the message here) and by the Twilio webhook.
+ */
+async function sendVoiceNoteTo(number, text, { reason = 'call_answered' } = {}) {
+  const phone = digits(number)
+  if (!phone || !sock || !text) return false
+
+  try {
+    const voice = await toWhatsAppVoiceNote(text, { voice: WHATSAPP_TTS_VOICE, rate: 0.7 })
+    if (!voice) return false
+    await sock.sendMessage(`${phone}@s.whatsapp.net`, {
+      audio: voice,
+      mimetype: 'audio/ogg; codecs=opus',
+      ptt: true,
+    })
+    await recordActivity(
+      supabase,
+      { kind: 'voice_note', subject: phone, detail: { reason, chars: String(text).length } },
+      console
+    )
+    return true
+  } catch (error) {
+    console.error(`[whatsapp] voice note to ${phone} failed:`, error?.message ?? error)
+    return false
+  }
+}
+
+/*
+ * Baileys cannot place a call, but it can refuse one. Refusing quickly and
+ * apologising on chat keeps the number friendly instead of ringing out.
+ */
+const recentCallers = new Map()
+
+async function rejectIncomingCall(socket, call) {
+  const from = String(call.from || '')
+  const phone = digits(from.split('@')[0])
+
+  try {
+    await socket.rejectCall(call.id, from)
+  } catch (error) {
+    console.error('[whatsapp] reject call failed:', error?.message ?? error)
+  }
+
+  await recordActivity(
+    supabase,
+    { kind: 'call_rejected', subject: phone || null, detail: { call_id: call.id ?? null } },
+    console
+  )
+
+  // One reply per caller per six hours; a missed-call spammer must not get a
+  // fresh message for every redial.
+  const last = recentCallers.get(phone) ?? 0
+  if (Date.now() - last < 6 * 60 * 60 * 1000) return
+  recentCallers.set(phone, Date.now())
+  if (recentCallers.size > 300) {
+    const oldest = [...recentCallers.entries()].sort((a, b) => a[1] - b[1])[0]
+    if (oldest) recentCallers.delete(oldest[0])
+  }
+
+  try {
+    await socket.sendMessage(from, {
+      text:
+        "Hi! I can't take voice calls on this number, but I'm right here on chat. " +
+        "Tell me what you need — houses, WiFi, movers or escrow — and I'll help 🙂",
+    })
+    await logMessage(supabase, {
+      jid: from,
+      phone: phone || null,
+      role: 'assistant',
+      body: 'Missed voice call — asked the customer to continue on chat.',
+    })
+  } catch (error) {
+    console.error('[whatsapp] missed-call reply failed:', error?.message ?? error)
+  }
+}
+
 /* ------------------------------------------------------------------ outbox */
 
 /*
@@ -1256,6 +1542,16 @@ function pairingAuthorized(req, url) {
   return token === PAIR_TOKEN
 }
 
+/** The app calls operational endpoints with the shared bridge secret. */
+function bridgeAuthorized(req, url) {
+  if (pairingAuthorized(req, url)) return true
+  if (!WHATSAPP_BRIDGE_SECRET) return false
+  return (
+    req.headers['x-bridge-secret'] === WHATSAPP_BRIDGE_SECRET ||
+    req.headers.authorization === `Bearer ${WHATSAPP_BRIDGE_SECRET}`
+  )
+}
+
 function sendJson(res, status, body) {
   res.writeHead(status, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' })
   res.end(JSON.stringify(body))
@@ -1388,6 +1684,59 @@ setInterval(tick, 4000);
       /* already closed */
     }
     return sendJson(res, 202, { number: formatPhone(pairedNumber), restarted: true })
+  }
+
+  if (url.pathname === '/groups/sync') {
+    /*
+     * On-demand group discovery for the dashboard. The worker is the only
+     * process holding the WhatsApp socket, so it owns the group list; the
+     * panel asks for a refresh through this endpoint and then re-reads
+     * `whatsapp_marketing_groups`.
+     */
+    if (!bridgeAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+    if (!sock || !connected) {
+      return sendJson(res, 409, { error: 'WhatsApp is not connected yet' })
+    }
+
+    try {
+      const count = await syncGroups(sock, supabase)
+      await recordActivity(
+        supabase,
+        { kind: 'groups_synced', subject: null, detail: { count, trigger: 'dashboard' } },
+        console
+      )
+      return sendJson(res, 200, { ok: true, groups: count })
+    } catch (error) {
+      return sendJson(res, 500, { error: String(error?.message ?? error) })
+    }
+  }
+
+  if (url.pathname === '/twilio/answered') {
+    /*
+     * Twilio asks for TwiML the moment an admin answers the urgent call.
+     * Hang up at once and put the actual message in a slowed-down WhatsApp
+     * voice note, which is what the admins asked for.
+     */
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+
+    const to =
+      digits(url.searchParams.get('to') || url.searchParams.get('To') || '') ||
+      digits(String(req.headers['x-twilio-to'] || ''))
+
+    res.writeHead(200, { 'Content-Type': 'text/xml; charset=utf-8', 'Cache-Control': 'no-store' })
+    res.end('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>')
+
+    const text =
+      takeCallText(to) ||
+      'I tried to call you about an urgent AseHanta alert. Please check the WhatsApp message I just sent.'
+
+    void sendVoiceNoteTo(to, text, { reason: 'urgent_call_answered' })
+    void recordActivity(
+      supabase,
+      { kind: 'call_answered', subject: to || null, detail: { hung_up: true } },
+      console
+    ).then(() => {})
+    return
   }
 
   if (url.pathname === '/transcript') {

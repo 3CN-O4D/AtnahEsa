@@ -14,15 +14,28 @@
 
 const CACHE_MS = 5000
 
+export const MODES = ['autonomous', 'regular', 'off']
+
+/** Old rows used `active` / `paused`; map them onto the three-state model. */
+export function normaliseMode(mode) {
+  if (mode === 'autonomous') return 'autonomous'
+  if (mode === 'regular' || mode === 'active') return 'regular'
+  if (mode === 'off' || mode === 'paused') return 'off'
+  return 'regular'
+}
+
+export const isAutonomous = (snap) => normaliseMode(snap?.mode) === 'autonomous'
+
 export const controlDefaults = () => ({
-  mode: 'active',
+  mode: 'regular',
   allowlist: [],
   blocklist: [],
   marketing_enabled: false,
   require_approval: true,
-  status_interval_minutes: 180,
+  // ~2.5h cadence gives the "about every 3 hours" feel while allowing 12/day.
+  status_interval_minutes: 150,
   group_interval_minutes: 1440,
-  status_daily_limit: 8,
+  status_daily_limit: 12,
   group_daily_limit: 3,
   last_status_at: null,
   last_group_at: null,
@@ -46,6 +59,7 @@ export function createControl(supabase, { seedAllowlist = [], log = console } = 
     return {
       ...defaults,
       ...row,
+      mode: normaliseMode(row.mode),
       allowlist: normalizeList(row.allowlist),
       blocklist: normalizeList(row.blocklist),
       status_interval_minutes: Number(row.status_interval_minutes) || defaults.status_interval_minutes,
@@ -119,9 +133,14 @@ export function createControl(supabase, { seedAllowlist = [], log = console } = 
   }
 
   async function setMode(mode, actor = 'admin') {
-    if (!['active', 'paused'].includes(mode)) throw new Error('mode must be active or paused')
-    const row = await write({ mode }, actor)
-    await audit(`mode:${mode}`, {}, actor)
+    const next = normaliseMode(mode)
+    if (!MODES.includes(next)) throw new Error('mode must be autonomous, regular or off')
+    const patch = { mode: next }
+    // One state at a time: autonomous means no approvals, regular always asks.
+    if (next === 'autonomous') patch.require_approval = false
+    if (next === 'regular') patch.require_approval = true
+    const row = await write(patch, actor)
+    await audit(`mode:${next}`, {}, actor)
     return row
   }
 
@@ -215,8 +234,8 @@ export function createControl(supabase, { seedAllowlist = [], log = console } = 
     if (clean && snap.blocklist.includes(clean)) {
       return { ai: false, reason: 'blocked', snapshot: snap }
     }
-    if (snap.mode !== 'active') {
-      return { ai: false, reason: 'paused', snapshot: snap }
+    if (snap.mode === 'off') {
+      return { ai: false, reason: 'off', snapshot: snap }
     }
     if (!aiEnabled) {
       return { ai: false, reason: 'handoff', snapshot: snap }

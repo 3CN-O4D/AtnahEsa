@@ -44,6 +44,11 @@ export async function GET(req: Request) {
     control = data
   }
 
+  // Rows created before the three-state model used `active` / `paused`.
+  if (control && !['autonomous', 'regular', 'off'].includes(String(control.mode))) {
+    control.mode = control.mode === 'paused' ? 'off' : 'regular'
+  }
+
   const startOfDay = new Date()
   startOfDay.setHours(0, 0, 0, 0)
 
@@ -98,8 +103,15 @@ export async function PATCH(req: Request) {
   const patch: Record<string, unknown> = { updated_by: actor, updated_at: new Date().toISOString() }
   const actions: Array<{ action: string; detail: Record<string, unknown> }> = []
 
-  if (body.mode === 'active' || body.mode === 'paused') {
+  if (body.mode === 'autonomous' || body.mode === 'regular' || body.mode === 'off') {
     patch.mode = body.mode
+    /*
+     * One state at a time. Autonomous never waits for an approval; regular
+     * always queues marketing for a human. Keep `require_approval` in sync so
+     * older worker builds and the marketing picker agree with the mode.
+     */
+    if (body.mode === 'autonomous') patch.require_approval = false
+    if (body.mode === 'regular') patch.require_approval = true
     actions.push({ action: `mode:${body.mode}`, detail: {} })
   }
 

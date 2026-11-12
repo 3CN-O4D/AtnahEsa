@@ -2,8 +2,7 @@ import type { ChatRequest, ChatResponse, ChatState, ChatAction } from './types'
 import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
-import { toolStats, toolSearchHouses, toolGetHouse, toolWifiPackages, toolMovers, toolContact } from './tools'
-import { startHouseRequest, continueHouseRequest, startWifiBooking, continueWifiBooking, startMoverRequest, continueMoverRequest, startPasswordReset, continuePasswordReset, startChangeEmail, continueChangeEmail, startDeleteAccount, continueDeleteAccount, startChangeDP, continueDeleteDP, isCancelMessage } from './flows'
+import { toolStats, toolWifiPackages, toolMovers, toolContact, toolGetHouse } from './tools'
 import { aiChat, aiEnabled } from './ai'
 import { createHandoff } from './handoff'
 
@@ -15,111 +14,42 @@ const AREA_WORDS = [
 
 const BEDROOM_RE = /\b(?:bedsitter|studio|bungalow|townhouse|apartment|1\s?br|2\s?br|3\s?br|4\s?br|one\s*bedroom|two\s*bedroom|three\s*bedroom)\b/i
 
-const FALLBACK_REPLY =
-  `Hmm, I'm not sure about that one yet 🙈\n\nI'm still learning, but I can help you find houses, show stats, help with WiFi or movers, explain escrow, or get you in touch with the team.\n\nWhat would you like?`
+const CANCEL_RE = /^(cancel|stop|never ?mind|nevermind|forget it|abort|exit|quit|hapana|acha)\b/i
 
 /**
- * Account-changing flows need the browser's signed-in session, which the
- * WhatsApp bridge does not have. Match both a fresh intent and an already
- * active flow so the chat never gets stuck waiting for an OTP it can't use.
+ * Account changes need a signed-in browser session, which the WhatsApp bridge
+ * does not have. This is a security boundary, not a conversation script: it
+ * fires once and sends the user to the profile page.
  */
-const WHATSAPP_WEB_INTENTS: { re: RegExp; what: string }[] = [
-  { re: /\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture|remove ?dp|delete ?dp)\b/, what: 'your profile picture' },
-  { re: /\b(change ?email|update ?email|new email|different email)\b/, what: 'your account email' },
-  { re: /\b(delete ?account|remove ?account|deactivate ?account|close ?account)\b/, what: 'your account' },
-]
-
-function whatsappBlockedIntent(state: ChatState, low: string): string | null {
-  const active =
-    state.mode === 'change_dp' || state.mode === 'change_email' || state.mode === 'delete_account'
-      ? state.mode
-      : null
-  const hit = WHATSAPP_WEB_INTENTS.find((i) => i.re.test(low)) ?? null
-  if (!active && !hit) return null
-
-  const what =
-    active === 'change_dp'
-      ? 'your profile picture'
-      : active === 'delete_account'
-        ? 'your account'
-        : active === 'change_email'
-          ? 'your account email'
-          : hit!.what
-
-  return `🔐 I can't change ${what} from WhatsApp — that needs a signed-in browser session for security.\n\nOpen https://www.asehanta.com/profile while signed in and do it there.\n\nAnything else I can help with?`
-}
+const WHATSAPP_WEB_RE =
+  /\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture|remove ?dp|delete ?dp|change ?email|update ?email|new email|delete ?account|remove ?account|deactivate ?account|close ?account)\b/i
 
 export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   const msg = (input.message || '').trim().slice(0, 600)
   const prevState: ChatState = { ...emptyState(), ...(input.state ?? {}) }
   const history = Array.isArray(input.history) ? input.history.slice(-12) : []
+  const low = msg.toLowerCase()
 
-  // 1. Cancel / abort an in-progress flow.
-  if (prevState.mode !== 'chat' && prevState.step && isCancelMessage(msg)) {
+  // 1. Cancel an in-progress submission. No loop: the draft is simply dropped.
+  if ((prevState.form || prevState.step || Object.keys(prevState.draft ?? {}).length) && CANCEL_RE.test(msg)) {
     return {
       reply: `Okay, I've cancelled that. Is there anything else I can help with? 🙂`,
       state: emptyState(),
     }
   }
 
-  // 2. Continue an active guided flow.
-  if (prevState.mode === 'house_request' && prevState.step) {
-    return continueHouseRequest(prevState, msg)
-  }
-  if (prevState.mode === 'wifi_booking' && prevState.step) {
-    return continueWifiBooking(prevState, msg)
-  }
-  if (prevState.mode === 'mover_request' && prevState.step) {
-    return continueMoverRequest(prevState, msg)
-  }
-  if (prevState.mode === 'password_reset' && prevState.step) {
-    return continuePasswordReset(prevState, msg)
-  }
-  if (prevState.mode === 'change_email' && prevState.step) {
-    return continueChangeEmail(prevState, msg)
-  }
-  if (prevState.mode === 'delete_account' && prevState.step) {
-    return continueDeleteAccount(prevState, msg)
-  }
-  if (prevState.mode === 'change_dp' && prevState.step) {
-    return continueDeleteDP(prevState, msg)
+  // 2. WhatsApp cannot touch the logged-in account.
+  if (input.channel === 'whatsapp' && WHATSAPP_WEB_RE.test(low)) {
+    return {
+      reply:
+        `🔐 That one needs a signed-in browser session, so I can't do it from WhatsApp.\n\n` +
+        `Open https://www.asehanta.com/profile while signed in and change it there.\n\n` +
+        `Anything else I can help with?`,
+      state: emptyState(),
+    }
   }
 
-  const low = msg.toLowerCase()
-
-  // 2b. WhatsApp can't touch the logged-in account: the bridge has no browser
-  // session. Send those intents to the website instead of letting the cookie
-  // flow fail with "not signed in".
-  if (input.channel === 'whatsapp') {
-    const blocked = whatsappBlockedIntent(prevState, low)
-    if (blocked) return { reply: blocked, state: emptyState() }
-  }
-
-  // 3. Guided-flow STARTS — exact intents that need the state-machine wizard.
-  // Check these BEFORE AI so the AI can't intercept and give text instructions instead.
-  if (/\b(change ?dp|change ?avatar|profile ?picture|update ?avatar|new ?profile ?picture)\b/.test(low)) {
-    return startChangeDP()
-  }
-  if (/\b(request a house|house request|submit a request|make a request|submit a house request|let me request|log a request)\b/.test(low)) {
-    return startHouseRequest()
-  }
-  if (/\b(book wifi|arrange wifi|wifi booking|sign up for wifi|sign me up for wifi|subscribe to wifi|order wifi|get wifi installed|install wifi for me)\b/.test(low)) {
-    return startWifiBooking()
-  }
-  if (/\b(request a mover|need a mover|arrange a mover|book a mover|help me move|get a mover|moving company|hire movers?|request movers?)\b/.test(low)) {
-    return startMoverRequest()
-  }
-  if (/\b(forgot ?password|reset ?password|change ?password|password ?reset|forgotten password|can't ?login|cannot ?login|unable to ?sign ?in|lock ?out|reset my ?password)\b/.test(low)) {
-    return startPasswordReset()
-  }
-  if (/\b(change ?email|update ?email|new email|different email)\b/.test(low)) {
-    return startChangeEmail()
-  }
-  if (/\b(delete ?account|remove ?account|deactivate ?account|close ?account)\b/.test(low)) {
-    return startDeleteAccount()
-  }
-
-  // 3b. A pasted listing link or listing id — fetch that exact house, with its
+  // 3. A pasted listing link or listing id — fetch that exact house, with its
   // photos. Works even when the AI is off, and never invents listing data.
   const listingId = extractListingId(msg)
   if (listingId) {
@@ -131,9 +61,9 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // 3c. WhatsApp → website hand-off. The user wants to continue in a browser
-  // (better for forms, uploads and payments); mint a single-use token that
-  // carries this chat's state and history to /chat.
+  // 4. WhatsApp → website hand-off. The user wants to continue in a browser
+  // (better for uploads and payments); mint a single-use token that carries
+  // this chat's state and history to /chat.
   if (
     input.channel === 'whatsapp' &&
     /\b(continue|switch|move|open|use|go|take)\b[^.!?]{0,30}\b(web|website|browser|site|chat page)\b/.test(low)
@@ -154,25 +84,29 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // 4. AI-first — the model thinks, calls its tools in the background, then
-  // formats a human reply. Deterministic rules below act as fallback when AI
-  // is off or down.
+  // 5. AI-first. The model chats naturally, calls tools in the background and
+  // collects submissions from a declared field spec. It is the only driver of
+  // multi-turn conversations; there are no step machines.
   if (aiEnabled()) {
-    const ai = await aiChat(history, msg)
+    const ai = await aiChat(history, msg, prevState)
     if (ai && ai.reply) {
-      const actions: ChatAction[] = (ai.cards ?? []).slice(0, 5).map((c) => ({ type: 'card', card: c }))
-      return { reply: ai.reply, actions: actions.length ? actions : undefined, state: emptyState(), adminAlert: ai.adminAlert }
+      const cardActions: ChatAction[] = (ai.cards ?? []).slice(0, 5).map((c) => ({ type: 'card', card: c }))
+      const actions = [...(ai.actions ?? []), ...cardActions]
+      const keepDraft = Boolean(prevState.form) || Object.keys(prevState.draft ?? {}).length > 0
+      const state = ai.state ? { ...prevState, ...ai.state } : keepDraft ? prevState : emptyState()
+      return {
+        reply: ai.reply,
+        actions: actions.length ? actions : undefined,
+        state,
+        adminAlert: ai.adminAlert,
+      }
     }
   }
 
-  // 5. Greetings / social chat (deterministic fallback, works without AI).
+  // 6. Deterministic fallbacks below only run when the model is unavailable.
+  // They keep the assistant useful instead of leaving users with dead air.
   if (/^(hi|hello|hey|heyy|hey there|hiya|yo|sup|habari|jambo|mambo|howdy|sasa|mzuri|poa|good\s*(morning|afternoon|evening)|morning|afternoon|evening)\b/i.test(msg) && msg.length < 50) {
-    const greetings = [
-      "Hi there 👋",
-      "Hey 😊",
-      "Hello! 👋",
-      "Hi! How's it going?",
-    ]
+    const greetings = ["Hi there 👋", "Hey 😊", "Hello! 👋", "Hi! How's it going?"]
     const pick = greetings[Math.floor(Math.random() * greetings.length)]
     return {
       reply: `${pick}\n\nHow can I be of help today?\n\nJust ask me anything — I can help with houses, WiFi, movers, escrow or getting in touch with our team.`,
@@ -213,13 +147,13 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // 6. Statistics.
+  // 7. Statistics.
   if (/how many|stats|statistics|counts?|how many houses|numbers?|market data|current (listings|houses|users)/.test(low)) {
     const stats = await toolStats()
     return { reply: stats.text, state: emptyState(), actions: [linkAction('📊 View full stats', PAGE_LINKS.stats.href)] }
   }
 
-  // 7a. WiFi requirements — answer "what do I need?" instead of dumping plans.
+  // 8a. WiFi requirements — answer "what do I need?" instead of dumping plans.
   if (
     /\b(wifi|internet|router)\b/.test(low) &&
     /\b(what (do|would) i need|requirements?|require|documents?|need to (get|apply|book)|needed for|need for)\b/.test(low)
@@ -231,25 +165,25 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // 7b. WiFi packages.
+  // 8b. WiFi packages.
   if (/\b(wifi|internet|router|wifi package|packages)\b/.test(low)) {
     const res = await toolWifiPackages()
     return { reply: res.text, state: emptyState(), actions: [linkAction('📶 Browse WiFi page', PAGE_LINKS.wifi.href)] }
   }
 
-  // 8. Movers.
+  // 9. Movers.
   if (/\b(mover|movers|moving)\b/.test(low)) {
     const res = await toolMovers()
     return { reply: res.text, state: emptyState(), actions: [linkAction('🚚 Browse movers', PAGE_LINKS.movers.href)] }
   }
 
-  // 9. Contact details.
+  // 10. Contact details.
   if (/\b(contact|phone number|email|reach you|talk to|call us|support|whatsapp|address|location|office)\b/.test(low) && !/contact page/.test(low)) {
     const c = toolContact()
     return { reply: c.text, state: emptyState(), actions: [linkAction('💬 WhatsApp us', CONTACT_INFO.whatsapp), linkAction('📞 Contact page', PAGE_LINKS.contact.href)] }
   }
 
-  // 10. Terms / escrow / refunds / payments (knowledge base).
+  // 11. Terms / escrow / refunds / payments (knowledge base).
   const faq = FAQ.find((f) => f.keywords.some((k) => low.includes(k)))
   if (faq && !/\b(find|search|show)\b/.test(low)) {
     const faqActions: ChatAction[] = [linkAction('📄 Full terms', PAGE_LINKS.terms.href)]
@@ -264,7 +198,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return { reply: faq.answer, state: emptyState(), actions: faqActions }
   }
 
-  // 11. House search (deterministic) — this handles natural-language queries.
+  // 12. House search (deterministic) — natural-language queries.
   const isSearchAsk = /(find|search|show|is there|do you have|any house|any homes|available houses|available homes|looking for|want|need a house|need a home|list houses|houses? (in|around|near|within))/.test(low)
   const isArea = AREA_WORDS.some((a) => low.includes(a))
   const isBedroom = BEDROOM_RE.test(low)
@@ -280,7 +214,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
         state: emptyState(),
       }
     }
-    // No results — offer to submit a request in three human bubbles.
+    // No results — offer a house request in natural bubbles.
     const q = parseHouseQuery(msg)
     const described = [q.locations.join(', '), q.bedrooms.join(', '), q.rent.max ? `under KSh ${q.rent.max.toLocaleString()}` : ''].filter(Boolean).join(' · ')
     return {
@@ -289,7 +223,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
-  // 12. Shortcut links.
+  // 13. Shortcut links.
   const linkKey = Object.keys(PAGE_LINKS).find((k) => {
     if (k === 'home') return /\b(home|homepage|front page|main page)\b/.test(low)
     if (k === 'listings') return /(all listings|listings page|browse houses|browse homes)/.test(low)
@@ -306,8 +240,15 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     return { reply: `Here you go: *${page.label}*\n${page.href}`, state: emptyState(), actions: [linkAction(page.label, page.href)] }
   }
 
-  // 13. Fallback.
-  return { reply: FALLBACK_REPLY, state: emptyState() }
+  // 14. Never guess and never say "I don't know yet" — hand off naturally.
+  return {
+    reply:
+      `I'd rather get this right than guess 🙏\n\n` +
+      `Our team can pick it up from here — tap below or message us on WhatsApp.\n\n` +
+      `Is there anything else I can help with in the meantime?`,
+    state: prevState.form ? prevState : emptyState(),
+    actions: [linkAction('💬 Talk to the team', CONTACT_INFO.whatsapp), linkAction('🏠 Browse houses', PAGE_LINKS.listings.href)],
+  }
 }
 
 function linkAction(label: string, href: string): ChatAction {
@@ -322,14 +263,5 @@ function extractListingId(text: string): string | null {
   return bare ? bare[1] : null
 }
 
-// Re-export helper used by the API route for defaults.
-export { toolSearchHouses }
-
-/** Detects house-search intent so we can offer a request flow when no results. */
-function isHouseSearchIntent(text: string): boolean {
-  const isSearchAsk = /(find|search|show|is there|do you have|any house|any homes|available houses|available homes|looking for|want|need a house|need a home|list houses|houses? (in|around|near|within))/.test(text)
-  const isArea = AREA_WORDS.some((a) => text.includes(a))
-  const isBedroom = BEDROOM_RE.test(text)
-  const isRent = /(rent|budget)/.test(text)
-  return isSearchAsk || isArea || isBedroom || (isRent && /(house|home|room|apartment|bed|br|studio|bedsitter)/.test(text))
-}
+// Kept for callers that previously imported the helper from the engine.
+export { toolSearchHouses } from './tools'

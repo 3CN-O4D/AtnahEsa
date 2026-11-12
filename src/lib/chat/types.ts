@@ -47,6 +47,8 @@ export interface ChatState {
   mode: ChatMode
   step: string | null
   draft: Record<string, unknown>
+  /** Active submission id (see `forms.ts`), e.g. `house_request`. */
+  form?: string | null
   /** Used by the rules engine to avoid re-triggering the same intent. */
   lastIntent?: string
 }

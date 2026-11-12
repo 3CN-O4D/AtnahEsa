@@ -16,6 +16,7 @@
  */
 
 import sharp from 'sharp'
+import { recordActivity } from './activity.mjs'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const STATUS_MAX_RECIPIENTS = 3000
@@ -312,6 +313,40 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
 
   try {
     const listing = await listingFor(supabase, claimed.listing_id)
+
+    /*
+     * Self-activity guard: never post the same house twice in 24 hours. We
+     * learned this the hard way — one listing went out five times in a day.
+     * The app also refuses to pick a used listing, but this protects against
+     * drafts that were queued before that rule existed.
+     */
+    if (claimed.listing_id) {
+      const { count } = await supabase
+        .from('whatsapp_marketing')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'sent')
+        .eq('listing_id', claimed.listing_id)
+        .gte('sent_at', hoursAgo(24))
+
+      if ((count ?? 0) > 0) {
+        await mark(supabase, claimed.id, {
+          status: 'skipped',
+          error: 'same house already posted in the last 24 hours',
+        })
+        await recordActivity(
+          supabase,
+          {
+            kind: 'marketing_skipped_duplicate',
+            subject: claimed.listing_id,
+            detail: { marketing_id: claimed.id, channel: claimed.channel, window_hours: 24 },
+          },
+          log
+        )
+        log.warn?.(`[marketing] skipped duplicate listing ${claimed.listing_id}`)
+        return false
+      }
+    }
+
     const tall = claimed.channel === 'status'
     const image = claimed.image_url
       ? (await fetchBuffer(claimed.image_url)) ||
@@ -359,11 +394,35 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
     }
 
     await mark(supabase, claimed.id, { status: 'sent', sent_at: nowIso(), error: null })
+    await recordActivity(
+      supabase,
+      {
+        kind: claimed.channel === 'status' ? 'marketing_status' : 'marketing_group',
+        subject: claimed.listing_id || claimed.target_jid || claimed.id,
+        detail: {
+          marketing_id: claimed.id,
+          channel: claimed.channel,
+          target_jid: claimed.target_jid,
+          listing_title: listing?.title ?? null,
+          headline: claimed.meta?.headline ?? null,
+        },
+      },
+      log
+    )
     log.log?.(`[marketing] sent ${claimed.channel} post ${claimed.id}`)
     return true
   } catch (error) {
     const message = String(error?.message ?? error).slice(0, 500)
     await mark(supabase, claimed.id, { status: 'failed', error: message })
+    await recordActivity(
+      supabase,
+      {
+        kind: 'marketing_failed',
+        subject: claimed.listing_id || claimed.target_jid || claimed.id,
+        detail: { marketing_id: claimed.id, channel: claimed.channel, error: message },
+      },
+      log
+    )
     log.error?.(`[marketing] ${claimed.channel} post failed:`, message)
     return false
   }

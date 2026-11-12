@@ -6,6 +6,7 @@ import {
   Bot,
   CheckCircle2,
   FileText,
+  History,
   Loader2,
   Megaphone,
   MessageCircle,
@@ -15,14 +16,18 @@ import {
   Search,
   Send,
   ShieldAlert,
+  Sparkles,
+  Trash2,
   UserRound,
   Users,
   X,
 } from 'lucide-react'
 import Button from '@/components/ui/Button'
 
+type BotMode = 'autonomous' | 'regular' | 'off'
+
 type Control = {
-  mode: 'active' | 'paused'
+  mode: BotMode
   allowlist: string[]
   blocklist: string[]
   marketing_enabled: boolean
@@ -100,7 +105,16 @@ type Transcript = {
   messages: { role: 'user' | 'assistant' | 'admin' | 'system'; body: string; at: string | null }[]
 }
 
-type Tab = 'overview' | 'chats' | 'urgent' | 'marketing' | 'groups'
+type Activity = {
+  id: string | number
+  kind: string
+  subject: string | null
+  detail: Record<string, unknown> | null
+  actor: string
+  created_at: string
+}
+
+type Tab = 'overview' | 'chats' | 'urgent' | 'marketing' | 'groups' | 'activity'
 
 const TABS: { id: Tab; label: string; icon: typeof Bot }[] = [
   { id: 'overview', label: 'Control', icon: Bot },
@@ -108,7 +122,29 @@ const TABS: { id: Tab; label: string; icon: typeof Bot }[] = [
   { id: 'urgent', label: 'Urgent', icon: AlertTriangle },
   { id: 'marketing', label: 'Marketing', icon: Megaphone },
   { id: 'groups', label: 'Groups', icon: Users },
+  { id: 'activity', label: 'Activity', icon: History },
 ]
+
+const MODE_META: Record<BotMode, { label: string; short: string; dot: string; blurb: string }> = {
+  autonomous: {
+    label: 'Autonomous',
+    short: 'No approvals',
+    dot: 'bg-emerald-500',
+    blurb: 'Ase answers, posts and acts on its own. Nothing waits for a human.',
+  },
+  regular: {
+    label: 'Regular',
+    short: 'Approvals required',
+    dot: 'bg-sky-500',
+    blurb: 'Ase answers chats; marketing posts wait for an admin to approve them.',
+  },
+  off: {
+    label: 'Off',
+    short: 'AI silent',
+    dot: 'bg-amber-500',
+    blurb: 'Ase stays silent. Each chat gets one holding message and the team is pinged.',
+  },
+}
 
 function when(value: string | null) {
   if (!value) return '—'
@@ -149,6 +185,9 @@ export default function AdminWhatsAppPage() {
   const [urgent, setUrgent] = useState<Urgent[]>([])
   const [marketing, setMarketing] = useState<Marketing[]>([])
   const [groups, setGroups] = useState<Group[]>([])
+  const [activity, setActivity] = useState<Activity[]>([])
+  const [activityKinds, setActivityKinds] = useState<string[]>([])
+  const [activityKind, setActivityKind] = useState('')
   const [loading, setLoading] = useState(true)
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; message: string } | null>(null)
@@ -170,20 +209,23 @@ export default function AdminWhatsAppPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [controlRes, chatsRes, urgentRes, marketingRes, groupsRes] = await Promise.all([
+      const activityQuery = activityKind ? `?kind=${encodeURIComponent(activityKind)}` : ''
+      const [controlRes, chatsRes, urgentRes, marketingRes, groupsRes, activityRes] = await Promise.all([
         fetch('/api/admin/whatsapp/control'),
         fetch('/api/admin/whatsapp/chats'),
         fetch('/api/admin/whatsapp/urgent'),
         fetch('/api/admin/whatsapp/marketing'),
         fetch('/api/admin/whatsapp/groups'),
+        fetch(`/api/admin/whatsapp/activity${activityQuery}`),
       ])
 
-      const [controlData, chatsData, urgentData, marketingData, groupsData] = await Promise.all([
+      const [controlData, chatsData, urgentData, marketingData, groupsData, activityData] = await Promise.all([
         controlRes.json().catch(() => ({})),
         chatsRes.json().catch(() => ({})),
         urgentRes.json().catch(() => ({})),
         marketingRes.json().catch(() => ({})),
         groupsRes.json().catch(() => ({})),
+        activityRes.json().catch(() => ({})),
       ])
 
       if (controlRes.ok) {
@@ -194,12 +236,16 @@ export default function AdminWhatsAppPage() {
       if (urgentRes.ok) setUrgent(urgentData.items ?? [])
       if (marketingRes.ok) setMarketing(marketingData.items ?? [])
       if (groupsRes.ok) setGroups(groupsData.groups ?? [])
+      if (activityRes.ok) {
+        setActivity(activityData.items ?? [])
+        setActivityKinds(activityData.kinds ?? [])
+      }
     } catch {
       showToast('error', 'Could not load WhatsApp controls.')
     } finally {
       setLoading(false)
     }
-  }, [showToast])
+  }, [activityKind, showToast])
 
   useEffect(() => {
     let cancelled = false
@@ -405,6 +451,76 @@ export default function AdminWhatsAppPage() {
     [showToast]
   )
 
+  const syncGroupList = useCallback(async () => {
+    setBusy('groups-sync')
+    try {
+      const res = await fetch('/api/admin/whatsapp/groups', { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast('error', data?.error || 'Could not sync groups.')
+        return
+      }
+      setGroups(data.groups ?? [])
+      showToast('ok', `Synced ${data.synced ?? 0} group(s) from WhatsApp.`)
+    } catch {
+      showToast('error', 'Network error.')
+    } finally {
+      setBusy(null)
+    }
+  }, [showToast])
+
+  const deleteMarketing = useCallback(
+    async (item: Marketing) => {
+      if (!window.confirm('Delete this post from the panel? The WhatsApp status itself cannot be recalled.')) {
+        return
+      }
+      setBusy(`delete-marketing-${item.id}`)
+      try {
+        const res = await fetch('/api/admin/whatsapp/marketing', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: item.id }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not delete the post.')
+          return
+        }
+        setMarketing((prev) => prev.filter((row) => row.id !== item.id))
+        showToast('ok', 'Post removed from the panel.')
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [showToast]
+  )
+
+  const deleteActivity = useCallback(
+    async (item: Activity) => {
+      setBusy(`delete-activity-${item.id}`)
+      try {
+        const res = await fetch('/api/admin/whatsapp/activity', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: item.id }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not delete that entry.')
+          return
+        }
+        setActivity((prev) => prev.filter((row) => row.id !== item.id))
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [showToast]
+  )
+
   const filteredChats = useMemo(() => {
     const q = chatSearch.trim().toLowerCase()
     if (!q) return chats
@@ -441,29 +557,48 @@ export default function AdminWhatsAppPage() {
             <span className="font-medium text-gray-700 dark:text-gray-300">+254 791 410 625</span>.
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             Refresh
           </Button>
           {control && (
-            <Button
-              size="sm"
-              variant={control.mode === 'active' ? 'danger' : 'primary'}
-              onClick={() =>
-                void patchControl({ mode: control.mode === 'active' ? 'paused' : 'active' }, 'mode')
-              }
-              disabled={busy === 'mode'}
-            >
-              {busy === 'mode' ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : control.mode === 'active' ? (
-                <Pause className="h-4 w-4" />
-              ) : (
-                <Play className="h-4 w-4" />
-              )}
-              {control.mode === 'active' ? 'Pause AI' : 'Start AI'}
-            </Button>
+            <div className="inline-flex overflow-hidden rounded-lg border border-gray-300 dark:border-slate-700">
+              {(
+                [
+                  { mode: 'autonomous' as BotMode, label: 'Autonomous', icon: Sparkles },
+                  { mode: 'regular' as BotMode, label: 'Regular', icon: Play },
+                  { mode: 'off' as BotMode, label: 'Off', icon: Pause },
+                ] as const
+              ).map((option) => {
+                const Icon = option.icon
+                const active = control.mode === option.mode
+                return (
+                  <button
+                    key={option.mode}
+                    onClick={() => void patchControl({ mode: option.mode }, 'mode')}
+                    disabled={busy === 'mode'}
+                    className={`inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold transition ${
+                      active
+                        ? option.mode === 'off'
+                          ? 'bg-amber-500 text-white'
+                          : option.mode === 'autonomous'
+                            ? 'bg-emerald-600 text-white'
+                            : 'bg-sky-600 text-white'
+                        : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800'
+                    }`}
+                    title={MODE_META[option.mode].blurb}
+                  >
+                    {busy === 'mode' && active ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Icon className="h-3.5 w-3.5" />
+                    )}
+                    {option.label}
+                  </button>
+                )
+              })}
+            </div>
           )}
         </div>
       </div>
@@ -504,22 +639,24 @@ export default function AdminWhatsAppPage() {
             </h2>
             <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-800">
-                <div className="text-xs text-gray-500 dark:text-gray-400">AI replies</div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">Bot mode</div>
                 <div className="mt-1 flex items-center gap-2 text-lg font-semibold text-gray-900 dark:text-white">
-                  <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      control?.mode === 'active' ? 'bg-emerald-500' : 'bg-amber-500'
-                    }`}
-                  />
-                  {control?.mode === 'active' ? 'Active' : 'Paused'}
+                  <span className={`h-2.5 w-2.5 rounded-full ${MODE_META[control?.mode ?? 'regular'].dot}`} />
+                  {MODE_META[control?.mode ?? 'regular'].label}
+                  <span className="text-xs font-normal text-gray-500">
+                    {MODE_META[control?.mode ?? 'regular'].short}
+                  </span>
                 </div>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  {MODE_META[control?.mode ?? 'regular'].blurb}
+                </p>
               </div>
               <div className="rounded-lg bg-gray-50 p-3 dark:bg-slate-800">
                 <div className="text-xs text-gray-500 dark:text-gray-400">Marketing</div>
                 <div className="mt-1 text-lg font-semibold text-gray-900 dark:text-white">
                   {control?.marketing_enabled ? 'On' : 'Off'}
                   <span className="ml-2 text-xs font-normal text-gray-500">
-                    {control?.require_approval ? 'approval required' : 'auto-send'}
+                    {control?.mode === 'autonomous' ? 'auto-send' : 'approval required'}
                   </span>
                 </div>
               </div>
@@ -550,15 +687,11 @@ export default function AdminWhatsAppPage() {
                 />
                 Marketing enabled
               </label>
-              <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
-                <input
-                  type="checkbox"
-                  checked={Boolean(control?.require_approval)}
-                  onChange={(event) => void patchControl({ require_approval: event.target.checked }, 'approval')}
-                  className="h-4 w-4 rounded border-gray-300 text-emerald-600"
-                />
-                Require admin approval
-              </label>
+              <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-600 dark:bg-slate-800 dark:text-gray-300">
+                {control?.mode === 'autonomous'
+                  ? 'Autonomous — posts send immediately'
+                  : 'Approval required — drafts wait for you'}
+              </span>
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
@@ -863,25 +996,23 @@ export default function AdminWhatsAppPage() {
                   </a>
                 )}
                 <div className="ml-auto flex flex-wrap gap-2">
-                  {item.status !== 'sent' && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        void patchMarketing(item.id, 'update', {
-                          body: draftEdits[item.id] ?? item.body,
-                        })
-                        setDraftEdits((prev) => {
-                          const next = { ...prev }
-                          delete next[item.id]
-                          return next
-                        })
-                      }}
-                      disabled={!draftEdits[item.id]}
-                    >
-                      Save edits
-                    </Button>
-                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      void patchMarketing(item.id, 'update', {
+                        body: draftEdits[item.id] ?? item.body,
+                      })
+                      setDraftEdits((prev) => {
+                        const next = { ...prev }
+                        delete next[item.id]
+                        return next
+                      })
+                    }}
+                    disabled={!draftEdits[item.id]}
+                  >
+                    Save edits
+                  </Button>
                   {(item.status === 'draft' || item.status === 'failed') && (
                     <Button
                       size="sm"
@@ -903,6 +1034,20 @@ export default function AdminWhatsAppPage() {
                       Skip
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    onClick={() => void deleteMarketing(item)}
+                    disabled={busy === `delete-marketing-${item.id}`}
+                    title="Remove this post from the panel"
+                  >
+                    {busy === `delete-marketing-${item.id}` ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                    Delete
+                  </Button>
                 </div>
               </div>
             </div>
@@ -912,16 +1057,26 @@ export default function AdminWhatsAppPage() {
 
       {tab === 'groups' && (
         <div className="mt-5 rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          <div className="border-b border-gray-200 p-4 dark:border-slate-800">
-            <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Group marketing</h2>
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              Groups are discovered when the worker connects. Only enable groups where promotion is welcome — group blasting is the fastest way to lose the number.
-            </p>
+          <div className="flex flex-col gap-3 border-b border-gray-200 p-4 dark:border-slate-800 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Group marketing</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Groups are discovered when the worker connects. Only enable groups where promotion is welcome — group blasting is the fastest way to lose the number.
+              </p>
+            </div>
+            <Button size="sm" variant="outline" onClick={() => void syncGroupList()} disabled={busy === 'groups-sync'}>
+              {busy === 'groups-sync' ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Sync from WhatsApp
+            </Button>
           </div>
           <div className="divide-y divide-gray-100 dark:divide-slate-800">
             {groups.length === 0 && (
               <p className="p-6 text-sm text-gray-500 dark:text-gray-400">
-                No groups discovered yet. The worker syncs them on its next connect.
+                No groups discovered yet. Tap “Sync from WhatsApp” once the worker is connected.
               </p>
             )}
             {groups.map((group) => (
@@ -952,6 +1107,70 @@ export default function AdminWhatsAppPage() {
                     title="Minutes between posts"
                   />
                 </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tab === 'activity' && (
+        <div className="mt-5 rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <div className="flex flex-col gap-3 border-b border-gray-200 p-4 dark:border-slate-800 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Ase activity</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Every status, group post, call and control change. The bot checks this diary before repeating a house.
+              </p>
+            </div>
+            <select
+              value={activityKind}
+              onChange={(event) => setActivityKind(event.target.value)}
+              className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+            >
+              <option value="">All activity</option>
+              {activityKinds.map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind.replace(/_/g, ' ')}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="divide-y divide-gray-100 dark:divide-slate-800">
+            {activity.length === 0 && (
+              <p className="p-6 text-sm text-gray-500 dark:text-gray-400">Nothing recorded yet.</p>
+            )}
+            {activity.map((item) => (
+              <div key={item.id} className="flex flex-col gap-2 p-4 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold text-gray-700 dark:bg-slate-800 dark:text-gray-300">
+                      {item.kind.replace(/_/g, ' ')}
+                    </span>
+                    {item.subject && (
+                      <span className="max-w-[24rem] truncate text-xs text-gray-500">{item.subject}</span>
+                    )}
+                    <span className="text-xs text-gray-400">{when(item.created_at)}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-gray-400">{item.actor}</span>
+                  </div>
+                  {item.detail && Object.keys(item.detail).length > 0 && (
+                    <pre className="mt-2 max-h-32 overflow-auto rounded-lg bg-gray-50 p-2 text-[11px] text-gray-600 dark:bg-slate-800 dark:text-gray-300">
+                      {JSON.stringify(item.detail, null, 2)}
+                    </pre>
+                  )}
+                </div>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => void deleteActivity(item)}
+                  disabled={busy === `delete-activity-${item.id}`}
+                >
+                  {busy === `delete-activity-${item.id}` ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  Delete
+                </Button>
               </div>
             ))}
           </div>

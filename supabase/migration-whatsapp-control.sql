@@ -9,14 +9,14 @@
 -- phone numbers. An empty allowlist means "AI may reply to anyone".
 create table if not exists public.whatsapp_bot_control (
   id smallint primary key default 1 check (id = 1),
-  mode text not null default 'active' check (mode in ('active', 'paused')),
+  mode text not null default 'regular' check (mode in ('autonomous', 'regular', 'off')),
   allowlist jsonb not null default '[]'::jsonb,
   blocklist jsonb not null default '[]'::jsonb,
   marketing_enabled boolean not null default false,
   require_approval boolean not null default true,
-  status_interval_minutes integer not null default 180 check (status_interval_minutes >= 60),
+  status_interval_minutes integer not null default 150 check (status_interval_minutes >= 60),
   group_interval_minutes integer not null default 1440 check (group_interval_minutes >= 180),
-  status_daily_limit integer not null default 8 check (status_daily_limit between 1 and 24),
+  status_daily_limit integer not null default 12 check (status_daily_limit between 1 and 24),
   group_daily_limit integer not null default 3 check (group_daily_limit between 1 and 50),
   last_status_at timestamptz,
   last_group_at timestamptz,

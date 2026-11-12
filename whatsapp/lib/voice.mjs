@@ -11,6 +11,12 @@ import { spawn } from 'node:child_process'
 
 export const DEFAULT_TTS_VOICE = 'en-KE-AsiliaNeural'
 
+/**
+ * Admins asked for slower, clearer voice notes. 0.7 is 70% of the normal
+ * speaking rate; override with `TTS_RATE` when debugging.
+ */
+export const DEFAULT_TTS_RATE = Number(process.env.TTS_RATE) || 0.7
+
 let edgeModule = null
 
 async function loadEdgeTts() {
@@ -67,10 +73,13 @@ function mp3ToOggOpus(mp3) {
 
 /**
  * @param {string} text
- * @param {{ voice?: string, maxChars?: number }} options
+ * @param {{ voice?: string, maxChars?: number, rate?: number|string }} options
  * @returns {Promise<Buffer|null>} OGG/Opus buffer ready for `{ audio, ptt: true }`
  */
-export async function toWhatsAppVoiceNote(text, { voice = DEFAULT_TTS_VOICE, maxChars = 600 } = {}) {
+export async function toWhatsAppVoiceNote(
+  text,
+  { voice = DEFAULT_TTS_VOICE, maxChars = 600, rate = DEFAULT_TTS_RATE } = {}
+) {
   const clean = String(text ?? '')
     .replace(/\s+/g, ' ')
     .trim()
@@ -83,7 +92,7 @@ export async function toWhatsAppVoiceNote(text, { voice = DEFAULT_TTS_VOICE, max
 
   try {
     await tts.setMetadata(voice, OUTPUT_FORMAT.AUDIO_24KHZ_48KBITRATE_MONO_MP3)
-    const { audioStream } = tts.toStream(clean)
+    const { audioStream } = tts.toStream(clean, { rate })
 
     const chunks = []
     for await (const chunk of audioStream) chunks.push(Buffer.from(chunk))

@@ -1,6 +1,7 @@
 import { runTool, toolSchemas, type ToolName } from './tools'
-import type { AdminAlert, ChatMessage, HouseCardData } from './types'
+import type { AdminAlert, ChatAction, ChatMessage, ChatState, HouseCardData } from './types'
 import { CONTACT_INFO, PLATFORM_KNOWLEDGE } from './knowledge'
+import { formsPrompt } from './forms'
 import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
 
 const MAX_ROUNDS = 4
@@ -8,6 +9,9 @@ const MAX_ROUNDS = 4
 export interface AiChatResult {
   reply: string
   cards?: HouseCardData[]
+  actions?: ChatAction[]
+  /** Latest server-side draft/state from a tool call. */
+  state?: Partial<ChatState>
   adminAlert?: AdminAlert
 }
 
@@ -25,7 +29,7 @@ HOW TO TALK (very important):
 - Text exactly like a friendly Kenyan friend on WhatsApp — casual, warm, human. Never robotic, never formal.
 - Short lines. One idea per line. A blank line between each thought, like separate text messages.
 - Use *bold* for emphasis and light emoji the way a real person texts.
-- **STICK TO ENGLISH.** Nemotron is terrible at Swahili/Sheng — do not use it. Reply in plain English always, unless the user explicitly asks for another language. If they write English, reply in English. Full stop.
+- Reply in the language the user writes in. If they write English, reply in English; if they write Swahili, Sheng, French, Chinese or anything else, match them. Never switch language on your own.
 - Write normal sentence case — capitalise the first letter of each line and proper names (AseHanta, Jambonet, Kenya). Don't write everything in lowercase.
 - If asked who you are or to explain AseHanta, say briefly: AseHanta is a Kenyan house-hunting platform (based in Eldoret) with verified homes, escrow-protected viewing fees, movers and home WiFi. Then ask what they need.
 - Keep replies short — usually 2 to 6 short lines unless you are showing house matches.
@@ -64,7 +68,8 @@ WIFI FACTS (answer from these, don't just dump the package list):
 - Installation is a one-time KSh ${WIFI_INSTALLATION_FEE.toLocaleString()}, done within 48 hours. You can pay before or after installation.
 - To book WiFi we need: full name, phone number, installation area, national ID number, and the package they want.
 - If they ask "what do I need for WiFi?", answer with those requirements and the installation cost. Only list packages if they ask about plans or prices.
-- To start a booking, tell them to say *book wifi* or tap https://www.asehanta.com/wifi.
+- When they want WiFi, start collecting those details naturally — no rigid form, no repeating questions.
+- They can also browse plans at https://www.asehanta.com/wifi.
 
 LANGUAGE RULES (read twice):
 - Reply to the user in THEIR language — Chinese, Spanish, French, Swahili, English, whatever they write.
@@ -81,19 +86,26 @@ TOOLS — ALWAYS call a tool when the user asks about its topic, even mid-conver
 - contact_info: AseHanta contact details
 - page_links: Shortcut links to site pages
 - notify_admin: Emails the AseHanta admin team and files a report. Use it for ANY important matter that needs a real human — complaints, bug reports, urgent problems, payment/listing issues, feature requests, partnership/business inquiries, or when the user wants to escalate or talk to a human. Ask for their name, contact (email/phone), and message — then call it. The email goes to the team in English. Confirm it was sent with the reference number. For urgent matters set priority to "urgent".
+- submit_form: Saves whatever the user has told you for a house request, WiFi booking, mover request, viewing request or complaint. Call it as soon as you have any values, then ask only for what the server says is missing.
+- request_password_reset / complete_password_reset: Reset an account password inside this chat. Email a code first, then finish with the code and new password.
 
-GUIDED FLOWS — NEVER start these on your own. Only start them when the user explicitly asks:
-- "request a house" → AI collects details naturally, then submits via notify_admin or house_request tool
-- "book wifi" → AI collects details, then submits
-- "need a mover" → AI collects details, then submits
-If a user just says "morning", "hello", "how many houses", or asks a random question, DO NOT start a house request, WiFi booking, or mover flow. Just chat normally.
+STARTING A SUBMISSION — NEVER start one on your own. Only when the user clearly asks:
+- "request a house" → collect details and call submit_form with form "house_request"
+- "book wifi" → form "wifi_booking"
+- "need a mover" → form "mover_request"
+- "book a viewing" / "I want that house" → form "house_booking"
+- "I have a complaint" / "report a problem" → form "complaint"
+If someone just says "morning", "hello", "how many houses", or asks a random question, DO NOT start a submission. Just chat normally.
 
 RULES:
 - Never invent house listings, prices, or links — use search_houses.
 - Never reveal lister private contact details.
-- If the user greets you or chats socially, reply warmly and briefly in English.
+- If a user greets you or chats socially, reply warmly and briefly.
 - After a house search, mention the card preview that appears below.
 - Be conversational and human. Short lines, one idea per message. Use --- between separate bubbles. Use [[button text|url]] for buttons.
+- Never say "I don't know that yet", "I'm still learning" or "invalid input". If something is outside your knowledge, answer from what you do know or hand off to the team naturally.
+
+${formsPrompt()}
 `
 
 interface OpenAiMessage {
@@ -163,17 +175,30 @@ function polishReply(text: string): string {
 export async function aiChat(
   history: ChatMessage[],
   userMessage: string,
+  state?: Partial<ChatState> | null,
 ): Promise<AiChatResult | null> {
   if (!aiEnabled()) return null
 
   const messages: OpenAiMessage[] = [
     { role: 'system', content: SYSTEM_PROMPT },
+    ...(state?.form || (state?.draft && Object.keys(state.draft).length)
+      ? [
+          {
+            role: 'system' as const,
+            content: `CURRENT SERVER DRAFT (do not ask for anything already here):\n${JSON.stringify(
+              { form: state?.form ?? null, data: state?.draft ?? {} }
+            )}`,
+          },
+        ]
+      : []),
     ...history.slice(-10).map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('assistant' as const), content: m.content.slice(0, 2000) })),
     { role: 'user', content: userMessage.slice(0, 1000) },
   ]
 
   const cards: HouseCardData[] = []
   const seen = new Set<string>()
+  const actions: ChatAction[] = []
+  let statePatch: Partial<ChatState> | undefined
   let adminAlert: AdminAlert | undefined
 
   try {
@@ -246,6 +271,8 @@ export async function aiChat(
           }
           const result = await runTool(name, args)
           if (result.adminAlert) adminAlert = result.adminAlert
+          if (result.state) statePatch = { ...(statePatch ?? {}), ...result.state }
+          for (const action of result.actions ?? []) actions.push(action)
           for (const c of result.cards ?? []) {
             if (!seen.has(c.id)) {
               seen.add(c.id)
@@ -255,13 +282,18 @@ export async function aiChat(
           messages.push({
             role: 'tool',
             tool_call_id: tc.id,
-            content: JSON.stringify({ ok: result.ok, text: result.text, error: result.error }),
+            content: JSON.stringify({
+              ok: result.ok,
+              text: result.text,
+              error: result.error,
+              data: result.data,
+            }),
           })
         }
         continue
       }
 
-      return { reply: polishReply(content ?? ''), cards, adminAlert }
+      return { reply: polishReply(content ?? ''), cards, actions, state: statePatch, adminAlert }
     }
     return null
   } catch (err) {

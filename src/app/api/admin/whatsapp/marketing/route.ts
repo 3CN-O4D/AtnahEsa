@@ -67,9 +67,13 @@ export async function POST(req: Request) {
   if (body.action === 'create' && typeof body.body === 'string' && body.body.trim()) {
     const { data: control } = await db
       .from('whatsapp_bot_control')
-      .select('require_approval')
+      .select('mode, require_approval')
       .eq('id', 1)
       .maybeSingle()
+
+    const autoSend =
+      control?.mode === 'autonomous' ||
+      (control?.mode !== 'regular' && control?.require_approval === false)
 
     const { data, error } = await db
       .from('whatsapp_marketing')
@@ -80,7 +84,7 @@ export async function POST(req: Request) {
         image_url: typeof body.image_url === 'string' ? body.image_url : null,
         listing_id: typeof body.listing_id === 'string' ? body.listing_id : null,
         template: 'manual',
-        status: control?.require_approval === false ? 'approved' : 'draft',
+        status: autoSend ? 'approved' : 'draft',
         scheduled_for: new Date().toISOString(),
         created_by: email,
         meta: { source: 'manual', topic: body.topic ?? 'manual' },
@@ -163,5 +167,66 @@ export async function PATCH(req: Request) {
     return NextResponse.json({ error: 'Could not update that post.' }, { status: 500 })
   }
 
+  await db.from('whatsapp_control_audit').insert({
+    actor: email,
+    action: `marketing:${action}`,
+    detail: { id, status: patch.status ?? null },
+  })
+
   return NextResponse.json({ item: data }, { headers: { 'Cache-Control': 'no-store' } })
+}
+
+/**
+ * Remove a status/group post from the history.
+ *
+ * WhatsApp has no public API for deleting a status that is already live, so
+ * this removes it from the dashboard and from the bot's activity history.
+ * The worker's own record (`whatsapp_activity`) is left intact as an audit
+ * trail; the admin panel shows both.
+ */
+export async function DELETE(req: Request) {
+  const auth = await requireAdminRequest(req)
+  if (!auth.ok) return auth.response
+  const { db, email } = auth.context
+
+  let body: { id?: unknown; ids?: unknown }
+  try {
+    body = await req.json()
+  } catch {
+    return NextResponse.json({ error: 'Invalid request.' }, { status: 400 })
+  }
+
+  const ids = Array.isArray(body.ids)
+    ? body.ids.filter((id): id is string => typeof id === 'string')
+    : typeof body.id === 'string'
+      ? [body.id]
+      : []
+
+  if (!ids.length) return NextResponse.json({ error: 'id is required' }, { status: 400 })
+
+  const { data: rows } = await db
+    .from('whatsapp_marketing')
+    .select('id, channel, status, listing_id')
+    .in('id', ids)
+
+  const { error } = await db.from('whatsapp_marketing').delete().in('id', ids)
+  if (error) {
+    console.error('[admin/whatsapp] marketing delete failed:', error.message)
+    return NextResponse.json({ error: 'Could not delete that post.' }, { status: 500 })
+  }
+
+  await db.from('whatsapp_control_audit').insert(
+    (rows ?? []).map((row) => ({
+      actor: email,
+      action: 'marketing:delete',
+      detail: {
+        id: row.id,
+        channel: row.channel,
+        status: row.status,
+        listing_id: row.listing_id,
+      },
+    }))
+  )
+
+  return NextResponse.json({ deleted: ids.length }, { headers: { 'Cache-Control': 'no-store' } })
 }

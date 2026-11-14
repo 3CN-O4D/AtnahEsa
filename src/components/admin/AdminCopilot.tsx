@@ -211,16 +211,16 @@ export default function AdminCopilot() {
         <button
           type="button"
           onClick={() => setOpen(true)}
-          className="group fixed bottom-5 right-5 z-[60] flex items-center gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-left shadow-2xl shadow-emerald-900/30 ring-1 ring-emerald-500/40 transition hover:-translate-y-0.5 hover:ring-emerald-400"
+          className="group fixed bottom-5 right-5 z-[60] flex items-center gap-3 rounded-2xl bg-slate-950 px-4 py-3 text-left shadow-2xl shadow-blue-950/30 ring-1 ring-blue-600/40 transition hover:-translate-y-0.5 hover:ring-blue-400"
           aria-label="Open admin copilot"
         >
-          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 shadow-lg shadow-emerald-500/30">
+          <span className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-sky-700 text-slate-950 shadow-lg shadow-blue-600/30">
             <Bot className="h-5 w-5" />
-            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-emerald-400" />
+            <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-blue-400" />
           </span>
           <span className="pr-1">
             <span className="block text-sm font-extrabold tracking-tight text-white">Ase Admin</span>
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300/80">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-300/80">
               Copilot · admin only
             </span>
           </span>
@@ -230,15 +230,15 @@ export default function AdminCopilot() {
       {open && (
         <div className="fixed inset-x-3 bottom-3 z-[60] flex max-h-[calc(100dvh-1.5rem)] flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl sm:inset-x-auto sm:bottom-5 sm:right-5 sm:h-[640px] sm:max-h-[calc(100dvh-2.5rem)] sm:w-[400px] dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-center gap-3 border-b border-slate-200 bg-slate-950 px-4 py-3 dark:border-slate-700">
-            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950">
+            <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-sky-700 text-slate-950">
               <ShieldCheck className="h-4.5 w-4.5" />
-              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-emerald-400" />
+              <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-blue-400" />
             </span>
             <div className="min-w-0 flex-1">
               <p className="flex items-center gap-1.5 text-sm font-extrabold tracking-tight text-white">
-                Ase Admin <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                Ase Admin <Sparkles className="h-3.5 w-3.5 text-blue-400" />
               </p>
-              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-300/80">
+              <p className="truncate text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-300/80">
                 Full admin access · every action confirmed
               </p>
             </div>
@@ -272,7 +272,7 @@ export default function AdminCopilot() {
                 <div
                   className={`max-w-[88%] rounded-2xl px-3 py-2 text-[13px] shadow-sm ${
                     message.role === 'user'
-                      ? 'rounded-br-md bg-emerald-600 text-white'
+                      ? 'rounded-br-md bg-blue-700 text-white'
                       : 'rounded-bl-md border border-slate-200 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200'
                   }`}
                 >
@@ -310,7 +310,7 @@ export default function AdminCopilot() {
                           type="button"
                           disabled={busy}
                           onClick={() => confirmAction(message.pending!)}
-                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                          className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-700 px-3 py-1.5 text-[12px] font-bold text-white transition hover:bg-blue-800 disabled:opacity-60"
                         >
                           {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                           Confirm
@@ -336,9 +336,9 @@ export default function AdminCopilot() {
             {busy && (
               <div className="flex justify-start">
                 <div className="flex items-center gap-1.5 rounded-2xl rounded-bl-md border border-slate-200 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-900">
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:-0.2s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500 [animation-delay:-0.1s]" />
-                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-emerald-500" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.2s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-600 [animation-delay:-0.1s]" />
+                  <span className="h-1.5 w-1.5 animate-bounce rounded-full bg-blue-600" />
                 </div>
               </div>
             )}
@@ -359,7 +359,7 @@ export default function AdminCopilot() {
                   type="button"
                   disabled={busy || Boolean(pending)}
                   onClick={() => send(prompt)}
-                  className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-emerald-400 hover:text-emerald-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-emerald-300"
+                  className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-1 text-[11px] font-semibold text-slate-600 transition hover:border-blue-400 hover:text-blue-800 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:text-blue-300"
                 >
                   {prompt}
                 </button>
@@ -380,13 +380,13 @@ export default function AdminCopilot() {
                 rows={1}
                 disabled={busy || Boolean(pending)}
                 placeholder={pending ? 'Confirm or cancel the action above…' : 'Ask Ase Admin anything…'}
-                className="max-h-28 min-h-[40px] flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900"
+                className="max-h-28 min-h-[40px] flex-1 resize-none rounded-xl border border-slate-300 bg-white px-3 py-2.5 text-[13px] text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 disabled:bg-slate-50 dark:border-slate-700 dark:bg-slate-950 dark:text-slate-100 dark:disabled:bg-slate-900"
               />
               <button
                 type="button"
                 disabled={busy || Boolean(pending) || !input.trim()}
                 onClick={() => void send(input)}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-600 text-white transition hover:bg-emerald-700 disabled:bg-slate-300 dark:disabled:bg-slate-700"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-700 text-white transition hover:bg-blue-800 disabled:bg-slate-300 dark:disabled:bg-slate-700"
                 aria-label="Send message"
               >
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}

@@ -234,13 +234,13 @@ export default function TermsAdminPageSw() {
           kwa uwazi, uliza kabla ya kuchukua hatua.
           <Link
             href="/terms/sw"
-            className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+            className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95"
           >
             Soma sheria na masharti ya jumla
           </Link>
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
             Unashughulikia wasiwasi kuhusu msimamizi? Wasiliana na timu ya usaidizi kupitia{' '}
-            <Link href="/contact" className="font-medium text-[#30B54A] hover:underline">ukurasa wa mawasiliano</Link>.
+            <Link href="/contact" className="font-medium text-[#1D4ED8] hover:underline">ukurasa wa mawasiliano</Link>.
           </p>
         </>
       }

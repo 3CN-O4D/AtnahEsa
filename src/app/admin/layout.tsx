@@ -64,7 +64,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     <Suspense
       fallback={
         <div className="flex justify-center py-20">
-          <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
         </div>
       }
     >
@@ -116,7 +116,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-950">
         <div className="flex flex-col items-center gap-3 text-slate-400">
-          <Shield className="h-8 w-8 animate-pulse text-emerald-400" />
+          <Shield className="h-8 w-8 animate-pulse text-blue-400" />
           <p className="text-sm">Checking admin access…</p>
         </div>
       </div>
@@ -136,12 +136,12 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
     <div className="flex h-full flex-col bg-slate-950 text-slate-300">
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-4">
         <Link href="/admin" className="group flex items-center gap-2.5" onClick={() => setMobileOpen(false)}>
-          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-600 text-slate-950 shadow-lg shadow-emerald-500/20 transition-transform group-hover:scale-105">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-blue-400 to-sky-700 text-slate-950 shadow-lg shadow-blue-600/20 transition-transform group-hover:scale-105">
             <Shield className="h-4.5 w-4.5" />
           </span>
           <span>
             <span className="block text-sm font-extrabold tracking-tight text-white">AseHanta</span>
-            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-emerald-400/80">
+            <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-blue-400/80">
               Admin console
             </span>
           </span>
@@ -171,21 +171,21 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
                     onClick={() => setMobileOpen(false)}
                     className={`group relative flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-all ${
                       active
-                        ? 'bg-emerald-500/10 text-emerald-300'
+                        ? 'bg-blue-600/10 text-blue-300'
                         : 'text-slate-400 hover:bg-white/5 hover:text-white'
                     }`}
                   >
                     {active && (
-                      <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-emerald-400" />
+                      <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-blue-400" />
                     )}
-                    <Icon className={`h-4 w-4 transition-colors ${active ? 'text-emerald-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
+                    <Icon className={`h-4 w-4 transition-colors ${active ? 'text-blue-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
                     <span className="flex-1">{label}</span>
                     {badge && openComplaints > 0 && (
                       <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
                         {openComplaints > 99 ? '99+' : openComplaints}
                       </span>
                     )}
-                    {active && <ChevronRight className="h-3.5 w-3.5 text-emerald-400/70" />}
+                    {active && <ChevronRight className="h-3.5 w-3.5 text-blue-400/70" />}
                   </Link>
                 )
               })}
@@ -232,7 +232,7 @@ function AdminLayoutInner({ children }: { children: React.ReactNode }) {
           >
             <Menu className="h-5 w-5" />
           </button>
-          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500 text-white">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-600 text-white">
             <Shield className="h-4 w-4" />
           </span>
           <span className="text-sm font-bold text-gray-900 dark:text-white">Admin console</span>

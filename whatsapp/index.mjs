@@ -313,7 +313,19 @@ async function sendAdminAlerts(alert, meta) {
  * With neither configured this is a no-op; the WhatsApp text + voice note still
  * go out.
  */
-async function placeUrgentCall(alert, meta) {
+/** True when the worker has any way to place a real outbound call. */
+function callConfigured() {
+  return Boolean(URGENT_CALL_WEBHOOK) || Boolean(TWILIO_ACCOUNT_SID && TWILIO_AUTH_TOKEN && TWILIO_FROM_NUMBER)
+}
+
+/** 0726498682 -> 254726498682; already-international numbers pass through. */
+function international(number) {
+  const clean = digits(number)
+  if (clean.startsWith('0') && clean.length === 10) return `254${clean.slice(1)}`
+  return clean
+}
+
+async function placeUrgentCall(alert, meta, numbers = adminNumbers) {
   const message = `Urgent AseHanta alert: ${alert.topic || 'customer needs help'}. ${
     alert.message || ''
   }`.slice(0, 400)
@@ -338,7 +350,7 @@ async function placeUrgentCall(alert, meta) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: adminNumbers,
+          to: numbers,
           message,
           voice_text: spoken,
           phone: alert.phone || meta.phone || null,
@@ -352,7 +364,7 @@ async function placeUrgentCall(alert, meta) {
         {
           kind: 'call_webhook',
           subject: digits(alert.phone || meta.phone) || null,
-          detail: { to: adminNumbers, topic: alert.topic ?? null },
+          detail: { to: numbers, topic: alert.topic ?? null },
         },
         console
       )
@@ -368,7 +380,7 @@ async function placeUrgentCall(alert, meta) {
   const escaped = message.replace(/[<>&"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[char])
   const fallbackTwiml = `<Response><Say voice="Polly.Joanna">${escaped}</Say></Response>`
 
-  for (const number of adminNumbers) {
+  for (const number of numbers.map(international).filter(Boolean)) {
     rememberCallText(number, spoken)
     const params = new URLSearchParams({
       To: `+${number}`,
@@ -439,6 +451,7 @@ function helpText() {
     '.status — connection, mode and marketing status',
     '.groups — list/sync the groups Ase is in',
     '.activity — what Ase did recently',
+    '.callme — call me and send stats + recent notifications',
     '.allow <phone> — AI may chat with this number',
     '.deny <phone> — never reply to this number',
     '.allowlist — show the allow/block lists',
@@ -584,6 +597,104 @@ async function handleAdminCommand({ jid, text, actor }) {
           return `${when} · ${row.kind}${subject}`
         })
         await reply(['*Recent Ase activity*', '', ...(rows.length ? rows : ['_nothing yet_'])].join('\n'))
+        return true
+      }
+
+      case 'callme':
+      case 'testcall':
+      case 'test': {
+        const target = isSelfChat(jid, actor)
+          ? international(adminNumbers[0] || ownPhone)
+          : international(who)
+        if (!target) {
+          await reply('I do not know which admin number to call. Add ADMIN_WHATSAPP_NUMBERS on the worker.')
+          return true
+        }
+
+        const startOfDay = new Date()
+        startOfDay.setHours(0, 0, 0, 0)
+        const since = startOfDay.toISOString()
+
+        const [chats, humanChats, messages, pending, urgent, sentToday, notes, snap] = await Promise.all([
+          supabase.from('whatsapp_sessions').select('id', { count: 'exact', head: true }),
+          supabase
+            .from('whatsapp_sessions')
+            .select('id', { count: 'exact', head: true })
+            .eq('ai_enabled', false),
+          supabase
+            .from('whatsapp_messages')
+            .select('id', { count: 'exact', head: true })
+            .gte('created_at', since),
+          supabase
+            .from('whatsapp_marketing')
+            .select('id', { count: 'exact', head: true })
+            .in('status', ['draft', 'approved', 'scheduled', 'sending']),
+          supabase
+            .from('whatsapp_urgent')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'open'),
+          supabase
+            .from('whatsapp_marketing')
+            .select('id', { count: 'exact', head: true })
+            .eq('status', 'sent')
+            .gte('sent_at', since),
+          supabase
+            .from('notifications')
+            .select('title, category, created_at')
+            .order('created_at', { ascending: false })
+            .limit(5),
+          control.read(true),
+        ])
+
+        const noteLines = (notes.data ?? []).map((note) => {
+          const when = note.created_at
+            ? new Date(note.created_at).toISOString().slice(5, 16).replace('T', ' ')
+            : ''
+          return `• ${note.title || 'Notification'}${note.category ? ` (${note.category})` : ''} · ${when}`
+        })
+
+        const summary = [
+          '*AseHanta — test call summary*',
+          '',
+          `Mode: ${snap.mode}`,
+          `Chats: ${chats.count ?? 0} (${humanChats.count ?? 0} with a human)`,
+          `Messages today: ${messages.count ?? 0}`,
+          `Marketing: ${pending.count ?? 0} pending · ${sentToday.count ?? 0} sent today`,
+          `Urgent open: ${urgent.count ?? 0}`,
+          '',
+          '*Recent notifications*',
+          ...(noteLines.length ? noteLines : ['_none yet_']),
+        ].join('\n')
+
+        await reply(summary)
+        await recordActivity(
+          supabase,
+          { kind: 'test_call', subject: target, detail: { by: who || null, configured: callConfigured() } },
+          console
+        )
+
+        if (!callConfigured()) {
+          await reply(
+            '📞 I cannot place real calls yet: the worker has no Twilio credentials and no URGENT_CALL_WEBHOOK. ' +
+              'Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER in Render, then send .callme again.'
+          )
+          return true
+        }
+
+        await reply(`📞 Calling +${target} now. Answer the call: I will hang up at once and send the details as a voice note.`)
+        void placeUrgentCall(
+          {
+            phone: target,
+            name: 'Admin test',
+            topic: 'Test call and stats',
+            subject: 'Testing outbound calls from Ase',
+            message:
+              'This is a test. The recent notifications and today’s overall stats are in the WhatsApp message I just sent.',
+            priority: 'urgent',
+          },
+          { profileName: 'Admin' },
+          [target]
+        )
         return true
       }
 

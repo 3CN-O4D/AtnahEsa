@@ -12,7 +12,7 @@ const transporter = nodemailer.createTransport({
   },
 })
 
-const BRAND = { name: 'AseHanta', blue: '#2563EB', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
+const BRAND = { name: 'AseHanta', blue: '#2563EB', gold: '#A97900', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
 
 function baseHtml(body: string) {
   return `<!DOCTYPE html>
@@ -27,7 +27,7 @@ function baseHtml(body: string) {
 <tr><td style="padding:32px 32px 0">
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
-<td style="vertical-align:middle"><span style="font-size:22px;font-weight:700;color:${BRAND.blue}">${BRAND.name}</span></td>
+<td style="vertical-align:middle"><span style="font-size:22px;font-weight:700;color:${BRAND.gold}">${BRAND.name}</span></td>
 <td style="vertical-align:middle;text-align:right"><span style="font-size:12px;color:${BRAND.gray}">Find your home in Kenya</span></td>
 </tr>
 </table>
@@ -53,7 +53,7 @@ If you didn&rsquo;t request this, you can ignore this email.
 }
 
 const typeConfig: Record<string, { emoji: string; color: string; badge: string }> = {
-  signup: { emoji: '🎉', color: '#059669', badge: 'Email Verification' },
+  signup: { emoji: '🎉', color: '#1D4ED8', badge: 'Email Verification' },
   login: { emoji: '🔓', color: '#2563EB', badge: 'Sign-in Code' },
   password_reset: { emoji: '🔐', color: '#D97706', badge: 'Password Reset' },
   password_create: { emoji: '🔑', color: '#7C3AED', badge: 'Create Password' },
@@ -184,7 +184,7 @@ export async function sendPaymentReceiptEmail(params: {
 
   const body = `
 <tr><td style="padding:32px 32px 8px">
-  <span style="display:inline-block;background:#D1FAE5;color:#059669;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">✅ Payment received</span>
+  <span style="display:inline-block;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">✅ Payment received</span>
   <h1 style="margin:14px 0 0;font-size:22px;font-weight:700;color:${BRAND.dark}">Your payment is safe in escrow</h1>
   <p style="margin:10px 0 0;font-size:15px;color:${BRAND.gray};line-height:1.6">
     Hi ${name ? escape(name) : 'there'}, we received <strong style="color:${BRAND.dark}">${amountText}</strong> for
@@ -346,12 +346,12 @@ export async function sendAdminPayoutPanelEmail(params: {
     ? `<a href="tel:${escape(params.hunterPhone)}" style="color:${BRAND.blue};text-decoration:none">${escape(params.hunterPhone)}</a>`
     : '—'
   const listerNumber = params.listerPhone
-    ? `<span style="display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;letter-spacing:.5px;background:#ECFDF5;color:#047857;border:1px solid #A7F3D0;border-radius:8px;padding:6px 12px">${escape(params.listerPhone)}</span>`
+    ? `<span style="display:inline-block;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:16px;letter-spacing:.5px;background:#EFF6FF;color:#1E40AF;border:1px solid #BFDBFE;border-radius:8px;padding:6px 12px">${escape(params.listerPhone)}</span>`
     : `<span style="color:#B45309">No lister M-Pesa number on file — ask the lister before paying.</span>`
 
   const body = `
 <tr><td style="padding:32px 32px 8px">
-  <span style="display:inline-block;background:#D1FAE5;color:#059669;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">✅ Hunter confirmed — payout ready</span>
+  <span style="display:inline-block;background:#DBEAFE;color:#1D4ED8;font-size:11px;font-weight:600;padding:4px 10px;border-radius:6px;letter-spacing:.3px">✅ Hunter confirmed — payout ready</span>
   <h1 style="margin:14px 0 0;font-size:22px;font-weight:700;color:${BRAND.dark}">Release the lister payout</h1>
   <p style="margin:10px 0 0;font-size:14px;color:${BRAND.gray};line-height:1.6">
     The hunter confirmed they are happy with <strong style="color:${BRAND.dark}">${escape(params.listingTitle)}</strong>
@@ -385,13 +385,13 @@ ${params.reviewComment ? `<tr><td style="padding:12px 32px 4px">
   </table>
 </td></tr>` : ''}
 <tr><td style="padding:12px 32px 4px">
-  <table width="100%" cellpadding="0" cellspacing="0" style="background:#F0FDF4;border:1px solid #BBF7D0;border-radius:10px">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#EFF6FF;border:1px solid #BFDBFE;border-radius:10px">
     <tr><td style="padding:16px 20px">
-      <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#047857;text-transform:uppercase;letter-spacing:.6px">Lister payout · 50% share</p>
-      <p style="margin:0 0 10px;font-size:24px;font-weight:700;color:#065F46">${payoutText}</p>
-      <p style="margin:0 0 6px;font-size:12px;color:#065F46">${escape(params.listerName || 'Lister')} · M-Pesa number:</p>
+      <p style="margin:0 0 6px;font-size:11px;font-weight:700;color:#1E40AF;text-transform:uppercase;letter-spacing:.6px">Lister payout · 50% share</p>
+      <p style="margin:0 0 10px;font-size:24px;font-weight:700;color:#172554">${payoutText}</p>
+      <p style="margin:0 0 6px;font-size:12px;color:#172554">${escape(params.listerName || 'Lister')} · M-Pesa number:</p>
       <p style="margin:0 0 10px">${listerNumber}</p>
-      <p style="margin:0;font-size:12px;color:#065F46">
+      <p style="margin:0;font-size:12px;color:#172554">
         Copy this number from the Treasury panel (the panel has a one-tap copy button), send the payout in M-Pesa,
         then paste the confirmation SMS there. The transaction code and amount are parsed and saved to the audit trail.
       </p>

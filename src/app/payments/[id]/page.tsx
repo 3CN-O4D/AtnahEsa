@@ -556,14 +556,14 @@ function PaymentPageInner() {
           {/* Confirmed */}
           {confirmed && (
             <div className="space-y-4">
-              <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-center dark:border-green-800 dark:bg-green-900/20">
-                <CheckCircle className="mx-auto h-9 w-9 text-green-600" />
-                <h2 className="mt-2 font-semibold text-green-900 dark:text-green-100">Payment confirmed — money in escrow</h2>
-                <p className="mt-1 text-xs text-green-800 dark:text-green-200">
+              <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-center dark:border-blue-900 dark:bg-blue-950/20">
+                <CheckCircle className="mx-auto h-9 w-9 text-blue-700" />
+                <h2 className="mt-2 font-semibold text-blue-950 dark:text-blue-100">Payment confirmed — money in escrow</h2>
+                <p className="mt-1 text-xs text-blue-900 dark:text-blue-200">
                   Receipt {booking.mpesa_receipt || '—'} · {formatPrice(amount)} held by AseHanta.
                 </p>
                 {booking.held_until && (
-                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-green-800 dark:bg-green-950/40 dark:text-green-200">
+                  <p className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1 text-xs font-medium text-blue-900 dark:bg-blue-950/40 dark:text-blue-200">
                     <Clock className="h-3.5 w-3.5" /> <Countdown until={booking.held_until} />
                   </p>
                 )}
@@ -583,7 +583,7 @@ function PaymentPageInner() {
                     href={whatsappLink}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="flex items-center justify-center gap-2 rounded-xl border border-green-300 bg-green-50 px-4 py-2.5 text-sm font-semibold text-green-700 hover:bg-green-100 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200"
+                    className="flex items-center justify-center gap-2 rounded-xl border border-blue-300 bg-blue-50 px-4 py-2.5 text-sm font-semibold text-blue-800 hover:bg-blue-100 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-200"
                   >
                     <MessageCircle className="h-4 w-4" /> WhatsApp lister
                   </a>
@@ -708,7 +708,7 @@ function PaymentPageInner() {
           )}
 
           {notice && (
-            <div className="mt-3 rounded-xl border border-green-200 bg-green-50 px-3 py-2 text-xs text-green-800 dark:border-green-800 dark:bg-green-900/20 dark:text-green-200">
+            <div className="mt-3 rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-200">
               {notice}
             </div>
           )}
@@ -794,7 +794,7 @@ function SmsFallback({
       {hasText && (
         <div aria-live="polite" className="mt-2 flex flex-wrap items-center gap-1.5 text-[11px]">
           {parsed.receipt ? (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
               <CheckCircle className="h-3 w-3" /> {parsed.receipt}
             </span>
           ) : (
@@ -808,7 +808,7 @@ function SmsFallback({
             </span>
           )}
           {amountMatches && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200">
+            <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 font-semibold text-blue-800 dark:bg-blue-950/40 dark:text-blue-200">
               <CheckCircle className="h-3 w-3" /> Matches this booking
             </span>
           )}

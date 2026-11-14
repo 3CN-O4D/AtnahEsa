@@ -162,18 +162,18 @@ export function renderTranscriptHtml({
   header { position: sticky; top: 0; z-index: 2; background: #111b21; border-bottom: 1px solid #223; padding: 14px 18px; display: flex; justify-content: space-between; gap: 12px; align-items: center; }
   header h1 { font-size: 15px; margin: 0; font-weight: 600; }
   header p { margin: 2px 0 0; color: #8696a0; font-size: 12px; }
-  header button { background: #00a884; color: #06281f; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
+  header button { background: #1D4ED8; color: #06281f; border: 0; border-radius: 8px; padding: 8px 12px; font-weight: 700; cursor: pointer; }
   main { max-width: 820px; margin: 0 auto; padding: 18px 14px 60px; }
   .row { display: flex; margin: 6px 0; }
   .row.left { justify-content: flex-start; }
   .row.right { justify-content: flex-end; }
   .bubble { max-width: 82%; border-radius: 12px; padding: 8px 10px 6px; background: #202c33; }
-  .bubble.assistant { background: #005c4b; }
+  .bubble.assistant { background: #1E3A8A; }
   .bubble.admin { background: #1f4b6e; }
   .bubble.system { background: #2a3942; color: #8696a0; max-width: 100%; }
   .meta { display: flex; gap: 10px; justify-content: space-between; color: #aebac1; font-size: 11px; margin-bottom: 3px; }
   .text { white-space: pre-wrap; word-wrap: break-word; }
-  @media print { header button { display: none; } body { background: #fff; color: #111; } .bubble { border: 1px solid #ddd; } .bubble.assistant { background: #dcf8c6; color: #111; } .bubble.admin { background: #dbeafe; color: #111; } .meta { color: #555; } }
+  @media print { header button { display: none; } body { background: #fff; color: #111; } .bubble { border: 1px solid #ddd; } .bubble.assistant { background: #DBEAFE; color: #111; } .bubble.admin { background: #dbeafe; color: #111; } .meta { color: #555; } }
 </style>
 </head>
 <body>

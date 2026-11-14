@@ -38,8 +38,8 @@ const GROUP_META: Record<string, { label: string; caption: string; dot: string; 
   published: {
     label: 'New houses',
     caption: 'Available to view and book',
-    dot: 'bg-[#30B54A]',
-    text: 'text-[#2a9c40] dark:text-[#6fdc84]',
+    dot: 'bg-[#1D4ED8]',
+    text: 'text-[#1E40AF] dark:text-[#93C5FD]',
   },
   booked: {
     label: 'Booked',
@@ -395,7 +395,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
                 </span>
               )}
               {showSuccess && (
-                <span className={`${batchMode ? '' : 'ml-auto'} flex items-center gap-1 text-xs text-green-600 dark:text-green-400 animate-scaleIn animate-fadeIn`}>
+                <span className={`${batchMode ? '' : 'ml-auto'} flex items-center gap-1 text-xs text-blue-700 dark:text-blue-400 animate-scaleIn animate-fadeIn`}>
                   <Sparkles className="w-3.5 h-3.5" />
                   New listings loaded!
                 </span>
@@ -406,11 +406,11 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
               <div className="flex items-center gap-3">
                 <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-gray-200/80 dark:bg-slate-800">
                   <div
-                    className="batch-progress-fill absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#30B54A] via-emerald-400 to-teal-400 transition-[width] duration-700 ease-out"
+                    className="batch-progress-fill absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-[#1D4ED8] via-blue-400 to-sky-400 transition-[width] duration-700 ease-out"
                     style={{ width: `${progressPct}%` }}
                   />
                 </div>
-                <span className="w-10 text-right text-[11px] font-bold tabular-nums text-[#2a9c40] dark:text-[#6fdc84]">
+                <span className="w-10 text-right text-[11px] font-bold tabular-nums text-[#1E40AF] dark:text-[#93C5FD]">
                   {progressPct}%
                 </span>
               </div>
@@ -522,7 +522,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
                 type="button"
                 onClick={() => void loadMore()}
                 disabled={busy}
-                className="batch-more-btn group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#30B54A] to-emerald-600 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-emerald-600/35 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                className="batch-more-btn group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1D4ED8] to-blue-700 px-6 py-3 text-sm font-bold text-white shadow-lg shadow-blue-700/25 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-blue-700/35 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
               >
                 {loading ? (
                   <Loader2 className="h-4 w-4 animate-spin" />
@@ -535,7 +535,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
                 type="button"
                 onClick={() => void revealAll()}
                 disabled={busy}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#30B54A] hover:text-[#2a9c40] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:hover:border-[#30B54A] dark:hover:text-[#6fdc84]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-gray-300 bg-white px-6 py-3 text-sm font-semibold text-gray-700 transition-all duration-300 hover:-translate-y-0.5 hover:border-[#1D4ED8] hover:text-[#1E40AF] hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200 dark:hover:border-[#1D4ED8] dark:hover:text-[#93C5FD]"
               >
                 {revealingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
                 {revealingAll ? 'Revealing…' : 'Reveal all'}
@@ -565,7 +565,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
       )}
 
       {batchMode && !hasMore && !loading && listings.length > 0 && !error && (
-        <div className="mt-8 flex items-center justify-center gap-2 text-sm font-medium text-emerald-600 animate-fadeIn dark:text-emerald-400">
+        <div className="mt-8 flex items-center justify-center gap-2 text-sm font-medium text-blue-700 animate-fadeIn dark:text-blue-400">
           <CheckCircle2 className="h-4 w-4" />
           You&apos;ve seen every available home
         </div>

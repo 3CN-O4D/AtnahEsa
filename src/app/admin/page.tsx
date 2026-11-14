@@ -42,9 +42,10 @@ function AdminDashboardInner() {
     completed: 0, refunded: 0, withIssues: 0,
     totalRevenue: 0, totalRefunded: 0, totalListers: 0, totalHunters: 0, totalUsers: 0,
     totalMovers: 0, wifiPackages: 0, wifiBookings: 0,
-    contactSubmissions: 0, houseRequests: 0, reports: 0,
+    contactSubmissions: 0, houseRequests: 0, pendingRequests: 0, reports: 0,
     escrowHeld: 0, escrowHeldAmount: 0,
     houseRevenue: 0, houseRevenueCount: 0, houseRefunded: 0, houseRefundedCount: 0,
+    platformRevenue: 0,
     pendingPayouts: 0, pendingPayoutsAmount: 0,
     netRevenue: 0, successfulTransactions: 0, failedTransactions: 0,
     complaintsOpen: 0, complaintsTotal: 0,
@@ -179,18 +180,6 @@ function AdminDashboardInner() {
     const { error } = await supabase.from('house_bookings').update({ status }).eq('id', id)
     if (error) { showToast('error', error.message); return }
     showToast('success', `House booking marked as ${status}`)
-    loadBookings()
-  }
-
-  const handleVerifyHouseEscrow = async (id: string) => {
-    const res = await fetch('/api/admin/treasury', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'house_verify', house_booking_id: id }),
-    })
-    const data = await res.json()
-    if (!res.ok) { showToast('error', data.error || 'Verification failed'); return }
-    showToast('success', data.message || 'Payment verified and placed in escrow')
-    clearCache('admin:')
     loadBookings()
   }
 
@@ -392,9 +381,9 @@ function AdminDashboardInner() {
   const statCard = (label: string, value: number | string, color: string, link?: string) => (
     <button
       onClick={() => { if (link) router.push(link) }}
-      className={`group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-emerald-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-500/50 ${link ? 'cursor-pointer' : 'cursor-default'}`}
+      className={`group relative overflow-hidden rounded-2xl border border-gray-200 bg-white p-4 text-left shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-blue-600/50 ${link ? 'cursor-pointer' : 'cursor-default'}`}
     >
-      <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-emerald-400 to-teal-500 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+      <span className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-blue-400 to-sky-600 opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
       <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">{label}</p>
       <p className={`mt-1.5 text-2xl font-extrabold tabular-nums tracking-tight ${color}`}>
         {typeof value === 'number' ? value.toLocaleString('en-KE') : value}
@@ -431,14 +420,14 @@ function AdminDashboardInner() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {toast && (
         <div className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slideInRight ${
-          toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+          toast.type === 'success' ? 'bg-blue-700' : 'bg-red-600'
         }`}>
           {toast.message}
         </div>
       )}
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
             Control centre
           </p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
@@ -448,7 +437,7 @@ function AdminDashboardInner() {
         <a
           href="/api/payments/reports?format=pdf"
           target="_blank"
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-blue-600 hover:text-blue-800 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
         >
           Download payment report
         </a>
@@ -469,7 +458,7 @@ function AdminDashboardInner() {
             href={`/admin?tab=${t.key}`}
             className={`rounded-lg px-3 py-2 text-sm font-semibold transition-all ${
               tab === t.key
-                ? 'bg-emerald-600 text-white shadow-sm'
+                ? 'bg-blue-700 text-white shadow-sm'
                 : 'text-gray-500 hover:bg-gray-50 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-white'
             }`}
           >
@@ -489,13 +478,13 @@ function AdminDashboardInner() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {sectionTitle('Approval Stats', '📋')}
             {statCard('Awaiting Approval', stats.pending, 'text-amber-600', '/admin?tab=houses')}
-            {statCard('Published', stats.published, 'text-green-600', '/admin?tab=houses')}
+            {statCard('Published', stats.published, 'text-blue-700', '/admin?tab=houses')}
             {statCard('Rejected', stats.rejected, 'text-red-600', '/admin?tab=houses')}
             {statCard('Has Issues', stats.withIssues, 'text-orange-600', '/admin?tab=houses')}
 
             {sectionTitle('Vacancy Stats', '🏠')}
             {statCard('Total Houses', stats.total, 'text-gray-900', '/admin?tab=houses')}
-            {statCard('Vacant Houses', stats.vacant, 'text-green-600', '/admin?tab=houses')}
+            {statCard('Vacant Houses', stats.vacant, 'text-blue-700', '/admin?tab=houses')}
             {statCard('Pending (Vacancy)', stats.vacancyPending, 'text-yellow-600', '/admin?tab=houses')}
             {statCard('Booked', stats.booked, 'text-blue-600', '/admin?tab=houses')}
             {statCard('Taken', stats.taken, 'text-red-600', '/admin?tab=houses')}
@@ -503,26 +492,26 @@ function AdminDashboardInner() {
             {sectionTitle('People', '👥')}
             {statCard('Total Users', stats.totalUsers, 'text-gray-900', '/admin?tab=users')}
             {statCard('Listers', stats.totalListers, 'text-blue-600', '/admin?tab=users')}
-            {statCard('Hunters', stats.totalHunters, 'text-green-600', '/admin?tab=users')}
+            {statCard('Hunters', stats.totalHunters, 'text-blue-700', '/admin?tab=users')}
             {statCard('House Requests', stats.houseRequests, 'text-amber-600', '/admin?tab=requests')}
 
             {sectionTitle('Bookings & Revenue', '💰')}
-            {statCard('Completed Visits', stats.completed, 'text-green-600')}
+            {statCard('Completed Visits', stats.completed, 'text-blue-700')}
             {statCard('Refunded', stats.refunded, 'text-red-600')}
-            {statCard('Revenue', formatPrice(stats.totalRevenue), 'text-green-600')}
+            {statCard('Collected Revenue', formatPrice(stats.totalRevenue), 'text-blue-700')}
             {statCard('Refunded Amount', formatPrice(stats.totalRefunded), 'text-red-600')}
-            {statCard('Net Revenue', formatPrice(stats.netRevenue), 'text-emerald-600', '/admin/treasury')}
-            {statCard('Successful Payments', stats.successfulTransactions, 'text-emerald-600', '/admin?tab=transactions')}
+            {statCard('Net Collected', formatPrice(stats.netRevenue), 'text-blue-700', '/admin/treasury')}
+            {statCard('Successful Payments', stats.successfulTransactions, 'text-blue-700', '/admin?tab=transactions')}
             {statCard('Failed Payments', stats.failedTransactions, 'text-red-600', '/admin?tab=transactions')}
 
             {sectionTitle('Services', '📡')}
             {statCard('Movers', stats.totalMovers, 'text-blue-600', '/admin/services')}
-            {statCard('WiFi Packages', stats.wifiPackages, 'text-green-600', '/admin/services')}
+            {statCard('WiFi Packages', stats.wifiPackages, 'text-blue-700', '/admin/services')}
             {statCard('WiFi Bookings', stats.wifiBookings, 'text-amber-600', '/admin/services')}
 
             {sectionTitle('Inquiries', '📬')}
             {statCard('Contact Messages', stats.contactSubmissions, 'text-blue-600')}
-            {statCard('Pending Requests', stats.houseRequests, 'text-amber-600', '/admin?tab=requests')}
+            {statCard('Pending Requests', stats.pendingRequests, 'text-amber-600', '/admin?tab=requests')}
             {statCard('Reports', stats.reports, 'text-red-600')}
             {statCard('Open Complaints', stats.complaintsOpen, 'text-amber-600', '/admin/complaints')}
             {statCard('All Complaints', stats.complaintsTotal, 'text-gray-700', '/admin/complaints')}
@@ -530,12 +519,13 @@ function AdminDashboardInner() {
             {sectionTitle('Treasury', '🏦')}
             {statCard('Escrow Held', stats.escrowHeld, 'text-blue-600', '/admin/treasury')}
             {statCard('Held Amount', formatPrice(stats.escrowHeldAmount), 'text-amber-600', '/admin/treasury')}
-            {statCard('House Payments', stats.houseRevenueCount, 'text-green-600', '/admin/treasury')}
-            {statCard('House Fee Revenue', formatPrice(stats.houseRevenue), 'text-green-600', '/admin/treasury')}
+            {statCard('House Payments', stats.houseRevenueCount, 'text-blue-700', '/admin/treasury')}
+            {statCard('House Payment Value', formatPrice(stats.houseRevenue), 'text-blue-700', '/admin/treasury')}
+            {statCard('Platform Revenue', formatPrice(stats.platformRevenue), 'text-blue-700', '/admin/treasury')}
             {statCard('Pending Payouts', stats.pendingPayouts, 'text-amber-600', '/admin/treasury')}
             {statCard('Payout Value', formatPrice(stats.pendingPayoutsAmount), 'text-amber-600', '/admin/treasury')}
             {statCard('House Refunds', stats.houseRefundedCount, 'text-red-600', '/admin/treasury')}
-            {statCard('Refund Value (85%)', formatPrice(stats.houseRefunded), 'text-red-600', '/admin/treasury')}
+            {statCard('Refunded Value', formatPrice(stats.houseRefunded), 'text-red-600', '/admin/treasury')}
 
             {stats.paymentsByMethod.length > 0 && (
               <div className="col-span-full">
@@ -557,7 +547,7 @@ function AdminDashboardInner() {
                 <span className="text-xl">⚡</span> Quick Actions
               </h3>
               <div className="flex flex-wrap gap-3">
-                <Link href="/admin/upload"><Button className="bg-emerald-600 hover:bg-emerald-700 text-white">+ List a House</Button></Link>
+                <Link href="/admin/upload"><Button className="bg-blue-700 hover:bg-blue-800 text-white">+ List a House</Button></Link>
                 <Link href="/admin/complaints"><Button variant="outline">Complaints {stats.complaintsOpen > 0 ? `(${stats.complaintsOpen})` : ''}</Button></Link>
                 <Link href="/admin/receipts"><Button variant="outline">Receipt Generator</Button></Link>
                 <Link href="/admin/services"><Button variant="outline">Manage Services</Button></Link>
@@ -580,7 +570,7 @@ function AdminDashboardInner() {
                 key={f}
                 onClick={() => setListingsFilter(f)}
                 className={`px-3 py-1.5 text-xs rounded-full border transition-colors ${
-                  listingsFilter === f ? 'border-emerald-600 bg-emerald-600 text-white' : 'bg-white text-gray-500 border-gray-300'
+                  listingsFilter === f ? 'border-blue-700 bg-blue-700 text-white' : 'bg-white text-gray-500 border-gray-300'
                 }`}
               >
                 {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)} {f === 'all' ? `(${allListings.length})` : `(${allListings.filter(l => f === 'issues' ? l.issues_count > 0 : l.status === f).length})`}
@@ -595,7 +585,7 @@ function AdminDashboardInner() {
               value={houseSearch}
               onChange={(e) => setHouseSearch(e.target.value)}
               placeholder="Search by title, location, price, rent..."
-              className="w-full pl-10 pr-4 h-10 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+              className="w-full pl-10 pr-4 h-10 rounded-lg border border-gray-300 bg-white text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
             />
           </div>
 
@@ -608,7 +598,7 @@ function AdminDashboardInner() {
                 <div className="flex items-center gap-2">
                   <h3 className="font-semibold truncate">{listing.title}</h3>
                   <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-                    listing.status === 'published' ? 'bg-green-100 text-green-700' :
+                    listing.status === 'published' ? 'bg-blue-100 text-blue-800' :
                     listing.status === 'booked' ? 'bg-blue-100 text-blue-700' :
                     listing.status === 'taken' ? 'bg-red-100 text-red-700' :
                     listing.status === 'pending' ? 'bg-amber-100 text-amber-700' :
@@ -637,7 +627,7 @@ function AdminDashboardInner() {
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold text-gray-900 dark:text-white">All Transactions</h2>
-            <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-emerald-600 hover:underline">Download PDF</a>
+            <a href="/api/payments/reports?format=pdf" target="_blank" className="text-sm text-blue-700 hover:underline">Download PDF</a>
           </div>
           {transactions.length === 0 && <p className="text-center py-8 text-gray-500 dark:text-gray-400">No transactions yet.</p>}
 
@@ -678,7 +668,7 @@ function AdminDashboardInner() {
                       }
                     }}
                     className={`text-xs border rounded px-2 py-1 font-medium ${
-                      tx.status === 'success' ? 'text-green-700 bg-green-50 border-green-200' :
+                      tx.status === 'success' ? 'text-blue-800 bg-blue-50 border-blue-200' :
                       tx.status === 'failed' ? 'text-red-700 bg-red-50 border-red-200' :
                       tx.status === 'verifying' ? 'text-blue-700 bg-blue-50 border-blue-200' :
                       'text-amber-700 bg-amber-50 border-amber-200'
@@ -747,13 +737,13 @@ function AdminDashboardInner() {
                 <span className={`absolute inset-y-0 left-0 w-1 ${
                   r.status === 'pending' ? 'bg-amber-400' :
                   r.status === 'contacted' ? 'bg-blue-500' :
-                  r.status === 'fulfilled' ? 'bg-emerald-500' : 'bg-gray-300 dark:bg-gray-600'
+                  r.status === 'fulfilled' ? 'bg-blue-600' : 'bg-gray-300 dark:bg-gray-600'
                 }`} />
                 <div className="flex items-start justify-between gap-4 mb-3 flex-wrap">
                   <div className="min-w-0">
                     <h3 className="font-semibold text-gray-900 dark:text-white truncate">{r.name}</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400 dark:text-gray-400 break-all">{r.email} &middot; {r.phone}</p>
-                    {r.claimed_by && <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-1">Claimed by a lister</p>}
+                    {r.claimed_by && <p className="text-xs text-blue-700 dark:text-blue-400 mt-1">Claimed by a lister</p>}
                   </div>
                   <select
                     value={r.status}
@@ -761,7 +751,7 @@ function AdminDashboardInner() {
                     className={`text-xs border rounded-lg px-2.5 py-1.5 font-medium ${
                       r.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200 dark:text-amber-300 dark:bg-amber-900/30 dark:border-amber-800/60' :
                       r.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-900/30 dark:border-blue-800/60' :
-                      r.status === 'fulfilled' ? 'text-emerald-700 bg-emerald-50 border-emerald-200 dark:text-emerald-300 dark:bg-emerald-900/30 dark:border-emerald-800/60' :
+                      r.status === 'fulfilled' ? 'text-blue-800 bg-blue-50 border-blue-200 dark:text-blue-300 dark:bg-blue-950/30 dark:border-blue-900/60' :
                       'text-gray-700 bg-gray-50 border-gray-200 dark:text-gray-300 dark:bg-slate-800 dark:border-gray-700'
                     }`}
                   >
@@ -775,7 +765,7 @@ function AdminDashboardInner() {
                 <div className="mb-3 flex flex-wrap items-center gap-2">
                   {waLink ? (
                     <a href={waLink} target="_blank" rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-emerald-700 transition-colors shadow-sm">
+                      className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 text-white px-3 py-1.5 text-xs font-medium hover:bg-blue-800 transition-colors shadow-sm">
                       <MessageCircle className="w-3.5 h-3.5" /> WhatsApp {waDisplay}
                     </a>
                   ) : (
@@ -828,7 +818,7 @@ function AdminDashboardInner() {
                       className={`text-xs border rounded px-2 py-1 font-medium ${
                         b.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
                         b.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
-                        b.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                        b.status === 'completed' ? 'text-blue-800 bg-blue-50 border-blue-200' :
                         'text-gray-700 bg-gray-50 border-gray-200'
                       }`}
                     >
@@ -842,10 +832,10 @@ function AdminDashboardInner() {
                   {b.id_number && <p className="text-sm"><strong>ID:</strong> {b.id_number}</p>}
                   <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(b.created_at).toLocaleString()}</p>
                   <div className="flex gap-3 pt-1">
-                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-emerald-600 hover:underline">
+                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-700 hover:underline">
                       📞 Call
                     </a>
-                    <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} WiFi booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
+                    <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} WiFi booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-blue-700 hover:underline">
                       💬 WhatsApp
                     </a>
                   </div>
@@ -870,7 +860,7 @@ function AdminDashboardInner() {
                     <div className="flex flex-col items-end gap-1.5">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${
                         b.release_status === 'held' ? 'bg-blue-100 text-blue-700' :
-                        b.release_status === 'paid' ? 'bg-green-100 text-green-700' :
+                        b.release_status === 'paid' ? 'bg-blue-100 text-blue-800' :
                         b.release_status === 'refunded' ? 'bg-amber-100 text-amber-700' :
                         'bg-gray-100 text-gray-600'
                       }`}>
@@ -882,7 +872,7 @@ function AdminDashboardInner() {
                         className={`text-xs border rounded px-2 py-1 font-medium ${
                           b.status === 'pending' ? 'text-amber-700 bg-amber-50 border-amber-200' :
                           b.status === 'contacted' ? 'text-blue-700 bg-blue-50 border-blue-200' :
-                          b.status === 'completed' ? 'text-green-700 bg-green-50 border-green-200' :
+                          b.status === 'completed' ? 'text-blue-800 bg-blue-50 border-blue-200' :
                           b.status === 'confirmed' ? 'text-blue-700 bg-blue-50 border-blue-200' :
                           'text-gray-700 bg-gray-50 border-gray-200'
                         }`}
@@ -906,16 +896,18 @@ function AdminDashboardInner() {
                   )}
                   <p className="text-xs text-gray-400 dark:text-gray-500">{new Date(b.created_at).toLocaleString()}</p>
                   <div className="flex gap-3 pt-1 flex-wrap">
-                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-emerald-600 hover:underline">
+                    <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-700 hover:underline">
                       📞 Call
                     </a>
-                    <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your house booking at ${b.listing_title}.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
+                    <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your house booking at ${b.listing_title}.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-blue-700 hover:underline">
                       💬 WhatsApp
                     </a>
                     {b.release_status !== 'held' && b.release_status !== 'paid' && b.release_status !== 'refunded' && (
-                      <Button size="sm" onClick={() => handleVerifyHouseEscrow(b.id)} className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-2.5 py-0.5">
-                        Verify & Set Escrow
-                      </Button>
+                      <Link href={`/admin/treasury?verify=${b.id}`}>
+                        <Button size="sm" className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-2.5 py-0.5">
+                          Verify & Set Escrow
+                        </Button>
+                      </Link>
                     )}
                   </div>
                 </div>
@@ -957,7 +949,7 @@ function AdminDashboardInner() {
                       <div className="flex-1 min-w-0">
                         <p className="text-xs text-gray-500 truncate">Video {vi + 1}</p>
                         <div className="flex gap-2 mt-1">
-                          <a href={vurl} target="_blank" rel="noopener noreferrer" className="text-xs text-emerald-600 hover:underline">Preview</a>
+                          <a href={vurl} target="_blank" rel="noopener noreferrer" className="text-xs text-blue-700 hover:underline">Preview</a>
                           <a href={`/api/video?key=${encodeURIComponent(vurl.split('/object/public/')[1]?.split('/').slice(1).join('/').split('?')[0] || vurl)}`} download className="text-xs text-gray-500 hover:underline">Download</a>
                         </div>
                       </div>
@@ -965,13 +957,13 @@ function AdminDashboardInner() {
                         type="text"
                         placeholder="Paste YouTube URL..."
                         id={`yt-${listing.id}-${vi}`}
-                        className="w-64 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        className="w-64 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
                       <input
                         type="text"
                         placeholder="Paste TikTok URL..."
                         id={`tt-${listing.id}-${vi}`}
-                        className="w-64 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+                        className="w-64 rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-600 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
                       />
                     </div>
                   ))}

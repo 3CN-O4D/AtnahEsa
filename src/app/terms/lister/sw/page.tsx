@@ -44,13 +44,13 @@ export default function TermsListerPageSw() {
           Kwa kuunda akaunti au kuorodhesha nyumba, unakubali Masharti Haya na ahadi zetu za faragha.
           <Link
             href="/auth/signup"
-            className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+            className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95"
           >
             Unda akaunti
           </Link>
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            Unahitaji toleo kamili? <Link href="/terms/sw" className="text-[#30B54A] hover:underline font-medium">Tazama Masharti Yote</Link> au{' '}
-            <Link href="/terms/hunter/sw" className="text-[#30B54A] hover:underline font-medium">masharti kwa watafuta nyumba</Link>.
+            Unahitaji toleo kamili? <Link href="/terms/sw" className="text-[#1D4ED8] hover:underline font-medium">Tazama Masharti Yote</Link> au{' '}
+            <Link href="/terms/hunter/sw" className="text-[#1D4ED8] hover:underline font-medium">masharti kwa watafuta nyumba</Link>.
           </p>
         </>
       }

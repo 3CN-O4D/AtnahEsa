@@ -26,7 +26,7 @@ import type { Mover, MoverReview } from '@/types'
 
 const RATING_LABELS = ['Poor', 'Fair', 'Good', 'Very good', 'Excellent']
 const AVATAR_TINTS = [
-  'from-emerald-500 to-teal-600',
+  'from-blue-600 to-sky-700',
   'from-sky-500 to-blue-600',
   'from-indigo-500 to-violet-600',
   'from-amber-500 to-orange-600',
@@ -333,7 +333,7 @@ export default function MoversPage() {
       <section className="relative overflow-hidden bg-gradient-to-br from-slate-900 via-blue-950 to-slate-900">
         <div aria-hidden className="pointer-events-none absolute inset-0">
           <div className="absolute -left-20 -top-24 h-72 w-72 rounded-full bg-blue-500/25 blur-3xl animate-float" />
-          <div className="absolute -bottom-24 right-0 h-80 w-80 rounded-full bg-emerald-400/15 blur-3xl animate-float [animation-delay:2.5s]" />
+          <div className="absolute -bottom-24 right-0 h-80 w-80 rounded-full bg-blue-400/15 blur-3xl animate-float [animation-delay:2.5s]" />
         </div>
 
         <div className="relative mx-auto max-w-5xl px-4 py-14 md:py-20">
@@ -343,7 +343,7 @@ export default function MoversPage() {
             </span>
             <h1 className="mt-4 animate-fadeInUp text-3xl font-bold leading-tight tracking-tight text-white md:text-5xl">
               Move without the
-              <span className="bg-gradient-to-r from-emerald-300 to-sky-300 bg-clip-text text-transparent"> heavy lifting.</span>
+              <span className="bg-gradient-to-r from-blue-300 to-sky-300 bg-clip-text text-transparent"> heavy lifting.</span>
             </h1>
             <p className="mt-4 max-w-xl animate-fadeInUp text-sm leading-relaxed text-blue-100/80 [animation-delay:120ms] md:text-base">
               Find vetted riders and trucks for your belongings. Compare ratings, call directly, and agree on a fair price before the move.
@@ -354,7 +354,7 @@ export default function MoversPage() {
                 href={`https://wa.me/${WHATSAPP_NUMBER}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tap-scale inline-flex items-center gap-2 rounded-xl bg-emerald-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-900/40 transition-all hover:-translate-y-0.5 hover:bg-emerald-400"
+                className="tap-scale inline-flex items-center gap-2 rounded-xl bg-blue-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-950/40 transition-all hover:-translate-y-0.5 hover:bg-blue-400"
               >
                 <MessageCircle className="h-4 w-4" /> Ask us to arrange one
               </a>
@@ -373,7 +373,7 @@ export default function MoversPage() {
                 { Icon: Wallet, label: 'Agree upfront' },
               ].map(({ Icon, label }) => (
                 <div key={label} className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur">
-                  <Icon className="h-4 w-4 shrink-0 text-emerald-300" />
+                  <Icon className="h-4 w-4 shrink-0 text-blue-300" />
                   <dt className="text-[11px] font-medium text-blue-100/80">{label}</dt>
                 </div>
               ))}
@@ -473,7 +473,7 @@ export default function MoversPage() {
                 href={`https://wa.me/${WHATSAPP_NUMBER}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tap-scale inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-500"
+                className="tap-scale inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-600"
               >
                 <MessageCircle className="h-4 w-4" /> Request a mover <ArrowRight className="h-3.5 w-3.5" />
               </a>
@@ -543,10 +543,10 @@ export default function MoversPage() {
                     </p>
 
                     <div className="mt-auto space-y-2">
-                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-2.5 py-1 text-sm font-semibold text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">
+                      <div className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                         <Wallet className="h-3.5 w-3.5" />
                         {formatPrice(mover.price)}
-                        <span className="text-[11px] font-normal text-emerald-600/70 dark:text-emerald-400/70">est.</span>
+                        <span className="text-[11px] font-normal text-blue-700/70 dark:text-blue-400/70">est.</span>
                       </div>
 
                       <div className="flex gap-2">
@@ -574,7 +574,7 @@ export default function MoversPage() {
 
         {/* Bottom CTA */}
         {!loading && movers.length > 0 && (
-          <div className="mt-10 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-emerald-50 p-6 text-center dark:border-blue-900/50 dark:from-blue-950/30 dark:via-slate-900 dark:to-emerald-950/20">
+          <div className="mt-10 overflow-hidden rounded-2xl border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-blue-50 p-6 text-center dark:border-blue-900/50 dark:from-blue-950/30 dark:via-slate-900 dark:to-blue-950/20">
             <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Don&apos;t see someone for your route?</p>
             <p className="mx-auto mt-1 max-w-md text-xs text-gray-500 dark:text-gray-400">
               Send us your pickup and drop-off area. We&apos;ll ask around and get back to you with a fair quote.
@@ -584,7 +584,7 @@ export default function MoversPage() {
                 href={`https://wa.me/${WHATSAPP_NUMBER}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="tap-scale inline-flex items-center gap-1.5 rounded-lg bg-[#25D366] px-4 py-2 text-sm font-semibold text-white transition-colors hover:brightness-105"
+                className="tap-scale inline-flex items-center gap-1.5 rounded-lg bg-[#3B82F6] px-4 py-2 text-sm font-semibold text-white transition-colors hover:brightness-105"
               >
                 <MessageCircle className="h-4 w-4" /> WhatsApp us
               </a>

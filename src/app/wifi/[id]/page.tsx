@@ -74,7 +74,7 @@ export default function WifiDetailPage() {
             <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {pkg.features.map((feature, i) => (
                 <li key={i} className="flex items-start gap-2 text-sm text-gray-600">
-                  <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                  <Check className="w-4 h-4 text-blue-600 mt-0.5 shrink-0" />
                   {feature}
                 </li>
               ))}

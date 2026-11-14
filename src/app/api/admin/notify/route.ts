@@ -66,7 +66,7 @@ interface ActionDetail {
 const actionTemplates: Record<string, (data: Record<string, string>) => ActionDetail> = {
   listing_approved: (d) => ({
     emoji: '✅',
-    color: '#059669',
+    color: '#1D4ED8',
     badge: 'Listing Approved',
     title: 'Your listing has been published!',
     message: `Great news! Your property "${d.title}" has been reviewed and approved. It's now live and visible to potential tenants.`,
@@ -122,7 +122,7 @@ const actionTemplates: Record<string, (data: Record<string, string>) => ActionDe
   }),
   booking_completed: (d) => ({
     emoji: '🎉',
-    color: '#059669',
+    color: '#1D4ED8',
     badge: 'Visit Completed',
     title: 'Your property visit is complete',
     message: `The viewing for "${d.title}" has been marked as completed. We hope it went well!`,

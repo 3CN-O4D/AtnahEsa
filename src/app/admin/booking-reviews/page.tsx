@@ -147,7 +147,7 @@ function PaymentClaimCard({
                   <Phone className="h-3 w-3" /> {row.phone}
                 </a>
                 <button type="button" onClick={() => onCopy(row.phone, `claim-phone-${row.id}`)}
-                  className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-emerald-500 hover:text-emerald-700 dark:border-gray-600 dark:text-gray-300">
+                  className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-blue-600 hover:text-blue-800 dark:border-gray-600 dark:text-gray-300">
                   {copied === `claim-phone-${row.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                   {copied === `claim-phone-${row.id}` ? 'Copied' : 'Copy'}
                 </button>
@@ -172,7 +172,7 @@ function PaymentClaimCard({
           </p>
           {message && (
             <button type="button" onClick={() => onCopy(message, `claim-sms-${row.id}`)}
-              className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-emerald-500 hover:text-emerald-700 dark:border-gray-600 dark:text-gray-300">
+              className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-blue-600 hover:text-blue-800 dark:border-gray-600 dark:text-gray-300">
               {copied === `claim-sms-${row.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
               {copied === `claim-sms-${row.id}` ? 'Copied' : 'Copy'}
             </button>
@@ -192,7 +192,7 @@ function PaymentClaimCard({
             type="button"
             onClick={() => onVerify(row)}
             disabled={!!busy}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">
             {busy === `${row.id}:verify_payment` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
             Approve payment &amp; open escrow
           </button>
@@ -396,7 +396,7 @@ export default function BookingReviewsPage() {
               <p className="mt-0.5 text-2xl font-bold text-gray-900 dark:text-white">{card.value}</p>
             </div>
             <span className={`flex h-10 w-10 items-center justify-center rounded-lg ${
-              card.tone === 'emerald' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-300'
+              card.tone === 'emerald' ? 'bg-blue-50 text-blue-700 dark:bg-blue-950/30 dark:text-blue-300'
                 : card.tone === 'red' ? 'bg-red-50 text-red-600 dark:bg-red-900/30 dark:text-red-300'
                   : card.tone === 'blue' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-300'
                     : 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-300'
@@ -427,7 +427,7 @@ export default function BookingReviewsPage() {
       </div>
 
       {notice && (
-        <div className="flex items-start justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-300">
+        <div className="flex items-start justify-between gap-3 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-300">
           <span className="flex items-center gap-2"><CheckCircle className="h-4 w-4" /> {notice}</span>
           <button type="button" onClick={() => setNotice('')} className="text-xs font-semibold underline">Dismiss</button>
         </div>
@@ -498,7 +498,7 @@ export default function BookingReviewsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${
                           row.feedback.outcome === 'pleased'
-                            ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300'
+                            ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/30 dark:text-blue-300'
                             : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'
                         }`}>
                           {row.feedback.outcome === 'pleased' ? <ThumbsUp className="h-3 w-3" /> : <ThumbsDown className="h-3 w-3" />}
@@ -506,7 +506,7 @@ export default function BookingReviewsPage() {
                         </span>
                         <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium ${
                           row.release_status === 'refunded' ? 'bg-amber-100 text-amber-700'
-                            : row.release_status === 'paid' ? 'bg-emerald-100 text-emerald-700'
+                            : row.release_status === 'paid' ? 'bg-blue-100 text-blue-800'
                               : row.feedback.outcome === 'issue' && row.feedback.decision !== 'refund_declined' && row.release_status === 'held'
                                 ? 'bg-red-100 text-red-700'
                                 : 'bg-blue-100 text-blue-700'
@@ -541,7 +541,7 @@ export default function BookingReviewsPage() {
                             <Phone className="h-3 w-3" /> {row.phone}
                           </a>
                           <button type="button" onClick={() => void copy(row.phone, `hunter-${row.id}`)}
-                            className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-emerald-500 hover:text-emerald-700 dark:border-gray-600 dark:text-gray-300">
+                            className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-blue-600 hover:text-blue-800 dark:border-gray-600 dark:text-gray-300">
                             {copied === `hunter-${row.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                             {copied === `hunter-${row.id}` ? 'Copied' : 'Copy'}
                           </button>
@@ -561,7 +561,7 @@ export default function BookingReviewsPage() {
                             <Phone className="h-3 w-3" /> {row.lister_phone}
                           </a>
                           <button type="button" onClick={() => void copy(row.lister_phone!, `lister-${row.id}`)}
-                            className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-emerald-500 hover:text-emerald-700 dark:border-gray-600 dark:text-gray-300">
+                            className="inline-flex items-center gap-1 rounded border border-gray-300 px-1.5 py-0.5 text-[11px] text-gray-600 hover:border-blue-600 hover:text-blue-800 dark:border-gray-600 dark:text-gray-300">
                             {copied === `lister-${row.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
                             {copied === `lister-${row.id}` ? 'Copied' : 'Copy'}
                           </button>
@@ -593,7 +593,7 @@ export default function BookingReviewsPage() {
                 )}
 
                 {row.feedback.outcome === 'pleased' && (
-                  <div className="mx-4 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200">
+                  <div className="mx-4 mb-3 flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-900 dark:bg-blue-950/20 dark:text-blue-200">
                     <span className="inline-flex items-center gap-1 font-semibold">
                       <Wallet className="h-3.5 w-3.5" /> Payout {formatPrice(row.payout_amount)} (50%)
                     </span>
@@ -611,8 +611,8 @@ export default function BookingReviewsPage() {
                         disabled={!!busy}
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
                           contactedHunter
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                            : 'border-gray-300 text-gray-600 hover:border-emerald-400 dark:border-gray-600 dark:text-gray-300'
+                            ? 'border-blue-600 bg-blue-50 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300'
+                            : 'border-gray-300 text-gray-600 hover:border-blue-400 dark:border-gray-600 dark:text-gray-300'
                         }`}>
                         {busy === `${row.id}:contacted_hunter` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : contactedHunter ? <Check className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
                         {contactedHunter ? `Hunter contacted ${timeAgo(row.feedback.contacted_hunter_at)}` : 'Mark hunter contacted'}
@@ -623,8 +623,8 @@ export default function BookingReviewsPage() {
                         disabled={!!busy}
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition disabled:opacity-50 ${
                           contactedLister
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300'
-                            : 'border-gray-300 text-gray-600 hover:border-emerald-400 dark:border-gray-600 dark:text-gray-300'
+                            ? 'border-blue-600 bg-blue-50 text-blue-800 dark:bg-blue-950/20 dark:text-blue-300'
+                            : 'border-gray-300 text-gray-600 hover:border-blue-400 dark:border-gray-600 dark:text-gray-300'
                         }`}>
                         {busy === `${row.id}:contacted_lister` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : contactedLister ? <Check className="h-3.5 w-3.5" /> : <Phone className="h-3.5 w-3.5" />}
                         {contactedLister ? `Lister contacted ${timeAgo(row.feedback.contacted_lister_at)}` : 'Mark lister contacted'}
@@ -654,7 +654,7 @@ export default function BookingReviewsPage() {
                           <button
                             type="button"
                             onClick={() => window.open(`/admin/treasury?booking=${encodeURIComponent(row.id)}`, '_blank', 'noopener,noreferrer')}
-                            className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700">
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800">
                             <Wallet className="h-3.5 w-3.5" /> Pay lister in Treasury
                           </button>
                           <Link href="/admin/treasury" className="text-xs font-medium text-blue-600 hover:underline">
@@ -666,7 +666,7 @@ export default function BookingReviewsPage() {
                       {isRefund && (
                         <>
                           {approved ? (
-                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-300">
+                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800 dark:bg-blue-950/20 dark:text-blue-300">
                               <CheckCircle className="h-4 w-4" /> Approved — complete the M-Pesa refund in Treasury
                             </span>
                           ) : (
@@ -674,7 +674,7 @@ export default function BookingReviewsPage() {
                               type="button"
                               onClick={() => void approveRefund(row)}
                               disabled={!!busy}
-                              className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50">
+                              className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 px-3 py-2 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50">
                               {busy === `${row.id}:approve_refund` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <CheckCircle className="h-3.5 w-3.5" />}
                               Approve &amp; refund {row.refund_percent}%
                             </button>

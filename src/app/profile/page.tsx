@@ -600,7 +600,7 @@ export default function ProfilePage() {
       </button>
 
       {success && (
-        <p className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4 mb-4">{success}</p>
+        <p className="text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl p-4 mb-4">{success}</p>
       )}
 
       {/* Profile Card */}
@@ -868,7 +868,7 @@ export default function ProfilePage() {
       )}
 
       {step === 'done' && success && (
-        <p className="text-sm text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl p-4">{success}</p>
+        <p className="text-sm text-blue-700 dark:text-blue-400 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900 rounded-xl p-4">{success}</p>
       )}
 
       {/* Email Change Section */}

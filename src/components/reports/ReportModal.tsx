@@ -60,8 +60,8 @@ export default function ReportModal({ targetType, targetId, targetTitle, onClose
 
         {done ? (
           <div className="text-center py-6">
-            <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Flag className="w-7 h-7 text-green-600" />
+            <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Flag className="w-7 h-7 text-blue-700" />
             </div>
             <h2 className="text-lg font-bold mb-2">Report Submitted</h2>
             <p className="text-sm text-gray-500">Thank you for helping keep AseHanta safe. Our team will review this within 24 hours.</p>

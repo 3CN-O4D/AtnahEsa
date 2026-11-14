@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { addSecurityHeaders } from '@/lib/security'
+import { OWNER_SHARE } from '@/lib/constants'
 
 export async function GET() {
   const supabase = await createClient()
@@ -35,6 +36,7 @@ export async function GET() {
     { count: wifiBkgs },
     { count: contacts },
     { count: houseReqs },
+    { count: pendingReqs },
     { count: reports },
     { count: complaintsOpen },
     { count: complaintsTotal },
@@ -58,58 +60,178 @@ export async function GET() {
     admin.from('wifi_bookings').select('*', { count: 'exact', head: true }),
     admin.from('contact_submissions').select('*', { count: 'exact', head: true }),
     admin.from('house_requests').select('*', { count: 'exact', head: true }),
+    admin.from('house_requests').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     admin.from('reports').select('*', { count: 'exact', head: true }),
     admin.from('complaints').select('*', { count: 'exact', head: true }).eq('status', 'open'),
     admin.from('complaints').select('*', { count: 'exact', head: true }),
   ])
 
   const [{ data: bookings }, { data: escrows }, { data: txns }, { data: houseBkgs }] = await Promise.all([
-    admin.from('bookings').select('amount, refund_amount, status'),
-    admin.from('escrow_holds').select('amount, status'),
-    admin.from('transactions').select('amount, status, payment_method'),
-    admin.from('house_bookings').select('listing_price, release_status, payment_method'),
+    admin.from('bookings').select('id, amount, refund_amount, status'),
+    admin.from('escrow_holds').select('booking_id, amount, status'),
+    admin.from('transactions').select('amount, status, payment_method, raw_callback'),
+    admin.from('house_bookings').select('id, listing_price, release_status, status, payment_method'),
   ])
 
-  const totalRevenue = (bookings || []).filter((b: any) => b.status === 'confirmed').reduce((s: number, b: any) => s + (b.amount || 0), 0)
-  const totalRefunded = (bookings || []).filter((b: any) => b.status === 'refunded').reduce((s: number, b: any) => s + (b.refund_amount || 0), 0)
-  const escrowHeld = (escrows || []).filter((e: any) => e.status === 'held').length
-  const escrowHeldAmount = (escrows || []).filter((e: any) => e.status === 'held').reduce((s: number, e: any) => s + (e.amount || 0), 0)
+  type LegacyBooking = {
+    id: string
+    amount: number | null
+    refund_amount: number | null
+    status: string | null
+  }
+  type LegacyEscrow = {
+    booking_id: string | null
+    amount: number | null
+    status: string | null
+  }
+  type TxRow = {
+    amount: number | null
+    status: string | null
+    payment_method: string | null
+    raw_callback: Record<string, unknown> | null
+  }
+  type HouseRow = {
+    id: string
+    listing_price: number | null
+    release_status: string | null
+    status: string | null
+    payment_method: string | null
+  }
 
-  const heldHouse = (houseBkgs || []).filter((h: any) => h.release_status === 'held')
-  const paidHouse = (houseBkgs || []).filter((h: any) => h.release_status === 'paid')
-  const refundedHouse = (houseBkgs || []).filter((h: any) => h.release_status === 'refunded')
+  const bookingList = (bookings || []) as LegacyBooking[]
+  const escrowList = (escrows || []) as LegacyEscrow[]
+  const txList = (txns || []) as TxRow[]
+  const houseList = (houseBkgs || []) as HouseRow[]
 
-  const houseRevenueCount = heldHouse.length + paidHouse.length
-  const houseRevenue = [...heldHouse, ...paidHouse].reduce((s: number, h: any) => s + (h.listing_price || 0), 0)
+  const sum = <T,>(rows: T[], pick: (row: T) => number | null | undefined) =>
+    rows.reduce((total, row) => total + (Number(pick(row)) || 0), 0)
+
+  const bookingById = new Map(bookingList.map((b) => [b.id, b]))
+  const refundAmountByBooking = new Map<string, number>()
+  const payoutAmountByBooking = new Map<string, number>()
+  const incomingTxs: TxRow[] = []
+
+  for (const tx of txList) {
+    const callback = tx.raw_callback || {}
+    const linkedId =
+      typeof callback.house_booking_id === 'string' ? callback.house_booking_id : null
+    const isPayout = tx.payment_method === 'payout' || callback.payout === true
+    const isRefund = tx.payment_method === 'refund' || callback.refund === true
+
+    if (isPayout && linkedId) {
+      payoutAmountByBooking.set(
+        linkedId,
+        (payoutAmountByBooking.get(linkedId) || 0) + Math.abs(Number(tx.amount) || 0)
+      )
+    } else if (isRefund && linkedId) {
+      refundAmountByBooking.set(
+        linkedId,
+        (refundAmountByBooking.get(linkedId) || 0) + Math.abs(Number(tx.amount) || 0)
+      )
+    } else if (!isPayout && !isRefund) {
+      incomingTxs.push(tx)
+    }
+  }
+
+  // Legacy bookings: count money actually collected (confirmed or later
+  // refunded), not only rows still sitting on "confirmed".
+  const legacyCollected = bookingList.filter(
+    (b) => b.status === 'confirmed' || b.status === 'refunded'
+  )
+  const legacyCollectedAmount = sum(legacyCollected, (b) => b.amount)
+  const legacyRefundedAmount = sum(
+    bookingList.filter((b) => b.status === 'refunded'),
+    (b) => b.refund_amount
+  )
+
+  const legacyHeld = escrowList.filter((e) => e.status === 'held')
+  const legacyReleased = escrowList.filter((e) => e.status === 'released')
+  const legacyRefunded = escrowList.filter((e) => e.status === 'refunded')
+
+  const legacyRefundAmount = (e: LegacyEscrow) => {
+    const bookingRefund = e.booking_id ? bookingById.get(e.booking_id)?.refund_amount : null
+    return bookingRefund != null ? Number(bookingRefund) : Math.round((Number(e.amount) || 0) * 0.85)
+  }
+
+  // House bookings are the modern payment record. Held, paid and refunded rows
+  // all represent money that actually arrived.
+  const houseCollected = houseList.filter((h) =>
+    ['held', 'paid', 'released', 'refunded'].includes(h.release_status || '')
+  )
+  const heldHouse = houseList.filter((h) => h.release_status === 'held')
+  const paidHouse = houseList.filter(
+    (h) => h.release_status === 'paid' || h.release_status === 'released'
+  )
+  const refundedHouse = houseList.filter((h) => h.release_status === 'refunded')
+  const completedHouse = houseList.filter((h) => h.status === 'completed')
+
+  const housePayoutFor = (h: HouseRow) =>
+    payoutAmountByBooking.get(h.id) ?? Math.round((Number(h.listing_price) || 0) * OWNER_SHARE)
+  const houseRefundFor = (h: HouseRow) =>
+    refundAmountByBooking.get(h.id) ?? Math.round((Number(h.listing_price) || 0) * 0.85)
+
+  const houseRevenue = sum(houseCollected, (h) => h.listing_price)
+  const houseRevenueCount = houseCollected.length
+  const houseRefunded = sum(refundedHouse, houseRefundFor)
   const houseRefundedCount = refundedHouse.length
-  const houseRefunded = refundedHouse.reduce((s: number, h: any) => s + Math.round((h.listing_price || 0) * 0.85), 0)
+
   const pendingPayouts = heldHouse.length
-  const pendingPayoutsAmount = heldHouse.reduce((s: number, h: any) => s + (h.listing_price || 0), 0)
+  const pendingPayoutsAmount = sum(heldHouse, (h) =>
+    Math.round((Number(h.listing_price) || 0) * OWNER_SHARE)
+  )
+
+  const totalRevenue = legacyCollectedAmount + houseRevenue
+  const totalRefunded = legacyRefundedAmount + houseRefunded
+  const netRevenue = totalRevenue - totalRefunded
+
+  // Platform keeps its commission on completed payouts and the part of a
+  // refund that was not returned to the hunter.
+  const legacyCommission = sum(
+    legacyReleased,
+    (e) => (Number(e.amount) || 0) - Math.round((Number(e.amount) || 0) * OWNER_SHARE)
+  )
+  const legacyRefundRetained = sum(
+    legacyRefunded,
+    (e) => (Number(e.amount) || 0) - legacyRefundAmount(e)
+  )
+  const houseCommission = sum(
+    paidHouse,
+    (h) => (Number(h.listing_price) || 0) - housePayoutFor(h)
+  )
+  const houseRefundRetained = sum(
+    refundedHouse,
+    (h) => (Number(h.listing_price) || 0) - houseRefundFor(h)
+  )
+  const platformRevenue =
+    legacyCommission + legacyRefundRetained + houseCommission + houseRefundRetained
+
+  const escrowHeld = legacyHeld.length + heldHouse.length
+  const escrowHeldAmount =
+    sum(legacyHeld, (e) => e.amount) + sum(heldHouse, (h) => h.listing_price)
 
   const methodMap: Record<string, { count: number; amount: number }> = {}
-  for (const t of (txns || []) as any[]) {
-    if (t.status !== 'success' || !(t.amount > 0)) continue
+  for (const t of incomingTxs) {
+    if (t.status !== 'success' || !(Number(t.amount) > 0)) continue
     const m = String(t.payment_method || 'paywave').toLowerCase()
     methodMap[m] = methodMap[m] || { count: 0, amount: 0 }
     methodMap[m].count += 1
-    methodMap[m].amount += t.amount
+    methodMap[m].amount += Number(t.amount)
   }
   const paymentsByMethod = Object.entries(methodMap).map(([method, v]) => ({ method, ...v }))
 
-  const netRevenue =
-    totalRevenue +
-    houseRevenue -
-    totalRefunded -
-    houseRefunded
-
-  const successfulTransactions = (txns || []).filter((t: any) => t.status === 'success').length
-  const failedTransactions = (txns || []).filter((t: any) => t.status === 'failed').length
+  const successfulTransactions = incomingTxs.filter(
+    (t) => t.status === 'success' && Number(t.amount) > 0
+  ).length
+  const failedTransactions = incomingTxs.filter((t) => t.status === 'failed').length
 
   return NextResponse.json({
     total, published, booked, taken, pending, rejected,
     vacant, vacancyPending, withIssues,
-    completed, refunded, listers, hunters, totalUsers,
+    completed: (completed ?? 0) + completedHouse.length,
+    refunded: (refunded ?? 0) + refundedHouse.length,
+    listers, hunters, totalUsers,
     movers, wifiPkgs, wifiBkgs, contacts, houseReqs, reports,
+    pendingRequests: pendingReqs ?? 0,
     complaintsOpen: complaintsOpen ?? 0,
     complaintsTotal: complaintsTotal ?? 0,
     // Shapes the dashboard already expects.
@@ -124,6 +246,7 @@ export async function GET() {
     successfulTransactions, failedTransactions,
     escrowHeld, escrowHeldAmount,
     houseRevenue, houseRevenueCount, houseRefunded, houseRefundedCount,
+    platformRevenue,
     pendingPayouts, pendingPayoutsAmount, paymentsByMethod,
   })
 }

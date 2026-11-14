@@ -125,7 +125,7 @@ export default function TermsLayout({
 
       {/* Floating hero orbs */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="hero-orb -left-24 -top-20 h-72 w-72 bg-[#30B54A]/20" />
+        <div className="hero-orb -left-24 -top-20 h-72 w-72 bg-[#1D4ED8]/20" />
         <div className="hero-orb -right-20 top-0 h-80 w-80 bg-blue-500/20" style={{ animationDelay: '1.6s' }} />
         <div className="hero-orb bottom-0 left-1/3 h-64 w-64 bg-purple-500/10" style={{ animationDelay: '2.6s' }} />
       </div>
@@ -152,7 +152,7 @@ export default function TermsLayout({
                   className={cn(
                     'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
                     lang === 'en'
-                      ? 'bg-[#30B54A] text-white shadow'
+                      ? 'bg-[#1D4ED8] text-white shadow'
                       : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
                   )}
                 >
@@ -164,7 +164,7 @@ export default function TermsLayout({
                   className={cn(
                     'rounded-full px-3 py-1 text-xs font-semibold transition-colors',
                     lang === 'sw'
-                      ? 'bg-[#30B54A] text-white shadow'
+                      ? 'bg-[#1D4ED8] text-white shadow'
                       : 'text-gray-500 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-100'
                   )}
                 >
@@ -194,7 +194,7 @@ export default function TermsLayout({
                   className={cn(
                     'shrink-0 rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors',
                     role === r
-                      ? 'bg-[#30B54A] text-white shadow'
+                      ? 'bg-[#1D4ED8] text-white shadow'
                       : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-100'
                   )}
                 >
@@ -208,7 +208,7 @@ export default function TermsLayout({
         {/* Hero */}
         <header className="mt-10 max-w-3xl">
           <Reveal delay={60}>
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#30B54A]/25 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-[#2a9c40] shadow-sm backdrop-blur dark:border-[#30B54A]/30 dark:bg-slate-900/70 dark:text-[#6fdc84]">
+            <span className="inline-flex items-center gap-2 rounded-full border border-[#1D4ED8]/25 bg-white/80 px-3.5 py-1.5 text-xs font-semibold text-[#1E40AF] shadow-sm backdrop-blur dark:border-[#1D4ED8]/30 dark:bg-slate-900/70 dark:text-[#93C5FD]">
               <BookOpen className="h-3.5 w-3.5" />
               {eyebrow}
             </span>
@@ -231,13 +231,13 @@ export default function TermsLayout({
           <div className="terms-panel mt-10">
             <div className="rounded-[calc(1rem-1px)] bg-white p-5 dark:bg-slate-900 sm:p-6">
               <div className="flex items-center gap-2">
-                <ListChecks className="h-5 w-5 text-[#30B54A]" />
+                <ListChecks className="h-5 w-5 text-[#1D4ED8]" />
                 <h2 className="text-base font-bold text-gray-900 dark:text-white">{summary.title}</h2>
               </div>
               <ul className="mt-3 space-y-2">
                 {summary.points.map((point, i) => (
                   <li key={i} className="flex items-start gap-2 text-sm text-gray-600 dark:text-gray-300">
-                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#30B54A]" />
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-[#1D4ED8]" />
                     <span>{point}</span>
                   </li>
                 ))}
@@ -256,7 +256,7 @@ export default function TermsLayout({
               className={cn(
                 'shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors',
                 active === s.id
-                  ? 'border-[#30B54A] bg-[#30B54A]/10 text-[#2a9c40] dark:text-[#6fdc84]'
+                  ? 'border-[#1D4ED8] bg-[#1D4ED8]/10 text-[#1E40AF] dark:text-[#93C5FD]'
                   : 'border-gray-200 bg-white text-gray-500 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-400'
               )}
             >
@@ -275,10 +275,10 @@ export default function TermsLayout({
                   ref={(el) => {
                     sectionRefs.current[s.id] = el
                   }}
-                  className="group scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#30B54A]/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-[#30B54A]/40 sm:p-8"
+                  className="group scroll-mt-24 rounded-2xl border border-gray-200 bg-white p-6 shadow-sm transition-all duration-300 hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900 dark:hover:border-[#1D4ED8]/40 sm:p-8"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#30B54A] to-emerald-600 text-sm font-extrabold text-white shadow-md shadow-[#30B54A]/25 transition-transform duration-300 group-hover:scale-110">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-[#1D4ED8] to-blue-700 text-sm font-extrabold text-white shadow-md shadow-[#1D4ED8]/25 transition-transform duration-300 group-hover:scale-110">
                       {s.number}
                     </span>
                     <h2 className="text-lg font-bold tracking-tight text-gray-900 dark:text-white sm:text-xl">{s.title}</h2>
@@ -306,11 +306,11 @@ export default function TermsLayout({
                     className={cn(
                       'flex w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-[13px] leading-snug transition-colors',
                       active === s.id
-                        ? 'bg-[#30B54A]/10 font-semibold text-[#2a9c40] dark:text-[#6fdc84]'
+                        ? 'bg-[#1D4ED8]/10 font-semibold text-[#1E40AF] dark:text-[#93C5FD]'
                         : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-100'
                     )}
                   >
-                    <span className={cn('mt-0.5 text-[11px] font-bold', active === s.id ? 'text-[#30B54A]' : 'text-gray-400')}>{s.number}</span>
+                    <span className={cn('mt-0.5 text-[11px] font-bold', active === s.id ? 'text-[#1D4ED8]' : 'text-gray-400')}>{s.number}</span>
                     <span>{s.title}</span>
                   </button>
                 ))}
@@ -323,7 +323,7 @@ export default function TermsLayout({
         <Reveal>
           <div className="mt-12 rounded-2xl border border-gray-200 bg-white p-6 text-center shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-8">
             <div className="mx-auto flex max-w-xl flex-col items-center gap-3">
-              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#30B54A]/10 text-[#30B54A]">
+              <span className="flex h-11 w-11 items-center justify-center rounded-full bg-[#1D4ED8]/10 text-[#1D4ED8]">
                 <CheckCircle2 className="h-6 w-6" />
               </span>
               <div className="text-sm text-gray-600 dark:text-gray-300">{agreeNote}</div>

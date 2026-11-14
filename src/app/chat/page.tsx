@@ -10,7 +10,7 @@ export default function ChatPage() {
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6">
       <header className="mb-4 flex items-center gap-3 animate-fadeIn">
-        <div className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-[#30B54A] to-emerald-600 text-lg font-bold text-white shadow-lg shadow-emerald-500/20">
+        <div className="grid h-12 w-12 place-items-center rounded-full bg-gradient-to-br from-[#1D4ED8] to-blue-700 text-lg font-bold text-white shadow-lg shadow-blue-600/20">
           A
         </div>
         <div>

@@ -159,7 +159,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
                   required
                 />
                 {transactionCode ? (
-                  <p className="text-xs text-green-700 mt-1 flex items-center gap-1">
+                  <p className="text-xs text-blue-800 mt-1 flex items-center gap-1">
                     <Check className="w-3.5 h-3.5" /> Transaction code detected: <strong>{transactionCode}</strong>
                   </p>
                 ) : mpesaMessage ? (
@@ -177,8 +177,8 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
         ) : (
           <>
             <div className="text-center py-4">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <CheckCircle className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <CheckCircle className="w-6 h-6 text-blue-700" />
               </div>
               <h2 className="text-lg font-bold mb-1">Booking Request Submitted!</h2>
               <p className="text-sm text-gray-500 mb-4">
@@ -209,7 +209,7 @@ export default function HouseBookingModal({ listing, onClose }: HouseBookingModa
               <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
                 `Hi AseHanta! I've paid the hunting fee for ${listing.title} (${listing.location}) via Till ${TILL_NUMBER}.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}${idNumber ? `\nID No: ${idNumber}` : ''}\nTransaction Code: ${transactionCode}${mpesaMessage ? `\n\nM-Pesa Message:\n${mpesaMessage}` : ''}`
               )}`} target="_blank" rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-700 transition-colors">
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-700 text-white rounded-xl py-3 text-sm font-medium hover:bg-blue-800 transition-colors">
                 <MessageCircle className="w-4 h-4" /> WhatsApp Now
               </a>
               <a href={`tel:${CONTACT_PHONE}`}

@@ -7,9 +7,9 @@
  */
 const VARIANTS = {
   solid:
-    'bg-[#30B54A] text-white shadow-lg shadow-[#30B54A]/25 hover:bg-[#2a9c40] hover:shadow-xl',
+    'bg-[#1D4ED8] text-white shadow-lg shadow-[#1D4ED8]/25 hover:bg-[#1E40AF] hover:shadow-xl',
   outline:
-    'border border-[#30B54A]/40 bg-white/80 text-[#1f7a35] shadow-sm backdrop-blur hover:border-[#30B54A]/70 hover:text-[#2a9c40] dark:border-[#30B54A]/40 dark:bg-slate-900/70 dark:text-[#6fdc84] dark:hover:text-[#8ee8a0]',
+    'border border-[#1D4ED8]/40 bg-white/80 text-[#1E40AF] shadow-sm backdrop-blur hover:border-[#1D4ED8]/70 hover:text-[#1E40AF] dark:border-[#1D4ED8]/40 dark:bg-slate-900/70 dark:text-[#93C5FD] dark:hover:text-[#93C5FD]',
   onDark:
     'border border-white/20 bg-white/10 text-white backdrop-blur hover:bg-white/20',
 } as const

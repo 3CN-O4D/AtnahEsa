@@ -85,7 +85,7 @@ function HouseCard({ card }: { card: HouseCardData }) {
       className="group block overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md dark:border-gray-700 dark:bg-slate-800"
     >
       <div className="flex">
-        <div className="relative h-20 w-20 shrink-0 overflow-hidden bg-gradient-to-br from-blue-100 to-emerald-100 dark:from-slate-700 dark:to-slate-800">
+        <div className="relative h-20 w-20 shrink-0 overflow-hidden bg-gradient-to-br from-blue-100 to-blue-100 dark:from-slate-700 dark:to-slate-800">
           {card.image && !imgFailed ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
@@ -105,7 +105,7 @@ function HouseCard({ card }: { card: HouseCardData }) {
           <p className="truncate text-[13px] font-semibold text-gray-900 dark:text-white">{card.title}</p>
           <p className="truncate text-[11.5px] text-gray-500 dark:text-gray-400">{loc}</p>
           <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11.5px] font-medium">
-            {rent && <span className="text-emerald-700 dark:text-emerald-400">{rent}/mo</span>}
+            {rent && <span className="text-blue-800 dark:text-blue-400">{rent}/mo</span>}
             {fee && <span className="text-gray-500 dark:text-gray-400">· {fee} fee</span>}
           </div>
           {(card.badges ?? []).slice(0, 2).length > 0 && (
@@ -118,7 +118,7 @@ function HouseCard({ card }: { card: HouseCardData }) {
             </div>
           )}
         </div>
-        <div className="grid w-8 shrink-0 place-items-center text-gray-300 transition group-hover:text-[#30B54A] dark:text-gray-600">
+        <div className="grid w-8 shrink-0 place-items-center text-gray-300 transition group-hover:text-[#1D4ED8] dark:text-gray-600">
           <ArrowLeft className="h-4 w-4 -scale-x-100" />
         </div>
       </div>
@@ -140,7 +140,7 @@ function ActionList({ actions }: { actions: ChatAction[] }) {
             href={a.href ?? '#'}
             target={external ? '_blank' : undefined}
             rel={external ? 'noopener noreferrer' : undefined}
-            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#30B54A]/50 bg-[#e8f8eb] px-3 py-2 text-[12.5px] font-semibold text-[#2a9c40] transition hover:bg-[#d7f2dd] dark:bg-[#30B54A]/15 dark:text-[#6fdc84]"
+            className="flex items-center justify-center gap-1.5 rounded-lg border border-[#1D4ED8]/50 bg-[#EFF6FF] px-3 py-2 text-[12.5px] font-semibold text-[#1E40AF] transition hover:bg-[#DBEAFE] dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]"
           >
             {external && <ExternalLink className="h-3.5 w-3.5" />}
             {a.label ?? 'Open'}
@@ -158,7 +158,7 @@ function Bubble({ msg }: { msg: UiMessage }) {
   if (isUser) {
     return (
       <div className="flex justify-end">
-        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[#30B54A] px-3.5 py-2 text-white shadow-sm">
+        <div className="max-w-[85%] rounded-2xl rounded-br-sm bg-[#1D4ED8] px-3.5 py-2 text-white shadow-sm">
           <FormattedText text={msg.content} />
         </div>
       </div>
@@ -166,7 +166,7 @@ function Bubble({ msg }: { msg: UiMessage }) {
   }
   return (
     <div className="flex items-end gap-2">
-      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#30B54A] to-emerald-600 text-[11px] font-bold text-white shadow-sm">
+      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#1D4ED8] to-blue-700 text-[11px] font-bold text-white shadow-sm">
         A
       </div>
       <div
@@ -199,7 +199,7 @@ function QuickChip({ text }: { text: string }) {
     <button
       type="button"
       onClick={onClick}
-      className="rounded-full border border-[#30B54A]/40 bg-[#e8f8eb] px-2.5 py-1 text-[12px] font-medium text-[#2a9c40] transition hover:bg-[#d7f2dd] active:scale-95 dark:bg-[#30B54A]/15 dark:text-[#6fdc84]"
+      className="rounded-full border border-[#1D4ED8]/40 bg-[#EFF6FF] px-2.5 py-1 text-[12px] font-medium text-[#1E40AF] transition hover:bg-[#DBEAFE] active:scale-95 dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]"
     >
       {text}
     </button>
@@ -209,7 +209,7 @@ function QuickChip({ text }: { text: string }) {
 function TypingDots() {
   return (
     <div className="flex items-end gap-2">
-      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#30B54A] to-emerald-600 text-[11px] font-bold text-white shadow-sm">
+      <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#1D4ED8] to-blue-700 text-[11px] font-bold text-white shadow-sm">
         A
       </div>
       <div className="flex items-center gap-1 rounded-2xl rounded-bl-sm bg-white px-3.5 py-2.5 shadow-sm ring-1 ring-gray-100 dark:bg-slate-800 dark:ring-gray-700">
@@ -521,17 +521,17 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
             <ArrowLeft className="h-4 w-4" />
           </Link>
         )}
-        <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#30B54A] to-emerald-600 text-[15px] font-bold text-white shadow-sm">
+        <div className="grid h-9 w-9 place-items-center rounded-full bg-gradient-to-br from-[#1D4ED8] to-blue-700 text-[15px] font-bold text-white shadow-sm">
           A
         </div>
         <div className="min-w-0 flex-1">
           <p className="text-sm font-bold text-gray-900 dark:text-white">Ase</p>
           <p className="flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> AseHanta&apos;s digital assistant · online
+            <span className="h-1.5 w-1.5 rounded-full bg-blue-600" /> AseHanta&apos;s digital assistant · online
           </p>
         </div>
         {isPage && (
-          <Link href="/" className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#2a9c40] hover:bg-[#e8f8eb] dark:text-[#6fdc84] dark:hover:bg-[#30B54A]/10">
+          <Link href="/" className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#1E40AF] hover:bg-[#EFF6FF] dark:text-[#93C5FD] dark:hover:bg-[#1D4ED8]/10">
             <ExternalLink className="h-3.5 w-3.5" /> Home
           </Link>
         )}
@@ -541,7 +541,7 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
           disabled={handoffing || loading}
           title="Continue this chat on WhatsApp"
           aria-label="Continue this chat on WhatsApp"
-          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#2a9c40] hover:bg-[#e8f8eb] disabled:opacity-50 dark:text-[#6fdc84] dark:hover:bg-[#30B54A]/10"
+          className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-[12px] font-semibold text-[#1E40AF] hover:bg-[#EFF6FF] disabled:opacity-50 dark:text-[#93C5FD] dark:hover:bg-[#1D4ED8]/10"
         >
           {handoffing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MessageCircle className="h-3.5 w-3.5" />}
           <span className="hidden sm:inline">WhatsApp</span>
@@ -597,12 +597,12 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
                 <div
                   className={`flex h-10 w-10 items-center justify-center rounded-full shadow-sm transition-all ${
                     uploading
-                      ? 'bg-[#30B54A]/20 text-[#30B54A] border border-[#30B54A]/40'
-                      : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-[#30B54A]/10 hover:text-[#30B54A]'
+                      ? 'bg-[#1D4ED8]/20 text-[#1D4ED8] border border-[#1D4ED8]/40'
+                      : 'bg-gray-100 text-gray-600 border border-gray-300 hover:bg-[#1D4ED8]/10 hover:text-[#1D4ED8]'
                   } dark:${
                     uploading
-                      ? 'bg-[#30B54A]/20 text-[#30B54A] border border-[#30B54A]/40'
-                      : 'bg-slate-700 text-slate-400 border border-slate-600 hover:bg-[#30B54A]/10 hover:text-[#30B54A]'
+                      ? 'bg-[#1D4ED8]/20 text-[#1D4ED8] border border-[#1D4ED8]/40'
+                      : 'bg-slate-700 text-slate-400 border border-slate-600 hover:bg-[#1D4ED8]/10 hover:text-[#1D4ED8]'
                   } disabled:opacity-50 disabled:cursor-not-allowed`}
                 >
                   {uploading ? (
@@ -645,13 +645,13 @@ export default function ChatPanel({ variant, onClose }: ChatPanelProps) {
               placeholder="Message Ase…"
               aria-label="Message Ase"
               maxLength={600}
-              className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-2 text-[13.5px] text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/20 dark:border-gray-600 dark:bg-slate-700 dark:text-slate-100"
+              className="min-w-0 flex-1 rounded-full border border-gray-200 bg-gray-50 px-3.5 py-2 text-[13.5px] text-gray-900 outline-none placeholder:text-gray-400 focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20 dark:border-gray-600 dark:bg-slate-700 dark:text-slate-100"
             />
             <button
               type="submit"
               disabled={!input.trim() || loading || bubbling}
               aria-label="Send message"
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#30B54A] text-white shadow-sm transition hover:bg-[#2a9c40] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#1D4ED8] text-white shadow-sm transition hover:bg-[#1E40AF] active:scale-95 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <Send className="h-4 w-4" />
             </button>

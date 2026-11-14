@@ -71,10 +71,10 @@ export default function ComplaintsPage() {
 
   return (
     <div className="relative mx-auto max-w-6xl px-4 py-10 sm:py-14">
-      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-[#30B54A]/10 via-transparent to-transparent" />
+      <div className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-72 bg-gradient-to-b from-[#1D4ED8]/10 via-transparent to-transparent" />
 
       <div className="max-w-2xl">
-        <span className="inline-flex items-center gap-2 rounded-full border border-[#30B54A]/25 bg-[#e8f8eb] px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[#2a9c40] dark:border-[#30B54A]/30 dark:bg-[#30B54A]/15 dark:text-[#6fdc84]">
+        <span className="inline-flex items-center gap-2 rounded-full border border-[#1D4ED8]/25 bg-[#EFF6FF] px-3 py-1.5 text-xs font-bold uppercase tracking-wider text-[#1E40AF] dark:border-[#1D4ED8]/30 dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]">
           <ShieldCheck className="h-3.5 w-3.5" />
           We read every report
         </span>
@@ -88,9 +88,9 @@ export default function ComplaintsPage() {
       </div>
 
       {ticket ? (
-        <div className="mt-8 max-w-2xl overflow-hidden rounded-2xl border border-emerald-200 bg-white shadow-sm animate-scaleIn dark:border-emerald-900/60 dark:bg-slate-900">
+        <div className="mt-8 max-w-2xl overflow-hidden rounded-2xl border border-blue-200 bg-white shadow-sm animate-scaleIn dark:border-blue-950/60 dark:bg-slate-900">
           <div className="flex items-start gap-4 p-6">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-700 dark:bg-blue-600/15 dark:text-blue-400">
               <CheckCircle2 className="h-6 w-6" />
             </span>
             <div>
@@ -106,7 +106,7 @@ export default function ComplaintsPage() {
                 <button
                   type="button"
                   onClick={() => setTicket(null)}
-                  className="inline-flex items-center gap-2 rounded-lg bg-[#30B54A] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#2a9c40]"
+                  className="inline-flex items-center gap-2 rounded-lg bg-[#1D4ED8] px-4 py-2 text-sm font-semibold text-white transition hover:bg-[#1E40AF]"
                 >
                   Send another report
                 </button>
@@ -138,7 +138,7 @@ export default function ComplaintsPage() {
                       title={hint}
                       className={`flex flex-col items-start gap-1.5 rounded-xl border p-3 text-left transition-all ${
                         active
-                          ? 'border-[#30B54A] bg-[#e8f8eb] text-[#2a9c40] shadow-sm dark:border-[#30B54A] dark:bg-[#30B54A]/15 dark:text-[#6fdc84]'
+                          ? 'border-[#1D4ED8] bg-[#EFF6FF] text-[#1E40AF] shadow-sm dark:border-[#1D4ED8] dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]'
                           : 'border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50 dark:border-slate-700 dark:text-gray-300 dark:hover:bg-slate-800'
                       }`}
                     >
@@ -157,7 +157,7 @@ export default function ComplaintsPage() {
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   placeholder="Jane Wanjiku"
                 />
               </label>
@@ -168,7 +168,7 @@ export default function ComplaintsPage() {
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   placeholder="you@example.com"
                 />
               </label>
@@ -180,7 +180,7 @@ export default function ComplaintsPage() {
                 <input
                   value={phone}
                   onChange={(e) => setPhone(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   placeholder="07xx xxx xxx"
                 />
               </label>
@@ -191,7 +191,7 @@ export default function ComplaintsPage() {
                   maxLength={140}
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                  className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                   placeholder="Short summary"
                 />
               </label>
@@ -206,7 +206,7 @@ export default function ComplaintsPage() {
                 rows={6}
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="mt-1 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                className="mt-1 w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none transition focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/25 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
                 placeholder="Tell us the steps, what you expected, and what actually happened. Include a listing name or payment reference if you have one."
               />
             </label>
@@ -220,7 +220,7 @@ export default function ComplaintsPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#30B54A] to-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-emerald-600/20 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
+              className="mt-5 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#1D4ED8] to-blue-700 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-blue-700/20 transition-all hover:-translate-y-0.5 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-60 sm:w-auto"
             >
               {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               {submitting ? 'Sending…' : 'Send report'}
@@ -230,7 +230,7 @@ export default function ComplaintsPage() {
           <aside className="space-y-4">
             <div className="rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
               <h2 className="flex items-center gap-2 text-sm font-bold text-gray-900 dark:text-white">
-                <Clock3 className="h-4 w-4 text-[#30B54A]" />
+                <Clock3 className="h-4 w-4 text-[#1D4ED8]" />
                 What happens next
               </h2>
               <ol className="mt-4 space-y-4">
@@ -240,7 +240,7 @@ export default function ComplaintsPage() {
                   ['We act', 'Refunds, corrections or fixes are applied, and we reply by email.'],
                 ].map(([title, body], index) => (
                   <li key={title} className="flex gap-3">
-                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#e8f8eb] text-[11px] font-bold text-[#2a9c40] dark:bg-[#30B54A]/15 dark:text-[#6fdc84]">
+                    <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#EFF6FF] text-[11px] font-bold text-[#1E40AF] dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]">
                       {index + 1}
                     </span>
                     <span>

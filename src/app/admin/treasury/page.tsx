@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw, Wallet, TrendingUp, Clock, CheckCircle, XCircle, Search, AlertTriangle, Calendar, Copy, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
-import { OWNER_SHARE } from '@/lib/constants'
+import { OWNER_SHARE, PLATFORM_COMMISSION } from '@/lib/constants'
 import { parseBookingFeedback, refundPercentForFeedback } from '@/lib/booking-feedback'
 import type { EscrowHold, Transaction, Booking, HouseBooking } from '@/types'
 
@@ -20,7 +20,27 @@ type HouseBookingWithPayment = HouseBooking & {
   lister_name?: string | null
   lister_phone?: string | null
   payout_amount?: number | null
+  refund_amount?: number | null
+  refund_percentage?: number | null
 }
+
+type EscrowLedgerEntry = {
+  key: string
+  source: 'house' | 'legacy'
+  status: 'held' | 'released' | 'refunded'
+  amount: number
+  payoutAmount: number | null
+  refundAmount: number | null
+  heldUntil: string | null
+  createdAt: string
+  releasedAt: string | null
+  refundedAt: string | null
+  title: string
+  houseBooking?: HouseBookingWithPayment
+  escrow?: EscrowWithDetails
+}
+
+const isReleasedStatus = (status: string) => status === 'paid' || status === 'released'
 
 type RefundModal = { escrow: EscrowWithDetails } | null
 type ExtendModal = { escrow: EscrowWithDetails } | null
@@ -328,13 +348,70 @@ export default function TreasuryPage() {
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-24">
-        <div className="h-9 w-9 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
+        <div className="h-9 w-9 animate-spin rounded-full border-2 border-blue-600 border-t-transparent" />
         <p className="text-sm text-gray-500 dark:text-gray-400">Loading the treasury ledger…</p>
       </div>
     )
   }
 
-  const filteredEscrows = escrowFilter === 'all' ? escrows : escrows.filter((e) => e.status === escrowFilter)
+  // One list for both escrow generations: legacy escrow_holds and modern house
+  // bookings. House bookings are the source of truth for newer payments, so
+  // leaving them out made "All Escrows" look empty after an admin confirmed a
+  // payment.
+  const escrowLedger: EscrowLedgerEntry[] = [
+    ...escrows.map((e) => ({
+      key: `legacy-${e.id}`,
+      source: 'legacy' as const,
+      status:
+        e.status === 'released' ? ('released' as const)
+        : e.status === 'refunded' ? ('refunded' as const)
+        : ('held' as const),
+      amount: Number(e.amount) || 0,
+      payoutAmount:
+        e.status === 'released' ? Math.round((Number(e.amount) || 0) * OWNER_SHARE) : null,
+      refundAmount:
+        e.status === 'refunded'
+          ? (e.booking?.refund_amount ?? Math.round((Number(e.amount) || 0) * 0.85))
+          : null,
+      heldUntil: e.held_until,
+      createdAt: e.created_at,
+      releasedAt: e.released_at,
+      refundedAt: e.refunded_at,
+      title: e.listing?.title || 'Unknown listing',
+      escrow: e,
+    })),
+    ...houseBookings
+      .filter((h) =>
+        ['held', 'paid', 'released', 'refunded'].includes(h.release_status)
+      )
+      .map((h) => {
+        const gross = Number(h.listing_price) || 0
+        const released = isReleasedStatus(h.release_status)
+        const refunded = h.release_status === 'refunded'
+        const refundPercentage = h.refund_percentage ?? 85
+        return {
+          key: `house-${h.id}`,
+          source: 'house' as const,
+          status: released ? ('released' as const) : refunded ? ('refunded' as const) : ('held' as const),
+          amount: gross,
+          payoutAmount: released
+            ? (h.payout_amount ?? Math.round(gross * OWNER_SHARE))
+            : null,
+          refundAmount: refunded
+            ? (h.refund_amount ?? Math.round(gross * (refundPercentage / 100)))
+            : null,
+          heldUntil: h.held_until,
+          createdAt: h.created_at,
+          releasedAt: released ? h.paid_at : null,
+          refundedAt: refunded ? h.refunded_at : null,
+          title: h.listing_title || 'Unknown listing',
+          houseBooking: h,
+        }
+      }),
+  ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+  const filteredEscrows =
+    escrowFilter === 'all' ? escrowLedger : escrowLedger.filter((e) => e.status === escrowFilter)
   const refundReviewRow = (h: HouseBookingWithPayment) => {
     const feedback = parseBookingFeedback(h.displeased_reason)
     return h.release_status === 'held' && !!h.confirmed_at && feedback?.outcome === 'issue' && feedback.decision !== 'refund_declined'
@@ -355,7 +432,7 @@ export default function TreasuryPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {toast && (
         <div className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-semibold text-white shadow-xl animate-slideInRight ${
-          toast.type === 'success' ? 'bg-emerald-600' : 'bg-red-600'
+          toast.type === 'success' ? 'bg-blue-700' : 'bg-red-600'
         }`}>
           {toast.message}
         </div>
@@ -363,7 +440,7 @@ export default function TreasuryPage() {
 
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
             Finance
           </p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
@@ -375,7 +452,7 @@ export default function TreasuryPage() {
         </div>
         <button
           onClick={() => void loadData()}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs font-semibold text-gray-700 transition hover:border-blue-600 hover:text-blue-800 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-200"
         >
           <RefreshCw className="h-3.5 w-3.5" /> Refresh
         </button>
@@ -395,21 +472,21 @@ export default function TreasuryPage() {
       )}
 
       {/* M-Pesa Balance */}
-      <div className="mt-5 mb-6 rounded-2xl bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-700 p-6 text-white shadow-lg shadow-emerald-900/10">
+      <div className="mt-5 mb-6 rounded-2xl bg-gradient-to-r from-blue-700 via-sky-700 to-cyan-700 p-6 text-white shadow-lg shadow-blue-950/10">
         <div className="flex flex-wrap items-center justify-between gap-4">
           <div>
-            <p className="flex items-center gap-1.5 text-sm font-medium text-emerald-100">
+            <p className="flex items-center gap-1.5 text-sm font-medium text-blue-100">
               <Wallet className="h-4 w-4" /> M-Pesa balance
             </p>
             {balance?.configured === false ? (
-              <p className="mt-1 text-sm text-emerald-100">Keys not configured</p>
+              <p className="mt-1 text-sm text-blue-100">Keys not configured</p>
             ) : balance?.error ? (
-              <p className="mt-1 text-sm text-emerald-100">Query failed — {balance.error}</p>
+              <p className="mt-1 text-sm text-blue-100">Query failed — {balance.error}</p>
             ) : (
               <p className="mt-1 text-3xl font-extrabold">—</p>
             )}
           </div>
-          <div className="text-right text-xs text-emerald-100">
+          <div className="text-right text-xs text-blue-100">
             <p>Daraja {process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER ? 'Connected' : 'Not connected'}</p>
             <p className="mt-0.5">
               {process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER ? `Till: ${process.env.NEXT_PUBLIC_DARAJA_TILL_NUMBER}` : 'Set DARAJA keys in .env'}
@@ -429,7 +506,7 @@ export default function TreasuryPage() {
           <p className="text-sm" style={{ color: 'var(--color-gray-500)' }}>{formatPrice(stats.total_held_amount)}</p>
         </div>
         <div className="border rounded-xl p-4" style={{ backgroundColor: 'var(--color-gray-50)', borderColor: 'var(--color-gray-200)' }}>
-          <div className="flex items-center gap-2 text-green-600 mb-1">
+          <div className="flex items-center gap-2 text-blue-700 mb-1">
             <CheckCircle className="w-4 h-4" />
             <span className="text-xs font-medium uppercase tracking-wider">Released</span>
           </div>
@@ -450,7 +527,7 @@ export default function TreasuryPage() {
             <span className="text-xs font-medium uppercase tracking-wider">Platform Revenue</span>
           </div>
           <p className="text-2xl font-bold text-purple-600">{formatPrice(stats.platform_revenue)}</p>
-          <p className="text-sm" style={{ color: 'var(--color-gray-500)' }}>30% of {stats.released} releases</p>
+          <p className="text-sm" style={{ color: 'var(--color-gray-500)' }}>{Math.round(PLATFORM_COMMISSION * 100)}% of releases + retained refund shares</p>
         </div>
       </div>
 
@@ -458,9 +535,9 @@ export default function TreasuryPage() {
       <div className="border rounded-xl mb-8" style={{ backgroundColor: 'var(--color-gray-50)', borderColor: 'var(--color-gray-200)' }}>
         <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: 'var(--color-gray-200)' }}>
           <h2 className="font-semibold flex items-center gap-2">
-            <Banknote className="w-4 h-4 text-green-600" /> Pending Payouts (House Payments)
+            <Banknote className="w-4 h-4 text-blue-700" /> Pending Payouts (House Payments)
             {stats.pending_payouts > 0 && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                 {stats.pending_payouts} &middot; {formatPrice(stats.pending_payouts_amount)}
               </span>
             )}
@@ -495,7 +572,7 @@ export default function TreasuryPage() {
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
                         hb.release_status === 'held' ? (isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') :
-                        hb.release_status === 'paid' ? 'bg-green-100 text-green-700' :
+                        hb.release_status === 'paid' ? 'bg-blue-100 text-blue-800' :
                         hb.release_status === 'refunded' ? 'bg-amber-100 text-amber-700' :
                         isRefundReview ? 'bg-red-100 text-red-700' : 'bg-gray-100 text-gray-600'
                       }`}>
@@ -534,7 +611,7 @@ export default function TreasuryPage() {
                     </p>
                     {hb.release_status !== 'refunded' && (
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
-                        <span className="font-semibold text-emerald-700 dark:text-emerald-400">
+                        <span className="font-semibold text-blue-800 dark:text-blue-400">
                           Payout {formatPrice(hb.payout_amount ?? Math.round((hb.listing_price || 0) * OWNER_SHARE))} ({Math.round(OWNER_SHARE * 100)}%)
                         </span>
                         <span style={{ color: 'var(--color-gray-500)' }}>
@@ -546,7 +623,7 @@ export default function TreasuryPage() {
                             <button
                               type="button"
                               onClick={() => copyToClipboard(hb.lister_phone!, `phone-${hb.id}`, 'M-Pesa number')}
-                              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 font-medium text-gray-600 transition hover:border-emerald-500 hover:text-emerald-700 dark:border-slate-700 dark:text-gray-300"
+                              className="inline-flex items-center gap-1 rounded-md border border-gray-300 px-1.5 py-0.5 font-medium text-gray-600 transition hover:border-blue-600 hover:text-blue-800 dark:border-slate-700 dark:text-gray-300"
                               title="Copy the lister M-Pesa number"
                             >
                               {copiedField === `phone-${hb.id}` ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
@@ -568,7 +645,7 @@ export default function TreasuryPage() {
                     )}
                     {isHeld && (
                       <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === hb.id}
-                        className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1">
+                        className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-2.5 py-1">
                         <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
                       </Button>
                     )}
@@ -579,7 +656,7 @@ export default function TreasuryPage() {
                       </Button>
                     )}
                     {hb.release_status === 'paid' && (
-                      <span className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 font-medium">Paid to lister</span>
+                      <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 font-medium">Paid to lister</span>
                     )}
                     {hb.release_status === 'refunded' && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">Refunded</span>
@@ -600,7 +677,7 @@ export default function TreasuryPage() {
       <div className="border rounded-xl mb-8" style={{ backgroundColor: 'var(--color-gray-50)', borderColor: 'var(--color-gray-200)' }}>
         <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2" style={{ borderColor: 'var(--color-gray-200)' }}>
           <h2 className="font-semibold flex items-center gap-2">
-            <Banknote className="w-4 h-4 text-blue-600" /> All Escrows ({escrows.length})
+            <Banknote className="w-4 h-4 text-blue-600" /> All Escrows ({escrowLedger.length})
           </h2>
           <div className="flex gap-1">
             {['all', 'held', 'released', 'refunded'].map((f) => (
@@ -620,52 +697,85 @@ export default function TreasuryPage() {
           <p className="text-gray-500 text-sm text-center py-8">No escrows found.</p>
         ) : (
           <div className="divide-y" style={{ borderColor: 'var(--color-gray-200)' }}>
-            {filteredEscrows.map((e) => {
-              const isOverdue = e.status === 'held' && new Date(e.held_until) < new Date()
+            {filteredEscrows.map((entry) => {
+              const isOverdue =
+                entry.status === 'held' &&
+                !!entry.heldUntil &&
+                new Date(entry.heldUntil) < new Date()
+              const houseBooking = entry.houseBooking
+              const legacyEscrow = entry.escrow
+              const refundPercent = houseBooking
+                ? refundPercentForFeedback(parseBookingFeedback(houseBooking.displeased_reason)) || 85
+                : 85
+
               return (
-                <div key={e.id} className="px-4 py-3 flex items-center justify-between gap-4">
+                <div key={entry.key} className="px-4 py-3 flex items-center justify-between gap-4">
                   <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        e.status === 'held' ? (isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') :
-                        e.status === 'released' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'
+                        entry.status === 'held' ? (isOverdue ? 'bg-red-100 text-red-700' : 'bg-blue-100 text-blue-700') :
+                        entry.status === 'released' ? 'bg-blue-100 text-blue-800' : 'bg-amber-100 text-amber-700'
                       }`}>
-                        {e.status === 'held' && isOverdue ? <AlertTriangle className="w-3 h-3" /> :
-                         e.status === 'held' ? <Clock className="w-3 h-3" /> :
-                         e.status === 'released' ? <CheckCircle className="w-3 h-3" /> :
+                        {entry.status === 'held' && isOverdue ? <AlertTriangle className="w-3 h-3" /> :
+                         entry.status === 'held' ? <Clock className="w-3 h-3" /> :
+                         entry.status === 'released' ? <CheckCircle className="w-3 h-3" /> :
                          <RotateCcw className="w-3 h-3" />}
-                        {e.status}{isOverdue ? ' (overdue)' : ''}
+                        {entry.status}{isOverdue ? ' (overdue)' : ''}
+                      </span>
+                      <span className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-600 text-xs font-medium">
+                        {entry.source === 'house'
+                          ? (houseBooking?.payment_method || 'house booking')
+                          : 'legacy escrow'}
                       </span>
                     </div>
-                    <p className="text-sm font-medium truncate mt-1" style={{ color: 'var(--color-gray-900)' }}>{e.listing?.title || 'Unknown listing'}</p>
+                    <p className="text-sm font-medium truncate mt-1" style={{ color: 'var(--color-gray-900)' }}>{entry.title}</p>
                     <p className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
-                      {formatPrice(e.amount)} &middot; Created {new Date(e.created_at).toLocaleDateString()}
-                      {e.status === 'held' && <> &middot; Held until {new Date(e.held_until).toLocaleDateString()}</>}
-                      {e.status === 'released' && e.released_at && <> &middot; Released {new Date(e.released_at).toLocaleDateString()}</>}
-                      {e.status === 'refunded' && e.refunded_at && <> &middot; Refunded {new Date(e.refunded_at).toLocaleDateString()}</>}
+                      {formatPrice(entry.amount)} &middot; Created {new Date(entry.createdAt).toLocaleDateString()}
+                      {entry.status === 'held' && entry.heldUntil && <> &middot; Held until {new Date(entry.heldUntil).toLocaleDateString()}</>}
+                      {entry.status === 'released' && entry.releasedAt && (
+                        <> &middot; Released {new Date(entry.releasedAt).toLocaleDateString()} &middot; Lister received {formatPrice(entry.payoutAmount ?? 0)}</>
+                      )}
+                      {entry.status === 'refunded' && entry.refundedAt && (
+                        <>
+                          {' '}&middot; Refunded {new Date(entry.refundedAt).toLocaleDateString()}
+                          {entry.refundAmount != null && <> &middot; Hunter received {formatPrice(entry.refundAmount)}</>}
+                        </>
+                      )}
                     </p>
                   </div>
                   <div className="flex gap-2 shrink-0 flex-wrap justify-end">
-                    {e.status === 'held' && (
+                    {entry.status === 'held' && entry.source === 'legacy' && legacyEscrow && (
                       <>
-                        <Button size="sm" onClick={() => handleAction(e.id, 'release', 'Release funds')} loading={actionLoading === e.id}
-                          className="bg-green-600 hover:bg-green-700 text-white text-xs px-2.5 py-1">
+                        <Button size="sm" onClick={() => handleAction(legacyEscrow.id, 'release', 'Release funds')} loading={actionLoading === legacyEscrow.id}
+                          className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-2.5 py-1">
                           <ArrowUpRight className="w-3 h-3 mr-1" /> Release
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setRefundModal({ escrow: e })} loading={actionLoading === e.id}
+                        <Button size="sm" variant="outline" onClick={() => setRefundModal({ escrow: legacyEscrow })} loading={actionLoading === legacyEscrow.id}
                           className="text-xs px-2.5 py-1">
                           <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => setExtendModal({ escrow: e })} loading={actionLoading === e.id}
+                        <Button size="sm" variant="outline" onClick={() => setExtendModal({ escrow: legacyEscrow })} loading={actionLoading === legacyEscrow.id}
                           className="text-xs px-2.5 py-1">
                           <Calendar className="w-3 h-3 mr-1" /> Extend
                         </Button>
                       </>
                     )}
-                    {e.status === 'released' && (
-                      <span className="text-xs px-2.5 py-1 rounded-lg bg-green-50 text-green-700 font-medium">Completed</span>
+                    {entry.status === 'held' && entry.source === 'house' && houseBooking && (
+                      <>
+                        <Button size="sm" onClick={() => handleHouseAction(houseBooking.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === houseBooking.id}
+                          className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-2.5 py-1">
+                          <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleHouseAction(houseBooking.id, 'house_refund', 'Refund hunter', refundPercent)} loading={actionLoading === houseBooking.id}
+                          className="text-xs px-2.5 py-1">
+                          <ArrowDownLeft className="w-3 h-3 mr-1" /> Refund hunter
+                        </Button>
+                      </>
                     )}
-                    {e.status === 'refunded' && (
+                    {entry.status === 'released' && (
+                      <span className="text-xs px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 font-medium">Completed</span>
+                    )}
+                    {entry.status === 'refunded' && (
                       <span className="text-xs px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 font-medium">Closed</span>
                     )}
                   </div>
@@ -715,7 +825,7 @@ export default function TreasuryPage() {
                     </td>
                     <td className="p-3">
                       <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
-                        tx.status === 'success' ? 'bg-green-100 text-green-700' :
+                        tx.status === 'success' ? 'bg-blue-100 text-blue-800' :
                         tx.status === 'failed' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
                       }`}>
                         {tx.status === 'success' ? <CheckCircle className="w-3 h-3" /> :
@@ -1006,7 +1116,7 @@ export default function TreasuryPage() {
             <div className="flex gap-2 justify-end">
               <Button variant="outline" onClick={() => setConfirmAction(null)}>Cancel</Button>
               <Button onClick={() => { executeConfirmedAction() }}
-                className={`text-white ${confirmAction.action.includes('release') || confirmAction.action === 'house_release' ? 'bg-green-600 hover:bg-green-700' : 'bg-amber-600 hover:bg-amber-700'}`}>
+                className={`text-white ${confirmAction.action.includes('release') || confirmAction.action === 'house_release' ? 'bg-blue-700 hover:bg-blue-800' : 'bg-amber-600 hover:bg-amber-700'}`}>
                 Confirm {confirmAction.label}
               </Button>
             </div>

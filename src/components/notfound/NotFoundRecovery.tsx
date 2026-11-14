@@ -149,7 +149,7 @@ export default function NotFoundRecovery() {
           className="inline-flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-[11px] font-medium text-gray-500 transition-colors hover:bg-gray-100 hover:text-gray-800 dark:text-gray-400 dark:hover:bg-slate-800 dark:hover:text-gray-100"
           aria-label="Copy broken link"
         >
-          {copied ? <Check className="h-3.5 w-3.5 text-[#30B54A]" /> : <Copy className="h-3.5 w-3.5" />}
+          {copied ? <Check className="h-3.5 w-3.5 text-[#1D4ED8]" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? 'Copied' : 'Copy'}
         </button>
       </div>
@@ -166,10 +166,10 @@ export default function NotFoundRecovery() {
               placeholder="Search a location, house type or title"
               aria-label="Search homes"
               autoComplete="off"
-              className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-9 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#30B54A] focus:ring-2 focus:ring-[#30B54A]/20 dark:border-slate-700 dark:bg-slate-950/60 dark:text-gray-100 dark:placeholder:text-gray-500"
+              className="w-full rounded-xl border border-gray-200 bg-white py-2.5 pl-9 pr-9 text-sm text-gray-900 outline-none transition-colors placeholder:text-gray-400 focus:border-[#1D4ED8] focus:ring-2 focus:ring-[#1D4ED8]/20 dark:border-slate-700 dark:bg-slate-950/60 dark:text-gray-100 dark:placeholder:text-gray-500"
             />
             {loading ? (
-              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#30B54A]" />
+              <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-[#1D4ED8]" />
             ) : query ? (
               <button
                 type="button"
@@ -186,7 +186,7 @@ export default function NotFoundRecovery() {
           </div>
           <button
             type="submit"
-            className="shrink-0 rounded-xl bg-[#30B54A] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#30B54A]/20 transition-colors hover:bg-[#27943d]"
+            className="shrink-0 rounded-xl bg-[#1D4ED8] px-4 py-2.5 text-sm font-semibold text-white shadow-md shadow-[#1D4ED8]/20 transition-colors hover:bg-[#1D4ED8]"
           >
             Search
           </button>
@@ -201,7 +201,7 @@ export default function NotFoundRecovery() {
                     href={`/listings/${house.id}`}
                     className="group flex items-center gap-3 px-3 py-2.5 transition-colors hover:bg-gray-50 dark:hover:bg-slate-800/60"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#30B54A]/10 text-[#30B54A] dark:bg-[#30B54A]/15 dark:text-[#6fdc84]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1D4ED8]/10 text-[#1D4ED8] dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]">
                       <HomeIcon className="h-4 w-4" />
                     </span>
                     <span className="min-w-0 flex-1">
@@ -223,7 +223,7 @@ export default function NotFoundRecovery() {
                         {house.rent ? '/ month' : 'booking fee'}
                       </span>
                     </span>
-                    <ArrowUpRight className="h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#30B54A] dark:text-gray-600" />
+                    <ArrowUpRight className="h-4 w-4 shrink-0 text-gray-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#1D4ED8] dark:text-gray-600" />
                   </Link>
                 </li>
               ))}
@@ -239,7 +239,7 @@ export default function NotFoundRecovery() {
                   href={supportHref}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="font-medium text-[#30B54A] hover:underline dark:text-[#6fdc84]"
+                  className="font-medium text-[#1D4ED8] hover:underline dark:text-[#93C5FD]"
                 >
                   ask us to find it
                 </a>
@@ -264,7 +264,7 @@ export default function NotFoundRecovery() {
                   key={location.location}
                   type="button"
                   onClick={() => chooseLocation(location.location)}
-                  className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-[#30B54A]/40 hover:bg-[#30B54A]/5 hover:text-[#25803a] dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:border-[#30B54A]/40 dark:hover:text-[#6fdc84]"
+                  className="rounded-full border border-gray-200 bg-gray-50 px-2.5 py-1 text-xs font-medium text-gray-600 transition-colors hover:border-[#1D4ED8]/40 hover:bg-[#1D4ED8]/5 hover:text-[#1E40AF] dark:border-slate-700 dark:bg-slate-800 dark:text-gray-300 dark:hover:border-[#1D4ED8]/40 dark:hover:text-[#93C5FD]"
                 >
                   {location.location}
                   <span className="ml-1 text-gray-400 dark:text-gray-500">{location.count}</span>
@@ -279,7 +279,7 @@ export default function NotFoundRecovery() {
         href={supportHref}
         target="_blank"
         rel="noopener noreferrer"
-        className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-[#30B54A] dark:text-gray-400 dark:hover:text-[#6fdc84]"
+        className="inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 transition-colors hover:text-[#1D4ED8] dark:text-gray-400 dark:hover:text-[#93C5FD]"
       >
         <MessageCircle className="h-3.5 w-3.5" />
         Report this broken link on WhatsApp

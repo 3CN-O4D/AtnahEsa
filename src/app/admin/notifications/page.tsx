@@ -196,7 +196,7 @@ export default function AdminNotificationsPage() {
       {toast && (
         <div
           className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
-            toast.type === 'ok' ? 'bg-emerald-600 text-white' : 'bg-red-600 text-white'
+            toast.type === 'ok' ? 'bg-blue-700 text-white' : 'bg-red-600 text-white'
           }`}
         >
           {toast.message}
@@ -232,7 +232,7 @@ export default function AdminNotificationsPage() {
             onClick={() => setFilter(id)}
             className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
               filter === id
-                ? 'bg-emerald-600 text-white'
+                ? 'bg-blue-700 text-white'
                 : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800'
             }`}
           >
@@ -272,7 +272,7 @@ export default function AdminNotificationsPage() {
             >
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-800 dark:bg-blue-600/15 dark:text-blue-300">
                     <Bell className="h-3.5 w-3.5" />
                     {item.audience_label}
                   </span>
@@ -313,7 +313,7 @@ export default function AdminNotificationsPage() {
                     href={item.link}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-emerald-600 hover:underline"
+                    className="text-xs text-blue-700 hover:underline"
                   >
                     {item.link}
                   </a>

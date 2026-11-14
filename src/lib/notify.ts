@@ -15,7 +15,7 @@ const ADMINS = (process.env.ADMIN_EMAILS || 'asehanta@gmail.com')
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean)
-const BRAND = { name: 'AseHanta', blue: '#2563EB', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
+const BRAND = { name: 'AseHanta', blue: '#2563EB', gold: '#A97900', dark: '#1E293B', gray: '#64748B', bg: '#F8FAFC', card: '#FFFFFF', border: '#E2E8F0' }
 
 function esc(v: unknown): string {
   return String(v ?? '')
@@ -43,7 +43,7 @@ function baseHtml(body: string) {
 <tr><td style="padding:32px 32px 0">
 <table width="100%" cellpadding="0" cellspacing="0">
 <tr>
-<td style="vertical-align:middle"><span style="font-size:22px;font-weight:700;color:${BRAND.blue}">${BRAND.name}</span></td>
+<td style="vertical-align:middle"><span style="font-size:22px;font-weight:700;color:${BRAND.gold}">${BRAND.name}</span></td>
 <td style="vertical-align:middle;text-align:right"><span style="font-size:12px;color:${BRAND.gray}">Admin Notification</span></td>
 </tr>
 </table>
@@ -102,18 +102,18 @@ type Template = {
 const templates: Record<string, Template> = {
   'New House Request': { emoji: '🏠', color: '#2563EB', label: 'House Request' },
   'New Contact Submission': { emoji: '📬', color: '#7C3AED', label: 'Contact Form' },
-  'New User Registration': { emoji: '👤', color: '#059669', label: 'New User' },
+  'New User Registration': { emoji: '👤', color: '#1D4ED8', label: 'New User' },
   'New Listing Uploaded': { emoji: '🏡', color: '#D97706', label: 'New Listing' },
   'New House Booking': { emoji: '📋', color: '#0891B2', label: 'Booking' },
   'STK Push Initiated': { emoji: '💳', color: '#2563EB', label: 'STK Push' },
-  'Payment Successful': { emoji: '✅', color: '#059669', label: 'Payment Received' },
+  'Payment Successful': { emoji: '✅', color: '#1D4ED8', label: 'Payment Received' },
   'Payment Failed': { emoji: '❌', color: '#DC2626', label: 'Payment Failed' },
   'Manual Payment Verified': { emoji: '📱', color: '#7C3AED', label: 'Manual Payment' },
   'Manual Payment Submitted for Verification': { emoji: '⏳', color: '#D97706', label: 'Manual Payment Pending' },
   'Manual Payment Verification Failed': { emoji: '⚠️', color: '#DC2626', label: 'Verification Failed' },
-  'Manual Payment Verified by Daraja': { emoji: '✅', color: '#059669', label: 'Payment Confirmed' },
+  'Manual Payment Verified by Daraja': { emoji: '✅', color: '#1D4ED8', label: 'Payment Confirmed' },
   'Till Payment Received': { emoji: '🏦', color: '#2563EB', label: 'Till Payment' },
-  'B2C Refund Initiated': { emoji: '💰', color: '#059669', label: 'B2C Refund' },
+  'B2C Refund Initiated': { emoji: '💰', color: '#1D4ED8', label: 'B2C Refund' },
   'B2C Refund Failed': { emoji: '❌', color: '#DC2626', label: 'B2C Failed' },
 }
 
@@ -129,9 +129,9 @@ function detectTemplate(subject: string): Template {
 function statusBadge(status: string) {
   const s = status.toLowerCase()
   if (s === 'pending') return badge('Pending', '#FEF3C7', '#D97706')
-  if (s === 'success' || s === 'contacted' || s === 'fulfilled') return badge('Active', '#D1FAE5', '#059669')
+  if (s === 'success' || s === 'contacted' || s === 'fulfilled') return badge('Active', '#DBEAFE', '#1D4ED8')
   if (s === 'failed') return badge('Failed', '#FEE2E2', '#DC2626')
-  if (s === 'paid') return badge('Paid', '#D1FAE5', '#059669')
+  if (s === 'paid') return badge('Paid', '#DBEAFE', '#1D4ED8')
   return badge(status, '#E2E8F0', BRAND.gray)
 }
 

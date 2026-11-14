@@ -187,8 +187,8 @@ function SignUpForm() {
 
           <div className="mb-6 text-center">
             <div className="relative mx-auto mb-4 h-16 w-16">
-              <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-emerald-400/30 motion-reduce:animate-none" />
-              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 shadow-lg shadow-emerald-600/20 ring-1 ring-white/40">
+              <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-blue-400/30 motion-reduce:animate-none" />
+              <div className="relative flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-600 to-blue-600 shadow-lg shadow-blue-700/20 ring-1 ring-white/40">
                 <MailCheck className="h-7 w-7 text-white" />
               </div>
             </div>
@@ -220,7 +220,7 @@ function SignUpForm() {
             <Button
               type="submit"
               loading={loading}
-              className="w-full bg-gradient-to-r from-emerald-600 to-blue-600 shadow-lg shadow-blue-600/20 hover:brightness-110"
+              className="w-full bg-gradient-to-r from-blue-700 to-blue-600 shadow-lg shadow-blue-600/20 hover:brightness-110"
             >
               Verify &amp; create account <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
@@ -231,15 +231,15 @@ function SignUpForm() {
             <button
               onClick={handleResend}
               disabled={resending || resendIn > 0}
-              className="font-semibold text-emerald-600 transition-colors hover:underline disabled:cursor-not-allowed disabled:text-gray-400 dark:text-emerald-400"
+              className="font-semibold text-blue-700 transition-colors hover:underline disabled:cursor-not-allowed disabled:text-gray-400 dark:text-blue-400"
             >
               {resending ? 'Sending…' : resendIn > 0 ? `Resend in ${resendIn}s` : 'Resend code'}
             </button>
           </div>
 
           <p className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-gray-400">
-            <ShieldCheck className="h-3.5 w-3.5 text-emerald-500" />
-            Wrong address? <button onClick={backToForm} className="text-emerald-600 hover:underline">Edit your details</button>
+            <ShieldCheck className="h-3.5 w-3.5 text-blue-600" />
+            Wrong address? <button onClick={backToForm} className="text-blue-700 hover:underline">Edit your details</button>
           </p>
         </div>
       </AuthShell>
@@ -250,8 +250,8 @@ function SignUpForm() {
     <AuthShell>
       <div className="mb-6 text-center">
         <div className="relative mx-auto mb-4 h-16 w-16">
-          <span aria-hidden className="absolute inset-0 rounded-2xl bg-gradient-to-br from-emerald-400 to-blue-600 opacity-40 blur-lg animate-pulse-slow" />
-          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-500 to-blue-600 shadow-lg ring-1 ring-white/40">
+          <span aria-hidden className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 opacity-40 blur-lg animate-pulse-slow" />
+          <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-600 shadow-lg ring-1 ring-white/40">
             <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" fill sizes="64px" className="object-cover" />
           </div>
         </div>
@@ -263,11 +263,11 @@ function SignUpForm() {
 
       {/* Step rail */}
       <ol className="mb-6 flex items-center justify-center gap-2 text-[11px] font-semibold uppercase tracking-wider">
-        <li className="inline-flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400">
-          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-emerald-600 text-[10px] text-white shadow-sm">1</span>
+        <li className="inline-flex items-center gap-1.5 text-blue-700 dark:text-blue-400">
+          <span className="flex h-5 w-5 items-center justify-center rounded-full bg-blue-700 text-[10px] text-white shadow-sm">1</span>
           Details
         </li>
-        <li aria-hidden className="h-px w-8 bg-gradient-to-r from-emerald-400 to-gray-200 dark:to-gray-700" />
+        <li aria-hidden className="h-px w-8 bg-gradient-to-r from-blue-400 to-gray-200 dark:to-gray-700" />
         <li className="inline-flex items-center gap-1.5 text-gray-400">
           <span className="flex h-5 w-5 items-center justify-center rounded-full border border-gray-300 text-[10px] dark:border-gray-600">2</span>
           Verify
@@ -287,7 +287,7 @@ function SignUpForm() {
       <form onSubmit={handleSignUp} noValidate className="space-y-4">
         <fieldset>
           <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
-            <Sparkles className="h-3.5 w-3.5 text-emerald-500" /> I&apos;m here to…
+            <Sparkles className="h-3.5 w-3.5 text-blue-600" /> I&apos;m here to…
           </legend>
           <div className="grid grid-cols-2 gap-2.5">
             {[
@@ -303,19 +303,19 @@ function SignUpForm() {
                   aria-pressed={selected}
                   className={`group relative overflow-hidden rounded-xl border p-3 text-left transition-all duration-200 active:scale-[0.98] ${
                     selected
-                      ? 'border-emerald-500 bg-emerald-50/80 shadow-sm shadow-emerald-600/10 ring-1 ring-emerald-500 dark:border-emerald-500 dark:bg-emerald-950/30'
+                      ? 'border-blue-600 bg-blue-50/80 shadow-sm shadow-blue-700/10 ring-1 ring-blue-600 dark:border-blue-600 dark:bg-blue-950/30'
                       : 'border-gray-200 bg-white hover:border-gray-300 hover:shadow-sm dark:border-gray-700 dark:bg-slate-800/60 dark:hover:border-gray-500'
                   }`}
                 >
                   <span
                     className={`absolute right-2 top-2 flex h-4 w-4 items-center justify-center rounded-full transition-all duration-200 ${
-                      selected ? 'scale-100 bg-emerald-500 text-white' : 'scale-0 bg-transparent'
+                      selected ? 'scale-100 bg-blue-600 text-white' : 'scale-0 bg-transparent'
                     }`}
                   >
                     <Check className="h-2.5 w-2.5" />
                   </span>
-                  <Icon className={`h-5 w-5 transition-transform duration-300 group-hover:scale-110 ${selected ? 'text-emerald-600 dark:text-emerald-400' : 'text-gray-400'}`} />
-                  <p className={`mt-2 text-sm font-semibold ${selected ? 'text-emerald-800 dark:text-emerald-200' : 'text-gray-800 dark:text-gray-100'}`}>{title}</p>
+                  <Icon className={`h-5 w-5 transition-transform duration-300 group-hover:scale-110 ${selected ? 'text-blue-700 dark:text-blue-400' : 'text-gray-400'}`} />
+                  <p className={`mt-2 text-sm font-semibold ${selected ? 'text-blue-900 dark:text-blue-200' : 'text-gray-800 dark:text-gray-100'}`}>{title}</p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400">{copy}</p>
                 </button>
               )
@@ -375,16 +375,16 @@ function SignUpForm() {
           autoComplete="new-password"
         />
 
-        <label className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-gray-200 bg-gray-50/60 p-3 transition-colors hover:border-emerald-300 has-[:checked]:border-emerald-400 has-[:checked]:bg-emerald-50/70 dark:border-gray-700 dark:bg-slate-800/50 dark:has-[:checked]:border-emerald-700 dark:has-[:checked]:bg-emerald-950/20">
+        <label className="group flex cursor-pointer items-start gap-2.5 rounded-xl border border-gray-200 bg-gray-50/60 p-3 transition-colors hover:border-blue-300 has-[:checked]:border-blue-400 has-[:checked]:bg-blue-50/70 dark:border-gray-700 dark:bg-slate-800/50 dark:has-[:checked]:border-blue-800 dark:has-[:checked]:bg-blue-950/20">
           <input
             type="checkbox"
             checked={agreeTerms}
             onChange={(e) => { setAgreeTerms(e.target.checked); if (error) setError('') }}
-            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-emerald-600"
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded accent-blue-700"
           />
           <span className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
             I agree to the{' '}
-            <Link href="/terms" target="_blank" className="font-semibold text-emerald-600 hover:underline dark:text-emerald-400">
+            <Link href="/terms" target="_blank" className="font-semibold text-blue-700 hover:underline dark:text-blue-400">
               Terms for {role === 'lister' ? 'Listers' : 'House Hunters'}
             </Link>{' '}
             and consent to cookies being saved on my device for authentication.
@@ -394,20 +394,20 @@ function SignUpForm() {
         <Button
           type="submit"
           loading={loading}
-          className="w-full bg-gradient-to-r from-emerald-600 to-blue-600 shadow-lg shadow-blue-600/20 hover:brightness-110"
+          className="w-full bg-gradient-to-r from-blue-700 to-blue-600 shadow-lg shadow-blue-600/20 hover:brightness-110"
         >
           <UserRound className="mr-1.5 h-4 w-4" /> Create account
         </Button>
       </form>
 
       <p className="mt-4 flex items-center justify-center gap-1 text-[11px] text-gray-400">
-        <ShieldCheck className="h-3 w-3 text-emerald-500" />
+        <ShieldCheck className="h-3 w-3 text-blue-600" />
         Your details stay private. Hunters are never shown publicly on a booked house.
       </p>
 
       <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
         Already have an account?{' '}
-        <Link href={withCallbackUrl('/auth/signin', callbackUrl)} className="font-semibold text-emerald-600 hover:underline dark:text-emerald-400">
+        <Link href={withCallbackUrl('/auth/signin', callbackUrl)} className="font-semibold text-blue-700 hover:underline dark:text-blue-400">
           Sign in
         </Link>
       </p>

@@ -403,7 +403,7 @@ export default function TermsPage() {
       agreeNote={
         <>
           By creating an account or using the platform, you agree to these Terms and our Privacy commitments.
-          <Link href="/auth/signup" className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95">
+          <Link href="/auth/signup" className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95">
             Create an account
           </Link>
         </>

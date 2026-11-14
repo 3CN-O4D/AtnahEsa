@@ -33,7 +33,7 @@ type Tab = 'hunter' | 'lister'
 function StatusBadge({ release_status }: { release_status: string }) {
   const config: Record<string, { label: string; className: string }> = {
     pending: { label: 'In Escrow', className: 'bg-blue-100 text-blue-700' },
-    released: { label: 'Released', className: 'bg-green-100 text-green-700' },
+    released: { label: 'Released', className: 'bg-blue-100 text-blue-800' },
     refunded: { label: 'Refunded', className: 'bg-amber-100 text-amber-700' },
     refund_requested: { label: 'Refund Requested', className: 'bg-red-100 text-red-700' },
     rejected: { label: 'Rejected', className: 'bg-gray-100 text-gray-600' },
@@ -46,7 +46,7 @@ function ReleaseBadge({ release_status }: { release_status: string }) {
   const config: Record<string, { label: string; className: string }> = {
     pending: { label: 'Pending', className: 'bg-gray-100 text-gray-600' },
     held: { label: 'In Escrow', className: 'bg-blue-100 text-blue-700' },
-    paid: { label: 'Paid to Lister', className: 'bg-green-100 text-green-700' },
+    paid: { label: 'Paid to Lister', className: 'bg-blue-100 text-blue-800' },
     refunded: { label: 'Refunded', className: 'bg-amber-100 text-amber-700' },
     refund_requested: { label: 'Refund Requested', className: 'bg-red-100 text-red-700' },
   }
@@ -137,19 +137,19 @@ function ListerContact({ bookingId }: { bookingId: string }) {
   }
 
   return (
-    <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50/70 p-3 dark:border-emerald-900/60 dark:bg-emerald-950/20">
-      <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+    <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/70 p-3 dark:border-blue-950/60 dark:bg-blue-950/20">
+      <p className="text-[11px] font-bold uppercase tracking-wider text-blue-800 dark:text-blue-300">
         House contact unlocked
       </p>
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold text-gray-900 dark:text-white">{contact.name}</span>
         {contact.phone ? (
           <>
-            <a href={`tel:${contact.phone}`} className="inline-flex items-center gap-1 rounded-lg bg-emerald-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-emerald-700">
+            <a href={`tel:${contact.phone}`} className="inline-flex items-center gap-1 rounded-lg bg-blue-700 px-2.5 py-1 text-xs font-semibold text-white hover:bg-blue-800">
               <Phone className="h-3 w-3" /> {contact.phone}
             </a>
             {contact.whatsapp && (
-              <a href={contact.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-emerald-600 px-2.5 py-1 text-xs font-semibold text-emerald-700 hover:bg-emerald-50 dark:text-emerald-300">
+              <a href={contact.whatsapp} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 rounded-lg border border-blue-700 px-2.5 py-1 text-xs font-semibold text-blue-800 hover:bg-blue-50 dark:text-blue-300">
                 <MessageCircle className="h-3 w-3" /> WhatsApp
               </a>
             )}
@@ -158,7 +158,7 @@ function ListerContact({ bookingId }: { bookingId: string }) {
           <span className="text-xs text-gray-500 dark:text-gray-400">Phone shared by AseHanta support</span>
         )}
       </div>
-      <p className="mt-2 text-[11px] leading-relaxed text-emerald-800 dark:text-emerald-300/90">
+      <p className="mt-2 text-[11px] leading-relaxed text-blue-900 dark:text-blue-300/90">
         No answer, a no-show, or the house is not as advertised? Report it before escrow closes for a{' '}
         <strong>100% refund</strong>, or call AseHanta on{' '}
         <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="font-semibold underline underline-offset-2">{CONTACT_PHONE_DISPLAY}</a>{' '}
@@ -435,7 +435,7 @@ function MyBookingsInner() {
 
       <div className="space-y-4">
         {paymentsNotice && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm rounded-lg px-4 py-3">{paymentsNotice}</div>
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 text-blue-800 dark:text-blue-300 text-sm rounded-lg px-4 py-3">{paymentsNotice}</div>
           )}
           {paymentsError && (
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">{paymentsError}</div>
@@ -534,7 +534,7 @@ function MyBookingsInner() {
                           <button
                             onClick={() => openFeedback(hb, 'pleased')}
                             disabled={!!acting}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-50">
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50">
                             <ThumbsUp className="w-3.5 h-3.5" /> Confirm - I&apos;m pleased
                           </button>
                           <button
@@ -551,7 +551,7 @@ function MyBookingsInner() {
                       <div id={`feedback-${hb.id}`} className="mt-3 border-t dark:border-gray-700 pt-3 space-y-3">
                         <div className={`rounded-lg border p-3 text-xs leading-relaxed ${
                           feedbackFor.outcome === 'pleased'
-                            ? 'border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-900/20 dark:text-emerald-200'
+                            ? 'border-blue-200 bg-blue-50 text-blue-900 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-200'
                             : 'border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200'
                         }`}>
                           <p className="font-semibold mb-1">
@@ -662,7 +662,7 @@ function MyBookingsInner() {
                             disabled={!!acting}
                             className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg text-white disabled:opacity-50 ${
                               feedbackFor.outcome === 'pleased'
-                                ? 'bg-green-600 hover:bg-green-700'
+                                ? 'bg-blue-700 hover:bg-blue-800'
                                 : 'bg-red-600 hover:bg-red-700'
                             }`}>
                             {isActing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : feedbackFor.outcome === 'pleased' ? <ThumbsUp className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
@@ -679,11 +679,11 @@ function MyBookingsInner() {
                     )}
 
                     {isHeld && hb.confirmed_at && feedback?.outcome !== 'issue' && feedbackFor?.id !== hb.id && (
-                      <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 dark:border-emerald-800 dark:bg-emerald-900/20">
-                        <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-800 dark:text-emerald-200">
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900 dark:text-blue-200">
                           <CheckCircle className="w-3.5 h-3.5" /> Confirmed — admin verifying before payout
                         </p>
-                        <p className="mt-0.5 text-[11px] text-emerald-700 dark:text-emerald-300">
+                        <p className="mt-0.5 text-[11px] text-blue-800 dark:text-blue-300">
                           Your rating and review are saved. The lister is paid only after an admin checks the booking.
                         </p>
                       </div>
@@ -758,7 +758,7 @@ function MyBookingsInner() {
                           href={`https://wa.me/${hb.phone.replace(/[^0-9]/g, '')}`}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-green-600 text-white hover:bg-green-700"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-lg bg-blue-700 text-white hover:bg-blue-800"
                         >
                           <MessageCircle className="w-3.5 h-3.5" /> WhatsApp
                         </a>
@@ -803,7 +803,7 @@ function MyBookingsInner() {
               <div className="border-t dark:border-gray-700 px-4 py-2 bg-gray-50 dark:bg-slate-800/50 flex items-center justify-between">
                 <div className="flex items-center gap-2 text-xs text-gray-500">
                   {b.escrow_hold?.status === 'held' && <><CheckCircle className="w-3 h-3 text-blue-500" /> Escrow active</>}
-                  {b.escrow_hold?.status === 'released' && <><CheckCircle className="w-3 h-3 text-green-500" /> Funds released</>}
+                  {b.escrow_hold?.status === 'released' && <><CheckCircle className="w-3 h-3 text-blue-600" /> Funds released</>}
                   {b.escrow_hold?.status === 'refunded' && <><XCircle className="w-3 h-3 text-amber-500" /> Refunded {b.refund_amount ? `(${formatPrice(b.refund_amount)})` : ''}</>}
                 </div>
                 <Link href={`/booking/${b.id}`} className="text-xs text-blue-600 hover:underline font-medium">

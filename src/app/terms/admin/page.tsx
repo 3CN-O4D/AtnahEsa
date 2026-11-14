@@ -234,13 +234,13 @@ export default function TermsAdminPage() {
           allowed, ask before you act.
           <Link
             href="/terms"
-            className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+            className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95"
           >
             Read the general terms
           </Link>
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
             Handling a concern about an admin? Contact the support team through the{' '}
-            <Link href="/contact" className="font-medium text-[#30B54A] hover:underline">contact page</Link>.
+            <Link href="/contact" className="font-medium text-[#1D4ED8] hover:underline">contact page</Link>.
           </p>
         </>
       }

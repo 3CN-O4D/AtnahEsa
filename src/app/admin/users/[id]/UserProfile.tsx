@@ -30,13 +30,13 @@ export default function UserProfile({ profile, listings, bookings, transactions,
   const roleColors: Record<string, string> = {
     admin: 'bg-purple-100 text-purple-700',
     lister: 'bg-blue-100 text-blue-700',
-    hunter: 'bg-green-100 text-green-700',
+    hunter: 'bg-blue-100 text-blue-800',
   }
 
   const bookingStatusBadge = (status: string) => {
     const map: Record<string, { bg: string; text: string; icon: React.ReactNode }> = {
       pending: { bg: 'bg-amber-100', text: 'text-amber-700', icon: <Clock className="w-3 h-3" /> },
-      confirmed: { bg: 'bg-green-100', text: 'text-green-700', icon: <CheckCircle className="w-3 h-3" /> },
+      confirmed: { bg: 'bg-blue-100', text: 'text-blue-800', icon: <CheckCircle className="w-3 h-3" /> },
       cancelled: { bg: 'bg-red-100', text: 'text-red-700', icon: <XCircle className="w-3 h-3" /> },
       refunded: { bg: 'bg-gray-100', text: 'text-gray-600', icon: <RotateCcw className="w-3 h-3" /> },
     }
@@ -46,7 +46,7 @@ export default function UserProfile({ profile, listings, bookings, transactions,
 
   const listingStatusBadge = (status: string) => {
     const map: Record<string, string> = {
-      published: 'bg-green-100 text-green-700',
+      published: 'bg-blue-100 text-blue-800',
       pending: 'bg-amber-100 text-amber-700',
       booked: 'bg-blue-100 text-blue-700',
       taken: 'bg-gray-100 text-gray-600',
@@ -59,7 +59,7 @@ export default function UserProfile({ profile, listings, bookings, transactions,
     <div className="max-w-5xl mx-auto px-4 py-8">
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          toast.type === 'success' ? 'bg-blue-700 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.message}
         </div>
@@ -115,7 +115,7 @@ export default function UserProfile({ profile, listings, bookings, transactions,
           <p className="text-sm text-gray-500">{listings.filter((l) => l.status === 'published').length} published</p>
         </div>
         <div className="bg-white border rounded-xl p-4">
-          <div className="flex items-center gap-2 text-green-600 mb-1">
+          <div className="flex items-center gap-2 text-blue-700 mb-1">
             <BookOpen className="w-4 h-4" />
             <span className="text-xs font-medium uppercase tracking-wider">Bookings</span>
           </div>
@@ -172,7 +172,7 @@ export default function UserProfile({ profile, listings, bookings, transactions,
       {/* Bookings */}
       <div className="bg-white border rounded-xl mb-6">
         <div className="px-4 py-3 border-b flex items-center justify-between">
-          <h2 className="font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4 text-green-600" /> Bookings ({bookings.length})</h2>
+          <h2 className="font-semibold flex items-center gap-2"><BookOpen className="w-4 h-4 text-blue-700" /> Bookings ({bookings.length})</h2>
         </div>
         {bookings.length === 0 ? (
           <p className="text-gray-500 text-sm text-center py-6">No bookings.</p>
@@ -189,7 +189,7 @@ export default function UserProfile({ profile, listings, bookings, transactions,
                   <td className="p-2.5 font-mono text-xs text-gray-500">{b.id.slice(0, 8)}</td>
                   <td className="p-2.5 font-medium">{formatPrice(b.amount)}</td>
                   <td className="p-2.5">{bookingStatusBadge(b.status)}</td>
-                  <td className="p-2.5"><span className={`text-xs font-medium ${b.visit_status === 'completed' ? 'text-green-600' : b.visit_status === 'pending' ? 'text-amber-600' : 'text-gray-500'}`}>{b.visit_status}</span></td>
+                  <td className="p-2.5"><span className={`text-xs font-medium ${b.visit_status === 'completed' ? 'text-blue-700' : b.visit_status === 'pending' ? 'text-amber-600' : 'text-gray-500'}`}>{b.visit_status}</span></td>
                   <td className="p-2.5 text-xs text-gray-500">{b.release_status}</td>
                   <td className="p-2.5 text-gray-500 text-xs">{new Date(b.created_at).toLocaleDateString()}</td>
                 </tr>

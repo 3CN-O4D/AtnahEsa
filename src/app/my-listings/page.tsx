@@ -53,7 +53,7 @@ export default function MyListingsPage() {
   const statusBadge = (status: string) => {
     const colors: Record<string, string> = {
       pending: 'bg-amber-100 text-amber-700',
-      published: 'bg-green-100 text-green-700',
+      published: 'bg-blue-100 text-blue-800',
       booked: 'bg-amber-100 text-amber-700',
       taken: 'bg-red-100 text-red-700',
       rejected: 'bg-red-100 text-red-700',

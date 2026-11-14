@@ -154,7 +154,7 @@ export default function SearchBar({ onSearch, onToggleFilters }: SearchBarProps)
       <div ref={containerRef} className="relative flex-1">
         <Search className="pointer-events-none absolute left-3 top-1/2 z-10 h-4 w-4 -translate-y-1/2 text-gray-400 transition-colors duration-200" />
         {loading && (
-          <Loader2 className="absolute right-10 top-1/2 z-10 h-4 w-4 -translate-y-1/2 animate-spin text-[#30B54A]" />
+          <Loader2 className="absolute right-10 top-1/2 z-10 h-4 w-4 -translate-y-1/2 animate-spin text-[#1D4ED8]" />
         )}
         <input
           ref={inputRef}
@@ -173,7 +173,7 @@ export default function SearchBar({ onSearch, onToggleFilters }: SearchBarProps)
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls="search-suggestions"
-          className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 transition-all duration-200 hover:border-gray-400 focus:border-[#30B54A] focus:outline-none focus:ring-2 focus:ring-[#30B54A]/30 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
+          className="h-10 w-full rounded-lg border border-gray-300 bg-white pl-10 pr-10 text-sm text-gray-900 transition-all duration-200 hover:border-gray-400 focus:border-[#1D4ED8] focus:outline-none focus:ring-2 focus:ring-[#1D4ED8]/30 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-100"
         />
         {query && (
           <button
@@ -209,7 +209,7 @@ export default function SearchBar({ onSearch, onToggleFilters }: SearchBarProps)
                       onMouseEnter={() => setActiveIndex(optionIndex)}
                       onClick={() => choose({ kind: 'house', house })}
                       className={`flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors ${
-                        active ? 'bg-[#e8f8eb] dark:bg-[#30B54A]/15' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
+                        active ? 'bg-[#EFF6FF] dark:bg-[#1D4ED8]/15' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
                       }`}
                     >
                       <span className="relative flex h-10 w-12 shrink-0 items-center justify-center overflow-hidden rounded-md bg-gray-100 dark:bg-slate-800">
@@ -253,10 +253,10 @@ export default function SearchBar({ onSearch, onToggleFilters }: SearchBarProps)
                       onMouseEnter={() => setActiveIndex(optionIndex)}
                       onClick={() => choose({ kind: 'location', location })}
                       className={`flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left transition-colors ${
-                        active ? 'bg-[#e8f8eb] dark:bg-[#30B54A]/15' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
+                        active ? 'bg-[#EFF6FF] dark:bg-[#1D4ED8]/15' : 'hover:bg-gray-50 dark:hover:bg-slate-800'
                       }`}
                     >
-                      <MapPin className="h-4 w-4 text-[#30B54A]" />
+                      <MapPin className="h-4 w-4 text-[#1D4ED8]" />
                       <span className="flex-1 truncate text-sm text-gray-700 dark:text-gray-200">{location.location}</span>
                       <span className="text-[11px] text-gray-400">{location.count} home{location.count !== 1 ? 's' : ''}</span>
                       <ArrowRight className="h-3.5 w-3.5 text-gray-300" />
@@ -279,7 +279,7 @@ export default function SearchBar({ onSearch, onToggleFilters }: SearchBarProps)
               <span className="hidden sm:inline">↑ ↓ to move · Enter to choose</span>
               <button
                 type="submit"
-                className="font-semibold text-[#2a9c40] transition-colors hover:text-[#1f7a30] dark:text-[#6fdc84]"
+                className="font-semibold text-[#1E40AF] transition-colors hover:text-[#1E40AF] dark:text-[#93C5FD]"
               >
                 Search all houses →
               </button>

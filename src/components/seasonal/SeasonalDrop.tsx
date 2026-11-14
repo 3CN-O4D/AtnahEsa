@@ -7,7 +7,7 @@ import { useTheme } from '@/lib/ThemeProvider'
  * Seasonal hanging decoration for the home + auth pages.
  *
  * Holiday season (Thanksgiving → Christmas). Dark mode drops a glowing bauble,
- * star, snowflake, bell, candy cane or lantern. Light mode drops a green bauble,
+ * star, snowflake, bell, candy cane or lantern. Light mode drops a blue bauble,
  * gingerbread cookie, pinecone, star, snowflake, bell or candy cane. Shapes are
  * pure CSS so they look the same on every platform, they are `aria-hidden`,
  * they never capture clicks, and the whole thing only appears once the theme
@@ -17,7 +17,7 @@ import { useTheme } from '@/lib/ThemeProvider'
 
 type Variant =
   | 'bauble-red'
-  | 'bauble-green'
+  | 'bauble-blue'
   | 'bauble-gold'
   | 'star'
   | 'snowflake'
@@ -28,11 +28,11 @@ type Variant =
   | 'lantern'
 
 const DARK_VARIANTS: Variant[] = ['bauble-red', 'bauble-gold', 'star', 'snowflake', 'bell', 'candycane', 'lantern']
-const LIGHT_VARIANTS: Variant[] = ['bauble-green', 'gingerbread', 'pinecone', 'star', 'snowflake', 'bell', 'candycane']
+const LIGHT_VARIANTS: Variant[] = ['bauble-blue', 'gingerbread', 'pinecone', 'star', 'snowflake', 'bell', 'candycane']
 
 const FLAKE_ANGLES = [0, 30, 60, 90, 120, 150]
 
-function Bauble({ tone }: { tone: 'red' | 'green' | 'gold' }) {
+function Bauble({ tone }: { tone: 'red' | 'blue' | 'gold' }) {
   return (
     <div className={`seasonal-bauble bauble-${tone}`}>
       <span className="bauble-loop" />
@@ -132,8 +132,8 @@ function Creature({ variant }: { variant: Variant }) {
   switch (variant) {
     case 'bauble-red':
       return <Bauble tone="red" />
-    case 'bauble-green':
-      return <Bauble tone="green" />
+    case 'bauble-blue':
+      return <Bauble tone="blue" />
     case 'bauble-gold':
       return <Bauble tone="gold" />
     case 'star':

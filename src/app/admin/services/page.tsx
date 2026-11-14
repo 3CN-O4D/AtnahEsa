@@ -251,7 +251,7 @@ export default function AdminServicesPage() {
     <div className="max-w-5xl mx-auto px-4 py-8">
       {toast && (
         <div className={`fixed top-4 right-4 z-50 px-4 py-3 rounded-xl text-sm font-medium shadow-lg transition-all ${
-          toast.type === 'success' ? 'bg-green-600 text-white' : 'bg-red-600 text-white'
+          toast.type === 'success' ? 'bg-blue-700 text-white' : 'bg-red-600 text-white'
         }`}>
           {toast.message}
         </div>
@@ -462,7 +462,7 @@ export default function AdminServicesPage() {
                   <a href={`tel:${b.phone}`} className="text-xs flex items-center gap-1 text-blue-600 hover:underline">
                     <Phone className="w-3 h-3" /> Call
                   </a>
-                  <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-green-600 hover:underline">
+                  <a href={`https://wa.me/254${b.phone.replace(/^0+/, '')}?text=Hi ${b.name}, regarding your ${b.package_name} booking.`} target="_blank" rel="noopener noreferrer" className="text-xs flex items-center gap-1 text-blue-700 hover:underline">
                     <MessageCircle className="w-3 h-3" /> WhatsApp
                   </a>
                 </div>

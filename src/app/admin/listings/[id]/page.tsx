@@ -145,7 +145,7 @@ export default function AdminEditListingPage() {
         <h1 className="text-2xl font-bold">Edit Listing</h1>
         {listing && (
           <span className={`inline-flex px-2 py-0.5 rounded-full text-xs font-medium ${
-            listing.status === 'published' ? 'bg-green-100 text-green-700' :
+            listing.status === 'published' ? 'bg-blue-100 text-blue-800' :
             listing.status === 'booked' ? 'bg-blue-100 text-blue-700' :
             listing.status === 'taken' ? 'bg-red-100 text-red-700' :
             listing.status === 'pending' ? 'bg-amber-100 text-amber-700' :
@@ -217,7 +217,7 @@ export default function AdminEditListingPage() {
         </div>
 
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-xl p-3">{success}</p>}
+        {success && <p className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-xl p-3">{success}</p>}
 
         <div className="flex gap-3">
           <Button type="submit" loading={saving} className="flex-1" size="lg">Save Changes</Button>

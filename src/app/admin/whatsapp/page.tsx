@@ -129,7 +129,7 @@ const MODE_META: Record<BotMode, { label: string; short: string; dot: string; bl
   autonomous: {
     label: 'Autonomous',
     short: 'No approvals',
-    dot: 'bg-emerald-500',
+    dot: 'bg-blue-600',
     blurb: 'Ase answers, posts and acts on its own. Nothing waits for a human.',
   },
   regular: {
@@ -162,7 +162,7 @@ function when(value: string | null) {
 function statusClass(status: Marketing['status']) {
   switch (status) {
     case 'sent':
-      return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300'
+      return 'bg-blue-100 text-blue-900 dark:bg-blue-600/15 dark:text-blue-300'
     case 'approved':
     case 'scheduled':
       return 'bg-sky-100 text-sky-800 dark:bg-sky-500/15 dark:text-sky-300'
@@ -543,7 +543,7 @@ export default function AdminWhatsAppPage() {
         <div
           className={`fixed right-4 top-4 z-50 rounded-xl px-4 py-3 text-sm font-medium shadow-lg ${
             toast.type === 'ok'
-              ? 'bg-emerald-600 text-white'
+              ? 'bg-blue-700 text-white'
               : 'bg-red-600 text-white'
           }`}
         >
@@ -585,7 +585,7 @@ export default function AdminWhatsAppPage() {
                         ? option.mode === 'off'
                           ? 'bg-amber-500 text-white'
                           : option.mode === 'autonomous'
-                            ? 'bg-emerald-600 text-white'
+                            ? 'bg-blue-700 text-white'
                             : 'bg-sky-600 text-white'
                         : 'bg-white text-gray-600 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800'
                     }`}
@@ -617,7 +617,7 @@ export default function AdminWhatsAppPage() {
               onClick={() => setTab(item.id)}
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition ${
                 active
-                  ? 'bg-emerald-600 text-white'
+                  ? 'bg-blue-700 text-white'
                   : 'bg-white text-gray-700 hover:bg-gray-50 dark:bg-slate-900 dark:text-gray-300 dark:hover:bg-slate-800'
               }`}
             >
@@ -685,7 +685,7 @@ export default function AdminWhatsAppPage() {
                   type="checkbox"
                   checked={Boolean(control?.marketing_enabled)}
                   onChange={(event) => void patchControl({ marketing_enabled: event.target.checked }, 'marketing')}
-                  className="h-4 w-4 rounded border-gray-300 text-emerald-600"
+                  className="h-4 w-4 rounded border-gray-300 text-blue-700"
                 />
                 Marketing enabled
               </label>
@@ -761,7 +761,7 @@ export default function AdminWhatsAppPage() {
             <div className="mt-4 space-y-3 text-sm">
               <div>
                 <div className="flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" /> Allowlist
+                  <CheckCircle2 className="h-4 w-4 text-blue-600" /> Allowlist
                 </div>
                 <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                   {control?.allowlist?.length
@@ -773,7 +773,7 @@ export default function AdminWhatsAppPage() {
                     <button
                       key={phone}
                       onClick={() => void patchControl({ list_action: 'allow-remove', phone }, 'list')}
-                      className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-600/15 dark:text-blue-300"
                       title="Remove"
                     >
                       +{phone} ×
@@ -886,7 +886,7 @@ export default function AdminWhatsAppPage() {
               <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 <span>{item.name || 'Unknown'}</span>
                 {item.phone && (
-                  <a href={`https://wa.me/${item.phone}`} target="_blank" rel="noreferrer" className="text-emerald-600 hover:underline">
+                  <a href={`https://wa.me/${item.phone}`} target="_blank" rel="noreferrer" className="text-blue-700 hover:underline">
                     +{item.phone}
                   </a>
                 )}
@@ -992,7 +992,7 @@ export default function AdminWhatsAppPage() {
                     href={item.image_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="text-xs text-emerald-600 hover:underline"
+                    className="text-xs text-blue-700 hover:underline"
                   >
                     Listing photo
                   </a>
@@ -1097,7 +1097,7 @@ export default function AdminWhatsAppPage() {
                       type="checkbox"
                       checked={group.enabled}
                       onChange={(event) => void patchGroup(group, { enabled: event.target.checked })}
-                      className="h-4 w-4 rounded border-gray-300 text-emerald-600"
+                      className="h-4 w-4 rounded border-gray-300 text-blue-700"
                     />
                     Enabled
                   </label>
@@ -1244,7 +1244,7 @@ export default function AdminWhatsAppPage() {
                       className={`max-w-[82%] rounded-xl px-3 py-2 text-sm ${
                         message.role === 'user'
                           ? 'bg-[#202c33] text-[#e9edef]'
-                          : 'bg-[#005c4b] text-[#e9edef]'
+                          : 'bg-[#1E3A8A] text-[#e9edef]'
                       }`}
                     >
                       <div className="mb-1 flex justify-between gap-3 text-[10px] text-gray-400">

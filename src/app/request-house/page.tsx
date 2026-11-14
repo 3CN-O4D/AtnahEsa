@@ -302,12 +302,12 @@ export default function RequestHousePage() {
     return (
       <div className="relative min-h-screen overflow-hidden">
         <div className="pointer-events-none absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
-        <div className="pointer-events-none absolute top-40 -right-20 h-72 w-72 rounded-full bg-emerald-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute top-40 -right-20 h-72 w-72 rounded-full bg-blue-400/20 blur-3xl" />
         <div className="relative max-w-xl mx-auto px-4 py-16 sm:py-24">
           <div className="rounded-3xl border border-gray-200/80 dark:border-gray-700 bg-white/90 dark:bg-slate-900/90 shadow-xl backdrop-blur p-7 sm:p-10 text-center animate-scaleIn">
             <div className="relative w-20 h-20 mx-auto mb-5">
-              <span className="absolute inset-0 rounded-full bg-emerald-400/30 animate-ping" />
-              <div className="relative w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-full flex items-center justify-center shadow-lg shadow-emerald-500/30">
+              <span className="absolute inset-0 rounded-full bg-blue-400/30 animate-ping" />
+              <div className="relative w-20 h-20 bg-gradient-to-br from-blue-600 to-sky-700 rounded-full flex items-center justify-center shadow-lg shadow-blue-600/30">
                 <Check className="w-10 h-10 text-white" strokeWidth={3} />
               </div>
             </div>
@@ -455,9 +455,9 @@ export default function RequestHousePage() {
                     onChange={(e) => update('whatsapp', e.target.value)}
                     error={fieldErrors.whatsapp}
                   />
-                  <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-emerald-50/70 dark:bg-emerald-900/20 border border-emerald-100 dark:border-emerald-800/60 px-2.5 py-2">
-                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400 mt-0.5 shrink-0" />
-                    <p className="text-[11px] leading-relaxed text-emerald-800 dark:text-emerald-300">
+                  <div className="mt-1.5 flex items-start gap-2 rounded-lg bg-blue-50/70 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/60 px-2.5 py-2">
+                    <MessageCircle className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400 mt-0.5 shrink-0" />
+                    <p className="text-[11px] leading-relaxed text-blue-900 dark:text-blue-300">
                       Prefilled with your phone number. You can edit it or use your WhatsApp username (e.g.{' '}
                       <span className="font-semibold">@janedoe</span>).
                     </p>
@@ -585,12 +585,12 @@ export default function RequestHousePage() {
               </ol>
             </div>
 
-            <div className="rounded-2xl border border-emerald-200/70 dark:border-emerald-800/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-5">
+            <div className="rounded-2xl border border-blue-200/70 dark:border-blue-900/60 bg-blue-50/70 dark:bg-blue-950/30 p-5">
               <div className="flex items-start gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                <ShieldCheck className="w-5 h-5 text-blue-700 dark:text-blue-400 shrink-0 mt-0.5" />
                 <div>
-                  <p className="text-sm font-semibold text-emerald-900 dark:text-emerald-200">Your privacy matters</p>
-                  <p className="mt-1 text-xs leading-relaxed text-emerald-800 dark:text-emerald-300">
+                  <p className="text-sm font-semibold text-blue-950 dark:text-blue-200">Your privacy matters</p>
+                  <p className="mt-1 text-xs leading-relaxed text-blue-900 dark:text-blue-300">
                     Your contact details stay hidden from the public. Only our team and the lister you match with can reach you.
                   </p>
                 </div>
@@ -604,7 +604,7 @@ export default function RequestHousePage() {
                 rel="noopener noreferrer"
                 className="group flex items-center gap-3 rounded-2xl border border-gray-200/80 dark:border-gray-700 bg-white/85 dark:bg-slate-900/85 p-4 backdrop-blur shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
               >
-                <span className="grid h-10 w-10 place-items-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-400">
+                <span className="grid h-10 w-10 place-items-center rounded-xl bg-blue-100 dark:bg-blue-950/40 text-blue-700 dark:text-blue-400">
                   <MessageCircle className="w-5 h-5" />
                 </span>
                 <span className="min-w-0">

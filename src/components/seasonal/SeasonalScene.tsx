@@ -25,7 +25,7 @@ type Bulb = { left: number; top: number; delay: number; color: string; glow: str
 const BULB_COLORS = [
   { color: '#fbbf24', glow: 'rgba(251, 191, 36, 0.75)' },
   { color: '#f87171', glow: 'rgba(248, 113, 113, 0.75)' },
-  { color: '#4ade80', glow: 'rgba(74, 222, 128, 0.75)' },
+  { color: '#60A5FA', glow: 'rgba(96, 165, 250, 0.75)' },
   { color: '#60a5fa', glow: 'rgba(96, 165, 250, 0.75)' },
   { color: '#fef3c7', glow: 'rgba(254, 243, 199, 0.8)' },
 ]

@@ -107,8 +107,8 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
         ) : (
           <>
             <div className="text-center py-4">
-              <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
-                <Check className="w-6 h-6 text-green-600" />
+              <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Check className="w-6 h-6 text-blue-700" />
               </div>
               <h2 className="text-lg font-bold mb-1">Request Submitted!</h2>
               <p className="text-sm text-gray-500 mb-4">
@@ -139,7 +139,7 @@ export default function WifiBookingModal({ pkg, onClose }: WifiBookingModalProps
               <a href={`https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
                 `Hi AseHanta! I'm interested in the ${pkg.name} (${pkg.speed}) at ${formatPrice(pkg.price)}/month.\n\nName: ${name}\nPhone: ${contactPhone}\nArea: ${area}\nID No: ${idNumber}`
               )}`} target="_blank" rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 bg-green-600 text-white rounded-xl py-3 text-sm font-medium hover:bg-green-700 transition-colors">
+                className="flex-1 flex items-center justify-center gap-2 bg-blue-700 text-white rounded-xl py-3 text-sm font-medium hover:bg-blue-800 transition-colors">
                 <MessageCircle className="w-4 h-4" /> WhatsApp Now
               </a>
               <a href={`tel:${CONTACT_PHONE}`}

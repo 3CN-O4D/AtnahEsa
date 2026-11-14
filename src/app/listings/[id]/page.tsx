@@ -269,7 +269,7 @@ export default function ListingDetailPage() {
   const isTaken = listing.status === 'taken'
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(80rem_40rem_at_50%_-10%,rgba(48,181,74,0.10),transparent_60%)] dark:bg-none">
+    <div className="min-h-screen bg-[radial-gradient(80rem_40rem_at_50%_-10%,rgba(29,78,216,0.10),transparent_60%)] dark:bg-none">
       <div className="mx-auto max-w-6xl px-4 py-6 sm:py-9">
       <button
         onClick={() => router.back()}
@@ -316,7 +316,7 @@ export default function ListingDetailPage() {
           <div className="absolute left-3 top-3 rounded-full bg-red-600/95 px-3 py-1 text-xs font-bold uppercase tracking-wider text-white shadow-lg ring-1 ring-white/30">Taken</div>
         )}
         {listing.status === 'published' && (
-          <div className="absolute left-3 top-3 rounded-full bg-[#30B54A]/95 px-3 py-1 text-xs font-semibold text-white shadow-lg ring-1 ring-white/30">Available now</div>
+          <div className="absolute left-3 top-3 rounded-full bg-[#1D4ED8]/95 px-3 py-1 text-xs font-semibold text-white shadow-lg ring-1 ring-white/30">Available now</div>
         )}
 
         <div className="pointer-events-none absolute inset-x-3 bottom-3 flex flex-wrap items-end justify-between gap-2">
@@ -342,8 +342,8 @@ export default function ListingDetailPage() {
           <div className="mb-2 flex flex-wrap items-center gap-2">
             {listing.house_type && <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700 dark:bg-blue-950/40 dark:text-blue-300">{listing.house_type}</span>}
             {listing.building_type && <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs text-gray-600 dark:bg-slate-800 dark:text-gray-300">{listing.building_type === 'storey' ? `Storey${listing.floor_number ? ` - ${listing.floor_number}` : ''}` : 'Flat'}</span>}
-            {listing.vacancy && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#e8f8eb] text-[#238c39] dark:bg-green-950/40 dark:text-green-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">Escrow protected</span>
+            {listing.vacancy && <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#EFF6FF] text-[#1D4ED8] dark:bg-blue-950/40 dark:text-blue-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>{listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}</span>}
+            <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">Escrow protected</span>
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">{listing.title}</h1>
           <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
@@ -357,9 +357,9 @@ export default function ListingDetailPage() {
             <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 dark:text-blue-300">Rent</p>
             <p className="text-xl font-bold text-blue-800 dark:text-blue-100">{formatPrice(listing.rent)}<span className="text-xs font-medium text-blue-500 dark:text-blue-300">/mo</span></p>
           </div>
-          <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 px-4 py-2.5 text-right dark:border-emerald-900/50 dark:bg-emerald-950/25">
-            <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 dark:text-emerald-300">Booking fee</p>
-            <p className="text-xl font-bold text-emerald-800 dark:text-emerald-100">{formatPrice(listing.price)}</p>
+          <div className="rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-2.5 text-right dark:border-blue-950/50 dark:bg-blue-950/25">
+            <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 dark:text-blue-300">Booking fee</p>
+            <p className="text-xl font-bold text-blue-900 dark:text-blue-100">{formatPrice(listing.price)}</p>
           </div>
         </div>
       </header>
@@ -386,9 +386,9 @@ export default function ListingDetailPage() {
               </div>
             )}
             {listing.water && (
-              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-center dark:border-emerald-900/50 dark:bg-emerald-950/30">
-                <p className="text-xs font-medium text-emerald-600 dark:text-emerald-300">Water</p>
-                <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-100">{listing.water}</p>
+              <div className="rounded-xl border border-blue-100 bg-blue-50 p-3 text-center dark:border-blue-950/50 dark:bg-blue-950/30">
+                <p className="text-xs font-medium text-blue-700 dark:text-blue-300">Water</p>
+                <p className="text-sm font-semibold text-blue-900 dark:text-blue-100">{listing.water}</p>
               </div>
             )}
           </div>
@@ -519,7 +519,7 @@ export default function ListingDetailPage() {
                   <div>
                     <button onClick={() => setListerModalOpen(true)} className="font-semibold text-gray-900 dark:text-white text-lg flex items-center gap-1.5 hover:underline text-left">
                       {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
-                      {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-green-500" /></span>}
+                      {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-600" /></span>}
                       {lister.role !== 'admin' && lister.verified && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
                     </button>
                     <div className="flex items-center gap-2 mt-0.5">
@@ -530,7 +530,7 @@ export default function ListingDetailPage() {
                     <p className="text-xs text-blue-600 dark:text-white font-medium mt-0.5">{lister.average_rating} out of 5</p>
                   )}
                   {lister.role === 'admin' && (
-                    <p className="official-badge mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-700 dark:text-emerald-300">
+                    <p className="official-badge mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-800 dark:text-blue-300">
                       <BadgeCheck className="h-3 w-3" /> Official Listing of AseHanta
                     </p>
                   )}
@@ -544,7 +544,7 @@ export default function ListingDetailPage() {
                 {phoneUnlocked && listerContact?.phone ? (
                   <a
                     href={`tel:${listerContact.phone}`}
-                    className="text-green-600 dark:text-green-400 hover:underline font-medium flex items-center gap-1"
+                    className="text-blue-700 dark:text-blue-400 hover:underline font-medium flex items-center gap-1"
                   >
                     <PhoneIcon className="w-3.5 h-3.5" /> {listerContact.phone}
                   </a>
@@ -743,7 +743,7 @@ export default function ListingDetailPage() {
                 <p className="text-2xl font-bold text-gray-900 dark:text-white">{formatPrice(listing.rent)}</p>
               </div>
               {listing.vacancy && (
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#e8f8eb] text-[#238c39] dark:bg-green-950/40 dark:text-green-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'bg-[#EFF6FF] text-[#1D4ED8] dark:bg-blue-950/40 dark:text-blue-300' : 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300'}`}>
                   {listing.vacancy === 'available' || listing.vacancy === 'vacant' ? 'Available' : 'Pending'}
                 </span>
               )}
@@ -757,7 +757,7 @@ export default function ListingDetailPage() {
               <p className="mt-1 text-xs text-blue-600/80 dark:text-blue-300/80">Paid once to book a viewing. Held safely until you decide.</p>
             </div>
 
-            <div className="rounded-xl border border-emerald-100 bg-emerald-50/70 p-3.5 text-xs text-emerald-800 dark:border-emerald-900/50 dark:bg-emerald-950/25 dark:text-emerald-200">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/70 p-3.5 text-xs text-blue-900 dark:border-blue-950/50 dark:bg-blue-950/25 dark:text-blue-200">
               <p className="mb-1.5 flex items-center gap-1.5 font-semibold">
                 <ShieldCheck className="h-4 w-4" /> Escrow protected
               </p>
@@ -817,7 +817,7 @@ export default function ListingDetailPage() {
                 href={LISTING_SUPPORT_LINK}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 py-2 text-sm font-medium text-emerald-700 transition-colors hover:bg-emerald-100 dark:border-emerald-800/60 dark:bg-emerald-900/20 dark:text-emerald-300 dark:hover:bg-emerald-900/30"
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 py-2 text-sm font-medium text-blue-800 transition-colors hover:bg-blue-100 dark:border-blue-900/60 dark:bg-blue-950/20 dark:text-blue-300 dark:hover:bg-blue-950/30"
               >
                 <MessageCircle className="w-4 h-4" /> Need help booking? WhatsApp us
               </a>
@@ -867,7 +867,7 @@ export default function ListingDetailPage() {
               <div>
                 <p className="font-semibold text-lg text-gray-900 dark:text-white flex items-center gap-1.5">
                   {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
-                  {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-green-500" /></span>}
+                  {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-600" /></span>}
                   {lister.role !== 'admin' && lister.verified && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
                 </p>
                 <div className="flex items-center gap-2 mt-1">

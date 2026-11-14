@@ -42,12 +42,12 @@ export default function TermsListerPage() {
       agreeNote={
         <>
           By creating an account or listing a house, you agree to these Terms and our Privacy commitments.
-          <Link href="/auth/signup" className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95">
+          <Link href="/auth/signup" className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95">
             Create an account
           </Link>
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
-            Need the full combined version? <Link href="/terms" className="text-[#30B54A] hover:underline font-medium">View all Terms &amp; Conditions</Link> — or{' '}
-            <Link href="/terms/hunter" className="text-[#30B54A] hover:underline font-medium">terms for hunters</Link>.
+            Need the full combined version? <Link href="/terms" className="text-[#1D4ED8] hover:underline font-medium">View all Terms &amp; Conditions</Link> — or{' '}
+            <Link href="/terms/hunter" className="text-[#1D4ED8] hover:underline font-medium">terms for hunters</Link>.
           </p>
         </>
       }

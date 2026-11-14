@@ -75,14 +75,14 @@ export default function TermsVisitorPage() {
           By continuing to browse AseHanta you accept these visitor terms and our privacy commitments.
           <Link
             href="/"
-            className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+            className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95"
           >
             Browse available homes
           </Link>
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
             Planning to book or list? Read the{' '}
-            <Link href="/terms/hunter" className="font-medium text-[#30B54A] hover:underline">hunter terms</Link> or the{' '}
-            <Link href="/terms/lister" className="font-medium text-[#30B54A] hover:underline">lister terms</Link>.
+            <Link href="/terms/hunter" className="font-medium text-[#1D4ED8] hover:underline">hunter terms</Link> or the{' '}
+            <Link href="/terms/lister" className="font-medium text-[#1D4ED8] hover:underline">lister terms</Link>.
           </p>
         </>
       }

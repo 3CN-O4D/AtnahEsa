@@ -26,7 +26,7 @@ export default function StatsPage() {
 
   const items = [
     { label: 'Houses Listed', value: stats.houses, icon: Home, color: 'text-blue-600', bg: 'bg-blue-100' },
-    { label: 'Bookings Made', value: stats.bookings, icon: CalendarCheck, color: 'text-green-600', bg: 'bg-green-100' },
+    { label: 'Bookings Made', value: stats.bookings, icon: CalendarCheck, color: 'text-blue-700', bg: 'bg-blue-100' },
     { label: 'House Hunters', value: stats.hunters, icon: Users, color: 'text-purple-600', bg: 'bg-purple-100' },
     { label: 'Property Listers', value: stats.listers, icon: Building, color: 'text-amber-600', bg: 'bg-amber-100' },
   ]
@@ -52,7 +52,7 @@ export default function StatsPage() {
         ))}
       </div>
 
-      <div className="mt-12 bg-gradient-to-r from-blue-50 to-green-50 rounded-2xl p-8 text-center">
+      <div className="mt-12 bg-gradient-to-r from-blue-50 to-blue-50 rounded-2xl p-8 text-center">
         <h2 className="text-xl font-bold text-gray-800 mb-2">Ready to find your next home?</h2>
         <p className="text-gray-500 mb-6">Join thousands of happy hunters and listers on AseHanta.</p>
         <Link href="/" className="inline-block bg-blue-600 text-white px-8 py-3 rounded-xl font-semibold hover:bg-blue-700 transition-colors">

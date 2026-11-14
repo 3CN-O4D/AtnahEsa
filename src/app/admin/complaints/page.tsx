@@ -51,7 +51,7 @@ const CATEGORY_META: Record<string, { label: string; icon: typeof Bug }> = {
 const STATUS_META: Record<ComplaintStatus, { label: string; className: string }> = {
   open: { label: 'Open', className: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300' },
   in_progress: { label: 'In progress', className: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300' },
-  resolved: { label: 'Resolved', className: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-500/15 dark:text-emerald-300' },
+  resolved: { label: 'Resolved', className: 'bg-blue-100 text-blue-900 dark:bg-blue-600/15 dark:text-blue-300' },
   closed: { label: 'Closed', className: 'bg-gray-100 text-gray-700 dark:bg-slate-700 dark:text-gray-300' },
 }
 
@@ -158,7 +158,7 @@ export default function AdminComplaintsPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
             Support desk
           </p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
@@ -182,7 +182,7 @@ export default function AdminComplaintsPage() {
             onClick={() => setStatusFilter(value)}
             className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
               statusFilter === value
-                ? 'border-emerald-500 bg-emerald-50 text-emerald-700 dark:border-emerald-500 dark:bg-emerald-500/15 dark:text-emerald-300'
+                ? 'border-blue-600 bg-blue-50 text-blue-800 dark:border-blue-600 dark:bg-blue-600/15 dark:text-blue-300'
                 : 'border-gray-200 bg-white text-gray-600 hover:border-gray-300 dark:border-slate-700 dark:bg-slate-900 dark:text-gray-300'
             }`}
           >
@@ -196,7 +196,7 @@ export default function AdminComplaintsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search reports…"
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </div>
       </div>
@@ -209,12 +209,12 @@ export default function AdminComplaintsPage() {
 
       {loading && complaints.length === 0 ? (
         <div className="mt-8 flex flex-col items-center gap-3 py-16 text-gray-500">
-          <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
+          <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
           <p className="text-sm">Loading reports…</p>
         </div>
       ) : filtered.length === 0 ? (
         <div className="mt-8 rounded-2xl border border-dashed border-gray-300 bg-white px-6 py-16 text-center dark:border-slate-700 dark:bg-slate-900">
-          <CheckCircle2 className="mx-auto h-9 w-9 text-emerald-500" />
+          <CheckCircle2 className="mx-auto h-9 w-9 text-blue-600" />
           <h2 className="mt-3 text-base font-bold text-gray-900 dark:text-white">Nothing here</h2>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {complaints.length === 0 ? 'No complaints have been filed yet.' : 'No reports match these filters.'}
@@ -258,7 +258,7 @@ export default function AdminComplaintsPage() {
                       value={complaint.status}
                       disabled={savingId === complaint.id}
                       onChange={(e) => void patch(complaint.id, { status: e.target.value })}
-                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
                     >
                       <option value="open">Open</option>
                       <option value="in_progress">In progress</option>
@@ -269,7 +269,7 @@ export default function AdminComplaintsPage() {
                       value={complaint.priority}
                       disabled={savingId === complaint.id}
                       onChange={(e) => void patch(complaint.id, { priority: e.target.value })}
-                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 outline-none focus:border-emerald-500 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-xs font-semibold text-gray-700 outline-none focus:border-blue-600 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
                     >
                       <option value="low">Low</option>
                       <option value="normal">Normal</option>
@@ -292,7 +292,7 @@ export default function AdminComplaintsPage() {
                       value={note}
                       onChange={(e) => setNotes((prev) => ({ ...prev, [complaint.id]: e.target.value }))}
                       placeholder="What did we do about it?"
-                      className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 outline-none focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
+                      className="w-full resize-y rounded-lg border border-gray-300 bg-white px-3 py-2 text-xs text-gray-800 outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200"
                     />
                     <button
                       type="button"

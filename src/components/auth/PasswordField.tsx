@@ -22,7 +22,7 @@ type PasswordFieldProps = {
 
 /**
  * Password input that shows its state while you type: red until the minimum
- * length is met, green once it is, with a shake when a submit fails.
+ * length is met, blue once it is, with a shake when a submit fails.
  */
 export default function PasswordField({
   id,
@@ -52,7 +52,7 @@ export default function PasswordField({
   const borderClass = isInvalid
     ? 'border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-500/25 dark:border-red-700 dark:bg-red-950/20'
     : valid
-      ? 'border-emerald-400 bg-emerald-50/40 focus:border-emerald-500 focus:ring-emerald-500/25 dark:border-emerald-700 dark:bg-emerald-950/20'
+      ? 'border-blue-400 bg-blue-50/40 focus:border-blue-600 focus:ring-blue-600/25 dark:border-blue-800 dark:bg-blue-950/20'
       : 'border-gray-300 bg-white focus:border-blue-500 focus:ring-blue-500/25 dark:border-gray-600 dark:bg-slate-800'
 
   return (
@@ -60,7 +60,7 @@ export default function PasswordField({
       <label
         htmlFor={id}
         className={`block text-sm font-medium transition-colors ${
-          isInvalid ? 'text-red-600 dark:text-red-400' : valid ? 'text-emerald-700 dark:text-emerald-400' : 'text-gray-700 dark:text-gray-200'
+          isInvalid ? 'text-red-600 dark:text-red-400' : valid ? 'text-blue-800 dark:text-blue-400' : 'text-gray-700 dark:text-gray-200'
         }`}
       >
         {label}
@@ -98,7 +98,7 @@ export default function PasswordField({
           <div className="h-1.5 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
             <div
               className={`h-full rounded-full transition-all duration-300 ease-out ${
-                valid ? 'bg-gradient-to-r from-emerald-400 to-green-500' : 'bg-gradient-to-r from-red-400 to-rose-500'
+                valid ? 'bg-gradient-to-r from-blue-400 to-blue-600' : 'bg-gradient-to-r from-red-400 to-rose-500'
               }`}
               style={{ width: `${progress}%` }}
             />
@@ -106,7 +106,7 @@ export default function PasswordField({
           <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px]">
             <span
               className={`inline-flex items-center gap-1 font-medium ${
-                valid ? 'text-emerald-600 dark:text-emerald-400' : typed ? 'text-red-600 dark:text-red-400' : 'text-gray-400'
+                valid ? 'text-blue-700 dark:text-blue-400' : typed ? 'text-red-600 dark:text-red-400' : 'text-gray-400'
               }`}
             >
               {valid ? <Check className="h-3 w-3" /> : typed ? <X className="h-3 w-3" /> : null}

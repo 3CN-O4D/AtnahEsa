@@ -42,7 +42,8 @@ const DARK = '#0F172A'
 const GRAY = '#64748B'
 const LIGHT = '#F1F5F9'
 const BORDER = '#E2E8F0'
-const GREEN = '#059669'
+const BRAND_BLUE = '#1D4ED8'
+const GOLD = '#A97900'
 const PAGE_W = 595.28
 const PAGE_H = 841.89
 const MARGIN = 44
@@ -104,9 +105,9 @@ function drawLogo(doc: PDFKit.PDFDocument, x: number, y: number, height: number)
     doc.image(logo, x, y, { fit: [height * 1.55, height] })
     return
   }
-  // Vector fallback: green rounded tile with a simple white house mark.
+  // Vector fallback: blue rounded tile with a simple white house mark.
   const size = height
-  doc.roundedRect(x, y, size, size, 8).fill(GREEN)
+  doc.roundedRect(x, y, size, size, 8).fill(BRAND_BLUE)
   doc
     .moveTo(x + size * 0.24, y + size * 0.52)
     .lineTo(x + size * 0.5, y + size * 0.28)
@@ -122,7 +123,7 @@ function drawHeader(doc: PDFKit.PDFDocument, input: ReceiptInput) {
   drawLogo(doc, MARGIN, 22, 46)
 
   doc
-    .fillColor(DARK)
+    .fillColor(GOLD)
     .font('Helvetica-Bold')
     .fontSize(22)
     .text('AseHanta', MARGIN + 92, 26)
@@ -181,7 +182,7 @@ function drawAmount(doc: PDFKit.PDFDocument, input: ReceiptInput, y: number): nu
     .text(money(input.amount), MARGIN + 24, y + 30, { width: CONTENT_W / 2 })
 
   doc
-    .fillColor(GREEN)
+    .fillColor(BRAND_BLUE)
     .font('Helvetica-Bold')
     .fontSize(8.5)
     .text('HELD IN ESCROW', MARGIN + CONTENT_W / 2 + 10, y + 20, {
@@ -295,10 +296,10 @@ function drawStamp(doc: PDFKit.PDFDocument, input: ReceiptInput, top: number) {
   doc.translate(cx, cy)
   doc.rotate(-11)
   doc.opacity(0.9)
-  doc.circle(0, 0, 48).lineWidth(2.4).strokeColor(GREEN).stroke()
-  doc.circle(0, 0, 39).lineWidth(0.9).strokeColor(GREEN).stroke()
+  doc.circle(0, 0, 48).lineWidth(2.4).strokeColor(GOLD).stroke()
+  doc.circle(0, 0, 39).lineWidth(0.9).strokeColor(GOLD).stroke()
 
-  doc.fillColor(GREEN).font('Helvetica-Bold').fontSize(9).text('ASEHANTA', -40, -24, { width: 80, align: 'center' })
+  doc.fillColor(GOLD).font('Helvetica-Bold').fontSize(9).text('ASEHANTA', -40, -24, { width: 80, align: 'center' })
   doc.font('Helvetica').fontSize(6.4).text('OFFICIAL RECEIPT', -40, -12, { width: 80, align: 'center' })
   doc.font('Helvetica-Bold').fontSize(10).text('VERIFIED', -40, -1, { width: 80, align: 'center' })
   doc.font('Helvetica').fontSize(6.4).text(stampDate, -40, 13, { width: 80, align: 'center' })

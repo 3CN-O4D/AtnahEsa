@@ -44,8 +44,8 @@ export default function ContactPage() {
   if (success) {
     return (
       <div className="max-w-md mx-auto px-4 py-16 text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Mail className="w-8 h-8 text-green-600" />
+        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+          <Mail className="w-8 h-8 text-blue-700" />
         </div>
         <h1 className="text-2xl font-bold mb-2">Message Sent!</h1>
         <p className="text-gray-600">
@@ -101,9 +101,9 @@ export default function ContactPage() {
               )}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-green-400 transition-colors"
+              className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hover:border-blue-400 transition-colors"
             >
-              <MessageCircle className="w-4 h-4 text-green-600" />
+              <MessageCircle className="w-4 h-4 text-blue-700" />
               WhatsApp
             </a>
           </div>
@@ -125,9 +125,9 @@ export default function ContactPage() {
                 href={`https://wa.me/${WHATSAPP_NUMBER}`}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-start gap-3 hover:text-green-600 dark:hover:text-green-400 transition-colors"
+                className="flex items-start gap-3 hover:text-blue-700 dark:hover:text-blue-400 transition-colors"
               >
-                <MessageCircle className="w-4 h-4 mt-0.5 text-green-600 shrink-0" />
+                <MessageCircle className="w-4 h-4 mt-0.5 text-blue-700 shrink-0" />
                 <span>WhatsApp</span>
               </a>
               <div className="flex items-start gap-3">
@@ -150,7 +150,7 @@ export default function ContactPage() {
             </div>
           </Link>
 
-          <div className="rounded-xl border border-[#30B54A]/25 bg-[#e8f8eb]/60 p-4 dark:border-[#30B54A]/30 dark:bg-[#30B54A]/10">
+          <div className="rounded-xl border border-[#1D4ED8]/25 bg-[#EFF6FF]/60 p-4 dark:border-[#1D4ED8]/30 dark:bg-[#1D4ED8]/10">
             <p className="text-sm font-semibold text-gray-800 dark:text-slate-100">Need an answer right now?</p>
             <p className="mt-1 text-xs text-gray-600 dark:text-slate-300">
               Ase can search homes, explain packages and pass urgent requests to our team in seconds.

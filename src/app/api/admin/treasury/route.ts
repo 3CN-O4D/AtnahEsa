@@ -79,14 +79,31 @@ export async function GET() {
         .order('created_at', { ascending: false })
     : { data: [] as TransactionRow[] }
 
-  const latestTx = new Map<string, TransactionRow>()
+  // Split each booking's transactions into the payment, the lister payout and
+  // the hunter refund. Previously the newest transaction won, so a payout or
+  // refund could hide the original payment status.
+  const latestPaymentTx = new Map<string, TransactionRow>()
+  const latestPayoutTx = new Map<string, TransactionRow>()
+  const latestRefundTx = new Map<string, TransactionRow>()
+
   for (const tx of (linkedTransactions || []) as TransactionRow[]) {
     const linked = tx.raw_callback?.house_booking_id
-    if (typeof linked === 'string' && !latestTx.has(linked)) latestTx.set(linked, tx)
+    if (typeof linked !== 'string') continue
+
+    const isPayout = tx.payment_method === 'payout' || tx.raw_callback?.payout === true
+    const isRefund = tx.payment_method === 'refund' || tx.raw_callback?.refund === true
+
+    if (isPayout) {
+      if (!latestPayoutTx.has(linked)) latestPayoutTx.set(linked, tx)
+    } else if (isRefund) {
+      if (!latestRefundTx.has(linked)) latestRefundTx.set(linked, tx)
+    } else if (!latestPaymentTx.has(linked)) {
+      latestPaymentTx.set(linked, tx)
+    }
   }
 
   const enrichedHouseBookings = (houseBookings || []).map((b) => {
-    const tx = latestTx.get(b.id)
+    const tx = latestPaymentTx.get(b.id)
     return {
       ...b,
       payment_status: tx?.status || null,
@@ -111,44 +128,101 @@ export async function GET() {
   const houseBookingsWithPayout = enrichedHouseBookings.map((h) => {
     const listing = listingById.get(h.listing_id)
     const profile = listing?.uploader_id ? profileById.get(listing.uploader_id) : undefined
+    const payoutTx = latestPayoutTx.get(h.id)
+    const refundTx = latestRefundTx.get(h.id)
+    const refundPercentage =
+      typeof refundTx?.raw_callback?.refund_percentage === 'number'
+        ? refundTx.raw_callback.refund_percentage
+        : 85
+    const gross = Number(h.listing_price) || 0
+    const isPaid = h.release_status === 'paid' || h.release_status === 'released'
+    const isRefunded = h.release_status === 'refunded'
+
     return {
       ...h,
       lister_name: profile?.full_name || null,
       lister_phone: listing?.lister_phone || profile?.phone || null,
-      payout_amount: Math.round((Number(h.listing_price) || 0) * OWNER_SHARE),
+      payout_amount: isPaid
+        ? (payoutTx?.amount ?? Math.round(gross * OWNER_SHARE))
+        : Math.round(gross * OWNER_SHARE),
+      refund_amount: isRefunded
+        ? (refundTx?.amount ?? Math.round(gross * (refundPercentage / 100)))
+        : 0,
+      refund_percentage: isRefunded ? refundPercentage : null,
     }
   })
 
-  const totalHeld = (escrows || []).filter((e) => e.status === 'held').reduce((s, e) => s + (e.amount || 0), 0)
-  const totalReleased = (escrows || []).filter((e) => e.status === 'released').reduce((s, e) => s + (e.amount || 0), 0)
-  const totalRefunded = (escrows || []).filter((e) => e.status === 'refunded').reduce((s, e) => s + (e.amount || 0), 0)
-  const platformRevenue =
-    (escrows || [])
-      .filter((e) => e.status === 'released')
-      .reduce((s, e) => s + Math.round((e.amount || 0) * 0.5), 0) +
-    enrichedHouseBookings
-      .filter((h) => h.release_status === 'paid')
-      .reduce((s, h) => s + Math.round((h.listing_price || 0) * (1 - OWNER_SHARE)), 0)
+  const legacyHeld = (escrows || []).filter((e) => e.status === 'held')
+  const legacyReleased = (escrows || []).filter((e) => e.status === 'released')
+  const legacyRefunded = (escrows || []).filter((e) => e.status === 'refunded')
 
-  const heldHouse = enrichedHouseBookings.filter((h) => h.release_status === 'held')
-  const pendingPayoutsAmount = heldHouse.reduce((s, h) => s + (h.listing_price || 0), 0)
+  const houseHeld = houseBookingsWithPayout.filter((h) => h.release_status === 'held')
+  const houseReleased = houseBookingsWithPayout.filter(
+    (h) => h.release_status === 'paid' || h.release_status === 'released'
+  )
+  const houseRefunded = houseBookingsWithPayout.filter((h) => h.release_status === 'refunded')
+
+  type LegacyEscrowRow = {
+    amount?: number | null
+    booking?: { refund_amount?: number | null } | null
+  }
+  const legacyRefundAmount = (e: LegacyEscrowRow) => {
+    const bookingRefund = e.booking?.refund_amount
+    return bookingRefund != null ? Number(bookingRefund) : Math.round((e.amount || 0) * 0.85)
+  }
+
+  const sum = <T,>(rows: T[], pick: (row: T) => number | null | undefined) =>
+    rows.reduce((total, row) => total + (Number(pick(row)) || 0), 0)
+
+  const legacyHeldAmount = sum(legacyHeld as LegacyEscrowRow[], (e) => e.amount)
+  const legacyReleasedToLister = sum(legacyReleased as LegacyEscrowRow[], (e) =>
+    Math.round((e.amount || 0) * OWNER_SHARE)
+  )
+  const legacyRefundedAmount = sum(legacyRefunded as LegacyEscrowRow[], legacyRefundAmount)
+
+  const houseHeldAmount = sum(houseHeld, (h) => h.listing_price)
+  const houseReleasedToLister = sum(houseReleased, (h) => h.payout_amount)
+  const houseRefundedAmount = sum(houseRefunded, (h) => h.refund_amount)
+
+  // The platform keeps its commission on every completed payout and whatever
+  // share a refund did not return to the hunter.
+  const legacyCommission = sum(
+    legacyReleased as LegacyEscrowRow[],
+    (e) => (e.amount || 0) - Math.round((e.amount || 0) * OWNER_SHARE)
+  )
+  const legacyRefundRetained = sum(
+    legacyRefunded as LegacyEscrowRow[],
+    (e) => (e.amount || 0) - legacyRefundAmount(e)
+  )
+  const houseCommission = sum(
+    houseReleased,
+    (h) => (Number(h.listing_price) || 0) - (h.payout_amount || 0)
+  )
+  const houseRefundRetained = sum(
+    houseRefunded,
+    (h) => (Number(h.listing_price) || 0) - (h.refund_amount || 0)
+  )
+
+  const pendingPayoutsAmount = sum(houseHeld, (h) =>
+    Math.round((Number(h.listing_price) || 0) * OWNER_SHARE)
+  )
   const underReview = enrichedHouseBookings.filter(
     (h) => h.payment_status === 'verifying' && h.release_status === 'pending'
   )
 
   return NextResponse.json({
     stats: {
-      total_escrows: (escrows?.length || 0) + enrichedHouseBookings.length,
-      held: (escrows || []).filter((e) => e.status === 'held').length + heldHouse.length,
-      released: (escrows || []).filter((e) => e.status === 'released').length,
-      refunded:
-        (escrows || []).filter((e) => e.status === 'refunded').length +
-        enrichedHouseBookings.filter((h) => h.release_status === 'refunded').length,
-      total_held_amount: totalHeld + pendingPayoutsAmount,
-      total_released_amount: totalReleased,
-      total_refunded_amount: totalRefunded,
-      platform_revenue: platformRevenue,
-      pending_payouts: heldHouse.length,
+      total_escrows:
+        (escrows?.length || 0) + houseHeld.length + houseReleased.length + houseRefunded.length,
+      held: legacyHeld.length + houseHeld.length,
+      released: legacyReleased.length + houseReleased.length,
+      refunded: legacyRefunded.length + houseRefunded.length,
+      total_held_amount: legacyHeldAmount + houseHeldAmount,
+      total_released_amount: legacyReleasedToLister + houseReleasedToLister,
+      total_refunded_amount: legacyRefundedAmount + houseRefundedAmount,
+      platform_revenue:
+        legacyCommission + legacyRefundRetained + houseCommission + houseRefundRetained,
+      pending_payouts: houseHeld.length,
       pending_payouts_amount: pendingPayoutsAmount,
       under_review: underReview.length,
     },

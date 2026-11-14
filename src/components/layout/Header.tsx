@@ -97,6 +97,7 @@ export default function Header() {
 
   const navLinks = [
     { href: '/', label: 'Home', icon: Home },
+    { href: '/chat', label: 'Chat', icon: undefined },
     { href: '/movers', label: 'Movers', icon: Truck },
     { href: '/wifi', label: 'WiFi', icon: Wifi },
     { href: '/request-house', label: 'Request House', icon: undefined },
@@ -109,8 +110,8 @@ export default function Header() {
       <div className="flex items-center h-16">
         {/* Left: Logo + Name — flush to left edge */}
         <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">
-          <Image src="/images/asehanta-logo.jpeg" alt={APP_NAME} width={32} height={32} className="rounded-full object-cover" />
-          <span className="text-lg sm:text-xl font-bold text-blue-600">{APP_NAME}</span>
+          <Image src="/images/asehanta-logo.jpeg" alt={APP_NAME} width={32} height={32} className="rounded-full object-cover ring-2 ring-[#D4AF37]/70" />
+          <span className="brand-wordmark text-lg sm:text-xl font-extrabold tracking-tight">{APP_NAME}</span>
         </Link>
 
         {/* Center: Desktop nav */}
@@ -121,7 +122,7 @@ export default function Header() {
             </Link>
           ))}
           {isLister && (
-            <Link href="/requests" className="text-sm font-medium text-green-600 hover:text-green-700 dark:hover:text-green-400 transition-colors whitespace-nowrap">
+            <Link href="/requests" className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:hover:text-blue-400 transition-colors whitespace-nowrap">
               House Requests
             </Link>
           )}
@@ -260,7 +261,7 @@ export default function Header() {
             <Link
               href="/requests"
               onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-green-600 dark:text-green-400 hover:bg-green-50 dark:hover:bg-green-900/30"
+              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
             >
               <BadgeCheck className="w-4 h-4" />
               House Requests

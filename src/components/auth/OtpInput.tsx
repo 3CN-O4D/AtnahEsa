@@ -90,7 +90,7 @@ export default function OtpInput({
             invalid
               ? 'border-red-400 bg-red-50/60 text-red-700 focus:border-red-500 focus:ring-red-500/20 dark:border-red-700 dark:bg-red-950/20 dark:text-red-300'
               : digit
-                ? 'border-emerald-400 bg-emerald-50/60 text-emerald-700 ring-1 ring-emerald-400/20 focus:border-emerald-500 focus:ring-emerald-500/20 dark:border-emerald-700 dark:bg-emerald-950/20 dark:text-emerald-300'
+                ? 'border-blue-400 bg-blue-50/60 text-blue-800 ring-1 ring-blue-400/20 focus:border-blue-600 focus:ring-blue-600/20 dark:border-blue-800 dark:bg-blue-950/20 dark:text-blue-300'
                 : 'border-gray-300 bg-white text-gray-900 focus:border-blue-500 focus:ring-blue-500/20 dark:border-gray-600 dark:bg-slate-800 dark:text-white'
           }`}
         />

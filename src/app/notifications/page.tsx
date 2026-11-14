@@ -34,7 +34,7 @@ type Filter = 'all' | 'unread'
 const CATEGORY_META: Record<string, { label: string; className: string; icon: typeof Bell }> = {
   advert: { label: 'Advert', className: 'bg-purple-100 text-purple-700', icon: Megaphone },
   new_house: { label: 'New House', className: 'bg-blue-100 text-blue-700', icon: Home },
-  transaction: { label: 'Transaction', className: 'bg-green-100 text-green-700', icon: CreditCard },
+  transaction: { label: 'Transaction', className: 'bg-blue-100 text-blue-800', icon: CreditCard },
   linking: { label: 'Linking', className: 'bg-amber-100 text-amber-700', icon: Link2 },
   booking: { label: 'Booking', className: 'bg-cyan-100 text-cyan-700', icon: Calendar },
   listing: { label: 'Listing', className: 'bg-indigo-100 text-indigo-700', icon: Building2 },
@@ -245,7 +245,7 @@ export default function NotificationsPage() {
             <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm rounded-lg px-4 py-3">{sendError}</div>
           )}
           {sendSuccess && (
-            <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 text-green-700 dark:text-green-300 text-sm rounded-lg px-4 py-3">Notification sent.</div>
+            <div className="bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-900 text-blue-800 dark:text-blue-300 text-sm rounded-lg px-4 py-3">Notification sent.</div>
           )}
           <div className="grid sm:grid-cols-2 gap-4">
             <label className="block">

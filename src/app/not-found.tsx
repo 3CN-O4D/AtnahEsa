@@ -44,7 +44,7 @@ function HouseScene() {
       <div className="relative">
         <div className="flex items-center justify-between">
           <span className="inline-flex items-center gap-1.5 rounded-full border border-gray-200/80 bg-white/80 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-500 dark:border-slate-700/70 dark:bg-slate-800/70 dark:text-gray-400">
-            <Sparkles className="h-3 w-3 text-[#30B54A]" />
+            <Sparkles className="h-3 w-3 text-[#1D4ED8]" />
             No. 404
           </span>
           <span className="font-mono text-[10px] uppercase tracking-[0.18em] text-gray-400 dark:text-gray-500">
@@ -60,16 +60,16 @@ function HouseScene() {
         >
           <defs>
             <linearGradient id="nf-roof" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#30B54A" stopOpacity="0.95" />
+              <stop offset="0%" stopColor="#1D4ED8" stopOpacity="0.95" />
               <stop offset="100%" stopColor="#0f766e" stopOpacity="0.95" />
             </linearGradient>
             <linearGradient id="nf-door" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#34d399" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#059669" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="#60A5FA" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#1D4ED8" stopOpacity="0.15" />
             </linearGradient>
             <linearGradient id="nf-glow" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#30B54A" stopOpacity="0.35" />
-              <stop offset="100%" stopColor="#30B54A" stopOpacity="0" />
+              <stop offset="0%" stopColor="#1D4ED8" stopOpacity="0.35" />
+              <stop offset="100%" stopColor="#1D4ED8" stopOpacity="0" />
             </linearGradient>
           </defs>
 
@@ -86,7 +86,7 @@ function HouseScene() {
           />
           <path
             d="M22 248c48 0 68-6 96-18"
-            className="nf-dash stroke-[#30B54A]/60 dark:stroke-[#6fdc84]/50"
+            className="nf-dash stroke-[#1D4ED8]/60 dark:stroke-[#93C5FD]/50"
             fill="none"
             strokeWidth="2.5"
             strokeDasharray="2 8"
@@ -144,13 +144,13 @@ function HouseScene() {
             height="68"
             rx="6"
             fill="url(#nf-door)"
-            className="stroke-emerald-600/60 dark:stroke-emerald-400/50"
+            className="stroke-blue-700/60 dark:stroke-blue-400/50"
             strokeWidth="3"
           />
-          <circle cx="194" cy="207" r="3" className="fill-emerald-700 dark:fill-emerald-300" />
+          <circle cx="194" cy="207" r="3" className="fill-blue-800 dark:fill-blue-300" />
           <path
             d="M180 190v14"
-            className="stroke-emerald-600/60 dark:stroke-emerald-300/60"
+            className="stroke-blue-700/60 dark:stroke-blue-300/60"
             strokeWidth="2.5"
             strokeLinecap="round"
           />
@@ -208,7 +208,7 @@ export default function NotFound() {
     <div className="relative min-h-[calc(100dvh-64px)] overflow-hidden bg-gradient-to-b from-gray-50 via-white to-gray-50 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
       {/* Ambient background */}
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="nf-orb -left-24 -top-28 h-80 w-80 bg-[#30B54A]/10" />
+        <div className="nf-orb -left-24 -top-28 h-80 w-80 bg-[#1D4ED8]/10" />
         <div className="nf-orb -right-28 top-16 h-[24rem] w-[24rem] bg-cyan-400/[0.07]" style={{ animationDelay: '2.5s' }} />
         <div className="nf-orb -bottom-32 left-1/3 h-72 w-72 bg-amber-400/[0.07]" style={{ animationDelay: '4.5s' }} />
       </div>
@@ -242,7 +242,7 @@ export default function NotFound() {
               <h1 className="mt-4 text-4xl font-black tracking-tight text-gray-900 dark:text-white sm:text-5xl lg:text-6xl">
                 We couldn&apos;t find
                 <br />
-                <span className="bg-gradient-to-r from-[#30B54A] to-emerald-500 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-[#1D4ED8] to-blue-600 bg-clip-text text-transparent">
                   that page.
                 </span>
               </h1>
@@ -285,13 +285,13 @@ export default function NotFound() {
                 <Link
                   key={route.href}
                   href={route.href}
-                  className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#30B54A]/40 hover:shadow-lg dark:border-slate-700/70 dark:bg-slate-900/70 dark:hover:border-[#30B54A]/40"
+                  className="group relative overflow-hidden rounded-2xl border border-gray-200/80 bg-white/90 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-[#1D4ED8]/40 hover:shadow-lg dark:border-slate-700/70 dark:bg-slate-900/70 dark:hover:border-[#1D4ED8]/40"
                 >
                   <div className="flex items-center justify-between">
-                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#30B54A]/10 text-[#30B54A] dark:bg-[#30B54A]/15 dark:text-[#6fdc84]">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#1D4ED8]/10 text-[#1D4ED8] dark:bg-[#1D4ED8]/15 dark:text-[#93C5FD]">
                       <route.icon className="h-5 w-5" />
                     </span>
-                    <ArrowUpRight className="h-4 w-4 text-gray-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#30B54A] dark:text-gray-600" />
+                    <ArrowUpRight className="h-4 w-4 text-gray-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-[#1D4ED8] dark:text-gray-600" />
                   </div>
                   <h3 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white">{route.title}</h3>
                   <p className="mt-1 text-xs leading-relaxed text-gray-500 dark:text-gray-400">{route.body}</p>
@@ -302,13 +302,13 @@ export default function NotFound() {
                 href={supportHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="group relative overflow-hidden rounded-2xl border border-green-200/80 bg-green-50/70 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-green-400/60 hover:shadow-lg dark:border-green-900/60 dark:bg-green-950/20 dark:hover:border-green-500/40"
+                className="group relative overflow-hidden rounded-2xl border border-blue-200/80 bg-blue-50/70 p-4 shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-400/60 hover:shadow-lg dark:border-blue-950/60 dark:bg-blue-950/20 dark:hover:border-blue-600/40"
               >
                 <div className="flex items-center justify-between">
-                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-green-500/10 text-green-600 dark:bg-green-500/15 dark:text-green-300">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-600/10 text-blue-700 dark:bg-blue-600/15 dark:text-blue-300">
                     <MessageCircle className="h-5 w-5" />
                   </span>
-                  <ArrowUpRight className="h-4 w-4 text-green-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-green-600 dark:text-green-800" />
+                  <ArrowUpRight className="h-4 w-4 text-blue-300 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5 group-hover:text-blue-700 dark:text-blue-900" />
                 </div>
                 <h3 className="mt-3 text-sm font-semibold text-gray-900 dark:text-white">Talk to us</h3>
                 <p className="mt-1 text-xs leading-relaxed text-gray-600 dark:text-gray-400">
@@ -326,7 +326,7 @@ export default function NotFound() {
               A listing link looks like <code className="font-mono text-gray-500 dark:text-gray-400">/listings/&lt;id&gt;</code>.
               Extra words after the ID are redirected automatically.
             </p>
-            <Link href="/" className="font-medium text-[#30B54A] hover:underline dark:text-[#6fdc84]">
+            <Link href="/" className="font-medium text-[#1D4ED8] hover:underline dark:text-[#93C5FD]">
               Go to the homepage
             </Link>
           </div>

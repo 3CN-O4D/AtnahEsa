@@ -242,8 +242,8 @@ function ForgotPasswordForm() {
           <ArrowLeft className="w-4 h-4" /> Back
         </button>
         <div className="text-center mb-8">
-          <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <KeyRound className="w-7 h-7 text-green-600" />
+          <div className="w-14 h-14 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <KeyRound className="w-7 h-7 text-blue-700" />
           </div>
           <h1 className="text-2xl font-bold mb-2">Set New Password</h1>
         </div>

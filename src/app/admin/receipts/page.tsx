@@ -120,7 +120,7 @@ export default function AdminReceiptsPage() {
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-600 dark:text-emerald-400">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-blue-700 dark:text-blue-400">
             Finance tools
           </p>
           <h1 className="mt-1 text-2xl font-extrabold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
@@ -150,14 +150,14 @@ export default function AdminReceiptsPage() {
               value={reference}
               onChange={(e) => setReference(e.target.value)}
               placeholder="e.g. UJU010A2W3 or 4e2b…"
-              className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+              className="w-full rounded-lg border border-gray-300 bg-white py-2.5 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
             />
           </div>
         </label>
         <button
           type="submit"
           disabled={looking || !reference.trim()}
-          className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-600 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-sky-700 px-5 py-2.5 text-sm font-bold text-white shadow-sm transition hover:-translate-y-0.5 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-60"
         >
           {looking ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
           Generate
@@ -177,7 +177,7 @@ export default function AdminReceiptsPage() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search name, phone, receipt…"
-            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
+            className="w-full rounded-lg border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 outline-none transition focus:border-blue-600 focus:ring-2 focus:ring-blue-600/20 dark:border-slate-700 dark:bg-slate-900 dark:text-white"
           />
         </div>
       </div>
@@ -190,7 +190,7 @@ export default function AdminReceiptsPage() {
 
       {loading && rows.length === 0 ? (
         <div className="mt-8 flex flex-col items-center gap-3 py-16 text-gray-500">
-          <Loader2 className="h-7 w-7 animate-spin text-emerald-600" />
+          <Loader2 className="h-7 w-7 animate-spin text-blue-700" />
           <p className="text-sm">Loading bookings…</p>
         </div>
       ) : filtered.length === 0 ? (
@@ -235,7 +235,7 @@ export default function AdminReceiptsPage() {
                   </p>
                   <div className="flex items-center gap-1.5 text-xs font-semibold">
                     {paid ? (
-                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300">
+                      <span className="inline-flex items-center gap-1 rounded-full bg-blue-100 px-2 py-0.5 text-blue-800 dark:bg-blue-600/15 dark:text-blue-300">
                         <CheckCircle2 className="h-3 w-3" /> Paid
                       </span>
                     ) : (
@@ -251,7 +251,7 @@ export default function AdminReceiptsPage() {
                     <button
                       type="button"
                       onClick={() => download(`booking_id=${row.id}`)}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-emerald-500 hover:bg-emerald-50 hover:text-emerald-700 dark:border-slate-700 dark:text-gray-200 dark:hover:bg-emerald-500/10 dark:hover:text-emerald-300"
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 transition hover:border-blue-600 hover:bg-blue-50 hover:text-blue-800 dark:border-slate-700 dark:text-gray-200 dark:hover:bg-blue-600/10 dark:hover:text-blue-300"
                     >
                       <Download className="h-3.5 w-3.5" /> PDF
                     </button>

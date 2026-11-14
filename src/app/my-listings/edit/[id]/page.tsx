@@ -264,7 +264,7 @@ export default function EditListingPage() {
 
         {mediaUploading && <p className="text-sm text-blue-600">Uploading media… the save button unlocks when everything finishes.</p>}
         {error && <p className="text-sm text-red-600">{error}</p>}
-        {success && <p className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-xl p-3">{success}</p>}
+        {success && <p className="text-sm text-blue-700 bg-blue-50 border border-blue-200 rounded-xl p-3">{success}</p>}
 
         <div className="flex gap-3">
           <Button type="submit" loading={saving} disabled={mediaUploading} className="flex-1" size="lg">

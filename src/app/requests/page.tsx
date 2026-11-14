@@ -47,7 +47,7 @@ type FilterKey = 'all' | 'pending' | 'contacted' | 'fulfilled' | 'closed'
 const STATUS_CONFIG: Record<string, { label: string; className: string; dot: string }> = {
   pending: { label: 'Pending', className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800/60', dot: 'bg-amber-500' },
   contacted: { label: 'Contacted', className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800/60', dot: 'bg-blue-500' },
-  fulfilled: { label: 'Fulfilled', className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800/60', dot: 'bg-emerald-500' },
+  fulfilled: { label: 'Fulfilled', className: 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/30 dark:text-blue-300 dark:border-blue-900/60', dot: 'bg-blue-600' },
   closed: { label: 'Closed', className: 'bg-gray-100 text-gray-600 border-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:border-gray-700', dot: 'bg-gray-400' },
 }
 
@@ -248,7 +248,7 @@ export default function RequestsPage() {
           </div>
 
           <div className="mt-5 flex items-start gap-2 rounded-xl bg-white/70 dark:bg-slate-800/60 border border-gray-200/80 dark:border-gray-700 px-3 py-2.5 text-xs text-gray-600 dark:text-gray-300">
-            <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+            <ShieldCheck className="w-4 h-4 text-blue-600 shrink-0 mt-0.5" />
             <p>Requests are public but anonymous. Claiming does not reveal anyone&apos;s phone number — upload your matching house and the requester will pick from your listings. Contact details unlock only after a paid booking.</p>
           </div>
         </header>
@@ -334,7 +334,7 @@ export default function RequestsPage() {
                         <span className={`h-1.5 w-1.5 rounded-full ${status.dot}`} /> {status.label}
                       </span>
                       {claimedByMe && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 dark:bg-emerald-900/30 border border-emerald-200 dark:border-emerald-800/60 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                        <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-900/60 px-2.5 py-1 text-xs font-medium text-blue-800 dark:text-blue-300">
                           <CheckCircle2 className="w-3 h-3" /> Claimed by you
                         </span>
                       )}
@@ -387,7 +387,7 @@ export default function RequestsPage() {
                         {r.status === 'closed' ? 'This request is closed' : r.status === 'fulfilled' ? 'This request has been fulfilled' : 'Another person has taken this'}
                       </span>
                     ) : claimedByMe ? (
-                      <span className="text-xs text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                      <span className="text-xs text-blue-700 dark:text-blue-400 flex items-center gap-1">
                         <CheckCircle2 className="w-3.5 h-3.5" /> Upload the matching house so the requester can pick it
                       </span>
                     ) : (
@@ -400,7 +400,7 @@ export default function RequestsPage() {
                       {claimedByMe && !isClosed && (
                         <Link
                           href={`/upload?request=${encodeURIComponent(r.id)}`}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-medium hover:bg-emerald-700 transition-colors shadow-sm"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-blue-700 text-white px-3 py-2 text-sm font-medium hover:bg-blue-800 transition-colors shadow-sm"
                         >
                           <Upload className="w-4 h-4" /> Upload your house
                         </Link>

@@ -75,14 +75,14 @@ export default function TermsVisitorPageSw() {
           Kwa kuendelea kuvinjari AseHanta unakubali masharti haya ya mgeni na ahadi zetu za faragha.
           <Link
             href="/"
-            className="mt-3 inline-block rounded-xl bg-[#30B54A] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#30B54A]/25 transition-all hover:-translate-y-0.5 hover:bg-[#2a9c40] hover:shadow-xl active:scale-95"
+            className="mt-3 inline-block rounded-xl bg-[#1D4ED8] px-6 py-2.5 text-sm font-semibold text-white shadow-lg shadow-[#1D4ED8]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95"
           >
             Vinjari nyumba zinazopatikana
           </Link>
           <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
             Unapanga kuweka nafasi au kuorodhesha? Soma{' '}
-            <Link href="/terms/hunter/sw" className="font-medium text-[#30B54A] hover:underline">masharti ya mtafuta nyumba</Link> au{' '}
-            <Link href="/terms/lister/sw" className="font-medium text-[#30B54A] hover:underline">masharti ya mmiliki</Link>.
+            <Link href="/terms/hunter/sw" className="font-medium text-[#1D4ED8] hover:underline">masharti ya mtafuta nyumba</Link> au{' '}
+            <Link href="/terms/lister/sw" className="font-medium text-[#1D4ED8] hover:underline">masharti ya mmiliki</Link>.
           </p>
         </>
       }

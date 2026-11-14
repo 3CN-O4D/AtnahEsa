@@ -65,47 +65,20 @@ const PALETTE = [
 
 function SymbolGuide() {
   return (
-    <div className="relative mx-auto w-full max-w-md">
-      <div className="rounded-[2rem] border border-[#D4AF37]/25 bg-white/[0.04] p-6 shadow-2xl backdrop-blur sm:p-8">
-        <svg viewBox="0 0 360 360" role="img" aria-label="Diagram of the AseHanta Y-shaped emblem" className="h-auto w-full">
-          <defs>
-            <linearGradient id="ase-blue" x1="0" y1="0" x2="1" y2="1">
-              <stop offset="0%" stopColor="#60A5FA" />
-              <stop offset="55%" stopColor="#2563EB" />
-              <stop offset="100%" stopColor="#1E3A8A" />
-            </linearGradient>
-            <linearGradient id="ase-gold" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#F5E0A3" />
-              <stop offset="50%" stopColor="#D4AF37" />
-              <stop offset="100%" stopColor="#A97900" />
-            </linearGradient>
-          </defs>
-
-          {/* Three branches of the mark */}
-          <path d="M180 56c-10 42-46 72-88 84" fill="none" stroke="url(#ase-blue)" strokeWidth="26" strokeLinecap="round" />
-          <path d="M180 56c10 42 46 72 88 84" fill="none" stroke="url(#ase-blue)" strokeWidth="26" strokeLinecap="round" />
-          <path d="M180 56v132" fill="none" stroke="url(#ase-blue)" strokeWidth="26" strokeLinecap="round" />
-
-          {/* Golden stroke pointing to S */}
-          <path d="M180 116c0 46-10 78-32 108" fill="none" stroke="url(#ase-gold)" strokeWidth="18" strokeLinecap="round" />
-
-          {/* Junction */}
-          <circle cx="180" cy="66" r="17" fill="#D4AF37" />
-          <circle cx="180" cy="66" r="7" fill="#071426" opacity="0.45" />
-
-          {/* ASE initials */}
-          <g fontFamily="ui-sans-serif, system-ui, sans-serif" fontWeight="800" textAnchor="middle">
-            <text x="104" y="292" fontSize="40" fill="#60A5FA">A</text>
-            <text x="180" y="292" fontSize="40" fill="#D4AF37">S</text>
-            <text x="256" y="292" fontSize="40" fill="#60A5FA">E</text>
-          </g>
-          <path d="M96 312h72M192 312h72" stroke="#1D4ED8" strokeWidth="3" strokeLinecap="round" opacity="0.7" />
-        </svg>
-
-        <div className="mt-5 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold uppercase tracking-wider text-blue-200/70">
-          <span>Three founders</span>
-          <span className="text-[#F0D78C]">Samuel</span>
-          <span>Founding initials</span>
+    <div className="relative mx-auto w-full max-w-sm">
+      <div className="rounded-[2rem] border border-[#D4AF37]/30 bg-[#F7F5EE] p-4 shadow-2xl sm:p-6">
+        <Image
+          src="/images/asehanta-mark.jpeg"
+          alt="The original AseHanta Y-shaped emblem with the ASE initials"
+          width={282}
+          height={393}
+          sizes="(max-width: 1024px) 80vw, 380px"
+          className="mx-auto h-auto w-full rounded-2xl object-contain"
+        />
+        <div className="mt-4 grid grid-cols-3 gap-2 text-center text-[11px] font-semibold uppercase tracking-wider text-[#0B1F3A]/70">
+          <span>Three branches</span>
+          <span className="text-[#A97900]">One gold line</span>
+          <span>ASE initials</span>
         </div>
       </div>
     </div>

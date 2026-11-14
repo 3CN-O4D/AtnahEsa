@@ -100,6 +100,7 @@ export default function Header() {
     { href: '/chat', label: 'Chat', icon: undefined },
     { href: '/movers', label: 'Movers', icon: Truck },
     { href: '/wifi', label: 'WiFi', icon: Wifi },
+    { href: '/brand', label: 'Brand', icon: undefined },
     { href: '/request-house', label: 'Request House', icon: undefined },
     { href: '/complaints', label: 'Report a bug', icon: Bug },
     { href: '/contact', label: 'Contact', icon: undefined },
@@ -117,7 +118,7 @@ export default function Header() {
         {/* Center: Desktop nav */}
         <nav className="hidden md:flex items-center justify-center flex-1 gap-5 px-4">
           {navLinks.map(({ href, label }) => (
-              <Link key={href} href={href} className="text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap">
+              <Link key={href} href={href} className={`text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap ${href === '/brand' ? 'hidden xl:inline-flex' : ''}`}>
               {label}
             </Link>
           ))}

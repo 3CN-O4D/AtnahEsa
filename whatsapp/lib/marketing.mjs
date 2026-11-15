@@ -20,6 +20,7 @@ import { recordActivity } from './activity.mjs'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const STATUS_MAX_RECIPIENTS = 3000
+const LISTING_DAILY_CAP = 2
 
 const digits = (value) => String(value ?? '').replace(/\D/g, '')
 const nowIso = () => new Date().toISOString()
@@ -315,23 +316,27 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
     const listing = await listingFor(supabase, claimed.listing_id)
 
     /*
-     * Self-activity guard: never post the same house twice in 24 hours. We
-     * learned this the hard way — one listing went out five times in a day.
-     * The app also refuses to pick a used listing, but this protects against
-     * drafts that were queued before that rule existed.
+     * Self-activity guard: cap a house at two posts per day per channel. The
+     * picker rotates houses so consecutive posts differ; this protects against
+     * drafts queued before that rule existed or a burst of retries.
      */
     if (claimed.listing_id) {
-      const { count } = await supabase
+      let usage = supabase
         .from('whatsapp_marketing')
         .select('id', { count: 'exact', head: true })
+        .eq('channel', claimed.channel)
         .eq('status', 'sent')
         .eq('listing_id', claimed.listing_id)
         .gte('sent_at', hoursAgo(24))
 
-      if ((count ?? 0) > 0) {
+      if (claimed.channel === 'group') usage = usage.eq('target_jid', claimed.target_jid)
+
+      const { count } = await usage
+
+      if ((count ?? 0) >= LISTING_DAILY_CAP) {
         await mark(supabase, claimed.id, {
           status: 'skipped',
-          error: 'same house already posted in the last 24 hours',
+          error: 'same house already posted twice in the last 24 hours',
         })
         await recordActivity(
           supabase,
@@ -345,6 +350,41 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
         log.warn?.(`[marketing] skipped duplicate listing ${claimed.listing_id}`)
         return false
       }
+    }
+
+    /*
+     * Second guard: never send the exact same copy again. This catches drafts
+     * queued before the rotation rule existed, retries, and brand posts that
+     * have no listing id. One status copy per day; one copy per group per day.
+     */
+    let recentCopies = supabase
+      .from('whatsapp_marketing')
+      .select('body, target_jid')
+      .eq('channel', claimed.channel)
+      .eq('status', 'sent')
+      .gte('sent_at', hoursAgo(24))
+      .order('sent_at', { ascending: false })
+      .limit(100)
+
+    if (claimed.channel === 'group') recentCopies = recentCopies.eq('target_jid', claimed.target_jid)
+
+    const { data: copyRows } = await recentCopies
+    if ((copyRows ?? []).some((row) => row.body === claimed.body)) {
+      await mark(supabase, claimed.id, {
+        status: 'skipped',
+        error: 'same message already posted in the last 24 hours',
+      })
+      await recordActivity(
+        supabase,
+        {
+          kind: 'marketing_skipped_duplicate',
+          subject: claimed.listing_id || claimed.target_jid || claimed.id,
+          detail: { marketing_id: claimed.id, channel: claimed.channel, reason: 'same_copy' },
+        },
+        log
+      )
+      log.warn?.(`[marketing] skipped duplicate ${claimed.channel} copy`)
+      return false
     }
 
     const tall = claimed.channel === 'status'
@@ -440,8 +480,12 @@ async function requestDraft({ apiUrl, secret, payload, log }) {
   })
 
   const data = await res.json().catch(() => null)
-  if (!res.ok || !data?.draft) {
+  if (!res.ok) {
     throw new Error(data?.error || `draft endpoint returned ${res.status}`)
+  }
+  if (!data?.draft) {
+    if (data?.skipped) return data
+    throw new Error(data?.error || 'draft endpoint returned no draft')
   }
   return data
 }
@@ -530,6 +574,10 @@ export function createMarketing({
         payload: { channel: 'status', topic: 'auto', auto: true },
       })
       await control.touchStatus('marketing')
+      if (!data.draft) {
+        log.log?.(`[marketing] status skipped: ${data.skipped || 'no available house'}`)
+        return
+      }
       if (data.draft.status === 'draft') await notifyDraft(data.draft)
       else if (data.draft.status === 'approved') {
         await sendMarketingRow({ sock: currentSock, supabase, row: data.draft, control, ownPhone, adminNumbers, log })
@@ -551,9 +599,10 @@ export function createMarketing({
       .order('last_posted_at', { ascending: true, nullsFirst: true })
       .limit(10)
 
-    const due = (groups ?? []).find(
-      (group) => !tooSoon(group.last_posted_at, Math.max(Number(group.cadence_minutes) || 1440, 180))
-    )
+    const due = (groups ?? []).find((group) => {
+      const cadence = Number(group.cadence_minutes) || Number(snap.group_interval_minutes) || 50
+      return !tooSoon(group.last_posted_at, Math.max(cadence, 1))
+    })
     if (!due) return
     if ((await pending('group', due.jid)) > 0) return
 
@@ -565,6 +614,10 @@ export function createMarketing({
         payload: { channel: 'group', target_jid: due.jid, topic: 'auto', auto: true },
       })
       await control.touchGroup('marketing')
+      if (!data.draft) {
+        log.log?.(`[marketing] group post skipped: ${data.skipped || 'no available house'}`)
+        return
+      }
       if (data.draft.status === 'draft') await notifyDraft(data.draft)
       else if (data.draft.status === 'approved') {
         await sendMarketingRow({ sock: currentSock, supabase, row: data.draft, control, ownPhone, adminNumbers, log })

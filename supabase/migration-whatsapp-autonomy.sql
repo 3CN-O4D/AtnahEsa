@@ -35,9 +35,9 @@ alter table public.whatsapp_bot_control
 comment on column public.whatsapp_bot_control.mode is
   'autonomous = no approvals; regular = marketing needs approval; off = AI silent.';
 
--- Marketing cadence: about every 2.5 hours, at least 10 statuses a day.
+-- Marketing cadence: one post every 50 minutes. The picker rotates houses.
 alter table public.whatsapp_bot_control
-  alter column status_interval_minutes set default 150;
+  alter column status_interval_minutes set default 50;
 
 alter table public.whatsapp_bot_control
   alter column status_daily_limit set default 12;

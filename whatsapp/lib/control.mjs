@@ -46,9 +46,10 @@ export const controlDefaults = () => ({
   blocklist: [],
   marketing_enabled: false,
   require_approval: true,
-  // ~2.5h cadence gives the "about every 3 hours" feel while allowing 12/day.
-  status_interval_minutes: 150,
-  group_interval_minutes: 1440,
+  // One post every 50 minutes; the picker rotates available houses so the
+  // same status is never repeated.
+  status_interval_minutes: 50,
+  group_interval_minutes: 50,
   status_daily_limit: 12,
   group_daily_limit: 3,
   last_status_at: null,

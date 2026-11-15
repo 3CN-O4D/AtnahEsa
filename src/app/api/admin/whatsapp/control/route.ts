@@ -55,6 +55,13 @@ const NUMERIC_KEYS = [
   'group_daily_limit',
 ] as const
 
+const NUMERIC_MINIMUMS: Record<(typeof NUMERIC_KEYS)[number], number> = {
+  status_interval_minutes: 5,
+  group_interval_minutes: 5,
+  status_daily_limit: 1,
+  group_daily_limit: 1,
+}
+
 export async function GET(req: Request) {
   const auth = await requireAdminRequest(req)
   if (!auth.ok) return auth.response
@@ -146,7 +153,7 @@ export async function PATCH(req: Request) {
 
   for (const key of NUMERIC_KEYS) {
     if (body[key] != null && Number.isFinite(Number(body[key]))) {
-      patch[key] = Math.trunc(Number(body[key]))
+      patch[key] = Math.max(NUMERIC_MINIMUMS[key], Math.trunc(Number(body[key])))
     }
   }
 
@@ -249,7 +256,16 @@ export async function PATCH(req: Request) {
 
   if (error) {
     console.error('[admin/whatsapp] control update failed:', error.message)
-    return NextResponse.json({ error: 'Could not save the settings.' }, { status: 500 })
+    const staleIntervalCheck =
+      /status_interval_minutes_check|group_interval_minutes_check/.test(error.message)
+    return NextResponse.json(
+      {
+        error: staleIntervalCheck
+          ? 'The database still has the old interval limit. Run supabase/migration-whatsapp-marketing-fix.sql once, then save again.'
+          : 'Could not save the settings.',
+      },
+      { status: 500 }
+    )
   }
 
   if (data) data.mode = modeFromRow(data)

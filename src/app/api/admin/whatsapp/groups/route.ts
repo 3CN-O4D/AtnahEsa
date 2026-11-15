@@ -116,7 +116,7 @@ export async function PATCH(req: Request) {
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() }
   if (typeof body.enabled === 'boolean') patch.enabled = body.enabled
   if (body.cadence_minutes != null && Number.isFinite(Number(body.cadence_minutes))) {
-    patch.cadence_minutes = Math.max(180, Math.trunc(Number(body.cadence_minutes)))
+    patch.cadence_minutes = Math.max(5, Math.trunc(Number(body.cadence_minutes)))
   }
 
   const { data, error } = await db
@@ -128,7 +128,14 @@ export async function PATCH(req: Request) {
 
   if (error) {
     console.error('[admin/whatsapp] group update failed:', error.message)
-    return NextResponse.json({ error: 'Could not update that group.' }, { status: 500 })
+    return NextResponse.json(
+      {
+        error: /cadence_minutes_check/.test(error.message)
+          ? 'The database still has the old group cadence limit. Run supabase/migration-whatsapp-marketing-fix.sql once, then save again.'
+          : 'Could not update that group.',
+      },
+      { status: 500 }
+    )
   }
 
   await db.from('whatsapp_control_audit').insert({

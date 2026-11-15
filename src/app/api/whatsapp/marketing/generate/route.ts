@@ -60,6 +60,9 @@ export async function POST(req: Request) {
       auto,
       created_by: auto ? 'marketing' : 'admin',
     })
+    if (!draft) {
+      return json({ draft: null, skipped: 'No available house is due for a post yet.' })
+    }
     return json({ draft })
   } catch (error) {
     console.error('[marketing] generate failed:', error instanceof Error ? error.message : error)

@@ -30,6 +30,7 @@ export interface MarketingListing {
   vacancy: string | null
   images: string[] | null
   created_at: string | null
+  released_at?: string | null
 }
 
 export interface MarketingDraftInput {
@@ -52,11 +53,12 @@ type Facts = {
   description: string
   link: string
   image: string | null
+  justReleased: boolean
 }
 
 const money = (value: number | null) => (value ? `KSh ${value.toLocaleString('en-KE')}` : null)
 
-export function listingFacts(listing: MarketingListing): Facts {
+export function listingFacts(listing: MarketingListing, justReleased = false): Facts {
   const location = listing.descriptive_location || listing.location || 'Eldoret'
   const deposit = listing.deposit
     ? `${money(listing.deposit)}${listing.deposit_refundable ? ' refundable' : ''}`
@@ -75,6 +77,7 @@ export function listingFacts(listing: MarketingListing): Facts {
     description: description.length > 420 ? `${description.slice(0, 420).trimEnd()}…` : description,
     link: `${MARKETING_BASE}/listings/${listing.id}`,
     image: (listing.images ?? []).find(Boolean) ?? null,
+    justReleased,
   }
 }
 
@@ -86,8 +89,11 @@ export function templateBody(channel: 'status' | 'group', facts: Facts) {
     facts.vacancy === 'vacant' ? 'Vacant now' : null,
   ].filter(Boolean)
 
+  const opening = facts.justReleased ? '🔥 *Just released*' : null
+
   if (channel === 'status') {
     return [
+      opening,
       `🏠 *${facts.title}*`,
       `📍 ${facts.location}`,
       facts.rent ? `💰 *${facts.rent}/month*` : '',
@@ -99,11 +105,12 @@ export function templateBody(channel: 'status' | 'group', facts: Facts) {
       '',
       `Looking for a house? Join free: ${HUNTER_SIGNUP}`,
     ]
-      .filter((line) => line !== '')
+      .filter((line) => line !== null && line !== '')
       .join('\n')
   }
 
   return [
+    opening,
     `🏠 *${facts.title}*`,
     '',
     `📍 ${facts.location}`,
@@ -118,7 +125,7 @@ export function templateBody(channel: 'status' | 'group', facts: Facts) {
     `🔎 Hunting for a house? Sign up free: ${HUNTER_SIGNUP}`,
     `💼 Have a house to list? Earn with us: ${LISTER_SIGNUP}`,
   ]
-    .filter((line) => line !== '')
+    .filter((line) => line !== null && line !== '')
     .join('\n')
 }
 
@@ -132,6 +139,8 @@ Sound like a friendly Kenyan letting agent texting, not a corporate advertiser:
 - For a group post: at most 900 characters, warm and non-spammy, invite people to view or sign up.
 - Include the hunter signup link when it fits; include the lister link only for group posts.
 - No hashtags, no "Dear customers", no fake urgency, no ALL CAPS.
+
+When the listing is marked justReleased, open the body with *Just released* so it reads as a fresh release, then describe the house normally.
 
 Return ONLY compact JSON:
 {"body":"...","headline":"max 6 words","subline":"area + rent, max 8 words"}`
@@ -153,6 +162,7 @@ async function askModel(channel: 'status' | 'group', topic: string, facts: Facts
       vacancy: facts.vacancy,
       description: facts.description,
       link: facts.link,
+      just_released: facts.justReleased,
     },
     links: {
       listing: facts.link,
@@ -203,80 +213,177 @@ async function askModel(channel: 'status' | 'group', topic: string, facts: Facts
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
-const WEEK_MS = 7 * DAY_MS
+const HISTORY_MS = 7 * DAY_MS
+const RELEASE_WINDOW_MS = 7 * DAY_MS
+const MAX_POSTS_PER_LISTING_PER_DAY = 2
+
+type ListingPick = { listing: MarketingListing; justReleased: boolean }
 
 /**
- * Pick a listing that has not been marketed recently.
+ * Pick the next available house to market.
  *
- * The bot tracks its own activity: a listing may be posted at most once per
- * 24 hours and at most twice per week. If every published house has already
- * been covered today, return null so the caller writes a brand post instead
- * of repeating one house five times (which is exactly what used to happen).
+ * The bot keeps its own diary in `whatsapp_marketing` and rotates through
+ * available published houses instead of repeating one post:
+ *
+ *   - a house may appear at most twice a day per channel,
+ *   - the house posted last is skipped so consecutive posts differ,
+ *   - drafts already waiting for approval reserve their house,
+ *   - a house that was just released is prioritised and flagged `justReleased`.
+ *
+ * When no house is eligible the caller skips the slot. A repeated brand post
+ * is worse than no post: that is what made one status appear 10+ times.
  */
-async function pickListing(admin: ReturnType<typeof createAdminClient>, topic: string) {
-  const weekAgo = new Date(Date.now() - WEEK_MS).toISOString()
+async function pickListing(
+  admin: ReturnType<typeof createAdminClient>,
+  topic: string,
+  channel: 'status' | 'group',
+  { allowRecent = false }: { allowRecent?: boolean } = {}
+): Promise<ListingPick | null> {
+  const since = new Date(Date.now() - HISTORY_MS).toISOString()
 
-  const { data: recent } = await admin
+  const { data: recent, error: historyError } = await admin
     .from('whatsapp_marketing')
     .select('listing_id, channel, status, sent_at, created_at')
     .not('listing_id', 'is', null)
-    .gte('created_at', weekAgo)
-    .limit(500)
+    .gte('created_at', since)
+    .order('created_at', { ascending: false })
+    .limit(1000)
+
+  if (historyError) {
+    console.error('[marketing] marketing history query failed:', historyError.message)
+  }
 
   const now = Date.now()
-  const postedToday = new Set<string>()
-  const weeklyCount = new Map<string, number>()
+  const lastSentAt = new Map<string, number>()
+  const sentToday = new Map<string, number>()
+  const reserved = new Set<string>()
+  let lastSentListingId: string | null = null
+  let lastSentListingAt = 0
+  const lastSentByChannel = new Map<string, string>()
+  const lastSentChannelAt = new Map<string, number>()
 
   for (const row of recent ?? []) {
     const id = row.listing_id as string | null
-    if (!id || row.status !== 'sent') continue
-    weeklyCount.set(id, (weeklyCount.get(id) ?? 0) + 1)
-    const sentAt = row.sent_at ? new Date(row.sent_at).getTime() : null
-    if (sentAt && now - sentAt < DAY_MS) postedToday.add(id)
+    if (!id) continue
+
+    if (['draft', 'approved', 'scheduled', 'sending'].includes(String(row.status))) {
+      reserved.add(id)
+      continue
+    }
+    if (row.status !== 'sent' || !row.sent_at) continue
+
+    const sentAt = new Date(row.sent_at).getTime()
+    if (Number.isNaN(sentAt)) continue
+
+    if (sentAt > (lastSentAt.get(id) ?? 0)) lastSentAt.set(id, sentAt)
+    if (sentAt > lastSentListingAt) {
+      lastSentListingAt = sentAt
+      lastSentListingId = id
+    }
+    const channelKey = String(row.channel)
+    if (sentAt > (lastSentChannelAt.get(channelKey) ?? 0)) {
+      lastSentChannelAt.set(channelKey, sentAt)
+      lastSentByChannel.set(channelKey, id)
+    }
+    if (now - sentAt < DAY_MS) {
+      const key = `${id}:${row.channel}`
+      sentToday.set(key, (sentToday.get(key) ?? 0) + 1)
+    }
   }
 
-  const { data, error } = await admin
-    .from('listings')
-    .select(
-      'id,title,description,rent,price,location,descriptive_location,house_type,water,electricity,deposit,deposit_refundable,vacancy,images,created_at'
-    )
-    .eq('status', 'published')
-    .order('created_at', { ascending: false })
-    .limit(60)
+  const columns =
+    'id,title,description,rent,price,location,descriptive_location,house_type,water,electricity,deposit,deposit_refundable,vacancy,images,created_at'
 
-  if (error) {
-    console.error('[marketing] listing query failed:', error.message)
+  const load = (onlyVacant: boolean, withRelease: boolean) => {
+    let query = admin
+      .from('listings')
+      .select(withRelease ? `${columns},released_at` : columns)
+      .eq('status', 'published')
+      .order('created_at', { ascending: false })
+      .limit(100)
+    if (onlyVacant) query = query.eq('vacancy', 'vacant')
+    return query
+  }
+
+  let result = await load(true, true)
+  if (result.error && /released_at/i.test(result.error.message)) {
+    // Deploy can land before `migration-whatsapp-marketing-fix.sql` runs.
+    result = await load(true, false)
+  }
+  if (!result.error && !(result.data ?? []).length) {
+    result = await load(false, true)
+    if (result.error && /released_at/i.test(result.error.message)) {
+      result = await load(false, false)
+    }
+  }
+
+  if (result.error) {
+    console.error('[marketing] listing query failed:', result.error.message)
     return null
   }
 
-  const listings = (data ?? []) as MarketingListing[]
+  const listings = (result.data ?? []) as unknown as MarketingListing[]
   if (!listings.length) return null
 
-  // Prefer houses untouched this week, then those posted once. Never today.
-  const eligible = listings.filter((listing) => !postedToday.has(listing.id))
-  const fresh = eligible.filter((listing) => (weeklyCount.get(listing.id) ?? 0) === 0)
-  const once = eligible.filter((listing) => (weeklyCount.get(listing.id) ?? 0) < 2)
-  const pool = fresh.length ? fresh : once
+  const releasedAt = (listing: MarketingListing) => {
+    if (!listing.released_at) return 0
+    const at = new Date(listing.released_at).getTime()
+    return Number.isNaN(at) ? 0 : at
+  }
 
-  if (!pool.length) {
-    console.warn('[marketing] every published house was already posted today; using a brand post')
+  const isFreshRelease = (listing: MarketingListing) => {
+    const at = releasedAt(listing)
+    if (!at || now - at > RELEASE_WINDOW_MS) return false
+    return at > (lastSentAt.get(listing.id) ?? 0)
+  }
+
+  const withinDailyCap = (listing: MarketingListing) =>
+    (sentToday.get(`${listing.id}:${channel}`) ?? 0) < MAX_POSTS_PER_LISTING_PER_DAY
+
+  let pool = listings.filter((listing) => {
+    if (!allowRecent && !withinDailyCap(listing)) return false
+    return !reserved.has(listing.id)
+  })
+
+  if (!pool.length && !allowRecent) {
+    console.warn('[marketing] every available house has reached its daily post cap')
     return null
   }
+  if (!pool.length) pool = listings
+
+  const avoidRepeating = new Set(
+    [lastSentListingId, lastSentByChannel.get(channel) ?? null].filter((id): id is string => Boolean(id))
+  )
+  // A fresh release is news, so it may go out even if it was the last house.
+  const differentHouse = pool.filter(
+    (listing) => !avoidRepeating.has(listing.id) || isFreshRelease(listing)
+  )
+  if (differentHouse.length) pool = differentHouse
+
+  const byOldestPost = (a: MarketingListing, b: MarketingListing) =>
+    (lastSentAt.get(a.id) ?? 0) - (lastSentAt.get(b.id) ?? 0) ||
+    (Date.parse(b.created_at ?? '') || 0) - (Date.parse(a.created_at ?? '') || 0)
 
   const topicText = topic && topic !== 'auto' ? topic.toLowerCase() : ''
-  if (topicText) {
-    const match = pool.find((listing) =>
-      `${listing.title ?? ''} ${listing.descriptive_location ?? ''} ${listing.location ?? ''} ${
-        listing.house_type ?? ''
-      }`
-        .toLowerCase()
-        .includes(topicText)
-    )
-    if (match) return match
+  const matchesTopic = (listing: MarketingListing) =>
+    `${listing.title ?? ''} ${listing.descriptive_location ?? ''} ${listing.location ?? ''} ${
+      listing.house_type ?? ''
+    }`
+      .toLowerCase()
+      .includes(topicText)
+
+  const freshReleases = pool.filter(isFreshRelease).sort((a, b) => releasedAt(b) - releasedAt(a))
+
+  let listing: MarketingListing | null = null
+  if (freshReleases.length) {
+    listing = topicText ? (freshReleases.find(matchesTopic) ?? freshReleases[0]) : freshReleases[0]
+  } else {
+    const ordered = [...pool].sort(byOldestPost)
+    listing = (topicText ? ordered.find(matchesTopic) : null) ?? ordered[0] ?? null
   }
 
-  // Rotate hourly so a burst of calls does not all pick row one.
-  return pool[Math.floor(Date.now() / (60 * 60 * 1000)) % pool.length]
+  if (!listing) return null
+  return { listing, justReleased: isFreshRelease(listing) }
 }
 
 export async function generateMarketingDraft(input: MarketingDraftInput) {
@@ -287,8 +394,14 @@ export async function generateMarketingDraft(input: MarketingDraftInput) {
 
   const admin = createAdminClient()
 
-  const listing = await pickListing(admin, topic)
-  const facts = listing ? listingFacts(listing) : null
+  const pick = await pickListing(admin, topic, channel, { allowRecent: !auto })
+  // Automatic slots must feature a real available house. Posting a generic
+  // brand status every cycle is what repeated one status more than 10 times.
+  if (auto && !pick) return null
+
+  const listing = pick?.listing ?? null
+  const justReleased = pick?.justReleased ?? false
+  const facts = listing ? listingFacts(listing, justReleased) : null
   const aiDraft = facts ? await askModel(channel, topic, facts) : null
 
   const fallback = templateBody(
@@ -305,6 +418,7 @@ export async function generateMarketingDraft(input: MarketingDraftInput) {
       description: '',
       link: MARKETING_BASE,
       image: null,
+      justReleased: false,
     }
   )
 
@@ -313,6 +427,7 @@ export async function generateMarketingDraft(input: MarketingDraftInput) {
     subline: aiDraft?.subline || facts?.location || null,
     source: aiDraft ? 'ai' : 'template',
     topic,
+    just_released: justReleased,
   }
 
   const { data: control } = await admin
@@ -344,12 +459,18 @@ export async function generateMarketingDraft(input: MarketingDraftInput) {
         ? true
         : control?.require_approval !== false
 
+  const rawBody = aiDraft?.body || fallback
+  const body =
+    justReleased && !/just[\s-]*released/i.test(rawBody.slice(0, 120))
+      ? `🔥 *Just released*\n\n${rawBody}`
+      : rawBody
+
   const { data: draft, error } = await admin
     .from('whatsapp_marketing')
     .insert({
       channel,
       target_jid: targetJid,
-      body: (aiDraft?.body || fallback).slice(0, 3000),
+      body: body.slice(0, 3000),
       image_url: facts?.image ?? null,
       listing_id: listing?.id ?? null,
       template: aiDraft ? 'ai' : 'template',

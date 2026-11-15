@@ -34,13 +34,15 @@ Meta WhatsApp Cloud API (webhook-based) instead of Baileys.
 
 ## 1. Database
 
-Run all three migrations on the production database:
+Run all four migrations on the production database:
 
 ```bash
 supabase/migration-whatsapp.sql
 supabase/migration-chat-handoff.sql
 supabase/migration-whatsapp-outbox.sql
 supabase/migration-whatsapp-control.sql
+supabase/migration-whatsapp-autonomy.sql
+supabase/migration-whatsapp-marketing-fix.sql
 ```
 
 They create:
@@ -268,6 +270,15 @@ Safety rails:
 - marketing defaults **off**, approval defaults **on**;
 - groups are discovered disabled and must be enabled one by one, each with its
   own cadence;
+- status and group intervals default to **50 minutes** and can be lowered to
+  5 minutes in the panel; run `supabase/migration-whatsapp-marketing-fix.sql`
+  once so the old 60/180-minute checks stop blocking saves;
+- the picker rotates the least-recently posted **available** house, never
+  repeats the previous post in the same channel, and caps a house at two posts
+  per day per channel — if no house is due, the slot is skipped instead of
+  repeating a generic brand status;
+- a listing that just became published (including a taken/booked house put back
+  on the market) is posted first as **“Just released”**;
 - account-wide daily caps for statuses and group posts;
 - status posts go to recent contacts, outbox recipients and admins (max 3000),
   never the official number itself or a blocked contact;

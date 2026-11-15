@@ -709,6 +709,7 @@ export default function AdminWhatsAppPage() {
                   <span className="text-gray-600 dark:text-gray-400">{label}</span>
                   <input
                     type="number"
+                    min={key.includes('interval') ? 5 : 1}
                     defaultValue={control?.[key] ?? 0}
                     onBlur={(event) =>
                       void patchControl({ [key]: Number(event.target.value) }, key)
@@ -1103,6 +1104,7 @@ export default function AdminWhatsAppPage() {
                   </label>
                   <input
                     type="number"
+                    min={5}
                     defaultValue={group.cadence_minutes}
                     onBlur={(event) => void patchGroup(group, { cadence_minutes: Number(event.target.value) })}
                     className="w-24 rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"

@@ -34,7 +34,7 @@ Meta WhatsApp Cloud API (webhook-based) instead of Baileys.
 
 ## 1. Database
 
-Run all four migrations on the production database:
+Run the migrations on the production database:
 
 ```bash
 supabase/migration-whatsapp.sql

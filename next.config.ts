@@ -60,6 +60,11 @@ const nextConfig: NextConfig = {
     ]
   },
   serverExternalPackages: ['pdfkit', 'sharp'],
+  // Keeps the Next.js CLI's security-advisory nudge pointing at the automated
+  // security upgrade path instead of stopping builds.
+  experimental: {
+    agentUpgrade: 'security',
+  },
 }
 
 export default nextConfig

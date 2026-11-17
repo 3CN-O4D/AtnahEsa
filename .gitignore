@@ -42,3 +42,6 @@ next-env.d.ts
 
 # supabase CLI local state
 supabase/.temp/
+
+# keep the example template committed
+!.env.local.example

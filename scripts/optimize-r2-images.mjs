@@ -2,7 +2,7 @@
 /**
  * Generate the WebP variants the site serves for every listing photo in R2.
  *
- *   photo-0.jpg  ->  photo-0-480.webp, -960.webp, -1600.webp, -1920.webp
+ *   photo-0.jpg  ->  photo-0-480.webp, -640.webp, -960.webp, -1280.webp, -1920.webp
  *
  * Originals are left alone: they are the fallback if a variant is missing.
  * New uploads do this automatically in `api/upload/finalize`; this script is
@@ -22,10 +22,10 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3'
 
-const WIDTHS = [480, 960, 1600, 1920]
+const WIDTHS = [480, 640, 960, 1280, 1920]
 const PREFIX = 'asehanta/listings/'
 const IMAGE_EXT = /\.(jpe?g|png|webp|avif)$/i
-const VARIANT_EXT = /-(480|960|1600|1920)\.webp$/i
+const VARIANT_EXT = /-(480|640|960|1280|1600|1920)\.webp$/i
 const MASTER_QUALITY = 82
 const VARIANT_QUALITY = 78
 const CONCURRENCY = 3

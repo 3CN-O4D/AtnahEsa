@@ -111,7 +111,7 @@ export default function Header() {
       <div className="flex items-center h-16">
         {/* Left: Logo + Name — flush to left edge */}
         <Link href="/" className="flex items-center gap-2 pl-4 shrink-0">
-          <Image src="/images/asehanta-logo.jpeg" alt={APP_NAME} width={32} height={32} className="rounded-full object-cover ring-2 ring-[#D4AF37]/70" />
+          <Image src="/images/asehanta-logo-192.webp" alt={APP_NAME} width={32} height={32} className="rounded-full object-cover ring-2 ring-[#D4AF37]/70" />
           <span className="brand-wordmark text-lg sm:text-xl font-extrabold tracking-tight">{APP_NAME}</span>
         </Link>
 

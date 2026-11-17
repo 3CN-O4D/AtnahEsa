@@ -9,6 +9,7 @@ import { MapPin, AlertTriangle, Video, ArrowLeft, Calendar, Home, Info, Star, Us
 import Slideshow from '@/components/ui/Slideshow'
 import Button from '@/components/ui/Button'
 import Modal from '@/components/ui/Modal'
+import { HERO_IMAGE_SIZES } from '@/lib/image-src'
 import { createClient } from '@/lib/supabase/client'
 import { useFavorites } from '@/lib/favorites'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
@@ -285,6 +286,7 @@ export default function ListingDetailPage() {
           <Slideshow
             images={listing.images}
             priority
+            sizes={HERO_IMAGE_SIZES}
             className="w-full aspect-[4/3] sm:aspect-[16/9]"
             onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }}
           />
@@ -510,7 +512,7 @@ export default function ListingDetailPage() {
               <div className="flex items-center gap-4">
                 <div className="relative w-14 h-14 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg shadow-sm shrink-0 overflow-hidden">
                   {lister.role === 'admin' ? (
-                    <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" fill sizes="56px" className="object-cover" />
+                    <Image src="/images/asehanta-logo-192.webp" alt="AseHanta" fill sizes="56px" className="object-cover" />
                   ) : lister.avatar_url ? (
                     <Image src={lister.avatar_url} alt="" fill sizes="56px" className="object-cover" />
                   ) : (

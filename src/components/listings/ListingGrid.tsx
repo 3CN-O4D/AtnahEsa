@@ -11,6 +11,12 @@ import type { Listing } from '@/types'
 
 interface ListingGridProps {
   fetchListings: (page: number) => Promise<Listing[]>
+  /**
+   * First page rendered on the server. When present the grid paints (and the
+   * browser starts fetching photos) with the initial HTML instead of waiting
+   * for hydration + an API round trip. Pages 2+ still come from fetchListings.
+   */
+  initialListings?: Listing[]
   /** Kept in the public props for callers; resets follow fetchListings identity. */
   sort?: string
   filters?: Record<string, string>
@@ -31,9 +37,10 @@ interface ListerInfo {
 
 const INITIAL_SKELETONS = 8
 const LOADING_SKELETONS = 4
-// Cards painted above the fold load their photo immediately; the rest stay
-// lazy so the first screen is not queued behind every other photo.
-const EAGER_CARDS = 4
+// Only the first photo or two in a single-column phone viewport are above the
+// fold. Keeping this small stops a handful of eager downloads from competing
+// with the one image the visitor is actually waiting on.
+const EAGER_CARDS = 2
 
 /** Section headers shown whenever the status changes in the grouped home feed. */
 const GROUP_META: Record<string, { label: string; caption: string; dot: string; text: string }> = {
@@ -85,10 +92,16 @@ function CardSkeleton({ delay = 0 }: { delay?: number }) {
   )
 }
 
-export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, total, batchMode = false }: ListingGridProps) {
-  const [listings, setListings] = useState<Listing[]>([])
-  const [loading, setLoading] = useState(true)
-  const [hasMore, setHasMore] = useState(true)
+export default function ListingGrid({ fetchListings, initialListings, pageSize = ITEMS_PER_PAGE, total, batchMode = false }: ListingGridProps) {
+  // A non-empty server-rendered page is treated as page 1: it seeds the state,
+  // the pagination refs and the page cache so the mount effect does not fetch
+  // the same listings again.
+  const seeded = initialListings && initialListings.length > 0 ? initialListings : null
+  const seededRef = useRef(!!seeded)
+
+  const [listings, setListings] = useState<Listing[]>(seeded ?? [])
+  const [loading, setLoading] = useState(!seeded)
+  const [hasMore, setHasMore] = useState(!seeded || seeded.length >= pageSize)
   const [error, setError] = useState<string | null>(null)
   const [showSuccess, setShowSuccess] = useState(false)
   const [revealingAll, setRevealingAll] = useState(false)
@@ -103,11 +116,11 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
   // duplicate request, and a stale response can never advance the cursor.
   const activeRef = useRef(0) // generation guard for filter/sort changes
   const loadingRef = useRef(false)
-  const nextPageRef = useRef(1)
-  const hasMoreRef = useRef(true)
-  const loadedPagesRef = useRef(0)
-  const seenIdsRef = useRef<Set<string>>(new Set())
-  const cacheRef = useRef<Map<number, Listing[]>>(new Map())
+  const nextPageRef = useRef(seeded ? 2 : 1)
+  const hasMoreRef = useRef(!seeded || seeded.length >= pageSize)
+  const loadedPagesRef = useRef(seeded ? 1 : 0)
+  const seenIdsRef = useRef<Set<string>>(new Set((seeded ?? []).map((listing) => listing.id)))
+  const cacheRef = useRef<Map<number, Listing[]>>(seeded ? new Map([[1, seeded]]) : new Map())
   const inFlightRef = useRef<Map<number, Promise<Listing[]>>>(new Map())
 
   useEffect(() => {
@@ -251,9 +264,11 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
 
   // The caller remounts this grid (via a key) whenever the search changes, so
   // there is no in-place reset race: mount state already starts at page 1.
+  // When the server already supplied page 1 there is nothing to fetch.
   // Kicking the fetch off in a microtask keeps the first paint (skeletons)
   // free of a cascading synchronous state update.
   useEffect(() => {
+    if (seededRef.current) return
     let cancelled = false
     const start = async () => {
       await Promise.resolve()

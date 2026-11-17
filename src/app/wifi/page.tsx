@@ -89,7 +89,7 @@ export default function WifiPage() {
         <div className="relative mx-auto flex max-w-6xl items-center justify-center gap-6 px-4 py-3">
           <div className="flex items-center gap-2">
             <div className="relative h-10 w-10 overflow-hidden rounded-full bg-white/20 ring-1 ring-white/20">
-              <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" fill sizes="40px" className="object-cover" />
+              <Image src="/images/asehanta-logo-192.webp" alt="AseHanta" fill sizes="40px" className="object-cover" />
             </div>
             <span className="text-sm font-semibold tracking-wide text-white/85">ASEHANTA</span>
           </div>

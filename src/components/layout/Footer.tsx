@@ -10,7 +10,7 @@ export default function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex items-center gap-2 mb-2">
-              <Image src="/images/asehanta-logo.jpeg" alt={APP_NAME} width={28} height={28} className="rounded-full object-cover ring-2 ring-[#D4AF37]/70" />
+              <Image src="/images/asehanta-logo-192.webp" alt={APP_NAME} width={28} height={28} className="rounded-full object-cover ring-2 ring-[#D4AF37]/70" />
               <h3 className="brand-wordmark-light font-extrabold text-base">{APP_NAME}</h3>
             </div>
             <p className="text-xs leading-relaxed text-blue-200/70">

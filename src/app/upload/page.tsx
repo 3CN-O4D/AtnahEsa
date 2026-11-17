@@ -192,7 +192,7 @@ export default function UploadPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-6">
-        <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" width={40} height={40} className="rounded-full object-cover" />
+        <Image src="/images/asehanta-logo-192.webp" alt="AseHanta" width={40} height={40} className="rounded-full object-cover" />
         <h1 className="text-2xl font-bold">List Your House</h1>
       </div>
 

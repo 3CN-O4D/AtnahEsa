@@ -6,39 +6,12 @@ import { createClient } from '@/lib/supabase/server'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
 import { getCached, setCached, invalidateCached, cached } from '@/lib/server-cache'
 import { createNotification } from '@/lib/notifications'
-
-/** Columns the public cards actually read. Keeping this list tight makes each
- *  page noticeably smaller over the wire and avoids leaking private fields. */
-const PUBLIC_COLUMNS = [
-  'id',
-  'title',
-  'description',
-  'price',
-  'rent',
-  'location',
-  'images',
-  'issues',
-  'issues_count',
-  'deposit',
-  'deposit_refundable',
-  'electricity',
-  'electric_bill',
-  'water',
-  'why_vacant',
-  'vacancy',
-  'vacancy_type',
-  'house_type',
-  'building_type',
-  'floor_number',
-  'descriptive_location',
-  'payment_method',
-  'status',
-  'taken_at',
-  'uploader_id',
-  'uploader_name',
-  'created_at',
-  'updated_at',
-].join(',')
+import {
+  LISTING_SORT_RULES,
+  LISTING_STATUS_ORDER,
+  PUBLIC_LISTING_COLUMNS as PUBLIC_COLUMNS,
+  fetchGroupedListingsPage,
+} from '@/lib/listings-feed'
 
 /** Public, non-personalised payloads can be reused by the CDN briefly while
  *  still picking up new listings within half a minute. */
@@ -84,15 +57,7 @@ export async function GET(req: Request) {
 
     const wantCount = count === '1'
 
-    const sortMap: Record<string, { column: string; ascending: boolean }> = {
-      rent_asc: { column: 'rent', ascending: true },
-      rent_desc: { column: 'rent', ascending: false },
-      price_asc: { column: 'price', ascending: true },
-      price_desc: { column: 'price', ascending: false },
-      location: { column: 'location', ascending: true },
-      issues_asc: { column: 'issues_count', ascending: true },
-      issues_desc: { column: 'issues_count', ascending: false },
-    }
+    const sortMap = LISTING_SORT_RULES
 
     const applyFilters = <T>(q: T): T => {
       let next = q as T & {
@@ -115,22 +80,11 @@ export async function GET(req: Request) {
       return next as T
     }
 
-    /** Apply the filters + chosen sort to one status group (newest first by default). */
-    const buildGroupPage = (group: string, from: number, to: number) => {
-      let q = applyFilters(supabase.from('listings').select(PUBLIC_COLUMNS).in('status', [group]))
-      const rule = sort ? sortMap[sort] : undefined
-      q = rule ? q.order(rule.column, { ascending: rule.ascending }) : q.order('created_at', { ascending: false })
-      return q.range(from, to)
-    }
-
-    const buildGroupCount = (group: string) =>
-      applyFilters(supabase.from('listings').select('*', { count: 'exact', head: true }).in('status', [group]))
-
     // Home requests every status at once. Instead of interleaving them by
     // date, return one contiguous block per status: new -> booked -> taken.
-    // Counts let us page through that virtual combined list without a
-    // database migration or loading every row into memory.
-    const STATUS_ORDER = ['published', 'booked', 'taken'] as const
+    // The shared helper does the counting + windowing so the server-rendered
+    // first page and this API return the same order.
+    const STATUS_ORDER = LISTING_STATUS_ORDER
     const grouped = status === 'all' && !wantCount
 
     let data: unknown = null
@@ -138,51 +92,20 @@ export async function GET(req: Request) {
     let queryCount: number | null = null
 
     if (grouped) {
-      const pageNum = Math.max(1, page ? parseInt(page, 10) : 1)
-      const windowStart = (pageNum - 1) * pageSize
-      const windowEnd = windowStart + pageSize
-
-      const countsKey = [
-        'listings',
-        'group-counts',
-        query || '',
-        location || '',
-        minRent || '',
-        maxRent || '',
-        minPrice || '',
-        maxPrice || '',
-        issues || '',
-      ].join('|')
-
-      const counts = await cached(countsKey, LISTING_CACHE_TTL_MS, async () => {
-        const results = await Promise.all(STATUS_ORDER.map((group) => buildGroupCount(group)))
-        const failed = results.find((result) => result.error)
-        if (failed?.error) throw new Error(failed.error.message)
-        const map: Record<string, number> = {}
-        results.forEach((result, index) => {
-          map[STATUS_ORDER[index]] = result.count ?? 0
+      data = await cached(`listings-grouped|${cacheKey}`, LISTING_CACHE_TTL_MS, () =>
+        fetchGroupedListingsPage(supabase, {
+          page,
+          pageSize,
+          query,
+          sort,
+          location,
+          minRent,
+          maxRent,
+          minPrice,
+          maxPrice,
+          issues,
         })
-        return map
-      })
-
-      const rows: unknown[] = []
-      let groupStart = 0
-      for (const group of STATUS_ORDER) {
-        const groupCount = counts[group] ?? 0
-        const groupEnd = groupStart + groupCount
-        if (groupCount > 0 && windowEnd > groupStart && windowStart < groupEnd) {
-          const localFrom = Math.max(0, windowStart - groupStart)
-          const localTo = Math.min(groupCount, windowEnd - groupStart) - 1
-          const result = await buildGroupPage(group, localFrom, localTo)
-          if (result.error) {
-            error = result.error
-            break
-          }
-          rows.push(...(result.data ?? []))
-        }
-        groupStart = groupEnd
-      }
-      data = rows
+      )
     } else {
       const statusFilter = status === 'all' ? [...STATUS_ORDER] : status ? [status] : ['published', 'taken']
       let q = supabase

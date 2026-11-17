@@ -252,7 +252,7 @@ function SignUpForm() {
         <div className="relative mx-auto mb-4 h-16 w-16">
           <span aria-hidden className="absolute inset-0 rounded-2xl bg-gradient-to-br from-blue-400 to-blue-600 opacity-40 blur-lg animate-pulse-slow" />
           <div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br from-blue-600 to-blue-600 shadow-lg ring-1 ring-white/40">
-            <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" fill sizes="64px" className="object-cover" />
+            <Image src="/images/asehanta-logo-192.webp" alt="AseHanta" fill sizes="64px" className="object-cover" />
           </div>
         </div>
         <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Create your account</h1>

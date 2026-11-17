@@ -58,7 +58,7 @@ export default function ContactPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8">
       <div className="flex items-center gap-3 mb-4">
-        <Image src="/images/asehanta-logo.jpeg" alt="AseHanta" width={40} height={40} className="rounded-full object-cover" />
+        <Image src="/images/asehanta-logo-192.webp" alt="AseHanta" width={40} height={40} className="rounded-full object-cover" />
         <div>
           <h1 className="text-2xl font-bold">Contact Us</h1>
           <p className="text-gray-600 text-sm">

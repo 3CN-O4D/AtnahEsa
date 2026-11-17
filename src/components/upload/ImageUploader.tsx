@@ -124,7 +124,7 @@ async function uploadImage(
   const originalUrl = await putImage(file, upload, onProgress)
   if (!upload.key) return originalUrl
 
-  // Re-encode to a WebP master plus 480/960/1600/1920 variants while the
+  // Re-encode to a WebP master plus 480/640/960/1280/1920 variants while the
   // uploader is still on screen. Falls back to the original if that fails, so
   // a slow function never blocks publishing a listing.
   try {

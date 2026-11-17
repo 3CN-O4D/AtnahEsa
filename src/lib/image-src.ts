@@ -6,8 +6,9 @@
  * gets pre-generated WebP variants written next to it in the bucket:
  *
  *   photo-0.jpg  ->  photo-0-480.webp
+ *                    photo-0-640.webp
  *                    photo-0-960.webp
- *                    photo-0-1600.webp
+ *                    photo-0-1280.webp
  *                    photo-0-1920.webp
  *
  * New uploads produce them in `api/upload/finalize`; `scripts/optimize-r2-images.mjs`
@@ -16,7 +17,7 @@
  */
 
 /** Widths we store for every listing photo. Keep in sync with the upload. */
-export const IMAGE_VARIANT_WIDTHS = [480, 960, 1600, 1920] as const
+export const IMAGE_VARIANT_WIDTHS = [480, 640, 960, 1280, 1920] as const
 
 /** Everything at or below this is served as-is (icons, avatars, thumbs). */
 const R2_PUBLIC_HOST = (() => {
@@ -29,7 +30,14 @@ const R2_PUBLIC_HOST = (() => {
   }
 })()
 
-const VARIANT_RE = /-(480|960|1600|1920)\.webp$/i
+/**
+ * Rendering widths that match the variant set, used by next/image `sizes`.
+ * Keep in sync with `imageSizes`/`deviceSizes` in next.config.ts.
+ */
+export const CARD_IMAGE_SIZES = '(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw'
+export const HERO_IMAGE_SIZES = '(min-width: 1200px) 1152px, 100vw'
+
+const VARIANT_RE = /-(480|640|960|1280|1600|1920)\.webp$/i
 
 export function listingPhotoKey(src: string): string | null {
   if (!/^https?:\/\//i.test(src)) return null

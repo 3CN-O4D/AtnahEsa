@@ -30,7 +30,7 @@ const nextConfig: NextConfig = {
     loaderFile: './src/lib/image-loader.ts',
     // Match the widths we actually store in R2, so the browser asks for a
     // variant that exists instead of a candidate that has to round up.
-    deviceSizes: [480, 960, 1600, 1920],
+    deviceSizes: [480, 640, 960, 1280, 1920],
     imageSizes: [48, 96, 128, 256, 384],
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },

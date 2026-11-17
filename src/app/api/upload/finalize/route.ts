@@ -14,7 +14,7 @@ export const maxDuration = 60
  *
  * The uploader uploads the original directly (phone photos exceed Vercel's
  * request-body limit), then calls this endpoint once. We re-encode a WebP
- * master capped at 2000px and write 480/960/1600/1920 variants next to it, so
+ * master capped at 2000px and write 480/640/960/1280/1920 variants next to it, so
  * every page view can be served straight from R2's CDN — no Vercel image
  * optimizations, no on-demand resizing.
  *

@@ -31,9 +31,23 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode
 }>) {
+  // Listing photos come from R2 behind Cloudflare. Opening the connection while
+  // the HTML is still parsing removes a DNS + TLS round trip from the first
+  // photo the visitor sees.
+  const mediaOrigin = (() => {
+    const raw = process.env.NEXT_PUBLIC_R2_PUBLIC_URL || 'https://media.asehanta.com'
+    try {
+      return new URL(raw).origin
+    } catch {
+      return 'https://media.asehanta.com'
+    }
+  })()
+
   return (
     <html lang="en">
       <head>
+        <link rel="preconnect" href={mediaOrigin} />
+        <link rel="dns-prefetch" href={mediaOrigin} />
         <script
           id="theme-init"
           dangerouslySetInnerHTML={{

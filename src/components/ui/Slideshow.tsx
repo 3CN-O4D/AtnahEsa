@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { ChevronLeft, ChevronRight, ImageOff } from 'lucide-react'
-import { photoVariantUrl } from '@/lib/image-src'
+import { CARD_IMAGE_SIZES } from '@/lib/image-src'
 import { cn } from '@/lib/utils'
 
 interface SlideshowProps {
@@ -17,6 +17,8 @@ interface SlideshowProps {
    * browser fetches photos one at a time as they scroll into view.
    */
   priority?: boolean
+  /** Responsive `sizes` for the photo. Defaults to the card-grid sizes. */
+  sizes?: string
 }
 
 export default function Slideshow({
@@ -25,6 +27,7 @@ export default function Slideshow({
   className,
   onImageClick,
   priority = false,
+  sizes = CARD_IMAGE_SIZES,
 }: SlideshowProps) {
   const [current, setCurrent] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
@@ -67,16 +70,10 @@ export default function Slideshow({
     return () => clearInterval(timer)
   }, [next, interval, images.length, paused])
 
-  // Warm the next slide so a swipe/auto-advance never shows an empty frame.
-  // Preload a mid-size variant rather than the multi-megabyte original.
-  useEffect(() => {
-    if (images.length <= 1) return
-    const nextUrl = images[(current + 1) % images.length]
-    if (!nextUrl) return
-    const img = new window.Image()
-    img.decoding = 'async'
-    img.src = photoVariantUrl(nextUrl, 960)
-  }, [current, images])
+  // Deliberately no next-slide warm-up: the auto-advance timer gives the next
+  // photo five seconds, which is plenty once the first frame is on screen. The
+  // old warm-up fired a 960px request per card on mount and those extra
+  // downloads competed with the photos people were actually looking at.
 
   const handleTouchStart = (e: React.TouchEvent) => {
     touchX.current = e.touches[0].clientX
@@ -148,7 +145,7 @@ export default function Slideshow({
               src={src}
               alt={`Slide ${current + 1} of ${images.length}`}
               fill
-              sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+              sizes={sizes}
               quality={75}
               loading={loadEagerly ? 'eager' : 'lazy'}
               fetchPriority={loadEagerly ? 'high' : 'auto'}

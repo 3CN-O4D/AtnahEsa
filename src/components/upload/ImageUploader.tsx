@@ -60,6 +60,7 @@ interface PresignedUpload {
   uploadUrl: string
   publicUrl: string
   contentType: string
+  key: string
 }
 
 async function requestPresignedUpload(file: File, index: number): Promise<PresignedUpload> {
@@ -120,7 +121,29 @@ async function uploadImage(
   onProgress: (percent: number) => void
 ): Promise<string> {
   const upload = await requestPresignedUpload(file, index)
-  return putImage(file, upload, onProgress)
+  const originalUrl = await putImage(file, upload, onProgress)
+  if (!upload.key) return originalUrl
+
+  // Re-encode to a WebP master plus 480/960/1600/1920 variants while the
+  // uploader is still on screen. Falls back to the original if that fails, so
+  // a slow function never blocks publishing a listing.
+  try {
+    const res = await fetch('/api/upload/finalize', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: upload.key }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (res.ok && typeof data.url === 'string' && data.url) {
+      onProgress(100)
+      return data.url
+    }
+    console.warn('[upload] optimisation skipped', data?.error)
+  } catch (err) {
+    console.warn('[upload] optimisation failed, keeping original', err)
+  }
+
+  return originalUrl
 }
 
 export default function ImageUploader({

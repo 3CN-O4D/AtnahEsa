@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import cloudinary from 'cloudinary'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
-import { deleteR2Object, r2KeyFromUrl } from '@/lib/s3'
+import { deleteR2Image, deleteR2Object, r2KeyFromUrl } from '@/lib/s3'
 
 cloudinary.v2.config({
   cloud_name: process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME,
@@ -66,7 +66,8 @@ export async function POST(req: Request) {
     const r2Key = r2KeyFromUrl(url)
     if (r2Key) {
       try {
-        await deleteR2Object(r2Key)
+        if (r2Key.startsWith('asehanta/listings/')) await deleteR2Image(r2Key)
+        else await deleteR2Object(r2Key)
       } catch (err) {
         console.error('[delete-image] R2 delete failed', { key: r2Key, err })
         return NextResponse.json({ error: 'Could not delete the image from storage.' }, { status: 502 })

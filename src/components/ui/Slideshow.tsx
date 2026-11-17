@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { ChevronLeft, ChevronRight, ImageOff } from 'lucide-react'
+import { photoVariantUrl } from '@/lib/image-src'
 import { cn } from '@/lib/utils'
 
 interface SlideshowProps {
@@ -10,13 +11,28 @@ interface SlideshowProps {
   interval?: number
   className?: string
   onImageClick?: (index: number) => void
+  /**
+   * Load the first frame immediately at high priority. Only the cards in the
+   * first visible row should pass this; every other card stays lazy so the
+   * browser fetches photos one at a time as they scroll into view.
+   */
+  priority?: boolean
 }
 
-export default function Slideshow({ images, interval = 5000, className, onImageClick }: SlideshowProps) {
+export default function Slideshow({
+  images,
+  interval = 5000,
+  className,
+  onImageClick,
+  priority = false,
+}: SlideshowProps) {
   const [current, setCurrent] = useState(0)
   const [isAnimating, setIsAnimating] = useState(false)
   const [loaded, setLoaded] = useState<Record<string, boolean>>({})
   const [failed, setFailed] = useState<Record<string, boolean>>({})
+  // Variants are pre-generated, but an older photo may not have one yet. On a
+  // 404 we render the full-size original instead of a broken frame.
+  const [fellBack, setFellBack] = useState<Record<string, boolean>>({})
   const [paused, setPaused] = useState(false)
   const touchX = useRef(0)
   const touchY = useRef(0)
@@ -52,12 +68,14 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
   }, [next, interval, images.length, paused])
 
   // Warm the next slide so a swipe/auto-advance never shows an empty frame.
+  // Preload a mid-size variant rather than the multi-megabyte original.
   useEffect(() => {
     if (images.length <= 1) return
     const nextUrl = images[(current + 1) % images.length]
     if (!nextUrl) return
     const img = new window.Image()
-    img.src = nextUrl
+    img.decoding = 'async'
+    img.src = photoVariantUrl(nextUrl, 960)
   }, [current, images])
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -87,6 +105,8 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
   const src = images[current]
   const isLoaded = !!loaded[src]
   const hasFailed = !!failed[src]
+  const useFallback = !!fellBack[src]
+  const loadEagerly = priority && current === 0
 
   return (
     <div
@@ -109,21 +129,48 @@ export default function Slideshow({ images, interval = 5000, className, onImageC
         </div>
       ) : (
         <div className="absolute inset-0 transition-opacity duration-300" style={{ opacity: isAnimating ? 0.5 : 1 }}>
-          <Image
-            src={src}
-            alt={`Slide ${current + 1} of ${images.length}`}
-            fill
-            sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
-            quality={75}
-            loading={current === 0 ? 'eager' : 'lazy'}
-            decoding="async"
-            onLoad={() => setLoaded((prev) => (prev[src] ? prev : { ...prev, [src]: true }))}
-            onError={() => setFailed((prev) => ({ ...prev, [src]: true }))}
-            className={cn(
-              'pointer-events-none object-cover transition-all duration-500 group-hover:scale-150',
-              isLoaded ? 'opacity-100' : 'opacity-0'
-            )}
-          />
+          {useFallback ? (
+            // eslint-disable-next-line @next/next/no-img-element -- deliberate full-size fallback when a variant is missing
+            <img
+              src={src}
+              alt={`Slide ${current + 1} of ${images.length}`}
+              loading={loadEagerly ? 'eager' : 'lazy'}
+              decoding="async"
+              onLoad={() => setLoaded((prev) => (prev[src] ? prev : { ...prev, [src]: true }))}
+              onError={() => setFailed((prev) => ({ ...prev, [src]: true }))}
+              className={cn(
+                'pointer-events-none h-full w-full object-cover transition-all duration-500 group-hover:scale-150',
+                isLoaded ? 'opacity-100' : 'opacity-0'
+              )}
+            />
+          ) : (
+            <Image
+              src={src}
+              alt={`Slide ${current + 1} of ${images.length}`}
+              fill
+              sizes="(min-width: 1280px) 33vw, (min-width: 768px) 50vw, 100vw"
+              quality={75}
+              loading={loadEagerly ? 'eager' : 'lazy'}
+              fetchPriority={loadEagerly ? 'high' : 'auto'}
+              decoding="async"
+              onLoad={() => setLoaded((prev) => (prev[src] ? prev : { ...prev, [src]: true }))}
+              onError={() => {
+                // A missing variant falls back to the original once; a broken
+                // original shows the "Photo unavailable" panel.
+                setFellBack((prev) => (prev[src] ? prev : { ...prev, [src]: true }))
+                setLoaded((prev) => {
+                  if (!prev[src]) return prev
+                  const next = { ...prev }
+                  delete next[src]
+                  return next
+                })
+              }}
+              className={cn(
+                'pointer-events-none object-cover transition-all duration-500 group-hover:scale-150',
+                isLoaded ? 'opacity-100' : 'opacity-0'
+              )}
+            />
+          )}
         </div>
       )}
 

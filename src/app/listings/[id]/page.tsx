@@ -284,6 +284,7 @@ export default function ListingDetailPage() {
         ) : (
           <Slideshow
             images={listing.images}
+            priority
             className="w-full aspect-[4/3] sm:aspect-[16/9]"
             onImageClick={(i) => { setViewerIndex(i); setShowViewer(true) }}
           />

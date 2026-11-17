@@ -22,6 +22,16 @@ const csp = [
 const nextConfig: NextConfig = {
   poweredByHeader: false,
   images: {
+    // Photos are pre-resized into WebP variants inside R2 by the upload
+    // pipeline, so `next/image` only rewrites the URL to the right variant.
+    // No Vercel image optimizer, so the monthly transformation cap is never
+    // touched.
+    loader: 'custom',
+    loaderFile: './src/lib/image-loader.ts',
+    // Match the widths we actually store in R2, so the browser asks for a
+    // variant that exists instead of a candidate that has to round up.
+    deviceSizes: [480, 960, 1600, 1920],
+    imageSizes: [48, 96, 128, 256, 384],
     remotePatterns: [
       { protocol: 'https', hostname: 'res.cloudinary.com' },
       { protocol: 'https', hostname: 'img.youtube.com' },
@@ -49,7 +59,7 @@ const nextConfig: NextConfig = {
       },
     ]
   },
-  serverExternalPackages: ['pdfkit'],
+  serverExternalPackages: ['pdfkit', 'sharp'],
 }
 
 export default nextConfig

@@ -31,7 +31,9 @@ interface ListerInfo {
 
 const INITIAL_SKELETONS = 8
 const LOADING_SKELETONS = 4
-const IMAGE_PRELOAD_TIMEOUT_MS = 900
+// Cards painted above the fold load their photo immediately; the rest stay
+// lazy so the first screen is not queued behind every other photo.
+const EAGER_CARDS = 4
 
 /** Section headers shown whenever the status changes in the grouped home feed. */
 const GROUP_META: Record<string, { label: string; caption: string; dot: string; text: string }> = {
@@ -56,33 +58,9 @@ const GROUP_META: Record<string, { label: string; caption: string; dot: string; 
 }
 
 /**
- * Best-effort preload of the first image on each card. The loader stays up
- * until these resolve (or the timeout fires), so cards never appear as empty
- * grey boxes right after a page swap.
+ * Cards paint as soon as their own photo decodes — there is no batch barrier
+ * any more — so the grid no longer preloads images ahead of the network.
  */
-function preloadListingImages(listings: Listing[]): Promise<void> {
-  if (typeof window === 'undefined' || listings.length === 0) return Promise.resolve()
-  const urls = listings
-    .map((listing) => listing.images?.[0])
-    .filter((url): url is string => Boolean(url))
-    .slice(0, LOADING_SKELETONS * 2)
-  if (urls.length === 0) return Promise.resolve()
-
-  const loads = urls.map(
-    (url) =>
-      new Promise<void>((resolve) => {
-        const img = new window.Image()
-        img.onload = () => resolve()
-        img.onerror = () => resolve()
-        img.src = url
-      })
-  )
-
-  return Promise.race([
-    Promise.all(loads).then(() => undefined),
-    new Promise<void>((resolve) => window.setTimeout(resolve, IMAGE_PRELOAD_TIMEOUT_MS)),
-  ])
-}
 
 function CardSkeleton({ delay = 0 }: { delay?: number }) {
   return (
@@ -186,8 +164,6 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
         try {
           const data = await getPage(page, generation)
           if (!data) return
-          // Warm the card images too, so the eventual batch swap is paint-ready.
-          await preloadListingImages(data)
         } catch {
           // Best-effort only; the real request surfaces the error.
           return
@@ -236,10 +212,8 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
       }
 
       if (unique.length > 0) {
-        // Keep the loader up until the new cards' photos are ready so the
-        // swap lands on a fully painted batch, never an empty grid.
-        await preloadListingImages(unique)
-        if (!mountedRef.current || generation !== activeRef.current) return
+        // Paint the batch straight away. Each card shows its own shimmer until
+        // its photo decodes, so one slow image no longer holds up the grid.
         setListings((prev) => (prev.length === 0 ? unique : [...prev, ...unique]))
         if (!isFirstPage) setShowSuccess(true)
       }
@@ -442,6 +416,7 @@ export default function ListingGrid({ fetchListings, pageSize = ITEMS_PER_PAGE, 
                       listerName={info?.full_name ?? listing.uploader_name ?? ''}
                       isAdmin={info?.role === 'admin'}
                       verified={info?.verified ?? false}
+                      priority={i < EAGER_CARDS}
                     />
                   </div>
                 </Fragment>

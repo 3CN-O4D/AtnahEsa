@@ -18,6 +18,8 @@ interface ListingCardProps {
   listerName?: string
   isAdmin?: boolean
   verified?: boolean
+  /** True for cards in the first visible row; their photo loads immediately. */
+  priority?: boolean
 }
 
 // Snapshot taken when the card module loads. Keeps the "new listing" check out
@@ -25,7 +27,7 @@ interface ListingCardProps {
 const PAGE_LOADED_AT = Date.now()
 const NEW_LISTING_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
 
-export default function ListingCard({ listing, listerName, isAdmin, verified }: ListingCardProps) {
+export default function ListingCard({ listing, listerName, isAdmin, verified, priority }: ListingCardProps) {
   const router = useRouter()
   const { isFavorite, toggle } = useFavorites()
   const [showVerifyTip, setShowVerifyTip] = useState(false)
@@ -95,7 +97,7 @@ export default function ListingCard({ listing, listerName, isAdmin, verified }: 
             <TakenListingPanel mediaPurged={listing.images.length === 0} className="h-full w-full" />
           ) : (
             <>
-              <Slideshow images={listing.images} interval={4000} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />
+              <Slideshow images={listing.images} interval={4000} priority={priority} className="w-full h-full rounded-none transition-transform duration-500 group-hover:scale-[1.03]" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-black/5 opacity-70 transition-opacity duration-300 group-hover:opacity-100" />
             </>
           )}

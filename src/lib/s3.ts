@@ -1,6 +1,7 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { randomUUID } from 'crypto'
+import { IMAGE_VARIANT_WIDTHS, variantKey } from '@/lib/image-src'
 
 export const R2_BUCKET = process.env.R2_BUCKET ?? ''
 export const R2_PUBLIC_URL = (process.env.R2_PUBLIC_URL ?? '').replace(/\/+$/, '')
@@ -147,4 +148,23 @@ export async function presignPut(key: string, contentType: string) {
 export async function deleteR2Object(key: string) {
   const command = new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key })
   return r2Client().send(command)
+}
+
+/**
+ * Delete a listing photo and every pre-generated WebP variant. S3 deletes are
+ * idempotent, so missing variants are harmless.
+ */
+export async function deleteR2Image(key: string): Promise<void> {
+  const client = r2Client()
+  await Promise.all([
+    client.send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: key })),
+    ...IMAGE_VARIANT_WIDTHS.map((width) =>
+      client
+        .send(new DeleteObjectCommand({ Bucket: R2_BUCKET, Key: variantKey(key, width) }))
+        .catch((err) => {
+          // Variants are best-effort: an old photo may never have had them.
+          console.error('[r2] variant delete failed', { key, width, err })
+        })
+    ),
+  ])
 }

@@ -1,6 +1,11 @@
 import { z } from 'zod'
 import { createNotification } from '@/lib/notifications'
-import { normalizeAudiences, type NotificationAudience } from '@/lib/notification-audience'
+import {
+  getNotificationAudiences,
+  normalizeAudiences,
+  type NotificationAudience,
+  type NotificationRow,
+} from '@/lib/notification-audience'
 import { auditAction } from './audit'
 import { notifyUser } from '@/lib/notify'
 import { invalidateCached } from '@/lib/server-cache'
@@ -78,6 +83,15 @@ function listArg(args: Record<string, unknown>, key: string): string[] | undefin
   const value = args[key]
   if (!Array.isArray(value)) return undefined
   return value.filter((item): item is string => typeof item === 'string')
+}
+
+/** Comma-separated IDs from a bot argument, de-duplicated and capped. */
+function idList(args: Record<string, unknown>, key: string, max = 50): string[] {
+  const raw = String(args[key] ?? '')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean)
+  return [...new Set(raw)].slice(0, max + 1)
 }
 
 function shortId(id: unknown): string {
@@ -734,6 +748,49 @@ const readTools: AdminTool[] = [
     },
   },
   {
+    name: 'admin_list_notifications',
+    description:
+      'List in-app notifications with audience, category and age. Use the ids here with admin_delete_notification or admin_delete_notifications_batch.',
+    kind: 'read',
+    schema: z.object({
+      audience: z.enum(['all', 'everyone', 'hunter', 'lister', 'admin', 'personal']).optional(),
+      category: z.string().max(60).optional(),
+      search: z.string().max(120).optional(),
+      limit: limitSchema,
+    }),
+    summarize: (a) =>
+      `List notifications${a.audience && a.audience !== 'all' ? ` for ${String(a.audience)}` : ''}${a.category ? ` in ${String(a.category)}` : ''}`,
+    run: async (args, ctx) => {
+      let query = ctx.db
+        .from('notifications')
+        .select('id, user_id, role, category, title, body, link, data, is_broadcast, read_at, created_at')
+        .order('created_at', { ascending: false })
+        .limit(num(args, 'limit') ?? 20)
+      if (args.category) query = query.eq('category', String(args.category))
+      const search = optStr(args, 'search')
+      if (search) query = query.or(`title.ilike.%${search}%,body.ilike.%${search}%,category.ilike.%${search}%`)
+
+      const { data, error } = await query
+      if (error) return fail(error.message)
+      let rows = (data ?? []) as NotificationRow[]
+      const audience = str(args, 'audience') || 'all'
+      if (audience !== 'all') {
+        rows = rows.filter((row) =>
+          audience === 'personal'
+            ? !!row.user_id
+            : getNotificationAudiences(row).includes(audience as NotificationAudience)
+        )
+      }
+      if (!rows.length) return ok('No notifications matched.')
+
+      const lines = rows.map((row) => {
+        const audiences = row.user_id ? 'personal' : getNotificationAudiences(row).join(', ')
+        return `- ${row.title || 'Notification'} — ${row.category || 'system'} — ${audiences} — ${date(row.created_at)} — id ${row.id}`
+      })
+      return ok([`*Notifications (${rows.length})*`, ...lines].join('\n'), rows)
+    },
+  },
+  {
     name: 'admin_list_booking_reviews',
     description:
       'List booking feedback awaiting review or already decided, with the hunter issue, payout amount and refund percentage.',
@@ -1020,6 +1077,45 @@ const writeTools: AdminTool[] = [
         Reason: optStr(args, 'reason') || 'Administrative action',
       })
       return ok(`Listing “${existing.title || id}” deleted permanently.`)
+    },
+  },
+  {
+    name: 'admin_delete_listings_batch',
+    description:
+      'Permanently delete multiple listings at once. Provide comma-separated listing IDs (max 50). Use admin_list_listings first to find them. Destructive; requires explicit confirmation.',
+    kind: 'write',
+    schema: z.object({ listing_ids: z.string().min(1), reason: z.string().max(300).optional() }),
+    summarize: (a) => {
+      const count = idList(a, 'listing_ids', 50).length
+      return `Permanently delete ${count} listing(s)${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const ids = idList(args, 'listing_ids', 50)
+      if (!ids.length) return fail('Provide at least one listing ID.')
+      if (ids.length > 50) return fail('Maximum 50 listings per batch.')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('listings')
+        .select('id, title, uploader_id')
+        .in('id', ids)
+      if (readError) return fail(readError.message)
+      if (!existing?.length) return fail('No matching listings found.')
+
+      const { error } = await ctx.db.from('listings').delete().in('id', ids)
+      if (error) return fail(error.message)
+      invalidateCached('listings|')
+
+      await Promise.allSettled(
+        existing.map((listing) =>
+          emailUser(ctx, listing.uploader_id as string | undefined, 'Listing removed', 'Your listing was removed', {
+            Property: String(listing.title || 'House'),
+            Reason: optStr(args, 'reason') || 'Administrative batch deletion',
+          })
+        )
+      )
+      return ok(
+        `Deleted ${existing.length} listing(s): ${existing.map((l) => l.title || shortId(l.id)).join(', ')}.`
+      )
     },
   },
   {
@@ -1415,6 +1511,92 @@ const writeTools: AdminTool[] = [
     },
   },
   {
+    name: 'admin_delete_notification',
+    description:
+      'Permanently delete one in-app notification (broadcast or personal). This is destructive; the admin must explicitly confirm it.',
+    kind: 'write',
+    schema: z.object({ notification_id: z.string().min(1), reason: z.string().max(300).optional() }),
+    summarize: (a) =>
+      `Permanently delete notification ${String(a.notification_id)}${a.reason ? ` — ${String(a.reason)}` : ''}`,
+    run: async (args, ctx) => {
+      const id = str(args, 'notification_id')
+      const { data: existing } = await ctx.db
+        .from('notifications')
+        .select('id, title, category')
+        .eq('id', id)
+        .maybeSingle()
+      if (!existing) return fail('Notification not found.')
+      const { error } = await ctx.db.from('notifications').delete().eq('id', id)
+      if (error) return fail(error.message)
+      return ok(`Notification “${existing.title || shortId(id)}” deleted permanently.`)
+    },
+  },
+  {
+    name: 'admin_delete_notifications_batch',
+    description:
+      'Permanently delete in-app notifications in bulk. Provide notification_ids (comma-separated, max 200) and/or filters: older_than_days, category, audience (everyone/hunter/lister/admin/personal). Destructive; requires explicit confirmation. Use admin_list_notifications first to preview the targets.',
+    kind: 'write',
+    schema: z.object({
+      notification_ids: z.string().optional(),
+      older_than_days: z.number().int().min(1).max(3650).optional(),
+      category: z.string().max(60).optional(),
+      audience: z.enum(['everyone', 'hunter', 'lister', 'admin', 'personal']).optional(),
+      limit: z.number().int().min(1).max(200).optional(),
+      reason: z.string().max(300).optional(),
+    }),
+    summarize: (a) => {
+      const ids = idList(a, 'notification_ids', 200)
+      const parts = [
+        ids.length ? `${ids.length} notification ID(s)` : '',
+        a.older_than_days ? `older than ${String(a.older_than_days)} days` : '',
+        a.category ? `category ${String(a.category)}` : '',
+        a.audience ? `${String(a.audience)} audience` : '',
+      ].filter(Boolean)
+      return `Permanently delete notifications (${parts.join(', ') || 'all filters'})${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const ids = idList(args, 'notification_ids', 200)
+      const olderThanDays = num(args, 'older_than_days')
+      const category = optStr(args, 'category')
+      const audience = optStr(args, 'audience') as NotificationAudience | 'personal' | undefined
+      if (!ids.length && !olderThanDays && !category && !audience) {
+        return fail('Provide notification_ids or at least one filter (older_than_days, category, audience).')
+      }
+      if (ids.length > 200) return fail('Maximum 200 notification IDs per batch.')
+
+      let query = ctx.db
+        .from('notifications')
+        .select('id, title, category, user_id, role, data, created_at')
+        .order('created_at', { ascending: false })
+        .limit(num(args, 'limit') ?? 100)
+      if (ids.length) query = query.in('id', ids)
+      if (category) query = query.eq('category', category)
+      if (olderThanDays) {
+        const cutoff = new Date(Date.now() - olderThanDays * 24 * 60 * 60 * 1000).toISOString()
+        query = query.lte('created_at', cutoff)
+      }
+
+      const { data, error: readError } = await query
+      if (readError) return fail(readError.message)
+      let rows = (data ?? []) as NotificationRow[]
+      if (audience) {
+        rows = rows.filter((row) =>
+          audience === 'personal'
+            ? !!row.user_id
+            : getNotificationAudiences(row).includes(audience as NotificationAudience)
+        )
+      }
+      if (!rows.length) return fail('No matching notifications found.')
+
+      const targets = rows.map((row) => String(row.id))
+      const { error } = await ctx.db.from('notifications').delete().in('id', targets)
+      if (error) return fail(error.message)
+      return ok(
+        `Deleted ${targets.length} notification(s): ${rows.map((r) => r.title || shortId(r.id)).slice(0, 8).join(', ')}${rows.length > 8 ? '…' : ''}.`
+      )
+    },
+  },
+  {
     name: 'admin_delete_transaction',
     description:
       'Permanently delete a transaction record. This is destructive and cannot be undone; the admin must explicitly confirm it.',
@@ -1458,6 +1640,77 @@ const writeTools: AdminTool[] = [
       if (error) return fail(error.message)
       if (!data) return fail('Complaint not found.')
       return ok(`Complaint “${data.subject || id.slice(0, 8)}” is now ${data.status} / ${data.priority}.`)
+    },
+  },
+  {
+    name: 'admin_delete_complaint',
+    description:
+      'Permanently delete one complaint. This is destructive and cannot be undone; the admin must explicitly confirm it.',
+    kind: 'write',
+    schema: z.object({ complaint_id: z.string().min(1), reason: z.string().max(300).optional() }),
+    summarize: (a) => `Permanently delete complaint ${String(a.complaint_id)}${a.reason ? ` — ${String(a.reason)}` : ''}`,
+    run: async (args, ctx) => {
+      const id = str(args, 'complaint_id')
+      const { data: existing } = await ctx.db
+        .from('complaints')
+        .select('id, subject, name, email')
+        .eq('id', id)
+        .maybeSingle()
+      if (!existing) return fail('Complaint not found.')
+      const { error } = await ctx.db.from('complaints').delete().eq('id', id)
+      if (error) return fail(error.message)
+      await notifyUser(
+        String(existing.email),
+        'Complaint removed',
+        'Your complaint was removed by an administrator.',
+        {
+          Subject: String(existing.subject || 'Complaint'),
+          Reason: optStr(args, 'reason') || 'Administrative action',
+        }
+      ).catch(() => {})
+      return ok(`Complaint “${existing.subject || shortId(id)}” deleted permanently.`)
+    },
+  },
+  {
+    name: 'admin_delete_complaints_batch',
+    description:
+      'Permanently delete multiple complaints at once. Provide comma-separated complaint IDs (max 50). Use admin_list_complaints first to find them. Destructive; requires explicit confirmation.',
+    kind: 'write',
+    schema: z.object({ complaint_ids: z.string().min(1), reason: z.string().max(300).optional() }),
+    summarize: (a) => {
+      const count = idList(a, 'complaint_ids', 50).length
+      return `Permanently delete ${count} complaint(s)${a.reason ? ` — ${String(a.reason)}` : ''}`
+    },
+    run: async (args, ctx) => {
+      const ids = idList(args, 'complaint_ids', 50)
+      if (!ids.length) return fail('Provide at least one complaint ID.')
+      if (ids.length > 50) return fail('Maximum 50 complaints per batch.')
+
+      const { data: existing, error: readError } = await ctx.db
+        .from('complaints')
+        .select('id, subject, name, email')
+        .in('id', ids)
+      if (readError) return fail(readError.message)
+      if (!existing?.length) return fail('No matching complaints found.')
+
+      const { error } = await ctx.db.from('complaints').delete().in('id', ids)
+      if (error) return fail(error.message)
+      await Promise.allSettled(
+        existing.map((complaint) =>
+          notifyUser(
+            String(complaint.email),
+            'Complaint removed',
+            'Your complaint was removed by an administrator.',
+            {
+              Subject: String(complaint.subject || 'Complaint'),
+              Reason: optStr(args, 'reason') || 'Administrative batch deletion',
+            }
+          ).catch(() => {})
+        )
+      )
+      return ok(
+        `Deleted ${existing.length} complaint(s): ${existing.map((c) => c.subject || shortId(c.id)).join(', ')}.`
+      )
     },
   },
   {

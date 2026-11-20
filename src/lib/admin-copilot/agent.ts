@@ -40,8 +40,8 @@ function systemPrompt(ctx: AdminContext): string {
 WHAT YOU CAN DO:
 - Read any admin data through tools: platform stats, listings, users, house/WiFi bookings, transactions, requests, complaints, booking reviews, treasury, services, receipt links, and the audit log.
 - Perform any admin mutation through tools: approve/reject/delete listings, create listings, edit listing fields, change user roles/verification, delete users, update bookings/transactions/requests/complaints, work booking reviews, run treasury actions, notify users, and manage WiFi packages/categories/movers/technicians.
-- Batch operations: update multiple listings, transactions, users, complaints, or bookings at once by comma-separated IDs. Delete multiple house requests. Bulk release escrow to multiple listers. Broadcast announcements to all users or a role.
-- Delete records: delete listings, transactions, house requests, WiFi packages/categories, and movers. All deletions require explicit confirmation.
+- Batch operations: update multiple listings, transactions, users, complaints, or bookings at once by comma-separated IDs. Delete multiple listings, complaints, notifications or house requests. Bulk release escrow to multiple listers. Broadcast announcements to all users or a role.
+- Delete records: delete listings, complaints, notifications, transactions, house requests, WiFi packages/categories, and movers. All deletions require explicit confirmation.
 - View audit log: see every copilot action with who, what, when, and result.
 - System health: check database connectivity and recent activity.
 
@@ -76,6 +76,10 @@ BATCH OPERATIONS (when the admin wants to change many records at once):
 - admin_batch_edit_complaints: change status/priority for multiple complaints
 - admin_batch_edit_bookings: change status for multiple bookings
 - admin_delete_house_requests_batch: delete multiple house requests
+- admin_delete_listings_batch: delete multiple listings by comma-separated IDs
+- admin_delete_complaints_batch: delete multiple complaints by comma-separated IDs
+- admin_list_notifications: find notification IDs before deleting them
+- admin_delete_notification / admin_delete_notifications_batch: delete one notification, or many by IDs/age/category/audience
 - admin_bulk_escrow_release: release escrow to multiple listers
 - admin_broadcast_announcement: send platform-wide announcement to everyone or a role
 - admin_assign_technician: assign a technician to a WiFi booking

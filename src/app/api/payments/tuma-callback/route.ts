@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 import { createNotification } from '@/lib/notifications'
 import { notifyPhoneWhatsApp, notifyListerWhatsApp } from '@/lib/whatsapp/outbox'
+import { sendPaymentReceiptEmail } from '@/lib/email'
 import type { TumaCallback } from '@/lib/tuma'
 import { addSecurityHeaders } from '@/lib/security'
 
@@ -99,7 +100,7 @@ export async function POST(req: Request) {
       // In-app notifications: hunter gets linking details, lister gets paid alert.
       const { data: houseBooking } = await supabase
         .from('house_bookings')
-        .select('id, listing_id, user_id, phone, listing_price, listing_title, listing_location')
+        .select('id, listing_id, user_id, phone, email, name, listing_price, listing_title, listing_location')
         .eq('listing_id', existing.listing_id || '')
         .eq('phone', existing.phone || '')
         .order('created_at', { ascending: false })
@@ -133,6 +134,25 @@ export async function POST(req: Request) {
             link: `/my-bookings?tab=payments`,
             data: { house_booking_id: houseBooking.id, hunter_phone: houseBooking.phone, amount: body.amount, receipt },
           })
+        }
+
+        // Email the payer the receipt AND the escrow rules (happy → confirm,
+        // issue → 85–100% refund). Without this the payer has no written terms.
+        try {
+          if (houseBooking.email) {
+            await sendPaymentReceiptEmail({
+              to: houseBooking.email,
+              name: houseBooking.name || undefined,
+              listingTitle: houseBooking.listing_title || 'House listing',
+              listingLocation: houseBooking.listing_location || undefined,
+              amount: Number(body.amount ?? houseBooking.listing_price ?? 0),
+              receiptNumber: receipt || 'N/A',
+              heldUntil,
+              bookingId: houseBooking.id,
+            })
+          }
+        } catch (err) {
+          console.error('Tuma receipt/escrow email failed:', err)
         }
 
         // WhatsApp copies: hunter confirmation + lister paid alert (best-effort).

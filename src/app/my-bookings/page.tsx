@@ -54,6 +54,28 @@ function ReleaseBadge({ release_status }: { release_status: string }) {
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.className}`}>{c.label}</span>
 }
 
+/** Feedback can live in `displeased_reason`, or (legacy) in a rating alone. */
+function feedbackForBooking(hb: HouseBooking): BookingFeedback | null {
+  const parsed = parseBookingFeedback(hb.displeased_reason)
+  if (parsed) return parsed
+  if (hb.confirmed_at && hb.rating != null) {
+    return {
+      version: 1,
+      outcome: 'pleased',
+      category: 'pleased',
+      details: '',
+      review: '',
+      rating: hb.rating,
+      contacted_hunter_at: null,
+      contacted_lister_at: null,
+      admin_note: '',
+      decision: null,
+      decided_at: null,
+    }
+  }
+  return null
+}
+
 function Countdown({ held_until }: { held_until: string }) {
   const [text, setText] = useState('')
   useEffect(() => {
@@ -446,10 +468,10 @@ function MyBookingsInner() {
             {houseBookings.map((hb) => {
               const isHeld = hb.release_status === 'held'
               const isActing = acting?.id === hb.id
-              const feedback = parseBookingFeedback(hb.displeased_reason)
-              const awaitingConfirmation = isHeld && !hb.confirmed_at
+              const feedback = feedbackForBooking(hb)
+              const awaitingConfirmation = isHeld && !feedback
               const refundEstimate = refundPercentForFeedback(feedback)
-              const refundOpen = isHeld && !!hb.confirmed_at && feedback?.outcome === 'issue' && feedback.decision !== 'refund_declined'
+              const refundOpen = isHeld && !!feedback && feedback.outcome === 'issue' && feedback.decision !== 'refund_declined'
               const displayStatus = refundOpen ? 'refund_requested' : (hb.release_status || 'pending')
               const payment = housePayments[hb.id]
               const paymentConfirmed = hb.status === 'confirmed' || isHeld || hb.release_status === 'paid'
@@ -524,6 +546,24 @@ function MyBookingsInner() {
                     )}
 
                     {paymentConfirmed && <ListerContact bookingId={hb.id} />}
+
+                    {isHeld && (
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2.5 dark:border-blue-950/60 dark:bg-blue-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900 dark:text-blue-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Your payment is in escrow
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
+                          <strong>{formatPrice(hb.listing_price || 0)}</strong> is held by AseHanta
+                          {hb.held_until ? <> until <strong>{new Date(hb.held_until).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}</strong></> : ' for your 24-hour viewing window'}
+                          .Happy with the house? Confirm below and we release the lister&apos;s share after an admin check. Not happy, no-show, or the house is wrong? Report it below for an <strong>85–100% refund</strong>.
+                        </p>
+                        <p className="mt-1.5 text-[11px] text-blue-700 dark:text-blue-300/80">
+                          Need help?{' '}
+                          <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="font-semibold underline underline-offset-2">{CONTACT_PHONE_DISPLAY}</a>
+                          {' · '}<a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">WhatsApp</a>
+                        </p>
+                      </div>
+                    )}
 
                     {awaitingConfirmation && feedbackFor?.id !== hb.id && (
                       <div className="mt-3 border-t dark:border-gray-700 pt-3">
@@ -678,7 +718,7 @@ function MyBookingsInner() {
                       </div>
                     )}
 
-                    {isHeld && hb.confirmed_at && feedback?.outcome !== 'issue' && feedbackFor?.id !== hb.id && (
+                    {isHeld && !!feedback && feedback.outcome !== 'issue' && feedbackFor?.id !== hb.id && (
                       <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/20">
                         <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900 dark:text-blue-200">
                           <CheckCircle className="w-3.5 h-3.5" /> Confirmed — admin verifying before payout

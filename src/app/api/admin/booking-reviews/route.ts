@@ -160,18 +160,22 @@ export async function GET() {
   // `house_bookings.release_status` is constrained to pending/held/paid/refunded
   // on the live database, so an open refund review is a held booking whose
   // structured feedback is an issue without a decision (or with an approval
-  // that still has to be paid out in Treasury).
+  // that still has to be paid out in Treasury). Feedback presence is derived
+  // from displeased_reason: confirmed_at can be stale on older rows.
+  // Legacy happy feedback had a rating but no serialized reason.
+  const hasFeedback = (row: Row) =>
+    !!parseBookingFeedback(row.displeased_reason) || (!!row.confirmed_at && row.rating != null)
   const isOpenRefund = (row: (typeof withPayments)[number]) =>
     row.release_status === 'held' &&
-    !!row.confirmed_at &&
+    hasFeedback(row) &&
     row.feedback.outcome === 'issue' &&
     row.feedback.decision !== 'refund_declined'
   const pendingPayouts = withPayments.filter(
-    (row) => row.release_status === 'held' && !!row.confirmed_at && !isOpenRefund(row)
+    (row) => row.release_status === 'held' && hasFeedback(row) && !isOpenRefund(row)
   )
   const refundRequests = withPayments.filter(isOpenRefund)
   const awaitingConfirmation = withPayments.filter(
-    (row) => row.release_status === 'held' && !row.confirmed_at
+    (row) => row.release_status === 'held' && !hasFeedback(row)
   )
   const resolved = withPayments
     .filter((row) => row.release_status === 'paid' || row.release_status === 'refunded')
@@ -222,7 +226,7 @@ export async function PATCH(req: Request) {
   } else if (action === 'save_note') {
     feedback.admin_note = typeof body.note === 'string' ? body.note.slice(0, 2000) : ''
   } else if (action === 'decline_refund') {
-    if (feedback.outcome !== 'issue' || !typed.confirmed_at || typed.release_status !== 'held') {
+    if (feedback.outcome !== 'issue' || !parseBookingFeedback(typed.displeased_reason) || typed.release_status !== 'held') {
       return NextResponse.json({ error: 'This booking is not awaiting a refund decision' }, { status: 400 })
     }
     feedback.decision = 'refund_declined'
@@ -249,7 +253,7 @@ export async function PATCH(req: Request) {
     }
     return NextResponse.json({ success: true, feedback })
   } else if (action === 'approve_refund') {
-    if (feedback.outcome !== 'issue' || !typed.confirmed_at || typed.release_status !== 'held') {
+    if (feedback.outcome !== 'issue' || !parseBookingFeedback(typed.displeased_reason) || typed.release_status !== 'held') {
       return NextResponse.json({ error: 'This booking is not awaiting a refund decision' }, { status: 400 })
     }
     feedback.decision = 'refund_approved'

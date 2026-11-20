@@ -12,6 +12,7 @@ import {
 import { releaseToLister, refundHunter, createEscrowHold } from '@/lib/escrow'
 import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { createNotification } from '@/lib/notifications'
+import { sendPaymentReceiptEmail } from '@/lib/email'
 
 export async function POST(req: Request) {
   const { allowed, headers } = await withRateLimit(req, 'payments')
@@ -144,17 +145,37 @@ export async function POST(req: Request) {
             return addSecurityHeaders(response)
           }
 
+          const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
           await admin.from('house_bookings').update({
             status: 'confirmed',
             mpesa_receipt: status.TransactionReceipt,
             release_status: 'held',
-            confirmed_at: new Date().toISOString(),
+            paid_at: booking.paid_at || new Date().toISOString(),
+            held_until: heldUntil,
           }).eq('id', booking.id)
 
           await admin.from('escrow_holds').update({
             status: 'held',
-            held_until: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            held_until: heldUntil,
           }).eq('booking_id', booking.id)
+
+          // Receipt + escrow terms in writing (also in the WhatsApp alert).
+          try {
+            if (booking.email) {
+              await sendPaymentReceiptEmail({
+                to: booking.email,
+                name: booking.name || undefined,
+                listingTitle: booking.listing_title || 'House listing',
+                listingLocation: booking.listing_location || undefined,
+                amount: webhookAmount,
+                receiptNumber: status.TransactionReceipt || 'N/A',
+                heldUntil,
+                bookingId: booking.id,
+              })
+            }
+          } catch (err) {
+            console.error('PayWave receipt/escrow email failed:', err)
+          }
 
           await createNotification({
             userId: booking.user_id,

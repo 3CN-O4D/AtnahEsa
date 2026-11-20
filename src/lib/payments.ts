@@ -228,7 +228,6 @@ export async function confirmHouseBookingPayment(
       mpesa_message: booking.mpesa_message || `Payment confirmed (${source})`,
       payment_method: params.paymentMethod || booking.payment_method || 'paywave',
       paid_at: booking.paid_at || now,
-      confirmed_at: booking.confirmed_at || now,
     })
     .eq('id', booking.id)
     .in('status', ['pending', 'contacted', 'cancelled'])

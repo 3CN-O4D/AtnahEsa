@@ -414,7 +414,7 @@ export default function TreasuryPage() {
     escrowFilter === 'all' ? escrowLedger : escrowLedger.filter((e) => e.status === escrowFilter)
   const refundReviewRow = (h: HouseBookingWithPayment) => {
     const feedback = parseBookingFeedback(h.displeased_reason)
-    return h.release_status === 'held' && !!h.confirmed_at && feedback?.outcome === 'issue' && feedback.decision !== 'refund_declined'
+    return h.release_status === 'held' && !!feedback && feedback.outcome === 'issue' && feedback.decision !== 'refund_declined'
   }
   const filteredPayouts =
     payoutFilter === 'all'

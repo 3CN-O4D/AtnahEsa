@@ -548,7 +548,7 @@ export async function POST(request: Request) {
 
       if (nextReleaseStatus === 'held') {
         update.status = 'confirmed'
-        update.confirmed_at = hb.confirmed_at || now
+        update.paid_at = hb.paid_at || now
         update.held_until =
           hb.held_until || new Date(Date.now() + VIEW_WINDOW_HOURS * 3600 * 1000).toISOString()
         if (!hb.mpesa_receipt) {

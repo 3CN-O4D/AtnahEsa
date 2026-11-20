@@ -1502,7 +1502,7 @@ const writeTools: AdminTool[] = [
       } else if (action === 'set_category') {
         feedback.category = getIssueCategory((optStr(args, 'category') || 'other') as IssueCategory).id
       } else if (action === 'approve_refund' || action === 'decline_refund') {
-        if (feedback.outcome !== 'issue' || !row.confirmed_at || row.release_status !== 'held') {
+        if (feedback.outcome !== 'issue' || !parseBookingFeedback(row.displeased_reason as string | null) || row.release_status !== 'held') {
           return fail('This booking is not awaiting a refund decision.')
         }
         feedback.decision = action === 'approve_refund' ? 'refund_approved' : 'refund_declined'
@@ -1862,7 +1862,7 @@ const writeTools: AdminTool[] = [
         if (nextRelease) patch.release_status = nextRelease
         if (nextRelease === 'held') {
           patch.status = 'confirmed'
-          patch.confirmed_at = hb.confirmed_at || new Date().toISOString()
+          patch.paid_at = hb.paid_at || new Date().toISOString()
           patch.held_until = hb.held_until || new Date(Date.now() + VIEW_WINDOW_HOURS * 3600 * 1000).toISOString()
           if (!hb.mpesa_receipt) return fail('Cannot open escrow without a payment receipt. Use house_verify with an SMS instead.')
         }

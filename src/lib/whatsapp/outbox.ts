@@ -166,7 +166,26 @@ export async function notifyAdminsWhatsApp(
   )
 }
 
-/** WhatsApp confirmation straight to a lister's number (no email lookup needed). */
+/** WhatsApp confirmation straight to a customer/lister's number (no email lookup needed). */
+export async function notifyPhoneWhatsApp(
+  phone: string | null | undefined,
+  subject: string,
+  title: string,
+  fields: Record<string, string>
+): Promise<void> {
+  try {
+    await enqueueWhatsApp({
+      to: phone,
+      kind: 'notification',
+      text: renderNotification(subject, title, fields),
+      meta: { source: 'direct-phone' },
+    })
+  } catch {
+    /* best-effort */
+  }
+}
+
+/** WhatsApp confirmation straight to a lister's number. */
 export async function notifyListerWhatsApp(
   phone: string | null | undefined,
   subject: string,
@@ -186,9 +205,15 @@ export async function notifyListerWhatsApp(
 }
 
 /** WhatsApp copy of an email OTP (only when the account has a phone number). */
-export async function sendOtpWhatsApp(email: string, otp: string, type: string): Promise<void> {
+export async function sendOtpWhatsApp(
+  email: string,
+  otp: string,
+  type: string,
+  /** Known phone to deliver to (skips the email lookup). */
+  explicitPhone?: string | null
+): Promise<void> {
   try {
-    const phone = await phoneForEmail(email)
+    const phone = explicitPhone ? toWhatsAppNumber(explicitPhone) : await phoneForEmail(email)
     if (!phone) return
 
     const labels: Record<string, string> = {

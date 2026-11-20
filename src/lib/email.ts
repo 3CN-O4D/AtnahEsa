@@ -89,7 +89,7 @@ export async function sendBulkAnnouncementEmail(email: string) {
   })
 }
 
-export async function sendOtpEmail(email: string, otp: string, type: string) {
+export async function sendOtpEmail(email: string, otp: string, type: string, opts?: { skipWhatsAppMirror?: boolean }) {
   const cfg = typeConfig[type] || { emoji: '✉️', color: '#2563EB', badge: 'Verification' }
 
   const subjects: Record<string, string> = {
@@ -137,7 +137,11 @@ export async function sendOtpEmail(email: string, otp: string, type: string) {
   })
 
   // Same code on WhatsApp, when this account has a registered phone number.
-  await sendOtpWhatsApp(email, otp, type)
+  // Phone-first flows already enqueue the WhatsApp copy explicitly, so the
+  // caller can set skipWhatsAppMirror to avoid a duplicate message.
+  if (!opts?.skipWhatsAppMirror) {
+    await sendOtpWhatsApp(email, otp, type)
+  }
 }
 
 /**

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { stkPush } from '@/lib/daraja'
 import { notifyAdmins } from '@/lib/notify'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 
 export async function POST(req: Request) {
   try {
@@ -81,6 +82,23 @@ export async function POST(req: Request) {
       'M-Pesa Payment Request',
       { User: user.email || 'N/A', Phone: phone, Listing: listing.title, Amount: `KES ${listing.price}`, 'Checkout ID': result.CheckoutRequestID || 'N/A' }
     )
+
+    // Tell the payer to expect the M-Pesa prompt.
+    try {
+      await notifyPhoneWhatsApp(
+        phone,
+        'M-Pesa Prompt Sent',
+        'Approve your payment on your phone 💳',
+        {
+          Listing: listing.title,
+          Amount: `KES ${listing.price}`,
+          Status: 'Check your M-Pesa prompt and enter your PIN to complete the booking.',
+          'Need Help': 'WhatsApp +254 791 410 625',
+        }
+      )
+    } catch (err) {
+      console.error('STK payer WhatsApp notification failed:', err)
+    }
 
     return NextResponse.json({
       success: true,

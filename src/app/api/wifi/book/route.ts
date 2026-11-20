@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
 
@@ -53,6 +54,28 @@ export async function POST(req: Request) {
         Features: package_features?.length ? package_features.join(', ') : 'N/A',
       }
     )
+
+    // Confirm to the customer on WhatsApp that their WiFi booking was received.
+    try {
+      await notifyPhoneWhatsApp(
+        phone,
+        'WiFi Booking Received',
+        'Your WiFi request is in 📶',
+        {
+          Name: name,
+          Area: area,
+          Package: package_name || 'N/A',
+          Provider: package_provider || 'N/A',
+          Speed: package_speed || 'N/A',
+          'Monthly Price': package_price ? `KES ${package_price.toLocaleString()}/month` : 'N/A',
+          'Installation Fee': `KES ${WIFI_INSTALLATION_FEE.toLocaleString()}`,
+          'Total First Payment': `KES ${totalPrice.toLocaleString()}`,
+          Status: 'We will call you to confirm installation',
+        }
+      )
+    } catch (err) {
+      console.error('WiFi customer WhatsApp confirmation failed:', err)
+    }
 
     return NextResponse.json({ success: true, total_price: totalPrice, installation_fee: WIFI_INSTALLATION_FEE })
   } catch {

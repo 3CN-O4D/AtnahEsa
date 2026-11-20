@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
 import { canonicalWhatsAppContact, getWhatsAppLink, isValidPhone, parseWhatsAppContact } from '@/lib/whatsapp'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -174,6 +175,31 @@ export async function POST(request: Request) {
         Status: 'Pending',
       }
     )
+
+    // Confirm to the requester on WhatsApp that their request was received.
+    try {
+      // Prefer the WhatsApp contact when it is a phone number; otherwise use
+      // the validated phone so a username-only contact still gets the message.
+      const whatsappPhone = parseWhatsAppContact(whatsappInput)?.kind === 'phone'
+        ? canonicalWhatsAppContact(whatsappInput)
+        : null
+      await notifyPhoneWhatsApp(
+        whatsappPhone || phone,
+        'Request Received',
+        'We got your house request 🏠',
+        {
+          Name: name,
+          Location: location,
+          'Rent Range': minRent !== null || maxRent !== null
+            ? `${minRent !== null ? `KES ${minRent.toLocaleString()}` : 'Any'} — ${maxRent !== null ? `KES ${maxRent.toLocaleString()}` : 'Any'}`
+            : 'Not specified',
+          Status: 'We will contact you as soon as houses come up',
+          'Need Help': 'WhatsApp +254 791 410 625 or email hello@asehanta.com',
+        }
+      )
+    } catch (err) {
+      console.error('Requester WhatsApp confirmation failed:', err)
+    }
 
     return NextResponse.json({ success: true })
   } catch (err) {

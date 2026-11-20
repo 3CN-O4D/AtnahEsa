@@ -40,10 +40,13 @@ function SignInForm() {
   const searchParams = useSearchParams()
   const callbackUrl = callbackDestination(searchParams.get('callbackUrl'))
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [mode, setMode] = useState<'password' | 'code'>('password')
+  const [codeChannel, setCodeChannel] = useState<'email' | 'whatsapp'>('email')
   const [codeSent, setCodeSent] = useState(false)
+  const [resolvedEmail, setResolvedEmail] = useState('')
   const [otp, setOtp] = useState<string[]>(emptyOtp)
   const [sendingCode, setSendingCode] = useState(false)
   const [verifying, setVerifying] = useState(false)
@@ -104,17 +107,21 @@ function SignInForm() {
   }
 
   const sendLoginCode = async () => {
-    if (!email.trim()) {
-      fail('Enter your email address first')
+    const identifier = codeChannel === 'whatsapp' ? phone.trim() : email.trim()
+    if (!identifier) {
+      fail(codeChannel === 'whatsapp' ? 'Enter your WhatsApp number first' : 'Enter your email address first')
       return
     }
     setSendingCode(true)
     setError('')
     try {
+      const body = codeChannel === 'whatsapp'
+        ? { phone: identifier, type: 'login' }
+        : { email: identifier, type: 'login' }
       const res = await fetch('/api/auth/send-otp', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, type: 'login' }),
+        body: JSON.stringify(body),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -123,6 +130,10 @@ function SignInForm() {
       }
       setCodeSent(true)
       setOtp(emptyOtp())
+      // Phone-first codes are stored under the account email; remember it so
+      // verification can look the code up.
+      if (data.email) setResolvedEmail(data.email)
+      else if (codeChannel === 'email') setResolvedEmail(email.trim())
     } catch {
       fail('Network error. Check your connection and try again.')
     } finally {
@@ -140,10 +151,15 @@ function SignInForm() {
     setVerifying(true)
     setError('')
     try {
+      const accountEmail = resolvedEmail || email.trim()
+      if (!accountEmail) {
+        fail('We could not identify your account. Try requesting a new code.')
+        return
+      }
       const res = await fetch('/api/auth/otp-login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, otp: code }),
+        body: JSON.stringify({ email: accountEmail, otp: code }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -281,27 +297,66 @@ function SignInForm() {
           </form>
         ) : (
           <form onSubmit={verifyLoginCode} className="space-y-4">
-            <Input
-              label="Email Address"
-              id="otp-email"
-              type="email"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setCodeSent(false); if (error) setError('') }}
-              autoComplete="email"
-              required
-            />
+            <div className="relative mb-1 grid grid-cols-2 rounded-xl bg-slate-100/90 p-1 dark:bg-slate-800/80">
+              <button
+                type="button"
+                onClick={() => { setCodeChannel('email'); setCodeSent(false); setResolvedEmail(''); if (error) setError('') }}
+                className={`relative z-10 inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+                  codeChannel === 'email' ? 'bg-white text-gray-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                }`}
+              >
+                <Mail className="h-3.5 w-3.5" /> Email
+              </button>
+              <button
+                type="button"
+                onClick={() => { setCodeChannel('whatsapp'); setCodeSent(false); setResolvedEmail(''); if (error) setError('') }}
+                className={`relative z-10 inline-flex items-center justify-center gap-1.5 rounded-lg py-1.5 text-xs font-semibold transition-colors ${
+                  codeChannel === 'whatsapp' ? 'bg-white text-gray-900 shadow-sm dark:bg-slate-700 dark:text-white' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400'
+                }`}
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.04 2a9.9 9.9 0 0 0-8.5 15.06L2 22l5.06-1.52A9.9 9.9 0 1 0 12.04 2Zm0 18.1a8.17 8.17 0 0 1-4.16-1.14l-.3-.18-3 .9.9-2.93-.2-.31a8.2 8.2 0 1 1 6.76 3.66Zm4.5-6.13c-.25-.12-1.47-.72-1.7-.81-.22-.08-.39-.12-.55.13-.16.24-.63.8-.77.97-.14.16-.28.18-.53.06-.25-.12-1.05-.39-2-1.23-.74-.66-1.24-1.48-1.38-1.73-.14-.25-.02-.38.11-.5.11-.12.25-.28.37-.42.13-.15.17-.25.25-.41.08-.17.04-.31-.02-.43-.06-.12-.55-1.34-.76-1.83-.2-.48-.4-.42-.55-.42h-.47c-.16 0-.42.06-.64.3-.22.25-.84.82-.84 2 .01 1.18.86 2.31.98 2.47.12.16 1.69 2.58 4.1 3.62.57.25 1.02.4 1.37.5.57.19 1.1.16 1.51.1.46-.07 1.4-.57 1.6-1.13.2-.55.2-1.03.14-1.13-.06-.1-.22-.16-.47-.28Z"/></svg> WhatsApp
+              </button>
+            </div>
+
+            {codeChannel === 'email' ? (
+              <Input
+                label="Email Address"
+                id="otp-email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setCodeSent(false); if (error) setError('') }}
+                autoComplete="email"
+                required
+              />
+            ) : (
+              <Input
+                label="WhatsApp Number"
+                id="otp-phone"
+                type="tel"
+                inputMode="tel"
+                placeholder="e.g. 0712 345 678"
+                value={phone}
+                onChange={(e) => { setPhone(e.target.value); setCodeSent(false); if (error) setError('') }}
+                autoComplete="tel"
+                required
+              />
+            )}
 
             {!codeSent ? (
               <Button type="button" onClick={sendLoginCode} loading={sendingCode} className="w-full bg-gradient-to-r from-blue-700 to-blue-600 hover:brightness-110">
-                <KeyRound className="mr-1.5 h-4 w-4" /> Email me a sign-in code
+                <KeyRound className="mr-1.5 h-4 w-4" /> {codeChannel === 'whatsapp' ? 'Send code on WhatsApp' : 'Email me a sign-in code'}
               </Button>
             ) : (
               <div className="space-y-3">
                 <div className="text-center">
-                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Check your inbox</p>
+                  <p className="text-sm font-semibold text-gray-800 dark:text-gray-100">Check {codeChannel === 'whatsapp' ? 'WhatsApp' : 'your inbox'}</p>
                   <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                    We sent a 6-digit code to <strong>{email}</strong>. It expires in 10 minutes.
+                    We sent a 6-digit code to{' '}
+                    {codeChannel === 'whatsapp'
+                      ? <>WhatsApp number <strong>{phone.trim()}</strong></>
+                      : <><strong>{email.trim()}</strong></>}
+                    . It expires in 10 minutes.
                   </p>
                 </div>
                 <OtpInput

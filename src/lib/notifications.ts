@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { normalizeAudiences, type NotificationAudience } from '@/lib/notification-audience'
+import { getAdminNotificationPreference, notificationTypeForCategory } from '@/lib/notification-preferences'
 
 export type NotificationCategory =
   | 'advert'
@@ -61,6 +62,23 @@ export async function createNotification(input: CreateNotificationInput) {
       ? normalizeAudiences(audiences ?? ['everyone'])
       : normalizeAudiences(audiences ?? [roleKey])
 
+  // Broadcast audiences are governed by the admin's per-type preferences.
+  // Personal notifications always go to their owner and skip this check.
+  let finalAudiences = resolvedAudiences
+  if (!recipientId && resolvedAudiences) {
+    const preference = await getAdminNotificationPreference(notificationTypeForCategory(category))
+    finalAudiences = resolvedAudiences.filter((audience) => preference.audiences.includes(audience))
+    if (!finalAudiences.length) {
+      console.warn('[notifications] Skipped a broadcast outside its configured audience:', {
+        category,
+        title,
+        requested: resolvedAudiences,
+        allowed: preference.audiences,
+      })
+      return
+    }
+  }
+
   try {
     const admin = createAdminClient()
     await admin.from('notifications').insert({
@@ -71,7 +89,7 @@ export async function createNotification(input: CreateNotificationInput) {
       title,
       body,
       link,
-      data: resolvedAudiences ? { ...data, audiences: resolvedAudiences } : data,
+      data: finalAudiences ? { ...data, audiences: finalAudiences } : data,
       is_broadcast: !recipientId,
     })
   } catch (err) {

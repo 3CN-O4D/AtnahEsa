@@ -1,5 +1,6 @@
 import nodemailer from 'nodemailer'
 import { notifyAdminsWhatsApp, notifyUserWhatsApp } from '@/lib/whatsapp/outbox'
+import { getAdminNotificationPreference, notificationTypeForSubject } from '@/lib/notification-preferences'
 
 const transporter = nodemailer.createTransport({
   host: process.env.BREVO_SMTP_HOST,
@@ -164,21 +165,27 @@ function render(subject: string, title: string, fields: Record<string, string>) 
 export async function notifyAdmins(subject: string, title: string, fields: Record<string, string>) {
   const safeSubject = sanitizeSubject(subject)
   const body = render(safeSubject, title, fields)
+  const preference = await getAdminNotificationPreference(notificationTypeForSubject(safeSubject))
 
-  for (const to of ADMINS) {
-    try {
-      await transporter.sendMail({
-        from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
-        to,
-        subject: `[AseHanta] ${safeSubject}`,
-        html: body,
-      })
-      console.log(`✅ Email sent to ${to}: ${safeSubject}`)
-    } catch (err) {
-      console.error(`❌ Failed to notify ${to}:`, err)
+  // "web" is the normal website path: admin email plus any in-app broadcast
+  // started by the same event. "whatsapp" is the outbox mirror.
+  if (preference.channels.includes('web')) {
+    for (const to of ADMINS) {
+      try {
+        await transporter.sendMail({
+          from: `"${process.env.BREVO_FROM_NAME}" <${process.env.BREVO_FROM_EMAIL}>`,
+          to,
+          subject: `[AseHanta] ${safeSubject}`,
+          html: body,
+        })
+        console.log(`✅ Email sent to ${to}: ${safeSubject}`)
+      } catch (err) {
+        console.error(`❌ Failed to notify ${to}:`, err)
+      }
     }
   }
 
-  // Mirror admin alerts to the admin WhatsApp numbers too.
-  await notifyAdminsWhatsApp(safeSubject, title, fields)
+  if (preference.channels.includes('whatsapp')) {
+    await notifyAdminsWhatsApp(safeSubject, title, fields)
+  }
 }

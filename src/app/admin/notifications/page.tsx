@@ -38,6 +38,19 @@ const AUDIENCES: { id: Audience; label: string }[] = [
   { id: 'admin', label: 'Admins' },
 ]
 
+type Preference = {
+  id: string
+  label: string
+  description: string
+  channels: ('web' | 'whatsapp')[]
+  audiences: Audience[]
+  customised: boolean
+  updated_at: string | null
+  updated_by: string | null
+}
+
+type PreferenceEdit = { channels: ('web' | 'whatsapp')[]; audiences: Audience[] }
+
 function when(value: string | null) {
   if (!value) return '—'
   const date = new Date(value)
@@ -59,6 +72,10 @@ export default function AdminNotificationsPage() {
   const [busy, setBusy] = useState<string | null>(null)
   const [toast, setToast] = useState<{ type: 'ok' | 'error'; message: string } | null>(null)
   const [edits, setEdits] = useState<Record<string, { title: string; body: string }>>({})
+  const [prefs, setPrefs] = useState<Preference[]>([])
+  const [prefEdits, setPrefEdits] = useState<Record<string, PreferenceEdit>>({})
+  const [prefBusy, setPrefBusy] = useState<string | null>(null)
+  const [prefsLoading, setPrefsLoading] = useState(true)
 
   const showToast = useCallback((type: 'ok' | 'error', message: string) => {
     setToast({ type, message })
@@ -84,17 +101,43 @@ export default function AdminNotificationsPage() {
     }
   }, [filter, showToast])
 
+  const loadPrefs = useCallback(async () => {
+    setPrefsLoading(true)
+    try {
+      const res = await fetch('/api/admin/notification-preferences')
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast('error', data?.error || 'Could not load delivery preferences.')
+        return
+      }
+      const rows = (data.items ?? []) as Preference[]
+      setPrefs(rows)
+      setPrefEdits(
+        Object.fromEntries(
+          rows.map((row) => [row.id, { channels: row.channels, audiences: row.audiences }])
+        )
+      )
+    } catch {
+      showToast('error', 'Network error.')
+    } finally {
+      setPrefsLoading(false)
+    }
+  }, [showToast])
+
   useEffect(() => {
     let cancelled = false
     const tick = async () => {
       await Promise.resolve()
-      if (!cancelled) void load()
+      if (!cancelled) {
+        void load()
+        void loadPrefs()
+      }
     }
     void tick()
     return () => {
       cancelled = true
     }
-  }, [load])
+  }, [load, loadPrefs])
 
   const retarget = useCallback(
     async (item: NotificationRow, audience: Audience) => {
@@ -184,6 +227,49 @@ export default function AdminNotificationsPage() {
     [showToast]
   )
 
+  const savePref = useCallback(
+    async (pref: Preference) => {
+      const edit = prefEdits[pref.id]
+      if (!edit) return
+      if (!edit.channels.length || !edit.audiences.length) {
+        showToast('error', 'Choose at least one channel and one audience.')
+        return
+      }
+      setPrefBusy(pref.id)
+      try {
+        const res = await fetch('/api/admin/notification-preferences', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: pref.id,
+            channels: edit.channels,
+            audiences: edit.audiences,
+          }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not save delivery preferences.')
+          return
+        }
+        const rows = (data.items ?? []) as Preference[]
+        if (rows.length) {
+          setPrefs(rows)
+          setPrefEdits(
+            Object.fromEntries(
+              rows.map((row) => [row.id, { channels: row.channels, audiences: row.audiences }])
+            )
+          )
+        }
+        showToast('ok', `${pref.label} preferences saved.`)
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setPrefBusy(null)
+      }
+    },
+    [prefEdits, showToast]
+  )
+
   const title = useMemo(() => {
     if (filter === 'all') return 'All notifications'
     if (filter === 'everyone') return 'Everyone'
@@ -215,6 +301,111 @@ export default function AdminNotificationsPage() {
           Refresh
         </Button>
       </div>
+
+      <section className="mt-6 rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="border-b border-gray-200 px-4 py-3 dark:border-slate-800">
+          <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Delivery preferences</h2>
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+            Choose web (admin email + in-app), WhatsApp, or both for each notification type, and who sees the web copy.
+          </p>
+        </div>
+
+        {prefsLoading ? (
+          <div className="flex items-center gap-2 px-4 py-6 text-sm text-gray-500">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading preferences…
+          </div>
+        ) : (
+          <div className="divide-y divide-gray-100 dark:divide-slate-800">
+            {prefs.map((pref) => {
+              const edit = prefEdits[pref.id] ?? { channels: pref.channels, audiences: pref.audiences }
+              const channel =
+                edit.channels.length === 2 ? 'both' : edit.channels[0] || 'web'
+              const dirty =
+                edit.channels.join(',') !== pref.channels.join(',') ||
+                edit.audiences.join(',') !== pref.audiences.join(',')
+
+              return (
+                <div
+                  key={pref.id}
+                  className="grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_180px_minmax(0,1fr)_auto] lg:items-center"
+                >
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="text-sm font-semibold text-gray-900 dark:text-white">{pref.label}</p>
+                      {pref.customised && (
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700 dark:bg-blue-600/15 dark:text-blue-300">
+                          custom
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{pref.description}</p>
+                  </div>
+
+                  <label className="flex flex-col gap-1 text-xs font-medium text-gray-600 dark:text-gray-300">
+                    Channels
+                    <select
+                      value={channel}
+                      onChange={(event) => {
+                        const value = event.target.value as 'both' | 'web' | 'whatsapp'
+                        setPrefEdits((prev) => ({
+                          ...prev,
+                          [pref.id]: {
+                            ...edit,
+                            channels: value === 'both' ? ['web', 'whatsapp'] : [value],
+                          },
+                        }))
+                      }}
+                      className="rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-sm text-gray-900 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+                    >
+                      <option value="both">Both</option>
+                      <option value="web">Web only</option>
+                      <option value="whatsapp">WhatsApp only</option>
+                    </select>
+                  </label>
+
+                  <div>
+                    <p className="mb-1 text-xs font-medium text-gray-600 dark:text-gray-300">Web audience</p>
+                    <div className="flex flex-wrap gap-2">
+                      {AUDIENCES.map((audience) => (
+                        <label
+                          key={audience.id}
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-200 px-2 py-1 text-xs text-gray-700 dark:border-slate-700 dark:text-gray-200"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={edit.audiences.includes(audience.id)}
+                            onChange={() => {
+                              const selected = edit.audiences.includes(audience.id)
+                                ? edit.audiences.filter((item) => item !== audience.id)
+                                : [...edit.audiences, audience.id]
+                              if (!selected.length) return
+                              setPrefEdits((prev) => ({
+                                ...prev,
+                                [pref.id]: { ...edit, audiences: selected },
+                              }))
+                            }}
+                            className="accent-blue-700"
+                          />
+                          {audience.label}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    onClick={() => void savePref(pref)}
+                    disabled={!dirty || prefBusy === pref.id}
+                  >
+                    {prefBusy === pref.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                    Save
+                  </Button>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </section>
 
       <div className="mt-5 flex flex-wrap gap-2">
         {(

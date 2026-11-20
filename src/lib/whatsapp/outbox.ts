@@ -126,22 +126,63 @@ export async function notifyUserWhatsApp(
   }
 }
 
-/** Mirror an admin notification to the configured admin WhatsApp numbers. */
+/** Admin phone numbers that get a WhatsApp copy of admin alerts. */
+async function adminWhatsAppNumbers(): Promise<string[]> {
+  const configured = (process.env.ADMIN_WHATSAPP_NUMBERS || '')
+    .split(',')
+    .map((n) => toWhatsAppNumber(n))
+    .filter((n): n is string => Boolean(n))
+  if (configured.length > 0) return configured
+
+  // Fall back to every admin account's phone number so alerts are not lost
+  // when the env list is unset (e.g. new deployments or local dev).
+  try {
+    const supabase = createAdminClient()
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('phone')
+      .eq('role', 'admin')
+      .limit(50)
+    if (error || !data) return []
+    return (data ?? [])
+      .map((p) => toWhatsAppNumber(p?.phone))
+      .filter((n): n is string => Boolean(n))
+  } catch {
+    return []
+  }
+}
+
+/** Mirror an admin notification to the admin WhatsApp numbers. */
 export async function notifyAdminsWhatsApp(
   subject: string,
   title: string,
   fields: Record<string, string>
 ): Promise<void> {
-  const numbers = (process.env.ADMIN_WHATSAPP_NUMBERS || '')
-    .split(',')
-    .map((n) => toWhatsAppNumber(n))
-    .filter((n): n is string => Boolean(n))
-
+  const numbers = await adminWhatsAppNumbers()
   if (numbers.length === 0) return
   const text = renderNotification(subject, title, fields)
   await Promise.allSettled(
     numbers.map((phone) => enqueueWhatsApp({ to: phone, kind: 'alert', text, meta: { source: 'admin-email-mirror' } }))
   )
+}
+
+/** WhatsApp confirmation straight to a lister's number (no email lookup needed). */
+export async function notifyListerWhatsApp(
+  phone: string | null | undefined,
+  subject: string,
+  title: string,
+  fields: Record<string, string>
+): Promise<void> {
+  try {
+    await enqueueWhatsApp({
+      to: phone,
+      kind: 'notification',
+      text: renderNotification(subject, title, fields),
+      meta: { source: 'lister-listing' },
+    })
+  } catch {
+    /* best-effort */
+  }
 }
 
 /** WhatsApp copy of an email OTP (only when the account has a phone number). */

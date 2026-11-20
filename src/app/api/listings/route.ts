@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { notifyAdmins, notifyUser } from '@/lib/notify'
+import { notifyListerWhatsApp, phoneForUserId } from '@/lib/whatsapp/outbox'
 import { createClient } from '@/lib/supabase/server'
 import { ITEMS_PER_PAGE } from '@/lib/constants'
 import { getCached, setCached, invalidateCached, cached } from '@/lib/server-cache'
@@ -270,6 +271,28 @@ export async function POST(req: Request) {
     }
 
     notifyAdmins('New Listing Uploaded', 'New House Listing', { Title: validation.data.title, Location: validation.data.location, Price: `KES ${validation.data.price}`, Rent: `KES ${validation.data.rent}`, Uploader: user.email ?? 'Unknown' })
+
+    // Tell the lister their house is up. Prefer the number they entered on the
+    // form; fall back to the phone on their account profile.
+    try {
+      const listerPhone = validation.data.lister_phone || (await phoneForUserId(user.id))
+      if (listerPhone) {
+        await notifyListerWhatsApp(
+          listerPhone,
+          'Your House is Live',
+          'Your new listing is on AseHanta',
+          {
+            Title: validation.data.title,
+            Location: validation.data.location,
+            Price: `KES ${validation.data.price}`,
+            Rent: `KES ${validation.data.rent}`,
+            Status: allowedFields.status === 'published' ? 'Published — live now' : 'Pending admin review',
+          }
+        )
+      }
+    } catch (err) {
+      console.error('Lister WhatsApp notification failed:', err)
+    }
 
     return addSecurityHeaders(NextResponse.json({ success: true }))
   } catch {

@@ -6,6 +6,7 @@ import { releaseToLister, refundHunter } from '@/lib/escrow'
 import { addSecurityHeaders } from '@/lib/security'
 import { createClient } from '@/lib/supabase/server'
 import { invalidateCached } from '@/lib/server-cache'
+import { notifyListerWhatsApp, phoneForUserId } from '@/lib/whatsapp/outbox'
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -57,6 +58,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   invalidateCached('listings|')
 
   const { data: updated } = await admin.from('listings').select('*').eq('id', id).single()
+
+  // When an admin publishes a house, confirm on WhatsApp to the lister so
+  // they know it went live (most useful for pending -> published transitions).
+  if (status === 'published' && existing.status !== 'published') {
+    try {
+      const listerPhone = existing.lister_phone || (await phoneForUserId(existing.uploader_id))
+      if (listerPhone) {
+        await notifyListerWhatsApp(
+          listerPhone,
+          'Your House is Live',
+          'Your listing is now published',
+          {
+            Title: existing.title,
+            Location: existing.location,
+            Price: `KES ${existing.price}`,
+            Rent: `KES ${existing.rent}`,
+            Status: 'Published — live on AseHanta',
+          }
+        )
+      }
+    } catch (err) {
+      console.error('Lister publish WhatsApp notification failed:', err)
+    }
+  }
+
   return addSecurityHeaders(NextResponse.json(updated))
 }
 

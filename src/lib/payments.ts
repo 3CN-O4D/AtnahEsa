@@ -1,6 +1,7 @@
 import type { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
 import { notifyUser, notifyAdmins } from '@/lib/notify'
+import { notifyPhoneWhatsApp, notifyListerWhatsApp } from '@/lib/whatsapp/outbox'
 import { sendPaymentReceiptEmail } from '@/lib/email'
 import { generateReceiptPdf } from '@/lib/receipt'
 import { moveMediaToTaken } from '@/lib/move-media'
@@ -348,6 +349,33 @@ export async function confirmHouseBookingPayment(
   )
 
   await Promise.allSettled(notifyTasks)
+
+  // WhatsApp copies for the hunter and the lister (best-effort, never blocks).
+  await notifyPhoneWhatsApp(
+    confirmed.phone,
+    'Payment Confirmed',
+    'Your payment is safe — house reserved 🎉',
+    {
+      House: confirmed.listing_title || 'your house',
+      Amount: `KES ${Math.round(expected).toLocaleString()}`,
+      Receipt: receiptNumber,
+      Status: `Funds are held for ${VIEW_WINDOW_HOURS} hours while you view the house.`,
+      'Next Step': 'Contact the lister to arrange your visit. Link the house in My Bookings.',
+      'Need Help': 'WhatsApp +254 791 410 625',
+    }
+  )
+  await notifyListerWhatsApp(
+    ctx.listerPhone,
+    'Payment Received',
+    'A hunter paid for your house 💰',
+    {
+      House: confirmed.listing_title || 'your house',
+      Hunter: `${ctx.hunterName} (${confirmed.phone || 'N/A'})`,
+      Amount: `KES ${Math.round(expected).toLocaleString()}`,
+      Status: `In escrow for ${VIEW_WINDOW_HOURS} hours. Call the hunter to arrange the visit.`,
+      'Need Help': 'WhatsApp +254 791 410 625',
+    }
+  )
 
   // Emails: branded PDF receipt to the payer, details to the lister, summary
   // to admins. Email failures never roll back a confirmed payment.

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins, notifyUser } from '@/lib/notify'
 import { createNotification } from '@/lib/notifications'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { ESCROW_HOURS } from '@/lib/constants'
 
 const REMINDER_WINDOW_HOURS = 2
@@ -84,6 +85,22 @@ export async function GET(req: Request) {
           )
         }
 
+        // Same reminder on WhatsApp to the hunter's number.
+        await notifyPhoneWhatsApp(
+          booking.phone,
+          'Escrow closes soon',
+          'Your escrow closes soon ⏳',
+          {
+            House: title,
+            'Hunting Fee': `KES ${Number(booking.listing_price || 0).toLocaleString()}`,
+            'Window Closes': booking.held_until
+              ? new Date(booking.held_until).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })
+              : `${ESCROW_HOURS} hours after payment`,
+            'What To Do': 'Open My Bookings → Payments. Confirm if you are pleased, or request a refund if not.',
+            Link: 'https://www.asehanta.com/my-bookings?tab=payments',
+          }
+        )
+
         reminded++
         continue
       }
@@ -101,6 +118,20 @@ export async function GET(req: Request) {
           data: { house_booking_id: booking.id },
         })
       }
+
+      // Same notice on WhatsApp to the hunter's number.
+      await notifyPhoneWhatsApp(
+        booking.phone,
+        'Escrow window closed',
+        'Your escrow window has closed',
+        {
+          House: title,
+          'Hunting Fee': `KES ${Number(booking.listing_price || 0).toLocaleString()}`,
+          Status: 'Our team will contact you before releasing anything.',
+          'What To Do': 'If you were not pleased, open My Bookings → Payments to request a refund.',
+          Link: 'https://www.asehanta.com/my-bookings?tab=payments',
+        }
+      )
 
       await notifyAdmins(
         'Escrow Closed — Admin Payout Required',

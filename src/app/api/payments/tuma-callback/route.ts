@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 import { createNotification } from '@/lib/notifications'
+import { notifyPhoneWhatsApp, notifyListerWhatsApp } from '@/lib/whatsapp/outbox'
 import type { TumaCallback } from '@/lib/tuma'
 import { addSecurityHeaders } from '@/lib/security'
 
@@ -133,6 +134,36 @@ export async function POST(req: Request) {
             data: { house_booking_id: houseBooking.id, hunter_phone: houseBooking.phone, amount: body.amount, receipt },
           })
         }
+
+        // WhatsApp copies: hunter confirmation + lister paid alert (best-effort).
+        await notifyPhoneWhatsApp(
+          houseBooking.phone,
+          'Payment Confirmed',
+          'Your payment is safe — house reserved 🎉',
+          {
+            House: houseBooking.listing_title || 'your house',
+            Amount: `KES ${(body.amount ?? houseBooking.listing_price ?? 0).toLocaleString()}`,
+            Receipt: receipt || 'N/A',
+            Status: 'Funds are held in 24h escrow while you view the house.',
+            'Next Step': 'Contact the lister to arrange your visit.',
+            'Need Help': 'WhatsApp +254 791 410 625',
+          }
+        )
+        const { data: listerProfile } = listing?.uploader_id
+          ? await supabase.from('profiles').select('phone').eq('id', listing.uploader_id).maybeSingle()
+          : { data: null }
+        await notifyListerWhatsApp(
+          listerProfile?.phone || null,
+          'Payment Received',
+          'A hunter paid for your house 💰',
+          {
+            House: listing?.title || houseBooking.listing_title || 'your house',
+            Hunter: `${houseBooking.phone || 'N/A'}`,
+            Amount: `KES ${(body.amount ?? houseBooking.listing_price ?? 0).toLocaleString()}`,
+            Status: 'In 24h escrow. Call the hunter to arrange the visit.',
+            'Need Help': 'WhatsApp +254 791 410 625',
+          }
+        )
       }
 
       // Public flow (no authenticated bookings row): mark the listing booked

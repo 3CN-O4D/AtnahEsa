@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins, notifyUser } from '@/lib/notify'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { CONTACT_EMAIL, CONTACT_PHONE_DISPLAY, TILL_NUMBER } from '@/lib/constants'
 import { withRateLimit, addSecurityHeaders, validateRequest, VALIDATION_SCHEMAS } from '@/lib/security'
 
@@ -92,6 +93,23 @@ export async function POST(req: Request) {
         'Need Help': `${CONTACT_PHONE_DISPLAY} · ${CONTACT_EMAIL}`,
       }).catch((err) => console.error('Booking confirmation email failed:', err))
     }
+
+    // Same confirmation on WhatsApp to the number the hunter used.
+    await notifyPhoneWhatsApp(
+      phone,
+      'Booking Received',
+      'We got your booking — payment is being verified 📩',
+      {
+        House: listing_title || 'House listing',
+        Location: listing_location || '—',
+        Amount: listing_price ? `KES ${listing_price.toLocaleString()}` : amountPaid ? `Ksh ${amountPaid}` : '—',
+        'M-Pesa code': transaction_code,
+        Status: 'Payment submitted — AseHanta is verifying it now',
+        'What Happens Next':
+          'We check the M-Pesa message against our Till, then email your receipt and unlock the lister contact in My Bookings.',
+        'Need Help': `${CONTACT_PHONE_DISPLAY} · ${CONTACT_EMAIL}`,
+      }
+    )
 
     const resp = NextResponse.json({ success: true })
     return addSecurityHeaders(resp)

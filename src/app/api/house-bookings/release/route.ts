@@ -7,6 +7,7 @@ import { createNotification } from '@/lib/notifications'
 import { invalidateCached } from '@/lib/server-cache'
 import { approveHouseBookingPayout } from '@/lib/payments'
 import { canReportLateAfterAutoApproval } from '@/lib/booking-workflow'
+import { resolveListerIdentity } from '@/lib/lister-identity'
 import {
   getIssueCategory,
   parseBookingFeedback,
@@ -143,21 +144,16 @@ export async function POST(req: Request) {
 
     const { data: listing } = await admin
       .from('listings')
-      .select('uploader_id, title, lister_phone')
+      .select('uploader_id, uploader_name, title, lister_phone')
       .eq('id', booking.listing_id)
       .maybeSingle()
 
-    let listerName = 'Lister'
-    let listerPhone = listing?.lister_phone || ''
-    if (listing?.uploader_id) {
-      const { data: listerProfile } = await admin
-        .from('profiles')
-        .select('full_name, phone')
-        .eq('id', listing.uploader_id)
-        .maybeSingle()
-      if (listerProfile?.full_name) listerName = listerProfile.full_name
-      if (!listerPhone && listerProfile?.phone) listerPhone = listerProfile.phone
-    }
+    const {
+      name: listerName,
+      phone: listerPhone,
+      profile: listerProfile,
+    } = await resolveListerIdentity(admin, listing)
+    const isAdminManagedListing = listerProfile?.role === 'admin'
 
     if (action === 'confirm') {
       const feedback: BookingFeedback = {
@@ -184,7 +180,7 @@ export async function POST(req: Request) {
         .eq('id', booking_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-      if (listing?.uploader_id) {
+      if (listing?.uploader_id && !isAdminManagedListing) {
         await saveListerReview(admin, listing.uploader_id, user.id, ratingValue, reviewText)
       }
 
@@ -274,7 +270,7 @@ export async function POST(req: Request) {
       .eq('id', booking_id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
-    if (listing?.uploader_id) {
+    if (listing?.uploader_id && !isAdminManagedListing) {
       await saveListerReview(admin, listing.uploader_id, user.id, ratingValue, reviewText)
     }
 
@@ -312,12 +308,12 @@ export async function POST(req: Request) {
         body: autoApproved
           ? `Your ${refundPercent}% refund (KES ${refundAmount.toLocaleString()}) for ${booking.listing_title || 'your house'} was approved. An admin will send it by M-Pesa and record the receipt; the lister will not be paid.`
           : `Your report for ${booking.listing_title || 'your house'} is with our team. An admin will contact you and the lister before deciding on the ${refundPercent}% refund (KES ${refundAmount.toLocaleString()}).`,
-        link: '/my-bookings',
+        link: '/my-escrow',
         data: { house_booking_id: booking.id, amount: refundAmount },
       })
     }
 
-    if (listing?.uploader_id) {
+    if (listing?.uploader_id && !isAdminManagedListing) {
       await createNotification({
         userId: listing.uploader_id,
         category: 'transaction',

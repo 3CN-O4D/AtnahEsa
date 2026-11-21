@@ -87,7 +87,7 @@ const cases: Array<{ name: string; row: Record<string, unknown>; payment?: { sta
     row: { status: 'confirmed', release_status: 'held', displeased_reason: feedback('issue', { category: 'not_as_advertised' }) },
     expect: 'issue_open',
     checks: (s) => {
-      assert.equal(s.refundPercent, 85)
+      assert.equal(s.refundPercent, 80)
       assert.equal(canAdminPayout(s), false)
       assert.equal(canAdminRefund(s), true)
     },
@@ -230,7 +230,7 @@ console.log('✓ auto-close guard')
 
 // Treasury refund rules.
 const held = { status: 'confirmed', release_status: 'held' }
-assert.deepEqual(refundPlanForBooking(held).percentage, 85)
+assert.deepEqual(refundPlanForBooking(held).percentage, 80)
 assert.equal(refundPlanForBooking(held, 100).percentage, 100)
 assert.equal(refundPlanForBooking({ ...held, release_status: 'paid' }).allowed, false)
 assert.equal(refundPlanForBooking({ ...held, release_status: 'pending' }).allowed, false)

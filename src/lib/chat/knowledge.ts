@@ -24,7 +24,7 @@ HOW ASEHANTA WORKS:
 - To view a house, the hunter books it and pays a booking fee via M-Pesa (STK push or PayWave link). The fee is held in escrow for a 24-hour viewing window.
 - After booking, the lister's contact is unlocked so they can arrange the visit. Hunters should never pay the lister in cash.
 - After viewing, the hunter confirms whether they were satisfied. Money is not released until they answer or an admin reviews the case.
-- Refunds: 100% if the lister didn't show or the house was fake/fundamentally different; 85% if the viewing happened but the house didn't match and the hunter was genuinely displeased; 50% when both sides share blame. Admins review and verify before refunds.
+- Refunds: 100% if the lister didn't show or the house was fake/fundamentally different; 80% if the viewing happened but the house didn't match and the hunter was genuinely displeased; 50% when both sides share blame. Admins review and verify before refunds.
 - Listers create a free account, add a house with photos/rent/location/rules, and an admin reviews it before it goes live. Listing is free.
 - Houses marked Taken stay visible with a TAKEN badge for reference and are auto-deleted after 24 hours.
 - AseHanta also offers verified movers and home WiFi packages.
@@ -37,6 +37,7 @@ PAGES AND WHAT THEY DO:
 - /upload — list a house (listers).
 - /my-listings — a lister's own listings and their status.
 - /my-bookings and /booking/[id] — a hunter's bookings and booking details.
+- /my-escrow — dedicated paid-booking view: 24-hour hold, feedback, refunds and lister contact.
 - /favorites — saved homes.
 - /notifications — account notifications.
 - /profile — edit profile, change profile picture, change email, delete account.
@@ -106,7 +107,7 @@ export const FAQ: FaqEntry[] = [
   {
     id: 'refunds',
     keywords: ['refund', 'refunds', 'money back', 'my money', 'get my money', 'reimburse', 'charged back'],
-    answer: `*Refund policy*\n\n- *100% refund* if the lister didn't show up, or the house was fake / totally different from the listing.\n- *85% refund* if the viewing happened but the house didn't match what was advertised and you were genuinely displeased.\n- *50% refund* when both sides share blame.\n\nRefunds are processed after an admin reviews the case and verifies the M-Pesa refund message. Payouts depend on M-Pesa processing times.`,
+    answer: `*Refund policy*\n\n- *100% refund* if the lister didn't show up, or the house was fake / totally different from the listing.\n- *80% refund* if the viewing happened but the house didn't match what was advertised and you were genuinely displeased.\n- *50% refund* when both sides share blame.\n\nRefunds are processed after an admin reviews the case and verifies the M-Pesa refund message. Payouts depend on M-Pesa processing times.`,
   },
   {
     id: 'payment_methods',
@@ -195,6 +196,7 @@ export const PAGE_LINKS: Record<string, { label: string; href: string }> = {
   request: { label: '📝 Request a house', href: 'https://www.asehanta.com/request-house' },
   upload: { label: '➕ List a house', href: 'https://www.asehanta.com/upload' },
   bookings: { label: '🗓️ My bookings', href: 'https://www.asehanta.com/my-bookings' },
+  escrow: { label: '🔒 My Escrow', href: 'https://www.asehanta.com/my-escrow' },
   taken: { label: '🚫 Taken houses', href: 'https://www.asehanta.com/taken' },
   terms: { label: '📄 Terms & conditions', href: 'https://www.asehanta.com/terms' },
   contact: { label: '📞 Contact us', href: 'https://www.asehanta.com/contact' },

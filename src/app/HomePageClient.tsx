@@ -18,7 +18,6 @@ import {
   Wallet,
   Zap,
 } from 'lucide-react'
-import AseCta from '@/components/chat/AseCta'
 import ListingGrid from '@/components/listings/ListingGrid'
 import SeasonalDrop from '@/components/seasonal/SeasonalDrop'
 import SeasonalScene from '@/components/seasonal/SeasonalScene'
@@ -246,11 +245,11 @@ export default function HomePageClient({ initialListings, initialStats }: HomePa
 
         <div className="relative mx-auto max-w-7xl px-4 pb-16 pt-12 sm:pt-16">
           <div className="max-w-3xl">
-            <span className="inline-flex items-center gap-2 rounded-full border border-[#D4AF37]/35 bg-white/10 px-3.5 py-1.5 text-xs font-semibold text-[#F0D78C] shadow-sm backdrop-blur animate-fadeInDown">
-              <Sparkles className="h-3.5 w-3.5" />
-              <span className="brand-wordmark-light font-extrabold">AseHanta</span>
-              <span className="text-blue-100/70">· Verified homes across Kenya</span>
-              <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-[#D4AF37] animate-pulse-slow" />
+            <span className="inline-flex items-center gap-2 rounded-full border border-white/50 bg-white/90 px-3.5 py-1.5 text-xs font-semibold text-[#0B1F3A] shadow-sm backdrop-blur animate-fadeInDown">
+              <Sparkles className="h-3.5 w-3.5 text-[#0B1F3A]" />
+              <span className="font-extrabold text-[#0B1F3A]">AseHanta</span>
+              <span className="text-[#0B1F3A]/70">· Verified homes across Kenya</span>
+              <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-[#0B1F3A] animate-pulse-slow" />
             </span>
 
             <h1 className="mt-5 text-[2.15rem] font-extrabold leading-[1.05] tracking-tight text-white sm:text-5xl lg:text-[3.6rem] animate-fadeInUp">
@@ -265,32 +264,25 @@ export default function HomePageClient({ initialListings, initialStats }: HomePa
             </p>
 
             <div className="mt-7 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center animate-fadeInUp" style={{ animationDelay: '0.18s' }}>
-              <a
-                href="#homes"
-                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-[#1D4ED8] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/40 ring-1 ring-[#D4AF37]/25 transition-all hover:-translate-y-0.5 hover:bg-[#1E40AF] hover:shadow-xl active:scale-95 seasonal-cta-glow"
+              <Link
+                href={listAHouseLink}
+                className="group inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-[#D4AF37] to-[#F0D78C] px-6 py-3 text-sm font-extrabold text-[#0B1F3A] shadow-lg shadow-[#D4AF37]/20 ring-1 ring-white/40 transition-all hover:-translate-y-0.5 hover:shadow-xl active:scale-95 seasonal-cta-glow"
               >
-                Explore homes
+                <Banknote className="h-4 w-4" /> List and Earn
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-              </a>
+              </Link>
               <Link
                 href="/request-house"
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/35 bg-white/5 px-6 py-3 text-sm font-semibold text-[#F0D78C] shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:border-[#D4AF37]/60 hover:bg-[#D4AF37]/10 hover:text-white hover:shadow-md active:scale-95"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/5 px-6 py-3 text-sm font-semibold text-white shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 hover:border-white/60 hover:bg-white/10 active:scale-95"
               >
                 <Search className="h-4 w-4" /> Request a house
               </Link>
-              <AseCta variant="onDark" label="Check out with Ase" />
-              <Link
-                href={listAHouseLink}
-                className="text-sm font-semibold text-[#F0D78C] underline-offset-4 transition-colors hover:text-white hover:underline"
-              >
-                or list your house
-              </Link>
               {isLister && (
                 <Link
-                  href="/requests"
+                  href="/upload"
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-[#D4AF37]/40 bg-[#D4AF37]/10 px-5 py-2.5 text-sm font-semibold text-[#F0D78C] transition-all hover:-translate-y-0.5 hover:bg-[#D4AF37]/15 hover:text-white"
                 >
-                  House requests
+                  List your House
                 </Link>
               )}
             </div>
@@ -315,10 +307,17 @@ export default function HomePageClient({ initialListings, initialStats }: HomePa
               <p className="text-2xl font-extrabold text-white sm:text-3xl">{countTotal}</p>
               <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-200/70">Homes listed</p>
             </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-center backdrop-blur animate-fadeInUp" style={{ animationDelay: '0.29s' }}>
+            <Link
+              href="/my-escrow"
+              className="group rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-center backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-[#D4AF37]/40 hover:shadow-xl animate-fadeInUp"
+              style={{ animationDelay: '0.29s' }}
+            >
               <p className="text-2xl font-extrabold text-[#F0D78C] sm:text-3xl">{countPending}</p>
-              <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wide text-blue-200/70">Awaiting review</p>
-            </div>
+              <p className="mt-0.5 flex items-center justify-center gap-1 text-[11px] font-semibold uppercase tracking-wide text-blue-200/70">
+                My Escrow
+                <ArrowRight className="h-3 w-3 opacity-0 transition-all group-hover:translate-x-0.5 group-hover:opacity-100" />
+              </p>
+            </Link>
             <Link
               href="/taken"
               className="group rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-center backdrop-blur transition-all duration-300 hover:-translate-y-1 hover:border-[#D4AF37]/40 hover:shadow-xl animate-fadeInUp"
@@ -351,21 +350,13 @@ export default function HomePageClient({ initialListings, initialStats }: HomePa
         </div>
 
         <div className="pb-12 pt-9">
-          <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
-            <div>
-              <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#1E40AF] dark:text-[#93C5FD]">
-                <span className="relative flex h-2 w-2">
-                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#1D4ED8] opacity-60" />
-                  <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1D4ED8]" />
-                </span>
-                Live listings
-              </p>
-              <h2 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white sm:text-3xl">
-                New, booked &amp; taken homes
-              </h2>
-            </div>
-            <p className="max-w-sm text-sm text-gray-500 dark:text-gray-400">
-              Fresh listings first, then homes already booked or taken — grouped so nothing gets mixed up.
+          <div className="mb-4">
+            <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-[#1E40AF] dark:text-[#93C5FD]">
+              <span className="relative flex h-2 w-2">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#1D4ED8] opacity-60" />
+                <span className="relative inline-flex h-2 w-2 rounded-full bg-[#1D4ED8]" />
+              </span>
+              Live listings
             </p>
           </div>
 
@@ -576,12 +567,11 @@ export default function HomePageClient({ initialListings, initialStats }: HomePa
                 >
                   Request a house <ArrowRight className="h-4 w-4" />
                 </Link>
-                <AseCta variant="onDark" />
                 <Link
                   href={listAHouseLink}
                   className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/20 bg-white/5 px-5 py-3 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/10"
                 >
-                  List your house
+                  List your House
                 </Link>
               </div>
             </div>

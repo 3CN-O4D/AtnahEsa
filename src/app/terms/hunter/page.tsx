@@ -33,7 +33,7 @@ export default function TermsHunterPage() {
         points: [
           'Your booking fee is held in escrow until the viewing happens — nobody is paid before you confirm.',
           'Satisfied with the viewing? The lister gets their payout, verified by an M-Pesa receipt.',
-          'Problem with the viewing? You can get 100%, 85% or 50% back depending on what happened.',
+          'Problem with the viewing? You can get 100%, 80% or 50% back depending on what happened.',
           'Your contact details are shared with the lister only while you have an active booking.',
           'Taken houses have their photos deleted from storage 48 hours after they are marked taken.',
         ],

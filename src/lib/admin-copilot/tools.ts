@@ -9,6 +9,7 @@ import {
 import { auditAction } from './audit'
 import { notifyUser } from '@/lib/notify'
 import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
+import { normalizePhone } from '@/lib/whatsapp'
 import { invalidateCached } from '@/lib/server-cache'
 import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
 import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
@@ -189,7 +190,7 @@ async function getStats(ctx: AdminContext): Promise<ToolResult> {
   const totalRevenue = sum(legacyCollected, (b) => b.amount) + sum(collectedHouse, (h) => h.listing_price)
   const totalRefunded =
     sum(bookingRows.filter((b) => b.status === 'refunded'), (b) => b.refund_amount) +
-    sum(refundedHouse, (h) => Math.round((Number(h.listing_price) || 0) * 0.85))
+    sum(refundedHouse, (h) => Math.round((Number(h.listing_price) || 0) * 0.8))
 
   const lines = [
     '*Platform snapshot*',
@@ -984,7 +985,7 @@ const writeTools: AdminTool[] = [
   {
     name: 'admin_update_listing',
     description:
-      'Edit a listing: title, description, prices (booking fee/rent/deposit), location, descriptive location, house type, building type, floor number, water, electricity, vacancy status, why vacant, lister phone, images, YouTube links, TikTok links, video URLs, issues, and issues count. Categories: house_type (free text), building_type (storey/flat), vacancy (pending/vacant). Only send fields that should change.',
+      'Edit a listing: title, description, prices (booking fee/rent/deposit), location, descriptive location, house type, building type, floor number, water, electricity, vacancy status, why vacant, real lister name, real lister phone, images, YouTube links, TikTok links, video URLs, issues, and issues count. Categories: house_type (free text), building_type (storey/flat), vacancy (pending/vacant). Only send fields that should change.',
     kind: 'write',
     schema: z.object({
       listing_id: z.string().min(1),
@@ -1004,6 +1005,7 @@ const writeTools: AdminTool[] = [
       vacancy: z.enum(['pending', 'vacant']).optional(),
       why_vacant: z.string().max(500).optional(),
       lister_phone: z.string().max(30).optional(),
+      lister_name: z.string().max(100).optional(),
       images: z.array(z.string().url()).max(15).optional(),
       youtube_urls: z.array(z.string().url()).max(10).optional(),
       tiktok_urls: z.array(z.string().url()).max(10).optional(),
@@ -1040,6 +1042,10 @@ const writeTools: AdminTool[] = [
       for (const key of allowed) {
         if (args[key] !== undefined) patch[key] = args[key]
       }
+      if (patch.lister_phone !== undefined) {
+        patch.lister_phone = normalizePhone(String(patch.lister_phone)) || ''
+      }
+      if (args.lister_name !== undefined) patch.uploader_name = str(args, 'lister_name')
       if (args.youtube_urls !== undefined) {
         const urls = listArg(args, 'youtube_urls') || []
         patch.youtube_urls = urls
@@ -1123,7 +1129,7 @@ const writeTools: AdminTool[] = [
   {
     name: 'admin_create_listing',
     description:
-      'Create a listing as admin. Requires title, description, location, booking fee and images. It is published immediately and owned by the admin.',
+      'Create a listing as admin on behalf of a real lister. Requires title, description, location, booking fee and images. Provide lister_name and lister_phone so the real contact is revealed after payment.',
     kind: 'write',
     schema: z.object({
       title: z.string().min(3).max(120),
@@ -1141,6 +1147,7 @@ const writeTools: AdminTool[] = [
       vacancy: z.enum(['pending', 'vacant']).optional(),
       why_vacant: z.string().max(500).optional(),
       lister_phone: z.string().max(30).optional(),
+      lister_name: z.string().max(100).optional(),
       youtube_urls: z.array(z.string().url()).max(10).optional(),
       tiktok_urls: z.array(z.string().url()).max(10).optional(),
       video_urls: z.array(z.string().url()).max(10).optional(),
@@ -1167,7 +1174,7 @@ const writeTools: AdminTool[] = [
         house_type: optStr(args, 'house_type') || '',
         vacancy: optStr(args, 'vacancy') || 'vacant',
         why_vacant: optStr(args, 'why_vacant') || '',
-        lister_phone: optStr(args, 'lister_phone') || '',
+        lister_phone: normalizePhone(optStr(args, 'lister_phone')) || '',
         issues,
         issues_count: issues.length,
         video_urls: listArg(args, 'video_urls') || [],
@@ -1177,7 +1184,7 @@ const writeTools: AdminTool[] = [
         tiktok_url: tiktok[0] || null,
         status: args.publish === false ? 'pending' : 'published',
         uploader_id: ctx.userId,
-        uploader_name: 'AseHanta Admin',
+        uploader_name: optStr(args, 'lister_name') || 'AseHanta Admin',
       }
       const { data, error } = await ctx.db.from('listings').insert(row).select('id, title, status').single()
       if (error) return fail(error.message)
@@ -1481,7 +1488,7 @@ const writeTools: AdminTool[] = [
         data.user_id as string | undefined,
         'Booking updated',
         `Your booking for ${data.listing_title || 'a house'} is now ${status}.`,
-        '/my-bookings'
+        '/my-escrow'
       )
       return ok(`Booking for ${data.name} (${data.listing_title || id.slice(0, 8)}) is now ${status}.`)
     },
@@ -1507,7 +1514,7 @@ const writeTools: AdminTool[] = [
         data.user_id as string | undefined,
         'Payment status updated',
         `An administrator marked your payment of ${money(data.amount)} as ${status}.`,
-        '/my-bookings'
+        '/my-escrow'
       )
       return ok(`Transaction ${id.slice(0, 8)}… is now ${status}.`)
     },
@@ -1615,7 +1622,7 @@ const writeTools: AdminTool[] = [
         existing.user_id as string | undefined,
         'Transaction deleted',
         'An administrator deleted one of your payment records.',
-        '/my-bookings'
+        '/my-escrow'
       ).catch(() => {})
       return ok(`Transaction ${id.slice(0, 8)}… (${money(existing.amount)}) deleted permanently.`)
     },
@@ -1792,7 +1799,7 @@ const writeTools: AdminTool[] = [
             row.user_id as string | undefined,
             'Report reviewed',
             'After speaking to both sides, our team could not approve a refund for this viewing.',
-            '/my-bookings'
+            '/my-escrow'
           ),
           notifyPhoneWhatsApp(
             row.phone as string | null | undefined,
@@ -1813,7 +1820,7 @@ const writeTools: AdminTool[] = [
             row.user_id as string | undefined,
             `${percent}% refund approved`,
             `An admin approved your refund of KES ${amount.toLocaleString()}. It will be sent by M-Pesa and recorded.`,
-            '/my-bookings'
+            '/my-escrow'
           ),
           notifyPhoneWhatsApp(
             row.phone as string | null | undefined,
@@ -2085,7 +2092,7 @@ const writeTools: AdminTool[] = [
           if (hb.release_status === 'refunded') return fail('This booking is already refunded.')
           const sms = optStr(args, 'mpesa_message')
           if (!sms) return fail('Paste the M-Pesa refund SMS as proof that the hunter was refunded.')
-          const percentage = num(args, 'percentage') ?? 85
+          const percentage = num(args, 'percentage') ?? 80
           const refundAmount = Math.round(Number(hb.listing_price) * (percentage / 100))
           const receipt = extractTransactionCode(sms)
           const amount = extractAmountFromMessage(sms)
@@ -2131,7 +2138,7 @@ const writeTools: AdminTool[] = [
             hb.user_id,
             `${percentage}% refund processed`,
             `${money(refundAmount)} was refunded for ${hb.listing_title || 'your house'}. Receipt ${receipt}.`,
-            '/my-bookings?tab=payments'
+            '/my-escrow'
           )
 
           const listingAction = optStr(args, 'listing_action') || 'keep'
@@ -2176,7 +2183,7 @@ const writeTools: AdminTool[] = [
           hb.user_id,
           'Your payment status changed',
           `Booking ${hb.listing_title || hb.id.slice(0, 8)} is now ${nextStatus || hb.status} / ${nextRelease || hb.release_status}.`,
-          '/my-bookings?tab=payments'
+          '/my-escrow'
         )
         return ok(`Booking status updated to ${nextStatus || hb.status}${nextRelease ? ` / ${nextRelease}` : ''}.`)
       }
@@ -2194,7 +2201,7 @@ const writeTools: AdminTool[] = [
         return ok('Legacy escrow released to lister.')
       }
       if (action === 'legacy_refund') {
-        const percentage = num(args, 'percentage') ?? 85
+        const percentage = num(args, 'percentage') ?? 80
         const refundAmount = Math.round((Number(escrow.amount) || 0) * (percentage / 100))
         await db.from('escrow_holds').update({ status: 'refunded', refunded_at: new Date().toISOString() }).eq('id', escrowId)
         await db

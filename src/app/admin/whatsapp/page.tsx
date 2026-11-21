@@ -556,7 +556,7 @@ export default function AdminWhatsAppPage() {
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">WhatsApp control</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Ase replies, hands over to humans, escalates urgent items and markets houses — from {' '}
-            <span className="font-medium text-gray-700 dark:text-gray-300">+254 791 410 625</span>.
+            <span className="font-medium text-gray-700 dark:text-gray-300">+254 748 275 079</span>.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">

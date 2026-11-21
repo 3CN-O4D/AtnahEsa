@@ -8,6 +8,30 @@ import { createClient } from '@/lib/supabase/server'
 import { invalidateCached } from '@/lib/server-cache'
 import { notifyListerWhatsApp, phoneForUserId } from '@/lib/whatsapp/outbox'
 
+const ALLOWED_UPDATE_FIELDS = new Set([
+  'taken_at',
+  'taken_by_name',
+  'uploader_name',
+  'lister_phone',
+  'title',
+  'description',
+  'price',
+  'rent',
+  'location',
+  'descriptive_location',
+  'images',
+  'youtube_url',
+  'youtube_urls',
+  'tiktok_url',
+  'tiktok_urls',
+  'video_urls',
+  'video_url',
+  'issues',
+  'issues_count',
+  'payment_method',
+  'status',
+])
+
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
@@ -20,6 +44,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const body = await req.json()
   const { status, ...updates } = body
+  const safeUpdates = Object.fromEntries(
+    Object.entries(updates).filter(([key]) => ALLOWED_UPDATE_FIELDS.has(key))
+  )
 
   const admin = createAdminClient()
   const { data: existing } = await admin.from('listings').select('*').eq('id', id).single()
@@ -46,12 +73,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     status === 'published'
       ? { taken_at: null, taken_by_name: '' }
       : status === 'taken'
-        ? { taken_at: updates.taken_at || new Date().toISOString() }
+        ? { taken_at: safeUpdates.taken_at || new Date().toISOString() }
         : {}
 
   const { error } = await admin
     .from('listings')
-    .update({ ...statusDefaults, ...updates, status: status || existing.status })
+    .update({ ...statusDefaults, ...safeUpdates, status: status || existing.status })
     .eq('id', id)
   if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 
@@ -63,7 +90,10 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   // they know it went live (most useful for pending -> published transitions).
   if (status === 'published' && existing.status !== 'published') {
     try {
-      const listerPhone = existing.lister_phone || (await phoneForUserId(existing.uploader_id))
+      const listerPhone =
+        (typeof safeUpdates.lister_phone === 'string' && safeUpdates.lister_phone) ||
+        existing.lister_phone ||
+        (await phoneForUserId(existing.uploader_id))
       if (listerPhone) {
         await notifyListerWhatsApp(
           listerPhone,

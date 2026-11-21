@@ -5,7 +5,7 @@ import type { MouseEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart, Bug } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart, Bug, Wallet } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useFavorites } from '@/lib/favorites'
 import { APP_NAME } from '@/lib/constants'
@@ -123,8 +123,8 @@ export default function Header() {
             </Link>
           ))}
           {isLister && (
-            <Link href="/requests" className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:hover:text-blue-400 transition-colors whitespace-nowrap">
-              House Requests
+            <Link href="/upload" className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:hover:text-blue-400 transition-colors whitespace-nowrap">
+              List your House
             </Link>
           )}
           <ThemeToggle />
@@ -184,6 +184,9 @@ export default function Header() {
                   <Link href="/my-bookings" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Calendar className="w-4 h-4" /> My Bookings
                   </Link>
+                  <Link href="/my-escrow" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <Wallet className="w-4 h-4" /> My Escrow
+                  </Link>
                   <Link href="/favorites" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Heart className="w-4 h-4" /> My Favourites
                     {favoritesCount > 0 && (
@@ -191,8 +194,8 @@ export default function Header() {
                     )}
                   </Link>
                   {isLister && (
-                    <Link href="/requests" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <BadgeCheck className="w-4 h-4" /> House Requests
+                    <Link href="/upload" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <BadgeCheck className="w-4 h-4" /> List your House
                     </Link>
                   )}
                   {isAdmin && (
@@ -260,12 +263,12 @@ export default function Header() {
           ))}
           {isLister && (
             <Link
-              href="/requests"
+              href="/upload"
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
             >
               <BadgeCheck className="w-4 h-4" />
-              House Requests
+              List your House
             </Link>
           )}
           <hr className="my-2 dark:border-gray-700" />
@@ -286,6 +289,9 @@ export default function Header() {
               <Link href="/my-bookings" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Calendar className="w-4 h-4" /> My Bookings
               </Link>
+              <Link href="/my-escrow" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                <Wallet className="w-4 h-4" /> My Escrow
+              </Link>
               <Link href="/favorites" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
                 <Heart className="w-4 h-4" /> My Favourites
                 {favoritesCount > 0 && (
@@ -293,8 +299,8 @@ export default function Header() {
                 )}
               </Link>
               {isLister && (
-                <Link href="/requests" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <BadgeCheck className="w-4 h-4" /> House Requests
+                <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
+                  <BadgeCheck className="w-4 h-4" /> List your House
                 </Link>
               )}
               <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">

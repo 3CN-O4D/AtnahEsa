@@ -45,7 +45,7 @@ function buildBookingPdf({
     ['M-Pesa receipt', receipt],
     ['Payment status', (booking.release_status || booking.status || 'pending').charAt(0).toUpperCase() + (booking.release_status || booking.status || 'pending').slice(1)],
     ['Escrow held until', heldUntil],
-    ['Protection', '24-hour escrow — 85% refund if displeased'],
+    ['Protection', '24-hour escrow — 80% refund if displeased'],
   ]
 
   let y = headerBottom
@@ -71,7 +71,7 @@ function buildBookingPdf({
     .fontSize(9)
     .fillColor(listerPhone ? '#475569' : '#B45309')
     .text(
-      listerPhone ? `Phone: ${listerPhone}` : 'Phone: unlocks in My Bookings once your payment is confirmed',
+      listerPhone ? `Phone: ${listerPhone}` : 'Phone: unlocks in My Escrow once your payment is confirmed',
       56,
       y + 30
     )
@@ -82,8 +82,8 @@ function buildBookingPdf({
   doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#1E40AF').text('How escrow works', 72, y + 12)
   doc.font('Helvetica').fontSize(8.5).fillColor('#1E3A8A')
     .text('Your payment is held securely by AseHanta for 24 hours. Visit the house within that time. ' +
-      'If you&rsquo;re satisfied, confirm the viewing in My Bookings and the lister is paid. ' +
-      'If you&rsquo;re displeased, you can request an 85% refund. Otherwise the escrow auto-pays the lister.',
+      'If you&rsquo;re satisfied, confirm the viewing in My Escrow and the lister is paid. ' +
+      'If you&rsquo;re displeased, you can request an 80% refund. Otherwise the escrow auto-pays the lister.',
       72, y + 26, { width: 456, align: 'left' })
 
   // ---- Footer ----

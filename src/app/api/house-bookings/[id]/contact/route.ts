@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { OWNER_SHARE } from '@/lib/constants'
+import { resolveListerIdentity } from '@/lib/lister-identity'
 
 /**
  * Lister contact for a house booking.
@@ -41,21 +42,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .eq('id', booking.listing_id)
     .maybeSingle()
 
-  let name = listing?.uploader_name || ''
-  let phone = listing?.lister_phone || ''
-  if (listing?.uploader_id) {
-    const { data: lister } = await admin
-      .from('profiles')
-      .select('full_name, phone')
-      .eq('id', listing.uploader_id)
-      .maybeSingle()
-    if (lister?.full_name) name = lister.full_name
-    if (!phone && lister?.phone) phone = lister.phone
-  }
+  const lister = await resolveListerIdentity(admin, listing)
+  const { name, phone } = lister
 
   return NextResponse.json({
-    name: name || 'AseHanta lister',
-    phone: phone || null,
+    name,
+    phone,
     whatsapp: phone ? `https://wa.me/${phone.replace(/[^0-9]/g, '')}` : null,
     listing: {
       id: listing?.id || booking.listing_id,

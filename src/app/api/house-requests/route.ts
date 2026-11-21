@@ -194,7 +194,7 @@ export async function POST(request: Request) {
             ? `${minRent !== null ? `KES ${minRent.toLocaleString()}` : 'Any'} — ${maxRent !== null ? `KES ${maxRent.toLocaleString()}` : 'Any'}`
             : 'Not specified',
           Status: 'We will contact you as soon as houses come up',
-          'Need Help': 'WhatsApp +254 791 410 625 or email hello@asehanta.com',
+          'Need Help': 'WhatsApp +254 748 275 079 or email hello@asehanta.com',
         }
       )
     } catch (err) {

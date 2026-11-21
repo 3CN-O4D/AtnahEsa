@@ -855,7 +855,7 @@ if (WHATSAPP_PAIR_NUMBER && !/^\d{8,15}$/.test(pairedNumber)) {
   process.exit(1)
 }
 
-/** 254791410625 -> "+254 791 410 625" so the number can be eyeballed in logs. */
+/** 254748275079 -> "+254 748 275 079" so the number can be eyeballed in logs. */
 function formatPhone(number) {
   const m = /^(\d{1,3})(\d{3})(\d{3})(\d{3})$/.exec(String(number))
   return m ? `+${m[1]} ${m[2]} ${m[3]} ${m[4]}` : `+${number}`

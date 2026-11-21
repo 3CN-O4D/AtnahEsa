@@ -48,6 +48,16 @@ function tintFor(id: string) {
   return AVATAR_TINTS[hash]
 }
 
+/**
+ * Movers store one benchmark price. Show it as an estimated band instead of a
+ * fixed quote so hunters know the final cost depends on distance and load.
+ */
+function moverPriceRange(price: number) {
+  const min = Math.max(0, Math.round(Number(price) || 0))
+  const max = Math.max(min, Math.ceil((min * 1.5) / 500) * 500)
+  return { min, max }
+}
+
 function Stars({
   rating,
   interactive,
@@ -545,8 +555,11 @@ export default function MoversPage() {
                     <div className="mt-auto space-y-2">
                       <div className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 px-2.5 py-1 text-sm font-semibold text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
                         <Wallet className="h-3.5 w-3.5" />
-                        {formatPrice(mover.price)}
-                        <span className="text-[11px] font-normal text-blue-700/70 dark:text-blue-400/70">est.</span>
+                        {(() => {
+                          const { min, max } = moverPriceRange(mover.price)
+                          return `${formatPrice(min)} – ${formatPrice(max)}`
+                        })()}
+                        <span className="text-[11px] font-normal text-blue-700/70 dark:text-blue-400/70">est. range</span>
                       </div>
 
                       <div className="flex gap-2">

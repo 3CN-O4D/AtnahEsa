@@ -164,7 +164,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         category: 'transaction',
         title: 'Booking cancelled',
         body: `Your booking for ${title} was cancelled. No viewing fee was taken.`,
-        link: '/my-bookings?tab=payments',
+        link: '/my-escrow',
         data: { house_booking_id: bookingId },
       }),
       notifyUser(

@@ -140,7 +140,7 @@ export default function BookingPage() {
           <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" />
           <span>
             Your money goes into <strong>escrow</strong> for <strong>24 hours</strong>. Happy with the house? Confirm
-            and the lister gets paid. Not happy? 85% back. Fake listing? 100% back.
+            and the lister gets paid. Not happy? 80% back. Fake listing? 100% back.
           </span>
         </p>
       </div>

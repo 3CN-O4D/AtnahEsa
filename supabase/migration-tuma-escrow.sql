@@ -3,7 +3,7 @@
 -- ------------------------------------------------------------
 -- After a confirmed Tuma payment the money is HELD (treasury shows
 -- a pending payout). Admins release to the lister manually (no cron
--- in Vercel), or refund 85% when the hunter is displeased.
+-- in Vercel), or refund 80% when the hunter is displeased.
 --
 -- Run in Supabase SQL Editor. Safe to re-run.
 -- ============================================================

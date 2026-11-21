@@ -147,7 +147,7 @@ async function findTransaction(
 async function getBookingContext(admin: Admin, booking: HouseBookingRow) {
   const { data: listing } = await admin
     .from('listings')
-    .select('id, title, location, description, lister_phone, uploader_id, price')
+    .select('id, title, location, description, lister_phone, uploader_id, uploader_name, price')
     .eq('id', booking.listing_id)
     .maybeSingle()
 
@@ -170,7 +170,7 @@ async function getBookingContext(admin: Admin, booking: HouseBookingRow) {
     hunterEmail: hunterProfile?.email || booking.email || '',
     hunterName: hunterProfile?.full_name || booking.name || 'Hunter',
     listerEmail: listerProfile?.email || '',
-    listerName: listerProfile?.full_name || 'Lister',
+    listerName: listing?.uploader_name || listerProfile?.full_name || 'Lister',
   }
 }
 
@@ -269,7 +269,7 @@ async function handleLatePaymentAfterCancellation(
       category: 'transaction',
       title: 'Payment received after cancellation — refund needed',
       body: `M-Pesa receipt ${receiptNumber} arrived after you cancelled. An admin will refund you in full; do not pay again.`,
-      link: '/my-bookings?tab=payments',
+      link: '/my-escrow',
       data: { house_booking_id: booking.id, requires_refund: true },
     })
   }
@@ -458,7 +458,7 @@ export async function confirmHouseBookingPayment(
         category: 'transaction',
         title: `Payment confirmed — KES ${Math.round(expected).toLocaleString()} in escrow`,
         body: `Your payment for ${confirmed.listing_title || 'your house'} is held for ${VIEW_WINDOW_HOURS} hours. Contact the lister to arrange the visit.`,
-        link: '/my-bookings?tab=payments',
+        link: '/my-escrow',
         data: { house_booking_id: confirmed.id, amount: expected },
       })
     )
@@ -471,7 +471,7 @@ export async function confirmHouseBookingPayment(
         category: 'transaction',
         title: `A hunter paid for "${confirmed.listing_title || 'your house'}"`,
         body: `KES ${Math.round(expected).toLocaleString()} is in escrow. Call ${confirmed.phone || 'the hunter'} to arrange the visit.`,
-        link: '/my-bookings?tab=payments',
+        link: '/my-escrow',
         data: { house_booking_id: confirmed.id, hunter_phone: confirmed.phone, amount: expected },
       })
     )
@@ -501,7 +501,7 @@ export async function confirmHouseBookingPayment(
       Receipt: receiptNumber,
       Status: `Funds are held for ${VIEW_WINDOW_HOURS} hours while you view the house.`,
       'Next Step': 'Contact the lister to arrange your visit. Link the house in My Bookings.',
-      'Need Help': 'WhatsApp +254 791 410 625',
+      'Need Help': 'WhatsApp +254 748 275 079',
     }
   )
   await notifyListerWhatsApp(
@@ -513,7 +513,7 @@ export async function confirmHouseBookingPayment(
       Hunter: `${ctx.hunterName} (${confirmed.phone || 'N/A'})`,
       Amount: `KES ${Math.round(expected).toLocaleString()}`,
       Status: `In escrow for ${VIEW_WINDOW_HOURS} hours. Call the hunter to arrange the visit.`,
-      'Need Help': 'WhatsApp +254 791 410 625',
+      'Need Help': 'WhatsApp +254 748 275 079',
     }
   )
 
@@ -721,7 +721,7 @@ export async function initiateHouseBookingPayment(
         category: 'transaction',
         title: 'New booking payment started',
         body: `A hunter is paying KES ${amount.toLocaleString()} for "${listing.title}". We will confirm as soon as the payment lands.`,
-        link: '/my-bookings?tab=payments',
+        link: '/my-escrow',
         data: { house_booking_id: bookingRow.id, amount },
       }).catch(() => {})
     }
@@ -1236,7 +1236,7 @@ export async function submitManualPaymentReview(
     category: 'transaction',
     title: 'Payment submitted for review',
     body: `We received your M-Pesa message (${receipt}). An admin will confirm it and open escrow shortly.`,
-    link: '/my-bookings?tab=payments',
+    link: '/my-escrow',
     data: { house_booking_id: booking.id },
   })
 
@@ -1340,7 +1340,7 @@ export async function approveHouseBookingPayout(
           category: 'transaction',
           title: `Viewing complete — KES ${payoutAmount.toLocaleString()} payout approved`,
           body: `The viewing for "${booking.listing_title || 'your house'}" is complete. AseHanta has approved your share and will send it by M-Pesa shortly.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
           data: { house_booking_id: booking.id, payout_approved: true },
         })
       : Promise.resolve(),
@@ -1350,7 +1350,7 @@ export async function approveHouseBookingPayout(
           category: 'transaction',
           title: 'Viewing complete ✅',
           body: `${params.reason} The deal is done and the lister's payout has been approved. Thank you for using AseHanta.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
           data: { house_booking_id: booking.id, payout_approved: true },
         })
       : Promise.resolve(),
@@ -1512,7 +1512,7 @@ export async function recordListerPayout(
           category: 'transaction',
           title: `Payout sent — KES ${payoutAmount.toLocaleString()}`,
           body: `Your share for "${booking.listing_title || 'your house'}" has been paid. Receipt ${receipt}.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
           data: { house_booking_id: booking.id, amount: payoutAmount },
         })
       : Promise.resolve(),
@@ -1522,7 +1522,7 @@ export async function recordListerPayout(
           category: 'transaction',
           title: 'Escrow closed',
           body: `Funds for ${booking.listing_title || 'your house'} were released to the lister. Thank you for using AseHanta.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
           data: { house_booking_id: booking.id },
         })
       : Promise.resolve(),
@@ -1584,7 +1584,7 @@ export async function getPaymentSession(
   const tx = await findTransaction(admin, booking.id)
   const { data: listing } = await admin
     .from('listings')
-    .select('id, title, location, images, lister_phone, uploader_id')
+    .select('id, title, location, images, lister_phone, uploader_id, uploader_name')
     .eq('id', booking.listing_id)
     .maybeSingle()
 

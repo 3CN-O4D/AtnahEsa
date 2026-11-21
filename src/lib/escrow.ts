@@ -145,14 +145,14 @@ export async function releaseToLister(params: {
       category: 'transaction',
       title: 'Funds Released',
       body: `KES ${Math.round(escrow.amount * 0.5).toLocaleString()} released to your account.`,
-      link: '/my-bookings?tab=payouts',
+      link: '/my-escrow',
     }),
     createNotification({
       userId: escrow.hunter_id,
       category: 'transaction',
       title: 'Booking Confirmed',
       body: `Your payment has been processed. The lister has been paid.`,
-      link: '/my-bookings?tab=payments',
+      link: '/my-escrow',
     }),
   ])
 
@@ -222,8 +222,8 @@ export async function refundHunter(params: {
   }
 
   const isFullRefund = ['fake_listing', 'no_show'].includes(params.reason)
-  const refundPercent = isFullRefund ? 1.0 : 0.85
-  const refundAmount = Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))
+  const refundPercent = isFullRefund ? 1.0 : 0.8
+  const refundAmount = Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.8))
   const now = new Date().toISOString()
 
   const action = ['fake_listing', 'no_show'].includes(params.reason)
@@ -256,8 +256,8 @@ export async function refundHunter(params: {
   const hunterEmail = emailById[escrow.hunter_id]?.email
   const listerName = emailById[escrow.lister_id]?.full_name || 'Lister'
   const hunterName = emailById[escrow.hunter_id]?.full_name || 'Hunter'
-  const refundDisplayPercent = isFullRefund ? 100 : 85
-  const refundAmt = Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))
+  const refundDisplayPercent = isFullRefund ? 100 : 80
+  const refundAmt = Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.8))
 
   await admin.from('refunds').insert({
     escrow_id: params.escrowId,
@@ -273,7 +273,7 @@ export async function refundHunter(params: {
     category: 'transaction',
     title: 'Refund Processed',
     body: `Refund processed. Processed within 24 hours.`,
-    link: '/my-bookings?tab=refunds',
+    link: '/my-escrow',
   })
 
   // --- M2: NOTIFY LISTER ON REFUND ---
@@ -282,7 +282,7 @@ export async function refundHunter(params: {
     category: 'transaction',
     title: 'Booking Refunded',
     body: `A booking for "${escrow.listing_id}" was refunded (${params.reason}). You will not receive payment for this booking.`,
-    link: '/my-bookings?tab=payments',
+    link: '/my-escrow',
   })
 
   // --- 3-WAY EMAIL NOTIFICATIONS ON REFUND ---
@@ -319,7 +319,7 @@ export async function refundHunter(params: {
     Date: new Date().toLocaleString(),
   })
 
-  return Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.85))
+  return Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.8))
 }
 
 /**

@@ -134,10 +134,10 @@ export default function WifiPage() {
             </span>
 
             <h1 className="mt-5 animate-fadeInUp text-4xl font-bold leading-[1.1] text-white md:text-6xl">
-              Fixed home Wi-Fi,
+              Get Connected Here.
               <br className="hidden sm:block" />{' '}
               <span className="bg-gradient-to-r from-blue-200 via-sky-200 to-blue-100 bg-clip-text text-transparent">
-                without the drama.
+                Fast, reliable Wi-Fi.
               </span>
             </h1>
 

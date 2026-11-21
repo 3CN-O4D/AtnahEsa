@@ -59,7 +59,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       category: 'transaction',
       title: 'Payment status updated',
       body: `An administrator marked your payment as ${status}.`,
-      link: '/my-bookings',
+      link: '/my-escrow',
       data: { transaction_id: transaction.id, status },
     })
   }

@@ -107,7 +107,7 @@ function EscrowRules() {
       <ul className="list-disc space-y-1 pl-4">
         <li>Your money is held by AseHanta — not sent to the lister yet.</li>
         <li>You have <strong>24 hours</strong> to view the house and confirm you are happy.</li>
-        <li>Changed your mind after viewing? You get <strong>85% back</strong>.</li>
+        <li>Changed your mind after viewing? You get <strong>80% back</strong>.</li>
         <li>Fake listing, wrong house or no show? You get <strong>100% back</strong>.</li>
         <li>Keep your receipt — it is proof of payment and of these terms.</li>
       </ul>
@@ -521,8 +521,8 @@ function PaymentPageInner() {
       <div className="mx-auto max-w-lg px-4 py-12 text-center">
         <AlertTriangle className="mx-auto h-10 w-10 text-amber-500" />
         <p className="mt-3 text-sm text-gray-700 dark:text-gray-200">{error || 'Payment not found.'}</p>
-        <Link href="/my-bookings?tab=payments" className="mt-5 inline-block rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
-          Go to My Bookings
+        <Link href="/my-escrow" className="mt-5 inline-block rounded-xl bg-blue-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-700">
+          Go to My Escrow
         </Link>
       </div>
     )
@@ -534,10 +534,10 @@ function PaymentPageInner() {
   return (
     <div className="mx-auto max-w-lg px-4 py-8">
       <button
-        onClick={() => router.push('/my-bookings?tab=payments')}
+        onClick={() => router.push('/my-escrow')}
         className="mb-4 flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 dark:text-gray-300 dark:hover:text-white"
       >
-        <ArrowLeft className="h-4 w-4" /> My payments
+        <ArrowLeft className="h-4 w-4" /> My Escrow
       </button>
 
       <div className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm dark:border-gray-700 dark:bg-slate-800">
@@ -591,10 +591,10 @@ function PaymentPageInner() {
                   </a>
                 ) : (
                   <Link
-                    href="/my-bookings?tab=payments"
+                    href="/my-escrow"
                     className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
                   >
-                    <Receipt className="h-4 w-4" /> My bookings
+                    <Receipt className="h-4 w-4" /> My Escrow
                   </Link>
                 )}
               </div>
@@ -618,10 +618,10 @@ function PaymentPageInner() {
               </div>
               <EscrowRules />
               <Link
-                href="/my-bookings?tab=payments"
+                href="/my-escrow"
                 className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
               >
-                <Receipt className="h-4 w-4" /> Track in My Bookings
+                <Receipt className="h-4 w-4" /> Track in My Escrow
               </Link>
             </div>
           )}
@@ -643,10 +643,10 @@ function PaymentPageInner() {
                 <Receipt className="h-4 w-4" /> Request this house again
               </Link>
               <Link
-                href="/my-bookings?tab=payments"
+                href="/my-escrow"
                 className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
               >
-                Back to My Bookings
+                Back to My Escrow
               </Link>
             </div>
           )}
@@ -680,10 +680,10 @@ function PaymentPageInner() {
                 {checking ? 'Checking with PayWave…' : 'Check payment again'}
               </button>
               <Link
-                href="/my-bookings?tab=payments"
+                href="/my-escrow"
                 className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
               >
-                <Receipt className="h-4 w-4" /> Back to My Bookings
+                <Receipt className="h-4 w-4" /> Back to My Escrow
               </Link>
             </div>
           )}

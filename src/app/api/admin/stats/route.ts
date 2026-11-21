@@ -150,7 +150,7 @@ export async function GET() {
 
   const legacyRefundAmount = (e: LegacyEscrow) => {
     const bookingRefund = e.booking_id ? bookingById.get(e.booking_id)?.refund_amount : null
-    return bookingRefund != null ? Number(bookingRefund) : Math.round((Number(e.amount) || 0) * 0.85)
+    return bookingRefund != null ? Number(bookingRefund) : Math.round((Number(e.amount) || 0) * 0.8)
   }
 
   // House bookings are the modern payment record. Held, paid and refunded rows
@@ -168,7 +168,7 @@ export async function GET() {
   const housePayoutFor = (h: HouseRow) =>
     payoutAmountByBooking.get(h.id) ?? Math.round((Number(h.listing_price) || 0) * OWNER_SHARE)
   const houseRefundFor = (h: HouseRow) =>
-    refundAmountByBooking.get(h.id) ?? Math.round((Number(h.listing_price) || 0) * 0.85)
+    refundAmountByBooking.get(h.id) ?? Math.round((Number(h.listing_price) || 0) * 0.8)
 
   const houseRevenue = sum(houseCollected, (h) => h.listing_price)
   const houseRevenueCount = houseCollected.length

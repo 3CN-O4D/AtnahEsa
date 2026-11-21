@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyUser } from '@/lib/notify'
+import { resolveListerIdentity } from '@/lib/lister-identity'
 
 export async function notifyContactDetails(bookingId: string) {
   const supabase = createAdminClient()
@@ -28,7 +29,9 @@ export async function notifyContactDetails(bookingId: string) {
     .eq('id', hunterId)
     .single()
 
-  if (!listerProfile || !hunterProfile) return { ok: false, error: 'Profiles not found' }
+  if (!hunterProfile) return { ok: false, error: 'Hunter profile not found' }
+
+  const lister = await resolveListerIdentity(supabase, listing)
 
   if (hunterProfile.email) {
     await notifyUser(
@@ -36,14 +39,14 @@ export async function notifyContactDetails(bookingId: string) {
       'Contact Details Released',
       `You can now contact the lister of "${listing.title}"`,
       {
-        Lister: listerProfile.full_name || listerProfile.username || 'Lister',
-        Phone: listerProfile.phone || 'N/A',
-        Email: listerProfile.email || 'N/A',
+        Lister: lister.name,
+        Phone: lister.phone || 'N/A',
+        Email: listerProfile?.email || 'N/A',
       }
     )
   }
 
-  if (listerProfile.email) {
+  if (listerProfile?.email) {
     await notifyUser(
       listerProfile.email,
       'Tenant Contact Details Released',

@@ -220,7 +220,7 @@ function drawDetailRows(doc: PDFKit.PDFDocument, input: ReceiptInput, y: number)
     ['Email', input.payerEmail || '—'],
     ['M-Pesa receipt', input.receiptNumber || '—'],
     ['Lister', input.listerName || 'AseHanta verified lister'],
-    ['Lister phone', input.listerPhone || 'Revealed in My Bookings'],
+    ['Lister phone', input.listerPhone || 'Revealed in My Escrow'],
   ]
 
   doc.fillColor(DARK).font('Helvetica-Bold').fontSize(12).text('Payment details', MARGIN, y)
@@ -263,8 +263,8 @@ function drawEscrow(doc: PDFKit.PDFDocument, input: ReceiptInput, y: number): nu
   const rules = [
     `Your ${money(input.amount)} is held by AseHanta, not paid to the lister yet.`,
     'You have 24 hours to view the house and confirm you are happy.',
-    'Happy with the house? Confirm in My Bookings and we release the lister.',
-    'Changed your mind after viewing? You get 85% back.',
+    'Happy with the house? Confirm in My Escrow and we release the lister.',
+    'Changed your mind after viewing? You get 80% back.',
     'Fake listing, wrong house or no show? You get 100% back.',
     'Keep this receipt: it is proof of payment and of these terms.',
   ]
@@ -327,7 +327,7 @@ function drawSupport(doc: PDFKit.PDFDocument, y: number): number {
     .fontSize(8.2)
     .text(
       'No show, the house is not as advertised, or the lister is unreachable? Do not pay anyone again. ' +
-        'Report it in My Bookings within 24 hours for a 100% refund.',
+        'Report it in My Escrow within 24 hours for a 100% refund.',
       MARGIN + 14,
       y + 22,
       { width: CONTENT_W - 28, lineGap: 1 }

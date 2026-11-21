@@ -117,7 +117,7 @@ function FieldGroup({
           <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white leading-tight">
             {title}
           </h2>
-          {description && <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400 mt-0.5">{description}</p>}
+          {description && <p className="text-xs sm:text-sm text-gray-500 dark:text-slate-300 mt-0.5">{description}</p>}
         </div>
       </div>
       <div className="space-y-4">{children}</div>
@@ -135,7 +135,7 @@ function CheckboxGroup({ label, options, selected, onChange, hint, error }: {
 }) {
   return (
     <fieldset className="space-y-2">
-      <legend className="text-sm font-medium text-gray-700 dark:text-gray-300">{label}</legend>
+      <legend className="text-sm font-medium text-gray-700 dark:text-slate-200">{label}</legend>
       {hint && <p className="text-xs text-gray-400 dark:text-gray-500">{hint}</p>}
       <div className="flex flex-wrap gap-2">
         {options.map((opt) => {
@@ -149,7 +149,7 @@ function CheckboxGroup({ label, options, selected, onChange, hint, error }: {
               className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-medium border transition-all duration-200 active:scale-[0.97] ${
                 active
                   ? 'bg-blue-600 text-white border-blue-600 shadow-md shadow-blue-600/20 -translate-y-0.5'
-                  : 'bg-white/70 dark:bg-slate-800/70 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:-translate-y-0.5'
+                  : 'bg-white/70 dark:bg-slate-800/70 text-gray-600 dark:text-slate-200 border-gray-200 dark:border-gray-600 hover:border-blue-400 hover:text-blue-600 dark:hover:text-blue-300 hover:-translate-y-0.5'
               }`}
             >
               <span className={`grid place-items-center rounded-full transition-all ${active ? 'w-3.5 h-3.5 bg-white/20' : 'w-0 h-0 opacity-0'}`}>
@@ -312,7 +312,7 @@ export default function RequestHousePage() {
               </div>
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 dark:text-white mb-2">Request received</h1>
-            <p className="text-gray-600 dark:text-gray-300 text-sm sm:text-base mb-6">
+            <p className="text-gray-600 dark:text-slate-200 text-sm sm:text-base mb-6">
               Thank you, {form.name.split(' ')[0] || 'friend'}. Our team will search for homes that match what you described
               and reach you on WhatsApp.
             </p>
@@ -323,7 +323,7 @@ export default function RequestHousePage() {
                 { icon: MessageCircle, text: 'A matching lister or our team messages you on WhatsApp.' },
                 { icon: HomeIcon, text: 'You view the house before paying anything.' },
               ].map(({ icon: Icon, text }) => (
-                <div key={text} className="flex items-start gap-3 text-sm text-gray-600 dark:text-gray-300">
+                <div key={text} className="flex items-start gap-3 text-sm text-gray-600 dark:text-slate-200">
                   <Icon className="w-4 h-4 text-blue-600 dark:text-blue-400 mt-0.5 shrink-0" />
                   <span>{text}</span>
                 </div>
@@ -354,7 +354,7 @@ export default function RequestHousePage() {
                 setDepositPreference([]); setDepositRefundable([]); setBuildingType([])
                 setHouseTypeRequested([]); setElectricBill([]); setVacancy([])
               }}
-              className="mt-5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-blue-600 dark:hover:text-blue-300 inline-flex items-center gap-1"
+              className="mt-5 text-xs font-medium text-gray-500 dark:text-slate-300 hover:text-blue-600 dark:hover:text-blue-300 inline-flex items-center gap-1"
             >
               <RotateCcw className="w-3.5 h-3.5" /> Submit another request
             </button>
@@ -372,7 +372,7 @@ export default function RequestHousePage() {
       <div className="relative max-w-5xl mx-auto px-4 py-8 lg:py-12">
         <button
           onClick={() => window.history.back()}
-          className="group inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-gray-400 dark:hover:text-white mb-6 transition-colors"
+          className="group inline-flex items-center gap-1.5 text-sm font-medium text-gray-500 hover:text-gray-900 dark:text-slate-300 dark:hover:text-white mb-6 transition-colors"
         >
           <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-0.5" /> Back
         </button>
@@ -384,7 +384,7 @@ export default function RequestHousePage() {
           <h1 className="mt-3 text-3xl sm:text-4xl font-bold tracking-tight text-gray-900 dark:text-white">
             Tell us what home you&apos;re looking for
           </h1>
-          <p className="mt-2 max-w-2xl text-sm sm:text-base text-gray-600 dark:text-gray-300">
+          <p className="mt-2 max-w-2xl text-sm sm:text-base text-gray-600 dark:text-slate-200">
             Share the essentials once. We&apos;ll match you with homes that fit your budget and reach you on WhatsApp.
           </p>
           <div className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -393,7 +393,7 @@ export default function RequestHousePage() {
               { icon: ShieldCheck, label: 'No upfront payment' },
               { icon: BadgeCheck, label: 'Verified listers only' },
             ].map(({ icon: Icon, label }) => (
-              <span key={label} className="inline-flex items-center gap-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-gray-600 dark:text-gray-300">
+              <span key={label} className="inline-flex items-center gap-1.5 rounded-full bg-white/70 dark:bg-slate-800/70 border border-gray-200 dark:border-gray-700 px-3 py-1.5 text-gray-600 dark:text-slate-200">
                 <Icon className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" /> {label}
               </span>
             ))}
@@ -466,7 +466,7 @@ export default function RequestHousePage() {
                     <button
                       type="button"
                       onClick={resetWhatsAppToPhone}
-                      className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-blue-600 dark:text-gray-400 dark:hover:text-blue-300"
+                      className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-gray-500 hover:text-blue-600 dark:text-slate-300 dark:hover:text-blue-300"
                     >
                       <RotateCcw className="w-3 h-3" /> Use my phone number instead
                     </button>
@@ -526,7 +526,7 @@ export default function RequestHousePage() {
 
             <FieldGroup step="3" title="Anything else we should know?" description="Optional, but helpful for finding the right fit." icon={Wallet}>
               <div className="space-y-1.5">
-                <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label htmlFor="description" className="block text-sm font-medium text-gray-700 dark:text-slate-200">
                   Additional details
                 </label>
                 <textarea
@@ -555,7 +555,7 @@ export default function RequestHousePage() {
               <Button type="submit" loading={loading} className="w-full" size="lg">
                 <Send className="w-4 h-4 mr-1.5" /> Send my request
               </Button>
-              <p className="mt-2.5 text-center text-xs text-gray-500 dark:text-gray-400">
+              <p className="mt-2.5 text-center text-xs text-gray-500 dark:text-slate-300">
                 Free to send. We&apos;ll only contact you about this request.
               </p>
             </div>
@@ -578,7 +578,7 @@ export default function RequestHousePage() {
                     </span>
                     <div>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{item.title}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 leading-relaxed">{item.text}</p>
+                      <p className="text-xs text-gray-500 dark:text-slate-300 mt-0.5 leading-relaxed">{item.text}</p>
                     </div>
                   </li>
                 ))}
@@ -609,13 +609,13 @@ export default function RequestHousePage() {
                 </span>
                 <span className="min-w-0">
                   <span className="block text-sm font-medium text-gray-900 dark:text-white">Need help first?</span>
-                  <span className="block text-xs text-gray-500 dark:text-gray-400">Chat with our team on WhatsApp</span>
+                  <span className="block text-xs text-gray-500 dark:text-slate-300">Chat with our team on WhatsApp</span>
                 </span>
                 <ArrowRight className="w-4 h-4 text-gray-400 ml-auto transition-transform group-hover:translate-x-0.5" />
               </a>
             )}
 
-            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400 px-1">
+            <div className="flex items-center gap-2 text-xs text-gray-500 dark:text-slate-300 px-1">
               <Mail className="w-3.5 h-3.5" />
               <span>Prefer email? Write to asehanta@gmail.com</span>
             </div>

@@ -92,8 +92,8 @@ export async function GET() {
   const all = (rows || []) as Row[]
   const listingIds = Array.from(new Set(all.map((row) => row.listing_id).filter(Boolean)))
   const { data: listings } = listingIds.length
-    ? await admin.from('listings').select('id, uploader_id, lister_phone, title').in('id', listingIds)
-    : { data: [] as Array<{ id: string; uploader_id: string | null; lister_phone: string | null; title: string }> }
+    ? await admin.from('listings').select('id, uploader_id, uploader_name, lister_phone, title').in('id', listingIds)
+    : { data: [] as Array<{ id: string; uploader_id: string | null; uploader_name: string | null; lister_phone: string | null; title: string }> }
 
   const uploaderIds = Array.from(new Set((listings || []).map((l) => l.uploader_id).filter(Boolean))) as string[]
   const { data: profiles } = uploaderIds.length
@@ -111,7 +111,7 @@ export async function GET() {
     return {
       ...row,
       feedback,
-      lister_name: lister?.full_name || null,
+      lister_name: listing?.uploader_name || lister?.full_name || null,
       lister_phone: listing?.lister_phone || lister?.phone || null,
       payout_amount: Math.round(price * OWNER_SHARE),
       refund_percent: refundPercentForFeedback(feedback),
@@ -263,7 +263,7 @@ export async function PATCH(req: Request) {
         category: 'transaction',
         title: 'Report reviewed',
         body: 'After speaking to both sides, our team could not approve a refund for this viewing. You can contact support if you have new information.',
-        link: '/my-bookings',
+        link: '/my-escrow',
         data: { house_booking_id: bookingId },
       })
     }
@@ -314,7 +314,7 @@ export async function PATCH(req: Request) {
         category: 'transaction',
         title,
         body: `Your report for ${typed.listing_title || 'your house'} was approved. An admin will send KES ${amount.toLocaleString()} by M-Pesa and record the receipt; the lister will not be paid.`,
-        link: '/my-bookings',
+        link: '/my-escrow',
         data: { house_booking_id: bookingId, refund_percent: percent, amount },
       })
     }
@@ -347,7 +347,7 @@ export async function PATCH(req: Request) {
         category: 'transaction',
         title: 'Report reviewed — no refund',
         body: `Our team reviewed your report for ${typed.listing_title || 'your house'} after speaking to both sides. No refund was approved. Contact support if you have new information.`,
-        link: '/my-bookings',
+        link: '/my-escrow',
         data: { house_booking_id: bookingId, refund_percent: 0 },
       })
     }

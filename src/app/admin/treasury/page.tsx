@@ -71,7 +71,7 @@ export default function TreasuryPage() {
   const [smsAction, setSmsAction] = useState<SmsAction>(null)
   const [smsText, setSmsText] = useState('')
   const [smsError, setSmsError] = useState('')
-  const [smsRefundPercentage, setSmsRefundPercentage] = useState(85)
+  const [smsRefundPercentage, setSmsRefundPercentage] = useState(80)
   const [smsListingAction, setSmsListingAction] = useState<'republish' | 'remove' | 'keep'>('republish')
   const [statusModal, setStatusModal] = useState<{ houseBooking: HouseBookingWithPayment } | null>(null)
   const [newStatus, setNewStatus] = useState('')
@@ -98,7 +98,7 @@ export default function TreasuryPage() {
     booking: HouseBookingWithPayment,
     action: 'house_verify' | 'house_release' | 'house_refund',
     label: string,
-    refundPercentage = 85
+    refundPercentage = 80
   ) => {
     setSmsError('')
     // Prefill the hunter's submitted SMS when verifying a claim so the admin
@@ -154,7 +154,7 @@ export default function TreasuryPage() {
             linked,
             'house_refund',
             'Refund hunter',
-            Number.isFinite(percent) && percent > 0 && percent <= 100 ? percent : 85
+            Number.isFinite(percent) && percent > 0 && percent <= 100 ? percent : 80
           )
         }
       }
@@ -209,7 +209,7 @@ export default function TreasuryPage() {
   const handleAction = (escrowId: string, action: string, label: string) =>
     setConfirmAction({ escrow: escrows.find((e) => e.id === escrowId)!, action, label })
 
-  const handleHouseAction = (hbId: string, action: 'house_verify' | 'house_release' | 'house_refund', label: string, refundPercentage = 85) => {
+  const handleHouseAction = (hbId: string, action: 'house_verify' | 'house_release' | 'house_refund', label: string, refundPercentage = 80) => {
     const houseBooking = houseBookings.find((h) => h.id === hbId)
     if (!houseBooking) return
     openSmsForBooking(houseBooking, action, label, refundPercentage)
@@ -342,7 +342,7 @@ export default function TreasuryPage() {
     postAction({ action: 'reverse_tx', transaction_id: txId })
   }
 
-  const [refundPercentage, setRefundPercentage] = useState(85)
+  const [refundPercentage, setRefundPercentage] = useState(80)
   const [refundPhone, setRefundPhone] = useState('')
   const [extendDays, setExtendDays] = useState(7)
 
@@ -372,7 +372,7 @@ export default function TreasuryPage() {
         e.status === 'released' ? Math.round((Number(e.amount) || 0) * OWNER_SHARE) : null,
       refundAmount:
         e.status === 'refunded'
-          ? (e.booking?.refund_amount ?? Math.round((Number(e.amount) || 0) * 0.85))
+          ? (e.booking?.refund_amount ?? Math.round((Number(e.amount) || 0) * 0.8))
           : null,
       heldUntil: e.held_until,
       createdAt: e.created_at,
@@ -389,7 +389,7 @@ export default function TreasuryPage() {
         const gross = Number(h.listing_price) || 0
         const released = isReleasedStatus(h.release_status)
         const refunded = h.release_status === 'refunded'
-        const refundPercentage = h.refund_percentage ?? 85
+        const refundPercentage = h.refund_percentage ?? 80
         return {
           key: `house-${h.id}`,
           source: 'house' as const,
@@ -566,7 +566,7 @@ export default function TreasuryPage() {
             {filteredPayouts.map((hb) => {
               const isHeld = hb.release_status === 'held'
               const isRefundReview = refundReviewRow(hb)
-              const refundPercent = refundPercentForFeedback(parseBookingFeedback(hb.displeased_reason)) || 85
+              const refundPercent = refundPercentForFeedback(parseBookingFeedback(hb.displeased_reason)) || 80
               const confirmed = hb.rating != null
               const isOverdue = isHeld && hb.held_until && new Date(hb.held_until) < new Date()
               return (
@@ -708,8 +708,8 @@ export default function TreasuryPage() {
               const houseBooking = entry.houseBooking
               const legacyEscrow = entry.escrow
               const refundPercent = houseBooking
-                ? refundPercentForFeedback(parseBookingFeedback(houseBooking.displeased_reason)) || 85
-                : 85
+                ? refundPercentForFeedback(parseBookingFeedback(houseBooking.displeased_reason)) || 80
+                : 80
 
               return (
                 <div key={entry.key} className="px-4 py-3 flex items-center justify-between gap-4">
@@ -876,7 +876,7 @@ export default function TreasuryPage() {
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-gray-700)' }}>Refund Percentage</label>
                 <div className="flex gap-2">
-                  {[50, 85, 100].map((p) => (
+                  {[50, 80, 100].map((p) => (
                     <button key={p} onClick={() => setRefundPercentage(p)}
                       className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
                         refundPercentage === p ? 'bg-blue-600 text-white' : 'border hover:bg-gray-100'
@@ -972,7 +972,7 @@ export default function TreasuryPage() {
                   <span className="mt-1 flex flex-wrap gap-1.5">
                     {[
                       { p: 50, label: '50% — partial fault' },
-                      { p: 85, label: '85% — viewed & changed mind' },
+                      { p: 80, label: '80% — viewed & changed mind' },
                       { p: 100, label: '100% — fake listing / no-show' },
                     ].map(({ p, label }) => (
                       <button
@@ -1103,9 +1103,9 @@ export default function TreasuryPage() {
                 <br />
                 <span className="text-xs" style={{ color: 'var(--color-gray-500)' }}>
                   {confirmAction.action === 'house_refund'
-                    ? `Hunter will receive 85% (${formatPrice(Math.round((confirmAction.houseBooking.listing_price || 0) * 0.85))}). The lister gets nothing.`
+                    ? `Hunter will receive 80% (${formatPrice(Math.round((confirmAction.houseBooking.listing_price || 0) * 0.8))}). The lister gets nothing.`
                     : confirmAction.action === 'house_verify'
-                      ? 'This confirms the payment arrived and places the money in 24h escrow. The hunter will see it in My Bookings.'
+                      ? 'This confirms the payment arrived and places the money in 24h escrow. The hunter will see it in My Escrow.'
                       : confirmAction.houseBooking.confirmed_at
                         ? 'Hunter has confirmed they are pleased. Confirm you have paid the lister.'
                         : 'Warning: the hunter has NOT confirmed yet. Only proceed if you verified satisfaction another way.'}

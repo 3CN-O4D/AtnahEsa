@@ -93,7 +93,7 @@ export async function POST(req: Request) {
           Listing: listing.title,
           Amount: `KES ${listing.price}`,
           Status: 'Check your M-Pesa prompt and enter your PIN to complete the booking.',
-          'Need Help': 'WhatsApp +254 791 410 625',
+          'Need Help': 'WhatsApp +254 748 275 079',
         }
       )
     } catch (err) {

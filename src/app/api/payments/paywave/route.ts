@@ -104,7 +104,7 @@ export async function POST(req: Request) {
           category: 'transaction',
           title: 'New Booking Request',
           body: `Hunter initiated payment for "${listing.title}". Awaiting payment confirmation.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
         })
 
         return addSecurityHeaders(NextResponse.json({
@@ -204,7 +204,7 @@ export async function POST(req: Request) {
         }
 
         const isFullRefund = ['fake_listing', 'no_show'].includes(reason)
-        const refundPercent = isFullRefund ? 1.0 : 0.85
+        const refundPercent = isFullRefund ? 1.0 : 0.8
         const refundAmt = Math.round(refundAmount * refundPercent)
 
         await refundHunter({
@@ -225,7 +225,7 @@ export async function POST(req: Request) {
           category: 'transaction',
           title: 'Refund Processed',
           body: `Manual refund of KES ${refundAmt.toLocaleString()} processed.`,
-          link: '/my-bookings?tab=refunds',
+          link: '/my-escrow',
         })
 
         const { data: refundedListing } = await admin
@@ -238,12 +238,12 @@ export async function POST(req: Request) {
           category: 'transaction',
           title: 'Booking Refunded',
           body: `A booking for "${booking.listing_title}" was manually refunded (${reason}).`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
         })
 
         return addSecurityHeaders(NextResponse.json({
           success: true,
-          message: isFullRefund ? '100% refund initiated' : '85% refund initiated',
+          message: isFullRefund ? '100% refund initiated' : '80% refund initiated',
           refundAmount: refundAmt,
           transactionCode,
         }))

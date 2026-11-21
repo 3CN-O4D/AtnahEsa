@@ -10,6 +10,7 @@ import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { normalizeTikTokUrl } from '@/lib/utils'
+import { normalizePhone } from '@/lib/whatsapp'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { User } from '@supabase/supabase-js'
 
@@ -35,6 +36,7 @@ export default function AdminUploadPage() {
   const [paymentMethod, setPaymentMethod] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [listerName, setListerName] = useState('')
+  const [listerPhone, setListerPhone] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
@@ -82,6 +84,12 @@ export default function AdminUploadPage() {
       return
     }
 
+    const normalizedListerPhone = listerPhone.trim() ? normalizePhone(listerPhone) : null
+    if (listerPhone.trim() && !normalizedListerPhone) {
+      setError('Enter a valid lister phone number, e.g. 0712 345 678')
+      return
+    }
+
     setLoading(true)
     setError('')
 
@@ -112,6 +120,7 @@ export default function AdminUploadPage() {
         status: 'published',
         uploader_id: user.id,
         uploader_name: listerName || 'AseHanta Admin',
+        lister_phone: normalizedListerPhone || '',
       })
 
       if (err) {
@@ -148,13 +157,26 @@ export default function AdminUploadPage() {
           required
         />
 
-        <Input
-          label="Lister Name (shown to customers)"
-          id="listerName"
-          placeholder="e.g. John Doe or AseHanta"
-          value={listerName}
-          onChange={(e) => setListerName(e.target.value)}
-        />
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input
+            label="Real Lister Name"
+            id="listerName"
+            placeholder="e.g. John Doe or AseHanta"
+            value={listerName}
+            onChange={(e) => setListerName(e.target.value)}
+          />
+          <Input
+            label="Real Lister Phone (unlocked after payment)"
+            id="listerPhone"
+            type="tel"
+            placeholder="e.g. 0712 345 678"
+            value={listerPhone}
+            onChange={(e) => setListerPhone(e.target.value)}
+          />
+        </div>
+        <p className="-mt-3 text-xs text-gray-500">
+          For houses listed by AseHanta on someone else&apos;s behalf, enter their real name and phone here. Hunters see them only after a paid booking.
+        </p>
 
         <div className="space-y-1">
           <label htmlFor="description" className="block text-sm font-medium text-gray-700">

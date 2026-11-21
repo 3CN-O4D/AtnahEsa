@@ -4,7 +4,7 @@ import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders 
 import { notifyAdmins, notifyUser } from '@/lib/notify'
 import { notifyListerWhatsApp, phoneForUserId } from '@/lib/whatsapp/outbox'
 import { createClient } from '@/lib/supabase/server'
-import { ITEMS_PER_PAGE } from '@/lib/constants'
+import { ITEMS_PER_PAGE, WHATSAPP_NUMBER, CONTACT_PHONE_DISPLAY } from '@/lib/constants'
 import { getCached, setCached, invalidateCached, cached } from '@/lib/server-cache'
 import { createNotification } from '@/lib/notifications'
 import {
@@ -190,7 +190,7 @@ export async function POST(req: Request) {
       lister_phone: validation.data.lister_phone || '',
       request_id: validation.data.request_id || null,
       uploader_id: user.id,
-      uploader_name: displayName,
+      uploader_name: validation.data.lister_name || displayName,
       // A house uploaded against a public request must be visible on the
       // lister's page immediately so the requester can pick it. Admins still
       // get a notification and can unpublish it during review.
@@ -252,7 +252,7 @@ export async function POST(req: Request) {
                 Location: houseRequest.location || 'Your requested area',
                 'What Happens Next': 'Open the lister\'s page and pick the house you like. Contact details unlock after a paid booking.',
                 'View Houses': listingsUrl,
-                'Need Help': `WhatsApp ${process.env.NEXT_PUBLIC_WHATSAPP_NUMBER || 'the AseHanta team'} if a listing is unavailable or you need help.`,
+                'Need Help': `WhatsApp ${CONTACT_PHONE_DISPLAY} (${WHATSAPP_NUMBER}) if a listing is unavailable or you need help.`,
               }
             )
           }

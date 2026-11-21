@@ -33,7 +33,7 @@ export default function TermsHunterPageSw() {
         points: [
           'Ada yako ya uwekaji nafasi huhifadhiwa (escrow) hadi utazamo ufanyike — hakuna anayelipwa kabla hujathibitisha.',
           'Umeridhika na nyumba? Mmiliki anapokea malipo yake, yakithibitishwa na risiti ya M-Pesa.',
-          'Kuna tatizo? Unaweza kupokea 100%, 85% au 50% kulingana na kilichotokea.',
+          'Kuna tatizo? Unaweza kupokea 100%, 80% au 50% kulingana na kilichotokea.',
           'Maelezo yako ya mawasiliano yanashirikiwa na mmiliki tu wakati kuna uwekaji nafasi.',
           'Nyumba zilizochukuliwa hufutwa picha zake kutoka kwenye hifadhi saa 48 baada ya kuwekwa alama.',
         ],

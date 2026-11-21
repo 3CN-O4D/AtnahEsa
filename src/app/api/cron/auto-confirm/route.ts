@@ -62,8 +62,8 @@ export async function GET(req: Request) {
             userId: booking.user_id,
             category: 'transaction',
             title: 'Escrow closes soon',
-            body: `Your view window for "${title}" closes in under ${REMINDER_WINDOW_HOURS} hours. Confirm you are pleased, or tell us what went wrong, from My Bookings.`,
-            link: '/my-bookings?tab=payments',
+            body: `Your view window for "${title}" closes in under ${REMINDER_WINDOW_HOURS} hours. Confirm you are pleased, or tell us what went wrong, from My Escrow.`,
+            link: '/my-escrow',
             data: { house_booking_id: booking.id },
           })
         }
@@ -79,8 +79,8 @@ export async function GET(req: Request) {
               'Window Closes': booking.held_until
                 ? new Date(booking.held_until).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })
                 : `${ESCROW_HOURS} hours after payment`,
-              'What To Do': 'Open My Bookings → Payments. Confirm if you are pleased, or request a refund if not.',
-              Link: 'https://www.asehanta.com/my-bookings?tab=payments',
+              'What To Do': 'Open My Escrow. Confirm if you are pleased, or request a refund if not.',
+              Link: 'https://www.asehanta.com/my-escrow',
             }
           )
         }
@@ -96,8 +96,8 @@ export async function GET(req: Request) {
             'Window Closes': booking.held_until
               ? new Date(booking.held_until).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })
               : `${ESCROW_HOURS} hours after payment`,
-            'What To Do': 'Open My Bookings → Payments. Confirm if you are pleased, or request a refund if not.',
-            Link: 'https://www.asehanta.com/my-bookings?tab=payments',
+            'What To Do': 'Open My Escrow. Confirm if you are pleased, or request a refund if not.',
+            Link: 'https://www.asehanta.com/my-escrow',
           }
         )
 
@@ -114,7 +114,7 @@ export async function GET(req: Request) {
           category: 'transaction',
           title: 'Escrow window closed',
           body: `Your view window for "${title}" has closed. Our team will contact you before releasing anything. If you were not pleased, open My Bookings → Payments to request a refund.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
           data: { house_booking_id: booking.id },
         })
       }
@@ -129,7 +129,7 @@ export async function GET(req: Request) {
           'Hunting Fee': `KES ${Number(booking.listing_price || 0).toLocaleString()}`,
           Status: 'Our team will contact you before releasing anything.',
           'What To Do': 'If you were not pleased, open My Bookings → Payments to request a refund.',
-          Link: 'https://www.asehanta.com/my-bookings?tab=payments',
+          Link: 'https://www.asehanta.com/my-escrow',
         }
       )
 

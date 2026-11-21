@@ -525,7 +525,11 @@ export default function ListingDetailClient({ initialListing }: { initialListing
                 </div>
                   <div>
                     <button onClick={() => setListerModalOpen(true)} className="font-semibold text-gray-900 dark:text-white text-lg flex items-center gap-1.5 hover:underline text-left">
-                      {lister.role === 'admin' ? 'AseHanta' : `@${lister.username || lister.full_name || 'Anonymous'}`}
+                      {lister.role === 'admin' && listing?.uploader_name && listing.uploader_name !== 'AseHanta Admin'
+                        ? listing.uploader_name
+                        : lister.role === 'admin'
+                          ? 'AseHanta'
+                          : `@${lister.username || lister.full_name || 'Anonymous'}`}
                       {lister.role === 'admin' && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-600" /></span>}
                       {lister.role !== 'admin' && lister.verified && <span title="Verified by AseHanta"><BadgeCheck className="w-5 h-5 text-blue-500 dark:text-white" /></span>}
                     </button>
@@ -538,7 +542,7 @@ export default function ListingDetailClient({ initialListing }: { initialListing
                   )}
                   {lister.role === 'admin' && (
                     <p className="official-badge mt-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-800 dark:text-blue-300">
-                      <BadgeCheck className="h-3 w-3" /> Official Listing of AseHanta
+                      <BadgeCheck className="h-3 w-3" /> Official AseHanta Listing
                     </p>
                   )}
                 </div>
@@ -771,7 +775,7 @@ export default function ListingDetailClient({ initialListing }: { initialListing
               <ul className="space-y-1">
                 <li>Payment is held by {APP_NAME} for <strong>24 hours</strong>.</li>
                 <li>Happy with the house? <strong>Release</strong> funds to the lister.</li>
-                <li>Changed your mind? <strong>85% refund</strong> (transaction &amp; listing costs deducted).</li>
+                <li>Changed your mind? <strong>80% refund</strong> (transaction &amp; listing costs deducted).</li>
                 <li>Fake listing or no-show? <strong>100% refund</strong>.</li>
               </ul>
             </div>
@@ -837,7 +841,7 @@ export default function ListingDetailClient({ initialListing }: { initialListing
               <Flag className="w-4 h-4" /> Report this listing
             </button>
 
-            <p className="text-center text-xs text-gray-400 dark:text-gray-500">By booking, you agree to {APP_NAME}&apos;s terms. 85% refund if you don&apos;t take the house.</p>
+            <p className="text-center text-xs text-gray-400 dark:text-gray-500">By booking, you agree to {APP_NAME}&apos;s terms. 80% refund if you don&apos;t take the house.</p>
           </div>
         </div>
       </div>

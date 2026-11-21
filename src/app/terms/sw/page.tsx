@@ -148,7 +148,7 @@ export const sections: TermsSection[] = [
         </p>
         <ul>
           <li><strong>Marejesho ya 100%</strong> — wakati mmiliki hakufika, au tangazo likawa la uwongo au tofauti kabisa na lile lililotangazwa.</li>
-          <li><strong>Marejesho ya 85%</strong> — wakati utazamo ulifanyika lakini nyumba haikuwa kama ilivyotangazwa na hukufurahishwa kweli.</li>
+          <li><strong>Marejesho ya 80%</strong> — wakati utazamo ulifanyika lakini nyumba haikuwa kama ilivyotangazwa na hukufurahishwa kweli.</li>
           <li><strong>Marejesho ya 50%</strong> — wakati mtafuta nyumba na mmiliki wote wana hatia kwa kilichotokea.</li>
         </ul>
         <p>
@@ -400,7 +400,7 @@ export default function TermsPageSw() {
         points: [
           'Pesa yako ya uwekaji nafasi huhifadhiwa (escrow) hadi utazamo ufanyike — hakuna anayelipwa kabla hujathibitisha.',
           'Umeridhika na nyumba? Mmiliki anapokea malipo yake, yakithibitishwa na risiti ya M-Pesa.',
-          'Kuna tatizo? Unaweza kupokea 100%, 85% au 50% kulingana na kilichotokea.',
+          'Kuna tatizo? Unaweza kupokea 100%, 80% au 50% kulingana na kilichotokea.',
           'Data yako inashirikiwa tu na watu wanaohusika katika uwekaji nafasi wako, kamwe haiuuzwi.',
           'Nyumba zilizochukuliwa hufutwa picha zake kutoka kwenye hifadhi saa 48 baada ya kuwekwa alama ya kuchukuliwa.',
         ],

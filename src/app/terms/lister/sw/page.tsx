@@ -34,7 +34,7 @@ export default function TermsListerPageSw() {
           'Kila maelezo unayochapiah — bei, picha, na upatikanaji — lazima yawe ya kweli na ya sasa.',
           'Jibu maombi ya utazamo ndani ya saa 48 na utazame kwa wakati.',
           'Umalipwa baada ya mtafuta athibitisha ridhiao, yakithibitishwa na risiti ya M-Pesa.',
-          'Kuna tatizo? Marejesho ni 100%, 85% au 50% kulingana na kilichotokea.',
+          'Kuna tatizo? Marejesho ni 100%, 80% au 50% kulingana na kilichotokea.',
           'Nyumba zilizochukuliwa hufutwa picha zake kutoka kwenye hifadhi saa 48 baada ya kuwekwa alama.',
         ],
       }}

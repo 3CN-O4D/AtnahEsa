@@ -145,7 +145,7 @@ export const sections: TermsSection[] = [
         </p>
         <ul>
           <li><strong>100% refund</strong> — when the lister did not show up, or the listing turned out to be fake or fundamentally different from what was advertised.</li>
-          <li><strong>85% refund</strong> — when the viewing took place but the house did not match the listing and you were genuinely displeased.</li>
+          <li><strong>80% refund</strong> — when the viewing took place but the house did not match the listing and you were genuinely displeased.</li>
           <li><strong>50% refund</strong> — when both the hunter and the lister share blame for what went wrong.</li>
         </ul>
         <p>
@@ -394,7 +394,7 @@ export default function TermsPage() {
         points: [
           'Your booking fee is held in escrow until the viewing happens — nobody is paid before you confirm.',
           'Satisfied with the viewing? The lister gets their payout, verified by an M-Pesa receipt.',
-          'Problem with the viewing? You can get 100%, 85% or 50% back depending on what happened.',
+          'Problem with the viewing? You can get 100%, 80% or 50% back depending on what happened.',
           'Your data is only ever shared with the people involved in your booking, never sold.',
           'Taken houses have their photos deleted from storage 48 hours after they are marked taken.',
         ],

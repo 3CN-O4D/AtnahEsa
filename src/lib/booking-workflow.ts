@@ -318,7 +318,7 @@ export function refundPlanForBooking(row: WorkflowRow, requestedPercent?: number
   const percentage =
     typeof requestedPercent === 'number' && requestedPercent > 0 && requestedPercent <= 100
       ? Math.round(requestedPercent)
-      : 85
+      : 80
   return {
     allowed: true,
     percentage,

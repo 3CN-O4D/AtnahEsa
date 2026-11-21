@@ -163,7 +163,7 @@ export default function ListingCard({ listing, listerName, isAdmin, verified, pr
           </div>
           {isAdmin && (
             <p className="official-badge inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-blue-800 dark:text-blue-300">
-              <BadgeCheck className="h-3 w-3" /> Official Listing of AseHanta
+              <BadgeCheck className="h-3 w-3" /> Official AseHanta Listing
             </p>
           )}
           {isUnavailable && (
@@ -198,12 +198,12 @@ export default function ListingCard({ listing, listerName, isAdmin, verified, pr
                 type="button"
                 onClick={() => setShowVerifyTip(!showVerifyTip)}
                 className="relative z-10 tap-scale"
-                title={isAdmin ? 'Official Listing of AseHanta' : 'Verified by AseHanta'}
+                title={isAdmin ? 'Official AseHanta Listing' : 'Verified by AseHanta'}
               >
                 <BadgeCheck className={`w-3.5 h-3.5 transition-all duration-300 hover:scale-125 ${isAdmin ? 'text-blue-600' : 'text-blue-500'}`} />
                 {showVerifyTip && (
                   <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 whitespace-nowrap text-[10px] font-medium bg-black text-white px-2 py-0.5 rounded shadow-lg border border-gray-700 z-50 animate-fadeInUp">
-                    {isAdmin ? 'Official Listing of AseHanta' : 'Verified by AseHanta'}
+                    {isAdmin ? 'Official AseHanta Listing' : 'Verified by AseHanta'}
                   </span>
                 )}
               </button>

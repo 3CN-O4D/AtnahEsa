@@ -114,8 +114,8 @@ export async function GET() {
   // pay the 50% share straight from Treasury.
   const listingIds = Array.from(new Set(enrichedHouseBookings.map((h) => h.listing_id).filter(Boolean)))
   const { data: payoutListings } = listingIds.length
-    ? await supabase.from('listings').select('id, uploader_id, lister_phone').in('id', listingIds)
-    : { data: [] as Array<{ id: string; uploader_id: string | null; lister_phone: string | null }> }
+    ? await supabase.from('listings').select('id, uploader_id, uploader_name, lister_phone').in('id', listingIds)
+    : { data: [] as Array<{ id: string; uploader_id: string | null; uploader_name: string | null; lister_phone: string | null }> }
   const uploaderIds = Array.from(new Set((payoutListings || []).map((l) => l.uploader_id).filter(Boolean)))
   const { data: listerProfiles } = uploaderIds.length
     ? await supabase.from('profiles').select('id, full_name, phone').in('id', uploaderIds)
@@ -131,14 +131,14 @@ export async function GET() {
     const refundPercentage =
       typeof refundTx?.raw_callback?.refund_percentage === 'number'
         ? refundTx.raw_callback.refund_percentage
-        : 85
+        : 80
     const gross = Number(h.listing_price) || 0
     const isPaid = h.release_status === 'paid' || h.release_status === 'released'
     const isRefunded = h.release_status === 'refunded'
 
     return {
       ...h,
-      lister_name: profile?.full_name || null,
+      lister_name: listing?.uploader_name || profile?.full_name || null,
       lister_phone: listing?.lister_phone || profile?.phone || null,
       payout_amount: isPaid
         ? (payoutTx?.amount ?? Math.round(gross * OWNER_SHARE))
@@ -166,7 +166,7 @@ export async function GET() {
   }
   const legacyRefundAmount = (e: LegacyEscrowRow) => {
     const bookingRefund = e.booking?.refund_amount
-    return bookingRefund != null ? Number(bookingRefund) : Math.round((e.amount || 0) * 0.85)
+    return bookingRefund != null ? Number(bookingRefund) : Math.round((e.amount || 0) * 0.8)
   }
 
   const sum = <T,>(rows: T[], pick: (row: T) => number | null | undefined) =>
@@ -482,7 +482,7 @@ export async function POST(request: Request) {
             category: 'transaction',
             title: `${percentage}% refund processed`,
             body: `KES ${refundAmount.toLocaleString()} was refunded for ${hb.listing_title || 'your house'}. Receipt ${receipt}.`,
-            link: '/my-bookings?tab=payments',
+            link: '/my-escrow',
             data: { house_booking_id: hb.id, amount: refundAmount },
           })
         }
@@ -634,7 +634,7 @@ export async function POST(request: Request) {
           category: 'transaction',
           title: 'Your payment status changed',
           body: `Booking ${hb.listing_title || hb.id.slice(0, 8)} is now ${nextStatus || hb.status} / ${nextReleaseStatus || hb.release_status}.`,
-          link: '/my-bookings?tab=payments',
+          link: '/my-escrow',
           data: { house_booking_id: hb.id },
         })
       }
@@ -681,7 +681,7 @@ export async function POST(request: Request) {
     }
 
     if (action === 'refund') {
-      const percentage = typeof body.percentage === 'number' ? body.percentage : 85
+      const percentage = typeof body.percentage === 'number' ? body.percentage : 80
       const refundAmount = Math.round((escrow.amount || 0) * (percentage / 100))
       const { error: e1 } = await admin
         .from('escrow_holds')

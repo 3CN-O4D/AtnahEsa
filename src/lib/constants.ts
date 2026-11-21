@@ -12,7 +12,7 @@ export const WIFI_MONTHLY_MIN = 1000
 export const ESCROW_HOURS = 24
 export const REFUND_PERCENTAGES = {
   FAKE_NO_SHOW: 1.0,
-  VIEWED_CHANGED_MIND: 0.85,
+  VIEWED_CHANGED_MIND: 0.8,
 } as const
 
 export const VIEW_WINDOW_HOURS = 24

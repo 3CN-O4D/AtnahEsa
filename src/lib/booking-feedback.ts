@@ -13,7 +13,7 @@ export const ISSUE_CATEGORIES = [
     id: 'not_as_advertised',
     label: 'House not as advertised',
     description: 'Different house, missing amenities, or the photos did not match.',
-    refundPercent: 85,
+    refundPercent: 80,
     action: 'displeased',
   },
   {
@@ -34,14 +34,14 @@ export const ISSUE_CATEGORIES = [
     id: 'extra_charges',
     label: 'Lister asked for more money',
     description: 'The lister demanded extra cash outside the AseHanta booking fee.',
-    refundPercent: 85,
+    refundPercent: 80,
     action: 'displeased',
   },
   {
     id: 'changed_mind',
     label: 'I changed my mind',
     description: 'The viewing happened but you decided not to take the house.',
-    refundPercent: 85,
+    refundPercent: 80,
     action: 'displeased',
   },
   {
@@ -62,7 +62,7 @@ export const ISSUE_CATEGORIES = [
     id: 'other',
     label: 'Something else',
     description: 'Tell us in your own words and an admin will review it.',
-    refundPercent: 85,
+    refundPercent: 80,
     action: 'displeased',
   },
 ] as const
@@ -87,7 +87,7 @@ export const PLEASED_TERMS =
   'By confirming, you tell AseHanta the viewing happened and the house matched the listing. The viewing closes and the lister\u2019s 50% payout is approved; an admin sends it by M-Pesa and records the SMS. Your rating and review are saved to the lister\u2019s profile.'
 
 export const ISSUE_TERMS =
-  'AseHanta reviews every report before money moves. An admin will contact you and the lister, then decide. A fake listing or a no-show can qualify for a 100% refund; other issues can qualify for 85%, and shared blame for 50%, once reviewed. The lister is not paid while a report is open.'
+  'AseHanta reviews every report before money moves. An admin will contact you and the lister, then decide. A fake listing or a no-show can qualify for a 100% refund; other issues can qualify for 80%, and shared blame for 50%, once reviewed. The lister is not paid while a report is open.'
 
 export function getIssueCategory(id: string | null | undefined) {
   return (

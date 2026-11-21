@@ -191,7 +191,7 @@ export async function POST(req: Request) {
             category: 'transaction',
             title: 'Payment not completed',
             body: `The M-Pesa prompt for ${houseBooking.listing_title || 'your house'} did not complete. Your booking was cancelled; you can request a new viewing.`,
-            link: '/my-bookings?tab=payments',
+            link: '/my-escrow',
             data: { house_booking_id: houseBooking.id },
           })
         }

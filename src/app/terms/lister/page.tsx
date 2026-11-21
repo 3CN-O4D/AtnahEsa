@@ -34,7 +34,7 @@ export default function TermsListerPage() {
           'Every detail you publish — price, photos, availability — must be truthful and current.',
           'Respond to viewing requests within 48 hours and show up for approved viewings.',
           'You get paid after the hunter confirms they were satisfied, verified by your M-Pesa receipt.',
-          'Problem viewing? Refunds are 100%, 85% or 50% depending on what happened.',
+          'Problem viewing? Refunds are 100%, 80% or 50% depending on what happened.',
           'Taken houses have their photos deleted from storage 48 hours after they are marked taken.',
         ],
       }}

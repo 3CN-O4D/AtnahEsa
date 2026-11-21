@@ -8,6 +8,7 @@ import ImageUploader from '@/components/upload/ImageUploader'
 import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
+import { normalizePhone } from '@/lib/whatsapp'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import type { Listing } from '@/types'
 
@@ -38,6 +39,8 @@ export default function AdminEditListingPage() {
   const [issues, setIssues] = useState<string[]>([])
   const [newIssue, setNewIssue] = useState('')
   const [paymentMethod, setPaymentMethod] = useState('')
+  const [listerName, setListerName] = useState('')
+  const [listerPhone, setListerPhone] = useState('')
   const [images, setImages] = useState<string[]>([])
   const [originalImages, setOriginalImages] = useState<string[]>([])
 
@@ -68,6 +71,8 @@ export default function AdminEditListingPage() {
       setVideoUrls(l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : []))
       setIssues(l.issues)
       setPaymentMethod(l.payment_method)
+      setListerName(l.uploader_name || '')
+      setListerPhone(l.lister_phone || '')
       setImages(l.images)
       setOriginalImages(l.images)
       setLoading(false)
@@ -92,6 +97,12 @@ export default function AdminEditListingPage() {
 
     const fee = parseInt(price)
     if (fee < MIN_BOOKING_FEE) { setError(`Minimum booking fee is ${MIN_BOOKING_FEE}`); return }
+
+    const normalizedListerPhone = listerPhone.trim() ? normalizePhone(listerPhone) : null
+    if (listerPhone.trim() && !normalizedListerPhone) {
+      setError('Enter a valid lister phone number, e.g. 0712 345 678')
+      return
+    }
 
     setSaving(true)
 
@@ -124,6 +135,8 @@ export default function AdminEditListingPage() {
         issues,
         issues_count: issues.length,
         payment_method: paymentMethod,
+        uploader_name: listerName || 'AseHanta Admin',
+        lister_phone: normalizedListerPhone || '',
       }).eq('id', id)
 
       if (updateErr) { setError(updateErr.message); return }
@@ -156,6 +169,14 @@ export default function AdminEditListingPage() {
 
       <form onSubmit={handleSave} className="space-y-6">
         <Input label="Title" id="title" value={title} onChange={(e) => setTitle(e.target.value)} required />
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <Input label="Real Lister Name" id="listerName" placeholder="e.g. John Doe or AseHanta" value={listerName} onChange={(e) => setListerName(e.target.value)} />
+          <Input label="Real Lister Phone (unlocked after payment)" id="listerPhone" type="tel" placeholder="e.g. 0712 345 678" value={listerPhone} onChange={(e) => setListerPhone(e.target.value)} />
+        </div>
+        <p className="-mt-3 text-xs text-gray-500">
+          These are the contact details revealed to a hunter after a paid booking, even when AseHanta created the listing.
+        </p>
 
         <div className="space-y-1">
           <label htmlFor="description" className="block text-sm font-medium text-gray-700">House Description</label>

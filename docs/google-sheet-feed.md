@@ -66,16 +66,18 @@ on an update, or blank on a new row.
 ## Required Apps Script change
 
 The current script returns `{ok:true,status:"duplicate"}` for an existing
-`websiteListingId`. To reflect status and payout changes, change `doPost(e)` to
-**upsert** keyed on `websiteListingId`:
+`websiteListingId`. To reflect status and payout changes, replace its `doPost`
+with the ready-to-paste implementation in
+[`docs/google-apps-script.gs`](./google-apps-script.gs). It:
 
-1. Parse `JSON.parse(e.postData.contents)`.
-2. Verify `data.key === <shared key>`; return `{ok:false,error:"invalid key"}`
-   otherwise.
-3. Find the row with matching `websiteListingId`.
-4. If found, update the lifecycle columns from the posted fields (only for
-   fields present in the payload); return `{ok:true,status:"updated"}`.
-5. If not found, append a new row; return `{ok:true,status:"added"}`.
+1. Parses `JSON.parse(e.postData.contents)`.
+2. Verifies `data.key` against the `SHEET_WEBHOOK_KEY` Script Property.
+3. Adds any missing lifecycle columns to the header row.
+4. Updates the matching `websiteListingId` row using only fields present in the
+   payload and returns `{ok:true,status:"updated"}`.
+5. Appends a new row and returns `{ok:true,status:"added"}` when the ID is new.
+
+Deploy it as a **new version** of the same web app so the URL stays unchanged.
 
 Accepted success responses are `added`, `duplicate`, and `updated`. Anything
 else (or `ok:false`) is retried up to 3 times with a delay. A final failure is

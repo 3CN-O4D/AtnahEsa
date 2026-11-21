@@ -383,16 +383,18 @@ function PaymentPageInner() {
     )
   }, [session])
 
+  const cancelled = session?.booking.status === 'cancelled'
+
   const underReview =
-    smsSubmitted ||
-    (!confirmed && session?.transaction?.status === 'verifying') ||
-    (!confirmed && Boolean(session?.booking.mpesa_message && !session?.booking.mpesa_receipt && session?.transaction?.status !== 'pending'))
+    !cancelled &&
+    (smsSubmitted ||
+      (!confirmed && session?.transaction?.status === 'verifying') ||
+      (!confirmed && Boolean(session?.booking.mpesa_message && !session?.booking.mpesa_receipt && session?.transaction?.status !== 'pending')))
 
   const failed =
     !confirmed &&
-    (session?.booking.status === 'cancelled' ||
-      session?.transaction?.status === 'failed' ||
-      session?.transaction?.status === 'cancelled')
+    !cancelled &&
+    (session?.transaction?.status === 'failed' || session?.transaction?.status === 'cancelled')
 
   const whatsappLink = confirmed && session?.listing?.phone
     ? getWhatsAppLink(
@@ -624,8 +626,33 @@ function PaymentPageInner() {
             </div>
           )}
 
+          {/* Cancelled: never invite another payment or SMS claim */}
+          {cancelled && (
+            <div className="space-y-4">
+              <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-center dark:border-gray-700 dark:bg-slate-900/40">
+                <AlertTriangle className="mx-auto h-9 w-9 text-gray-500" />
+                <h2 className="mt-2 font-semibold text-gray-800 dark:text-gray-100">Booking cancelled</h2>
+                <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                  This viewing request was cancelled before payment was confirmed. No viewing fee was charged, and the house is available again.
+                </p>
+              </div>
+              <Link
+                href={`/listings/${booking.listing_id}`}
+                className="flex items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                <Receipt className="h-4 w-4" /> Request this house again
+              </Link>
+              <Link
+                href="/my-bookings?tab=payments"
+                className="flex items-center justify-center gap-2 rounded-xl border border-gray-300 px-4 py-2.5 text-sm font-semibold text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-slate-700"
+              >
+                Back to My Bookings
+              </Link>
+            </div>
+          )}
+
           {/* Failed */}
-          {!confirmed && !underReview && failed && (
+          {!confirmed && !underReview && !cancelled && failed && (
             <div className="space-y-4">
               <div className="rounded-xl border border-red-200 bg-red-50 p-4 text-center dark:border-red-800 dark:bg-red-900/20">
                 <AlertTriangle className="mx-auto h-9 w-9 text-red-500" />
@@ -662,7 +689,7 @@ function PaymentPageInner() {
           )}
 
           {/* Waiting for the STK push */}
-          {!confirmed && !underReview && !failed && (
+          {!confirmed && !underReview && !failed && !cancelled && (
             <div className="space-y-4">
               <div className="rounded-xl border border-blue-200 bg-blue-50/60 p-4 text-center dark:border-blue-800 dark:bg-blue-900/20">
                 <div className="relative mx-auto h-12 w-12">

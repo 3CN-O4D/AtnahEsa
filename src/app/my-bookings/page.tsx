@@ -21,6 +21,12 @@ import {
   type BookingFeedback,
   type IssueCategory,
 } from '@/lib/booking-feedback'
+import {
+  canPayerCancel,
+  canReportLateAfterAutoApproval,
+  deriveBookingState,
+  type BookingState,
+} from '@/lib/booking-workflow'
 import type { Booking, Listing, EscrowHold, HouseBooking } from '@/types'
 
 type BookingWithDetails = Booking & {
@@ -52,6 +58,29 @@ function ReleaseBadge({ release_status }: { release_status: string }) {
   }
   const c = config[release_status] || { label: release_status, className: 'bg-gray-100 text-gray-600' }
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.className}`}>{c.label}</span>
+}
+
+/** Human-friendly status derived from the shared booking state machine. */
+function WorkflowBadge({ state }: { state: BookingState }) {
+  const styles: Record<string, string> = {
+    awaiting_payment: 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-200',
+    payment_under_review: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    payment_received_unapplied: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    payment_failed: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300',
+    escrow_held: 'bg-blue-100 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+    awaiting_payout: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    issue_open: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    refund_approved: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300',
+    refund_declined: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+    refunded: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
+    paid: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
+    cancelled: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300',
+  }
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${styles[state.phase] || styles.awaiting_payment}`}>
+      {state.label}
+    </span>
+  )
 }
 
 /** Feedback can live in `displeased_reason`, or (legacy) in a rating alone. */
@@ -181,8 +210,8 @@ function ListerContact({ bookingId }: { bookingId: string }) {
         )}
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-blue-900 dark:text-blue-300/90">
-        No answer, a no-show, or the house is not as advertised? Report it before escrow closes for a{' '}
-        <strong>100% refund</strong>, or call AseHanta on{' '}
+        No answer, a no-show, or the house is not as advertised? Report it before escrow closes for a refund of up to{' '}
+        <strong>100%</strong>, or call AseHanta on{' '}
         <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="font-semibold underline underline-offset-2">{CONTACT_PHONE_DISPLAY}</a>{' '}
         · <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold underline underline-offset-2">{CONTACT_EMAIL}</a>{' '}
         · <a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">WhatsApp</a>
@@ -215,6 +244,7 @@ function MyBookingsInner() {
   const [listerHouseBookings, setListerHouseBookings] = useState<HouseBooking[]>([])
   const [housePayments, setHousePayments] = useState<Record<string, { status: string; receipt: string | null }>>({})
   const [acting, setActing] = useState<{ id: string; action: 'confirm' | 'displeased' | 'fake_no_show' } | null>(null)
+  const [cancelling, setCancelling] = useState<string | null>(null)
   const [feedbackFor, setFeedbackFor] = useState<{ id: string; outcome: 'pleased' | 'issue' } | null>(null)
   const [fbRating, setFbRating] = useState(0)
   const [fbComment, setFbComment] = useState('')
@@ -432,6 +462,31 @@ function MyBookingsInner() {
     }
   }
 
+  async function cancelBooking(hb: HouseBooking) {
+    if (!window.confirm('Cancel this viewing request? No viewing fee will be charged and the house will be available again.')) return
+    setCancelling(hb.id)
+    setPaymentsError('')
+    setPaymentsNotice('')
+    try {
+      const res = await fetch(`/api/house-bookings/${hb.id}/cancel`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reason: 'Cancelled by the hunter from My Bookings' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPaymentsError(data.error || 'That booking could not be cancelled.')
+        return
+      }
+      setHouseBookings(prev => prev.map(b => b.id === hb.id ? { ...b, status: 'cancelled' } : b))
+      setPaymentsNotice(data.message || 'Booking cancelled. No viewing fee was charged.')
+    } catch {
+      setPaymentsError('Could not cancel this booking. Please try again.')
+    } finally {
+      setCancelling(null)
+    }
+  }
+
   if (loading) return <SkeletonBooking />
 
   const currentBookings = tab === 'hunter' ? bookings : listerBookings
@@ -466,19 +521,29 @@ function MyBookingsInner() {
           <div className="space-y-3">
             <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-300">House viewings &amp; payments</h2>
             {houseBookings.map((hb) => {
-              const isHeld = hb.release_status === 'held'
+              const payment = housePayments[hb.id]
+              const state = deriveBookingState(hb as never, payment ? { status: payment.status } : null)
+              const isHeld = state.phase === 'escrow_held'
               const isActing = acting?.id === hb.id
               const feedback = feedbackForBooking(hb)
-              const awaitingConfirmation = isHeld && !feedback
+              // The 24h cron can close an unanswered viewing and queue the
+              // payout while the money is still held. The hunter can still
+              // report a real problem during that short window.
+              const lateReportAvailable = canReportLateAfterAutoApproval(hb as never)
+              const awaitingConfirmation = (isHeld && !feedback) || lateReportAvailable
               const refundEstimate = refundPercentForFeedback(feedback)
-              const refundOpen = isHeld && !!feedback && feedback.outcome === 'issue' && feedback.decision !== 'refund_declined'
-              const displayStatus = refundOpen ? 'refund_requested' : (hb.release_status || 'pending')
-              const payment = housePayments[hb.id]
-              const paymentConfirmed = hb.status === 'confirmed' || isHeld || hb.release_status === 'paid'
-              const paymentUnderReview = !paymentConfirmed && payment?.status === 'verifying'
-              const paymentPending = !paymentConfirmed && !paymentUnderReview && payment?.status === 'pending'
-              const paymentFailed =
-                !paymentConfirmed && !paymentUnderReview && (payment?.status === 'failed' || hb.status === 'cancelled')
+              const refundOpen = state.phase === 'issue_open'
+              const paymentConfirmed = ![
+                'awaiting_payment',
+                'payment_under_review',
+                'payment_received_unapplied',
+                'payment_failed',
+                'cancelled',
+              ].includes(state.phase)
+              const paymentUnderReview = state.phase === 'payment_under_review'
+              const paymentPending = state.phase === 'awaiting_payment'
+              const paymentFailed = state.phase === 'payment_failed'
+              const canCancel = canPayerCancel(state) && !cancelling
               return (
                 <div key={hb.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
                   <div className="p-4">
@@ -489,7 +554,7 @@ function MyBookingsInner() {
                         </Link>
                         <p className="text-xs text-gray-500 mt-0.5">{hb.listing_location}</p>
                       </div>
-                      <ReleaseBadge release_status={displayStatus} />
+                      <WorkflowBadge state={state} />
                     </div>
                     <div className="flex items-center gap-3 mt-2 text-xs text-gray-500">
                       <span className="font-medium text-gray-700">{formatPrice(hb.listing_price || 0)}</span>
@@ -524,14 +589,14 @@ function MyBookingsInner() {
                         {paymentFailed && (
                           <>
                             <Link
-                              href={`/payments/${hb.id}#sms`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-red-600 text-white text-xs font-medium hover:bg-red-700">
-                              <AlertTriangle className="w-3 h-3" /> Payment made but not confirmed? Submit SMS
+                              href={`/payments/${hb.id}`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-600 text-white text-xs font-medium hover:bg-blue-700">
+                              <Phone className="w-3 h-3" /> Retry payment
                             </Link>
                             <Link
-                              href={`/payments/${hb.id}`}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700">
-                              <Eye className="w-3 h-3" /> View payment
+                              href={`/payments/${hb.id}#sms`}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-amber-300 text-amber-700 text-xs font-semibold hover:bg-amber-50 dark:border-amber-700 dark:text-amber-300 dark:hover:bg-amber-900/20">
+                              <Receipt className="w-3 h-3" /> Already paid? Submit SMS
                             </Link>
                           </>
                         )}
@@ -539,8 +604,17 @@ function MyBookingsInner() {
                           <a
                             href={`/api/payments/receipt/${hb.id}`}
                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700">
-                            <Eye className="w-3 h-3" /> Download receipt
+                            <Eye className="w-3 h-3" /> {state.phase === 'refunded' ? 'Download refund receipt' : 'Download receipt'}
                           </a>
+                        )}
+                        {canCancel && (
+                          <button
+                            type="button"
+                            onClick={() => cancelBooking(hb)}
+                            disabled={!!cancelling}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 dark:border-red-800 text-xs font-medium text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 disabled:opacity-50">
+                            <XCircle className="w-3 h-3" /> {cancelling === hb.id ? 'Cancelling…' : 'Cancel booking'}
+                          </button>
                         )}
                       </div>
                     )}
@@ -555,13 +629,112 @@ function MyBookingsInner() {
                         <p className="mt-1 text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">
                           <strong>{formatPrice(hb.listing_price || 0)}</strong> is held by AseHanta
                           {hb.held_until ? <> until <strong>{new Date(hb.held_until).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}</strong></> : ' for your 24-hour viewing window'}
-                          .Happy with the house? Confirm below and we release the lister&apos;s share after an admin check. Not happy, no-show, or the house is wrong? Report it below for an <strong>85–100% refund</strong>.
+                          .Happy with the house? Confirm below to close the viewing and approve the lister&apos;s share. Not happy, no-show, or the house is wrong? Report it below for an <strong>85–100% refund</strong>. If you do nothing, the viewing auto-closes when the timer ends.
                         </p>
                         <p className="mt-1.5 text-[11px] text-blue-700 dark:text-blue-300/80">
                           Need help?{' '}
                           <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="font-semibold underline underline-offset-2">{CONTACT_PHONE_DISPLAY}</a>
                           {' · '}<a href={`https://wa.me/${WHATSAPP_NUMBER}`} target="_blank" rel="noopener noreferrer" className="font-semibold underline underline-offset-2">WhatsApp</a>
                         </p>
+                      </div>
+                    )}
+
+                    {state.phase === 'cancelled' && (
+                      <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-slate-900/40">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          <XCircle className="w-3.5 h-3.5" /> Booking cancelled — no viewing fee charged
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
+                          This viewing request is closed. The house is available again and you can request another viewing at any time.
+                        </p>
+                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                          <Home className="w-3 h-3" /> Book this house again
+                        </Link>
+                      </div>
+                    )}
+
+                    {state.phase === 'payment_received_unapplied' && (
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 dark:border-blue-900 dark:bg-blue-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900 dark:text-blue-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Payment received — being attached to your booking
+                        </p>
+                        <p className="mt-1 text-[11px] text-blue-800 dark:text-blue-300">
+                          M-Pesa shows a successful payment. An admin is verifying the receipt. <strong>Do not pay again.</strong>
+                        </p>
+                      </div>
+                    )}
+
+                    {state.phase === 'awaiting_payout' && (
+                      <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 dark:border-green-900 dark:bg-green-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-green-900 dark:text-green-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Deal complete — lister payout approved
+                        </p>
+                        <p className="mt-1 text-[11px] leading-relaxed text-green-800 dark:text-green-300">
+                          {lateReportAvailable
+                            ? 'The 24-hour viewing window ended without a report, so the viewing was closed and the lister’s 50% payout was queued. The money is still held until an admin sends and records the M-Pesa transfer.'
+                            : 'Thanks for confirming. The viewing is closed, the house is marked taken, and our admins have been notified to send the lister’s 50% share by M-Pesa. The booking will show as paid once the admin records the payment SMS.'}
+                        </p>
+                        {lateReportAvailable && feedbackFor?.id !== hb.id && (
+                          <button
+                            type="button"
+                            onClick={() => openFeedback(hb, 'issue')}
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700 hover:underline dark:text-amber-300">
+                            <AlertTriangle className="w-3.5 h-3.5" /> Something was wrong — report it before payout
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {state.phase === 'refund_approved' && (
+                      <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2.5 dark:border-emerald-900 dark:bg-emerald-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-emerald-900 dark:text-emerald-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Refund approved — {refundEstimate}%
+                        </p>
+                        <p className="mt-1 text-[11px] text-emerald-800 dark:text-emerald-300">
+                          An admin approved your refund for {formatPrice(Math.round((hb.listing_price || 0) * refundEstimate / 100))}. They will send it by M-Pesa and record the receipt; the lister will not be paid.
+                        </p>
+                      </div>
+                    )}
+
+                    {state.phase === 'refund_declined' && (
+                      <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 dark:border-gray-700 dark:bg-slate-900/40">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-gray-700 dark:text-gray-200">
+                          <AlertTriangle className="w-3.5 h-3.5" /> Report reviewed — no refund
+                        </p>
+                        <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
+                          An admin reviewed both sides and could not approve the refund. The booking has returned to the payout queue. Contact support if you have new information.
+                        </p>
+                        <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                          <Phone className="w-3 h-3" /> Contact support
+                        </a>
+                      </div>
+                    )}
+
+                    {state.phase === 'refunded' && (
+                      <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 dark:border-amber-900 dark:bg-amber-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-amber-900 dark:text-amber-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Refund completed
+                        </p>
+                        <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
+                          Your refund was sent by M-Pesa and recorded. Download the refund receipt above, or request another viewing.
+                        </p>
+                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                          <Home className="w-3 h-3" /> Book again
+                        </Link>
+                      </div>
+                    )}
+
+                    {state.phase === 'paid' && (
+                      <div className="mt-3 rounded-lg border border-green-200 bg-green-50 px-3 py-2.5 dark:border-green-900 dark:bg-green-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-green-900 dark:text-green-200">
+                          <CheckCircle className="w-3.5 h-3.5" /> Completed — lister paid
+                        </p>
+                        <p className="mt-1 text-[11px] text-green-800 dark:text-green-300">
+                          The viewing is complete and the lister&apos;s payout has been recorded with an M-Pesa receipt.
+                        </p>
+                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                          <Home className="w-3 h-3" /> Book another house
+                        </Link>
                       </div>
                     )}
 
@@ -692,7 +865,7 @@ function MyBookingsInner() {
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 flex items-start gap-1">
                           <AlertTriangle className="mt-0.5 w-3.5 h-3.5 flex-shrink-0" />
                           {feedbackFor.outcome === 'pleased'
-                            ? 'An admin verifies every confirmation before paying the lister. Nothing is released automatically.'
+                            ? 'Confirming closes the viewing and approves the lister’s 50% payout. An admin sends it by M-Pesa and records the SMS — the booking is not marked paid until then.'
                             : `Estimated refund: ${getIssueCategory(fbCategory).refundPercent}% after review. An admin contacts both you and the lister before any money moves.`}
                         </p>
 
@@ -706,26 +879,15 @@ function MyBookingsInner() {
                                 : 'bg-red-600 hover:bg-red-700'
                             }`}>
                             {isActing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : feedbackFor.outcome === 'pleased' ? <ThumbsUp className="w-3.5 h-3.5" /> : <XCircle className="w-3.5 h-3.5" />}
-                            {feedbackFor.outcome === 'pleased' ? 'Confirm & save review' : 'Submit for admin review'}
+                            {feedbackFor.outcome === 'pleased' ? 'Confirm success & release payout' : 'Submit report'}
                           </button>
                           <button
                             onClick={closeFeedback}
                             disabled={!!acting}
                             className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50">
-                            Cancel
+                            Close
                           </button>
                         </div>
-                      </div>
-                    )}
-
-                    {isHeld && !!feedback && feedback.outcome !== 'issue' && feedbackFor?.id !== hb.id && (
-                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-900 dark:bg-blue-950/20">
-                        <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900 dark:text-blue-200">
-                          <CheckCircle className="w-3.5 h-3.5" /> Confirmed — admin verifying before payout
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-blue-800 dark:text-blue-300">
-                          Your rating and review are saved. The lister is paid only after an admin checks the booking.
-                        </p>
                       </div>
                     )}
 

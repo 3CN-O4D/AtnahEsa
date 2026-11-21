@@ -52,6 +52,13 @@ export const ISSUE_CATEGORIES = [
     action: 'displeased',
   },
   {
+    id: 'payment_after_cancellation',
+    label: 'Paid after cancelling',
+    description: 'Payment arrived after the payer cancelled the viewing. A full refund is required.',
+    refundPercent: 100,
+    action: 'fake_no_show',
+  },
+  {
     id: 'other',
     label: 'Something else',
     description: 'Tell us in your own words and an admin will review it.',
@@ -77,7 +84,7 @@ export type BookingFeedback = {
 }
 
 export const PLEASED_TERMS =
-  'By confirming, you tell AseHanta the viewing happened and the house matched the listing. An admin checks the booking before the lister\u2019s 50% share is released. Your rating and review are saved to the lister\u2019s profile.'
+  'By confirming, you tell AseHanta the viewing happened and the house matched the listing. The viewing closes and the lister\u2019s 50% payout is approved; an admin sends it by M-Pesa and records the SMS. Your rating and review are saved to the lister\u2019s profile.'
 
 export const ISSUE_TERMS =
   'AseHanta reviews every report before money moves. An admin will contact you and the lister, then decide. A fake listing or a no-show can qualify for a 100% refund; other issues can qualify for 85%, and shared blame for 50%, once reviewed. The lister is not paid while a report is open.'

@@ -2,7 +2,10 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
-import { OWNER_SHARE } from '@/lib/constants'
+import { OWNER_SHARE, CONTACT_PHONE_DISPLAY } from '@/lib/constants'
+import { notifyAdmins } from '@/lib/notify'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
+import { isValidMpesaMessage } from '@/lib/paywave'
 import {
   getIssueCategory,
   parseBookingFeedback,
@@ -35,6 +38,8 @@ type Row = Record<string, unknown> & {
   mpesa_message: string | null
   mpesa_receipt: string | null
   user_id: string | null
+  phone: string | null
+  listing_title: string | null
 }
 
 /** Rebuild a structured feedback record from any row (legacy rows included). */
@@ -146,15 +151,17 @@ export async function GET() {
     }
   })
 
+  // The STK initiation writes a placeholder message, so a length check alone
+  // made every started payment look like a claim. Only real M-Pesa text counts.
+  const isRealSmsClaim = (value: unknown) =>
+    typeof value === 'string' && value.trim().length > 20 && isValidMpesaMessage(value.trim())
+
   const paymentClaims = withPayments.filter(
     (row) =>
       row.release_status !== 'paid' &&
       row.release_status !== 'refunded' &&
       (row.payment_status === 'verifying' ||
-        (row.release_status === 'pending' &&
-          !row.mpesa_receipt &&
-          typeof row.mpesa_message === 'string' &&
-          row.mpesa_message.trim().length > 20))
+        (row.release_status === 'pending' && !row.mpesa_receipt && isRealSmsClaim(row.mpesa_message)))
   )
 
   // `house_bookings.release_status` is constrained to pending/held/paid/refunded
@@ -229,6 +236,15 @@ export async function PATCH(req: Request) {
     if (feedback.outcome !== 'issue' || !parseBookingFeedback(typed.displeased_reason) || typed.release_status !== 'held') {
       return NextResponse.json({ error: 'This booking is not awaiting a refund decision' }, { status: 400 })
     }
+    if (feedback.decision === 'refund_declined') {
+      return NextResponse.json({ success: true, already_decided: true, feedback })
+    }
+    if (feedback.decision) {
+      return NextResponse.json(
+        { error: 'This report was already approved. Reopen it before declining.' },
+        { status: 409 }
+      )
+    }
     feedback.decision = 'refund_declined'
     feedback.decided_at = now
     if (typeof body.note === 'string' && body.note.trim()) feedback.admin_note = body.note.trim().slice(0, 2000)
@@ -256,8 +272,24 @@ export async function PATCH(req: Request) {
     if (feedback.outcome !== 'issue' || !parseBookingFeedback(typed.displeased_reason) || typed.release_status !== 'held') {
       return NextResponse.json({ error: 'This booking is not awaiting a refund decision' }, { status: 400 })
     }
+    if (feedback.decision === 'refund_approved') {
+      return NextResponse.json({ success: true, already_decided: true, feedback })
+    }
+    if (feedback.decision) {
+      return NextResponse.json(
+        { error: 'This report was already declined. Reopen it before approving.' },
+        { status: 409 }
+      )
+    }
     feedback.decision = 'refund_approved'
     feedback.decided_at = now
+    if (typeof body.note === 'string' && body.note.trim()) feedback.admin_note = body.note.trim().slice(0, 2000)
+  } else if (action === 'reopen_issue') {
+    if (feedback.outcome !== 'issue' || typed.release_status !== 'held') {
+      return NextResponse.json({ error: 'Only an open escrow report can be reopened' }, { status: 400 })
+    }
+    feedback.decision = null
+    feedback.decided_at = null
     if (typeof body.note === 'string' && body.note.trim()) feedback.admin_note = body.note.trim().slice(0, 2000)
   } else if (action === 'set_category') {
     const category = getIssueCategory(body.category as IssueCategory).id
@@ -271,6 +303,82 @@ export async function PATCH(req: Request) {
     .update({ displeased_reason: serializeBookingFeedback(feedback) })
     .eq('id', bookingId)
   if (updateError) return NextResponse.json({ error: updateError.message }, { status: 500 })
+
+  if (action === 'approve_refund') {
+    const percent = refundPercentForFeedback(feedback)
+    const amount = Math.round(Number(typed.listing_price || 0) * (percent / 100))
+    const title = `${percent}% refund approved`
+    if (typed.user_id) {
+      await createNotification({
+        userId: typed.user_id,
+        category: 'transaction',
+        title,
+        body: `Your report for ${typed.listing_title || 'your house'} was approved. An admin will send KES ${amount.toLocaleString()} by M-Pesa and record the receipt; the lister will not be paid.`,
+        link: '/my-bookings',
+        data: { house_booking_id: bookingId, refund_percent: percent, amount },
+      })
+    }
+    await Promise.allSettled([
+      notifyPhoneWhatsApp(
+        typed.phone,
+        'Refund Approved',
+        'Your refund was approved 💰',
+        {
+          House: typed.listing_title || 'your house',
+          Amount: `KES ${amount.toLocaleString()} (${percent}%)`,
+          Status: 'An admin will send the refund by M-Pesa and record the receipt. The lister will not be paid.',
+          Questions: `Call ${CONTACT_PHONE_DISPLAY} if you need details.`,
+        }
+      ),
+      notifyAdmins('Refund Approved — Send M-Pesa', 'Refund Approved', {
+        House: typed.listing_title || typed.listing_id,
+        Amount: `KES ${amount.toLocaleString()} (${percent}%)`,
+        Receipt: 'Pending',
+        'Action Required': `Send the M-Pesa refund now, then record it in Admin → Treasury with the SMS for booking ${bookingId}.`,
+        'Booking ID': bookingId,
+      }),
+    ])
+  }
+
+  if (action === 'decline_refund') {
+    if (typed.user_id) {
+      await createNotification({
+        userId: typed.user_id,
+        category: 'transaction',
+        title: 'Report reviewed — no refund',
+        body: `Our team reviewed your report for ${typed.listing_title || 'your house'} after speaking to both sides. No refund was approved. Contact support if you have new information.`,
+        link: '/my-bookings',
+        data: { house_booking_id: bookingId, refund_percent: 0 },
+      })
+    }
+    await Promise.allSettled([
+      notifyPhoneWhatsApp(
+        typed.phone,
+        'Report Reviewed',
+        'Refund report reviewed',
+        {
+          House: typed.listing_title || 'your house',
+          Decision: 'No refund was approved after reviewing both sides.',
+          Status: 'The booking has returned to the payout queue. Call us if you have new information.',
+          Questions: `Call ${CONTACT_PHONE_DISPLAY}.`,
+        }
+      ),
+      notifyAdmins('Refund Report Declined', 'Refund Declined', {
+        House: typed.listing_title || typed.listing_id,
+        'Booking ID': bookingId,
+        Note: feedback.admin_note || 'No note recorded',
+        'Next Step': 'The booking has returned to the lister payout queue. Reopen the report if new evidence arrives.',
+      }),
+    ])
+  }
+
+  if (action === 'reopen_issue') {
+    await notifyAdmins('Refund Report Reopened', 'Decision Cleared', {
+      House: typed.listing_title || typed.listing_id,
+      'Booking ID': bookingId,
+      Action: 'Review the report again and approve or decline it.',
+    })
+  }
 
   return NextResponse.json({ success: true, feedback })
 }

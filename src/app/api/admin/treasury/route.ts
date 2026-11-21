@@ -17,20 +17,18 @@ import {
   type HouseBookingRow,
   type TransactionRow,
 } from '@/lib/payments'
-import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
+import { CONTACT_PHONE_DISPLAY, OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
+import { refundPlanForBooking } from '@/lib/booking-workflow'
+import { parseBookingFeedback, serializeBookingFeedback } from '@/lib/booking-feedback'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
 import { invalidateCached } from '@/lib/server-cache'
 
 const HOUSE_STATUSES = ['pending', 'contacted', 'confirmed', 'completed', 'cancelled'] as const
-const RELEASE_STATUSES = [
-  'pending',
-  'held',
-  'released',
-  'paid',
-  'refunded',
-  'refund_requested',
-  'rejected',
-] as const
+// The live database only allows pending/held/paid/refunded. `paid` and
+// `refunded` require an M-Pesa receipt and are handled by their own actions,
+// so the manual status override may only move money into or out of escrow.
+const RELEASE_STATUSES = ['pending', 'held'] as const
 
 async function requireAdmin() {
   const supabase = await createClient()
@@ -397,10 +395,14 @@ export async function POST(request: Request) {
           )
         }
 
-        const percentage =
-          typeof body.percentage === 'number' && body.percentage > 0 && body.percentage <= 100
-            ? body.percentage
-            : 85
+        const plan = refundPlanForBooking(
+          hb,
+          typeof body.percentage === 'number' ? body.percentage : undefined
+        )
+        if (!plan.allowed) {
+          return NextResponse.json({ error: plan.reason }, { status: 409 })
+        }
+        const percentage = plan.percentage
         const refundAmount = Math.round(Number(hb.listing_price) * (percentage / 100))
 
         const receipt = extractTransactionCode(mpesa_message)
@@ -430,6 +432,24 @@ export async function POST(request: Request) {
           })
           .eq('id', hb.id)
         if (refundError) return NextResponse.json({ error: refundError.message }, { status: 500 })
+
+        // Recording the refund is also the final decision on an open report.
+        if (plan.fromIssue) {
+          const feedback = parseBookingFeedback(hb.displeased_reason)
+          if (feedback && !feedback.decision) {
+            await admin
+              .from('house_bookings')
+              .update({
+                displeased_reason: serializeBookingFeedback({
+                  ...feedback,
+                  decision: 'refund_approved',
+                  decided_at: now,
+                  admin_note: `${feedback.admin_note || ''} Refund recorded with receipt ${receipt}.`.trim(),
+                }),
+              })
+              .eq('id', hb.id)
+          }
+        }
 
         await admin.from('transactions').insert({
           booking_id: null,
@@ -467,13 +487,27 @@ export async function POST(request: Request) {
           })
         }
 
-        await notifyAdmins('Hunter Refund Recorded', 'Refund Recorded', {
-          Listing: hb.listing_title || hb.listing_id,
-          Amount: `KES ${refundAmount.toLocaleString()} (${percentage}%)`,
-          Receipt: receipt,
-          Admin: user.email || user.id,
-          Date: now,
-        })
+        await Promise.allSettled([
+          notifyAdmins('Hunter Refund Recorded', 'Refund Recorded', {
+            Listing: hb.listing_title || hb.listing_id,
+            Amount: `KES ${refundAmount.toLocaleString()} (${percentage}%)`,
+            Receipt: receipt,
+            Admin: user.email || user.id,
+            Date: now,
+          }),
+          notifyPhoneWhatsApp(
+            hb.phone,
+            'Refund Sent',
+            'Your refund was sent 💰',
+            {
+              House: hb.listing_title || 'your house',
+              Amount: `KES ${refundAmount.toLocaleString()} (${percentage}%)`,
+              Receipt: receipt,
+              Status: 'The refund has been sent by M-Pesa and recorded. No further action is needed.',
+              Questions: `Call ${CONTACT_PHONE_DISPLAY} if the money has not arrived.`,
+            }
+          ),
+        ])
 
         // After a refund the admin decides what happens to the house:
         //   republish — put it back so other hunters can book it
@@ -537,6 +571,24 @@ export async function POST(request: Request) {
                 : 'Use Record Refund with the M-Pesa refund SMS. A refund can only be recorded with proof.',
           },
           { status: 400 }
+        )
+      }
+      if (hb.release_status === 'held' && nextReleaseStatus === 'pending') {
+        return NextResponse.json(
+          { error: 'Escrow cannot be cleared manually. Record a payout or a refund with M-Pesa proof.' },
+          { status: 409 }
+        )
+      }
+      if (nextStatus === 'cancelled' && hb.release_status === 'held') {
+        return NextResponse.json(
+          { error: 'Money is in escrow. Record a refund or payout before cancelling this booking.' },
+          { status: 409 }
+        )
+      }
+      if (nextStatus === 'confirmed' && hb.release_status !== 'held' && nextReleaseStatus !== 'held') {
+        return NextResponse.json(
+          { error: 'A booking can only be confirmed after payment opens escrow. Use Verify with the M-Pesa SMS.' },
+          { status: 409 }
         )
       }
 

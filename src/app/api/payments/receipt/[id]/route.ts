@@ -22,8 +22,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
+    // A refunded booking was paid first, so the original M-Pesa receipt stays
+    // downloadable as proof for the hunter.
     const confirmed =
-      booking.status === 'confirmed' || ['held', 'paid', 'released'].includes(booking.release_status)
+      booking.status === 'confirmed' ||
+      ['held', 'paid', 'released', 'refunded'].includes(booking.release_status)
     if (!confirmed) {
       return NextResponse.json({ error: 'This payment has not been confirmed yet' }, { status: 409 })
     }

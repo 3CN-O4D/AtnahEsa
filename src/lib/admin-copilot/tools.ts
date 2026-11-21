@@ -8,6 +8,7 @@ import {
 } from '@/lib/notification-audience'
 import { auditAction } from './audit'
 import { notifyUser } from '@/lib/notify'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { invalidateCached } from '@/lib/server-cache'
 import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
 import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
@@ -20,6 +21,7 @@ import {
   type IssueCategory,
 } from '@/lib/booking-feedback'
 import {
+  approveHouseBookingPayout,
   confirmHouseBookingPayment,
   recordListerPayout,
   lookupPayWavePayment,
@@ -1720,7 +1722,7 @@ const writeTools: AdminTool[] = [
     kind: 'write',
     schema: z.object({
       booking_id: z.string().min(1),
-      action: z.enum(['contacted_hunter', 'contacted_lister', 'save_note', 'approve_refund', 'decline_refund', 'set_category']),
+      action: z.enum(['contacted_hunter', 'contacted_lister', 'save_note', 'approve_refund', 'decline_refund', 'reopen_issue', 'set_category']),
       note: z.string().max(2000).optional(),
       category: z.string().max(60).optional(),
     }),
@@ -1758,8 +1760,21 @@ const writeTools: AdminTool[] = [
         if (feedback.outcome !== 'issue' || !parseBookingFeedback(row.displeased_reason as string | null) || row.release_status !== 'held') {
           return fail('This booking is not awaiting a refund decision.')
         }
+        if (feedback.decision && action === 'approve_refund' && feedback.decision !== 'refund_approved') {
+          return fail('Reopen this report before approving it.')
+        }
+        if (feedback.decision && action === 'decline_refund' && feedback.decision !== 'refund_declined') {
+          return fail('Reopen this report before declining it.')
+        }
         feedback.decision = action === 'approve_refund' ? 'refund_approved' : 'refund_declined'
         feedback.decided_at = now
+        if (optStr(args, 'note')) feedback.admin_note = String(args.note).slice(0, 2000)
+      } else if (action === 'reopen_issue') {
+        if (feedback.outcome !== 'issue' || row.release_status !== 'held') {
+          return fail('Only an open escrow report can be reopened.')
+        }
+        feedback.decision = null
+        feedback.decided_at = null
         if (optStr(args, 'note')) feedback.admin_note = String(args.note).slice(0, 2000)
       } else {
         return fail('Unknown booking review action.')
@@ -1772,12 +1787,45 @@ const writeTools: AdminTool[] = [
       if (updateError) return fail(updateError.message)
 
       if (action === 'decline_refund') {
-        await userInApp(
-          row.user_id as string | undefined,
-          'Report reviewed',
-          'After speaking to both sides, our team could not approve a refund for this viewing.',
-          '/my-bookings'
-        )
+        await Promise.allSettled([
+          userInApp(
+            row.user_id as string | undefined,
+            'Report reviewed',
+            'After speaking to both sides, our team could not approve a refund for this viewing.',
+            '/my-bookings'
+          ),
+          notifyPhoneWhatsApp(
+            row.phone as string | null | undefined,
+            'Report Reviewed',
+            'Refund report reviewed',
+            {
+              House: String(row.listing_title || 'your house'),
+              Decision: 'No refund was approved after reviewing both sides.',
+              Status: 'The booking returned to the payout queue. Call support if you have new information.',
+            }
+          ),
+        ])
+      } else if (action === 'approve_refund') {
+        const percent = refundPercentForFeedback(feedback)
+        const amount = Math.round(Number(row.listing_price || 0) * (percent / 100))
+        await Promise.allSettled([
+          userInApp(
+            row.user_id as string | undefined,
+            `${percent}% refund approved`,
+            `An admin approved your refund of KES ${amount.toLocaleString()}. It will be sent by M-Pesa and recorded.`,
+            '/my-bookings'
+          ),
+          notifyPhoneWhatsApp(
+            row.phone as string | null | undefined,
+            'Refund Approved',
+            'Your refund was approved 💰',
+            {
+              House: String(row.listing_title || 'your house'),
+              Amount: `KES ${amount.toLocaleString()} (${percent}%)`,
+              Status: 'An admin will send the refund by M-Pesa and record the receipt. The lister will not be paid.',
+            }
+          ),
+        ])
       }
       return ok(`Booking review updated: ${action.replace(/_/g, ' ')}.`)
     },
@@ -2600,51 +2648,53 @@ const writeTools: AdminTool[] = [
   {
     name: 'admin_bulk_escrow_release',
     description:
-      'Bulk release held escrow to multiple listers at once. Provide comma-separated house booking IDs. Each release is audited.',
+      'Bulk approve lister payouts for satisfied house bookings. Provide comma-separated house booking IDs. Money stays in escrow until Treasury records each real M-Pesa payout SMS.',
     kind: 'write',
     schema: z.object({
       house_booking_ids: z.string().min(1),
-      percentage: z.number().min(1).max(100).optional(),
     }),
     summarize: (a) => {
       const ids = String(a.house_booking_ids).split(',').map((s) => s.trim()).filter(Boolean)
-      return `Bulk release escrow for ${ids.length} booking(s)${a.percentage ? ` at ${String(a.percentage)}%` : ''}`
+      return `Bulk approve lister payouts for ${ids.length} booking(s)`
     },
     run: async (args, ctx) => {
       const rawIds = String(args.house_booking_ids).split(',').map((s) => s.trim()).filter(Boolean)
       if (rawIds.length === 0) return fail('Provide at least one house booking ID.')
       if (rawIds.length > 50) return fail('Maximum 50 bookings per batch.')
-      const percentage = args.percentage ?? 0.7
 
       const { data: existing, error: readError } = await ctx.db
         .from('house_bookings')
-        .select('id, listing_price, user_id, release_status')
+        .select('id, release_status')
         .in('id', rawIds)
         .eq('release_status', 'held')
       if (readError) return fail(readError.message)
       if (!existing || existing.length === 0) return fail('No held house bookings found.')
 
-      const now = new Date().toISOString()
       const results = await Promise.allSettled(
-        existing.map(async (hb) => {
-          const payoutAmount = Math.round(Number(hb.listing_price || 0) * Number(percentage))
-          await ctx.db.from('house_bookings').update({
-            release_status: 'released',
-            released_at: now,
-          }).eq('id', hb.id)
-          await ctx.db.from('transactions').insert({
-            booking_id: hb.id,
-            user_id: hb.user_id,
-            amount: payoutAmount,
-            payment_method: 'payout',
-            status: 'success',
-            raw_callback: { admin_id: ctx.userId, payout_amount: payoutAmount, recorded_at: now },
+        existing.map((hb) =>
+          approveHouseBookingPayout(ctx.db, {
+            bookingId: hb.id,
+            reason: 'Admin approved the lister payout in bulk after reviewing the booking.',
           })
-        })
+        )
       )
 
-      const failed = results.filter((r) => r.status === 'rejected').length
-      return ok(`Released escrow for ${existing.length - failed} of ${existing.length} booking(s).${failed ? ` ${failed} failed.` : ''}`)
+      const approved = results.filter((r) => r.status === 'fulfilled').length
+      const skipped = results
+        .map((r, i) => ({ r, id: existing[i]?.id }))
+        .filter((item) => item.r.status === 'rejected')
+        .map((item) => {
+          const reason =
+            item.r.status === 'rejected' && item.r.reason instanceof Error
+              ? item.r.reason.message
+              : 'open report or already closed'
+          return `${item.id}: ${reason}`
+        })
+      return ok(
+        `Approved payouts for ${approved} of ${existing.length} booking(s). Admins were notified to send the M-Pesa transfers and record the SMS in Treasury.${
+          skipped.length ? ` Skipped — ${skipped.join('; ')}` : ''
+        }`
+      )
     },
   },
   {

@@ -2,16 +2,18 @@ import { NextResponse } from 'next/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 import { createNotification } from '@/lib/notifications'
-import { notifyPhoneWhatsApp, notifyListerWhatsApp } from '@/lib/whatsapp/outbox'
-import { sendPaymentReceiptEmail } from '@/lib/email'
+import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
+import { confirmHouseBookingPayment, PaymentError } from '@/lib/payments'
 import type { TumaCallback } from '@/lib/tuma'
 import { addSecurityHeaders } from '@/lib/security'
 
 /**
  * Tuma (I&M Bank) payment callback.
- * Tuma POSTs flat JSON here when an STK push completes.
- * We resolve the pending transaction by merchant/checkout request id,
- * track the Tuma receipt, and notify admins.
+ *
+ * All successful payments now go through the same escrow engine as PayWave so
+ * `paid_at`, the PDF receipt, the 24h hold, the listing status and admin alerts
+ * are identical regardless of provider. Failures cancel only truly unpaid
+ * bookings and tell the hunter rather than leaving a dead-end pending row.
  */
 export async function POST(req: Request) {
   try {
@@ -35,7 +37,6 @@ export async function POST(req: Request) {
       return addSecurityHeaders(resp)
     }
 
-    // Locate the transaction by whichever id we have.
     let query = supabase
       .from('transactions')
       .select('id, booking_id, status, phone, amount, merchant_request_id, listing_id, raw_callback')
@@ -55,192 +56,156 @@ export async function POST(req: Request) {
     }
 
     if (!existing) {
-      // Record orphan callbacks for auditing even if no local transaction exists.
-      notifyAdmins(
-        'Tuma Callback (Unmatched)',
-        'No Local Transaction Found',
-        {
-          'Merchant Request ID': merchantRequestId || 'N/A',
-          'Checkout ID': checkoutRequestId || 'N/A',
-          Status: body.status,
-          Receipt: receipt || 'N/A',
-        }
-      )
+      notifyAdmins('Tuma Callback (Unmatched)', 'No Local Transaction Found', {
+        'Merchant Request ID': merchantRequestId || 'N/A',
+        'Checkout ID': checkoutRequestId || 'N/A',
+        Status: body.status,
+        Receipt: receipt || 'N/A',
+      }).catch(() => {})
       const resp = NextResponse.json({ success: true, message: 'No matching transaction' })
       return addSecurityHeaders(resp)
     }
 
-    const txId = existing.id
-    await supabase.from('transactions').update({
-      mpesa_receipt: receipt,
-      merchant_request_id: merchantRequestId,
-      result_code: resultCode,
-      result_desc: body.result_desc || '',
-      raw_callback: body,
-      status: success ? 'success' : 'failed',
-    }).eq('id', txId)
+    const raw = (existing.raw_callback as Record<string, unknown> | null) ?? {}
+    const linkedBookingId =
+      typeof raw.house_booking_id === 'string'
+        ? raw.house_booking_id
+        : typeof existing.booking_id === 'string'
+          ? existing.booking_id
+          : ''
 
-    if (success) {
-      // Fix up the linked house_booking (public booking flow).
-      const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      const legacyBookingId = (existing.raw_callback as { house_booking_id?: string } | null)?.house_booking_id
-      if (legacyBookingId) {
-        await supabase
-          .from('house_bookings')
-          .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma', release_status: 'held', held_until: heldUntil })
-          .eq('id', legacyBookingId)
-      } else {
-        await supabase
-          .from('house_bookings')
-          .update({ status: 'confirmed', mpesa_message: receipt || 'paid via Tuma', release_status: 'held', held_until: heldUntil })
-          .eq('listing_id', existing.listing_id || '')
-          .eq('phone', existing.phone || '')
-      }
-
-      // In-app notifications: hunter gets linking details, lister gets paid alert.
-      const { data: houseBooking } = await supabase
+    // Resolve modern house bookings by the explicit link first. The old
+    // listing+phone fallback is kept only to repair older callbacks.
+    let { data: houseBooking } = linkedBookingId
+      ? await supabase.from('house_bookings').select('*').eq('id', linkedBookingId).maybeSingle()
+      : { data: null }
+    if (!houseBooking && existing.listing_id && existing.phone) {
+      const { data: fallback } = await supabase
         .from('house_bookings')
-        .select('id, listing_id, user_id, phone, email, name, listing_price, listing_title, listing_location')
-        .eq('listing_id', existing.listing_id || '')
-        .eq('phone', existing.phone || '')
+        .select('*')
+        .eq('listing_id', existing.listing_id)
+        .eq('phone', existing.phone)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle()
+      houseBooking = fallback
+    }
 
-      if (houseBooking) {
-        const { data: listing } = await supabase
-          .from('listings')
-          .select('uploader_id, title')
-          .eq('id', houseBooking.listing_id)
+    const resolvedBookingId = houseBooking?.id || linkedBookingId
+
+    if (success) {
+      if (!receipt) {
+        notifyAdmins('Tuma Payment Missing Receipt', 'Manual Verification Needed', {
+          Phone: existing.phone || 'N/A',
+          Amount: `KES ${Number(body.amount ?? existing.amount ?? 0).toLocaleString()}`,
+          'Checkout ID': checkoutRequestId || merchantRequestId || 'N/A',
+          Instruction: 'Ask the hunter for the full M-Pesa SMS and verify it in Treasury.',
+        }).catch(() => {})
+        const resp = NextResponse.json({ success: true, message: 'Receipt pending verification' })
+        return addSecurityHeaders(resp)
+      }
+
+      if (!resolvedBookingId) {
+        notifyAdmins('Tuma Payment (Unlinked)', 'No House Booking Found', {
+          Phone: existing.phone || 'N/A',
+          Amount: `KES ${Number(body.amount ?? existing.amount ?? 0).toLocaleString()}`,
+          Receipt: receipt,
+          'Checkout ID': checkoutRequestId || merchantRequestId || 'N/A',
+          Instruction: 'Link this receipt to a house booking before releasing any funds.',
+        }).catch(() => {})
+        const resp = NextResponse.json({ success: true, message: 'No linked booking' })
+        return addSecurityHeaders(resp)
+      }
+
+      // Repair the transaction link so canonical dedupe finds it.
+      await supabase
+        .from('transactions')
+        .update({
+          raw_callback: { ...raw, ...(body as unknown as Record<string, unknown>), house_booking_id: resolvedBookingId },
+          merchant_request_id: merchantRequestId || existing.merchant_request_id,
+          mpesa_receipt: receipt,
+        })
+        .eq('id', existing.id)
+
+      try {
+        const result = await confirmHouseBookingPayment(supabase, {
+          bookingId: resolvedBookingId,
+          amount: Number(body.amount ?? existing.amount ?? houseBooking?.listing_price ?? 0),
+          receiptNumber: receipt,
+          paymentMethod: 'tuma',
+          transactionRequestId: checkoutRequestId || merchantRequestId || null,
+          phone: existing.phone,
+          source: 'webhook',
+          raw: { provider: 'tuma', ...(body as unknown as Record<string, unknown>) },
+        })
+        if (result.requiresRefund) {
+          console.warn('[tuma-callback] late payment after cancellation routed to refund review', resolvedBookingId)
+        }
+      } catch (error) {
+        const message = error instanceof PaymentError ? error.message : 'Unknown escrow error'
+        notifyAdmins('Tuma Confirmation Failed', 'Escrow Not Opened', {
+          Booking: resolvedBookingId,
+          Receipt: receipt,
+          Amount: `KES ${Number(body.amount ?? existing.amount ?? 0).toLocaleString()}`,
+          Error: message,
+          Action: 'Verify manually in Treasury before telling the hunter the money is held.',
+        }).catch(() => {})
+      }
+
+      // Legacy public bookings (no authenticated house_bookings row) still get
+      // their original bookings/listing update for backwards compatibility.
+      if (existing.booking_id) {
+        const { data: booking } = await supabase
+          .from('bookings')
+          .select('id, listing_id, status')
+          .eq('id', existing.booking_id)
           .maybeSingle()
+        if (booking && booking.status === 'pending') {
+          await supabase
+            .from('bookings')
+            .update({ status: 'confirmed', mpesa_receipt: receipt, mpesa_metadata: body })
+            .eq('id', booking.id)
+          await supabase
+            .from('listings')
+            .update({ status: 'booked', taken_at: null, taken_by_name: '' })
+            .eq('id', booking.listing_id)
+        }
+      }
+    } else {
+      await supabase
+        .from('transactions')
+        .update({
+          mpesa_receipt: receipt,
+          result_code: resultCode,
+          result_desc: body.result_desc || body.failure_reason || '',
+          raw_callback: { ...raw, ...(body as unknown as Record<string, unknown>) },
+          status: 'failed',
+        })
+        .eq('id', existing.id)
 
+      if (houseBooking && houseBooking.status === 'pending' && houseBooking.release_status === 'pending') {
+        await supabase.from('house_bookings').update({ status: 'cancelled' }).eq('id', houseBooking.id)
         if (houseBooking.user_id) {
           await createNotification({
             userId: houseBooking.user_id,
             category: 'transaction',
-            title: `Payment confirmed — KES ${body.amount ?? houseBooking.listing_price ?? 0}`,
-            body: `Receipt ${receipt || 'N/A'} for ${houseBooking.listing_title || 'your house'}. Funds are in 24h escrow.`,
-            link: `/my-bookings?tab=payments`,
-            data: { house_booking_id: houseBooking.id, amount: body.amount, receipt },
+            title: 'Payment not completed',
+            body: `The M-Pesa prompt for ${houseBooking.listing_title || 'your house'} did not complete. Your booking was cancelled; you can request a new viewing.`,
+            link: '/my-bookings?tab=payments',
+            data: { house_booking_id: houseBooking.id },
           })
         }
-
-        if (listing?.uploader_id) {
-          await createNotification({
-            userId: listing.uploader_id,
-            category: 'linking',
-            title: `A hunter paid for "${listing.title || 'your house'}"`,
-            body: `Phone ${houseBooking.phone || 'N/A'} · KES ${(body.amount ?? houseBooking.listing_price ?? 0).toLocaleString()} · Receipt ${receipt || 'N/A'}. Funds in 24h escrow — call the hunter to arrange the visit.`,
-            link: `/my-bookings?tab=payments`,
-            data: { house_booking_id: houseBooking.id, hunter_phone: houseBooking.phone, amount: body.amount, receipt },
-          })
-        }
-
-        // Email the payer the receipt AND the escrow rules (happy → confirm,
-        // issue → 85–100% refund). Without this the payer has no written terms.
-        try {
-          if (houseBooking.email) {
-            await sendPaymentReceiptEmail({
-              to: houseBooking.email,
-              name: houseBooking.name || undefined,
-              listingTitle: houseBooking.listing_title || 'House listing',
-              listingLocation: houseBooking.listing_location || undefined,
-              amount: Number(body.amount ?? houseBooking.listing_price ?? 0),
-              receiptNumber: receipt || 'N/A',
-              heldUntil,
-              bookingId: houseBooking.id,
-            })
-          }
-        } catch (err) {
-          console.error('Tuma receipt/escrow email failed:', err)
-        }
-
-        // WhatsApp copies: hunter confirmation + lister paid alert (best-effort).
         await notifyPhoneWhatsApp(
           houseBooking.phone,
-          'Payment Confirmed',
-          'Your payment is safe — house reserved 🎉',
+          'Payment Not Completed',
+          'Your viewing request was cancelled ❌',
           {
             House: houseBooking.listing_title || 'your house',
-            Amount: `KES ${(body.amount ?? houseBooking.listing_price ?? 0).toLocaleString()}`,
-            Receipt: receipt || 'N/A',
-            Status: 'Funds are held in 24h escrow while you view the house.',
-            'Next Step': 'Contact the lister to arrange your visit.',
-            'Need Help': 'WhatsApp +254 791 410 625',
-          }
-        )
-        const { data: listerProfile } = listing?.uploader_id
-          ? await supabase.from('profiles').select('phone').eq('id', listing.uploader_id).maybeSingle()
-          : { data: null }
-        await notifyListerWhatsApp(
-          listerProfile?.phone || null,
-          'Payment Received',
-          'A hunter paid for your house 💰',
-          {
-            House: listing?.title || houseBooking.listing_title || 'your house',
-            Hunter: `${houseBooking.phone || 'N/A'}`,
-            Amount: `KES ${(body.amount ?? houseBooking.listing_price ?? 0).toLocaleString()}`,
-            Status: 'In 24h escrow. Call the hunter to arrange the visit.',
-            'Need Help': 'WhatsApp +254 791 410 625',
+            Status: 'The M-Pesa prompt did not complete and no viewing fee was charged.',
+            'Try Again': 'Open the listing to request a new viewing.',
           }
         )
       }
-
-      // Public flow (no authenticated bookings row): mark the listing booked
-      // so it stops showing publicly and admins are alerted. Guard so a listing
-      // that's already taken isn't overwritten.
-      const bookingId = existing.booking_id as string | undefined
-      if (bookingId) {
-        const { data: booking } = await supabase
-          .from('bookings')
-          .select('id, listing_id, user_id, status, escrow_hold_id')
-          .eq('id', bookingId)
-          .single()
-
-        if (booking && booking.status === 'pending') {
-          await supabase.from('bookings').update({
-            status: 'confirmed',
-            mpesa_receipt: receipt,
-            mpesa_metadata: body,
-          }).eq('id', booking.id)
-
-          await supabase.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', booking.listing_id)
-        }
-      } else {
-        const { data: listing } = await supabase
-          .from('listings')
-          .select('status')
-          .eq('id', existing.listing_id || '')
-          .maybeSingle()
-        if (listing && listing.status === 'published') {
-          await supabase.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', existing.listing_id)
-        }
-      }
-
-      notifyAdmins(
-        'Payment Successful',
-        'Tuma Payment Received',
-        {
-          Phone: existing.phone || 'N/A',
-          Amount: body.amount ? `KES ${body.amount}` : 'N/A',
-          Receipt: receipt || 'N/A',
-          'Merchant Request ID': merchantRequestId || 'N/A',
-          'Checkout ID': checkoutRequestId || 'N/A',
-          Timestamp: body.timestamp || 'N/A',
-          'Action Required': 'Payment confirmed and booking noted. Contact the customer to arrange the viewing.',
-        }
-      )
-    } else {
-      // A failed prompt is not an incident by itself: many hunters retry, and
-      // some are charged even when the callback reports a failure. Do not email
-      // admins yet. The hunter is asked to paste the M-Pesa SMS on the payment
-      // page, and that claim triggers a detailed admin alert for verification.
-      console.log('Tuma payment failed:', {
-        merchantRequestId,
-        checkoutRequestId,
-        resultCode,
-        description: body.result_desc || body.failure_reason || 'N/A',
-      })
     }
 
     const resp = NextResponse.json({ success: true })

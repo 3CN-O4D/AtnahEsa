@@ -28,9 +28,9 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
-  const paid =
-    booking.status === 'confirmed' ||
-    ['held', 'paid', 'released', 'refund_requested'].includes(booking.release_status || '')
+  // `status: 'confirmed'` alone is not enough: an admin status edit can set it
+  // without money in escrow. Only a real held/paid escrow unlocks the phone.
+  const paid = ['held', 'paid', 'released'].includes(booking.release_status || '')
   if (!paid) {
     return NextResponse.json({ error: 'Contact unlocks after payment is confirmed' }, { status: 402 })
   }

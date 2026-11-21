@@ -20,6 +20,13 @@ import {
   CONTACT_EMAIL,
   CONTACT_PHONE_DISPLAY,
 } from '@/lib/constants'
+import {
+  canAdminPayout,
+  canAutoApprovePayout,
+  deriveBookingState,
+  serializeLatePaymentFeedback,
+} from '@/lib/booking-workflow'
+import { parseBookingFeedback, serializeBookingFeedback, type BookingFeedback } from '@/lib/booking-feedback'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -84,7 +91,10 @@ export type TransactionRow = {
 }
 
 function isConfirmed(booking: HouseBookingRow): boolean {
-  return booking.status === 'confirmed' || ['held', 'paid', 'released'].includes(booking.release_status)
+  // `status: 'confirmed'` with `release_status: 'pending'` is a stranded admin
+  // status edit, not money in escrow. Only a released/held/paid state means the
+  // canonical confirmation has actually run.
+  return ['held', 'paid', 'released'].includes(String(booking.release_status || ''))
 }
 
 function holdUntil(): string {
@@ -165,6 +175,130 @@ async function getBookingContext(admin: Admin, booking: HouseBookingRow) {
 }
 
 /**
+ * Money that arrives after a payer cancelled must never reserve the house or
+ * enter the payout queue. We record it as a 100% refund review and escalate to
+ * admins, so Treasury can send the money back with SMS proof.
+ */
+async function handleLatePaymentAfterCancellation(
+  admin: Admin,
+  booking: HouseBookingRow,
+  params: {
+    amount: number
+    receiptNumber: string
+    paymentMethod?: string
+    transactionRequestId?: string | null
+    phone?: string | null
+    source: 'paywave' | 'webhook' | 'status' | 'admin'
+    raw?: Record<string, unknown>
+  },
+  now: string,
+  heldUntil: string
+): Promise<{ booking: HouseBookingRow; alreadyProcessed: boolean; receiptEmailed: boolean; requiresRefund: boolean }> {
+  const { receiptNumber, source } = params
+  const expected = Math.round(Number(booking.listing_price))
+
+  const { data: updated, error } = await admin
+    .from('house_bookings')
+    .update({
+      status: 'confirmed',
+      release_status: 'held',
+      held_until: heldUntil,
+      mpesa_receipt: receiptNumber,
+      mpesa_message: `Late payment after cancellation (${source}) — full refund required. ${booking.mpesa_message || ''}`.trim(),
+      payment_method: params.paymentMethod || booking.payment_method || 'paywave',
+      paid_at: booking.paid_at || now,
+      displeased_reason: serializeLatePaymentFeedback(receiptNumber, source),
+    })
+    .eq('id', booking.id)
+    .eq('status', 'cancelled')
+    .select('*')
+    .maybeSingle()
+  if (error) throw new PaymentError('DB_ERROR', error.message, 500)
+
+  if (!updated) {
+    const { data: current } = await admin.from('house_bookings').select('*').eq('id', booking.id).maybeSingle()
+    if (current && isConfirmed(current as HouseBookingRow)) {
+      return { booking: current as HouseBookingRow, alreadyProcessed: true, receiptEmailed: false, requiresRefund: true }
+    }
+    throw new PaymentError('CONFLICT', 'Cancelled booking could not be recorded as a late payment', 409)
+  }
+
+  const tx = await findTransaction(admin, booking.id, params.transactionRequestId)
+  const rawCallback = mergeRaw(tx?.raw_callback, {
+    house_booking_id: booking.id,
+    confirmation_source: source,
+    payment_after_cancellation: true,
+    requires_full_refund: true,
+    ...(params.raw ?? {}),
+  })
+  if (tx) {
+    await admin
+      .from('transactions')
+      .update({
+        status: 'success',
+        amount: expected,
+        mpesa_receipt: receiptNumber,
+        result_code: 0,
+        result_desc: 'Late payment after cancellation — refund required',
+        payment_method: params.paymentMethod || tx.payment_method || 'paywave',
+        raw_callback: rawCallback,
+      })
+      .eq('id', tx.id)
+  } else {
+    await admin.from('transactions').insert({
+      phone: params.phone || booking.phone || '',
+      user_id: booking.user_id,
+      listing_id: booking.listing_id,
+      amount: expected,
+      mpesa_receipt: receiptNumber,
+      mpesa_message: `Late payment after cancellation: ${receiptNumber}`,
+      checkout_request_id: '',
+      originator_conversation_id: params.transactionRequestId || '',
+      merchant_request_id: '',
+      status: 'success',
+      result_code: 0,
+      result_desc: 'Late payment after cancellation — refund required',
+      payment_method: params.paymentMethod || 'paywave',
+      raw_callback: rawCallback,
+    })
+  }
+
+  if (booking.user_id) {
+    await createNotification({
+      userId: booking.user_id,
+      category: 'transaction',
+      title: 'Payment received after cancellation — refund needed',
+      body: `M-Pesa receipt ${receiptNumber} arrived after you cancelled. An admin will refund you in full; do not pay again.`,
+      link: '/my-bookings?tab=payments',
+      data: { house_booking_id: booking.id, requires_refund: true },
+    })
+  }
+  await notifyAdmins('Late Payment After Cancellation — Refund Required', 'Refund Required', {
+    Listing: booking.listing_title || booking.listing_id,
+    Amount: `KES ${expected.toLocaleString()}`,
+    Receipt: receiptNumber,
+    Hunter: `${booking.name || 'Hunter'} (${booking.phone || 'N/A'})`,
+    Reason: 'The payer cancelled before the payment callback arrived. Do not pay the lister; issue a 100% refund.',
+    'Booking ID': booking.id,
+    Source: source,
+  })
+  await notifyPhoneWhatsApp(
+    booking.phone,
+    'Payment After Cancellation',
+    'We will refund you in full 💰',
+    {
+      House: booking.listing_title || 'your house',
+      Amount: `KES ${expected.toLocaleString()}`,
+      Receipt: receiptNumber,
+      Status: 'Your cancellation was recorded first. An admin will send a full refund by M-Pesa.',
+      'Do Not': 'Do not pay again.',
+    }
+  )
+
+  return { booking: updated as HouseBookingRow, alreadyProcessed: true, receiptEmailed: false, requiresRefund: true }
+}
+
+/**
  * Mark a house booking as paid and put the exact listing price into escrow.
  *
  * Idempotent: calling it twice (webhook + status poll + manual verification)
@@ -182,7 +316,7 @@ export async function confirmHouseBookingPayment(
     source: 'paywave' | 'webhook' | 'status' | 'admin'
     raw?: Record<string, unknown>
   }
-): Promise<{ booking: HouseBookingRow; alreadyProcessed: boolean; receiptEmailed: boolean }> {
+): Promise<{ booking: HouseBookingRow; alreadyProcessed: boolean; receiptEmailed: boolean; requiresRefund?: boolean }> {
   const { bookingId, amount, receiptNumber, source } = params
 
   const { data: existing } = await admin
@@ -194,11 +328,6 @@ export async function confirmHouseBookingPayment(
   if (!existing) throw new PaymentError('NOT_FOUND', 'Booking not found', 404)
 
   const booking = existing as HouseBookingRow
-
-  if (isConfirmed(booking)) {
-    return { booking, alreadyProcessed: true, receiptEmailed: false }
-  }
-
   const expected = Number(booking.listing_price)
   if (!Number.isFinite(amount) || Math.round(amount) !== Math.round(expected)) {
     throw new PaymentError(
@@ -216,6 +345,17 @@ export async function confirmHouseBookingPayment(
   const now = new Date().toISOString()
   const heldUntil = holdUntil()
 
+  // A payment callback can beat the cancellation write or arrive much later.
+  // In that case the money is real but the payer already backed out: route it
+  // to a mandatory refund review instead of re-opening the booking.
+  if (booking.status === 'cancelled') {
+    return handleLatePaymentAfterCancellation(admin, booking, params, now, heldUntil)
+  }
+
+  if (isConfirmed(booking)) {
+    return { booking, alreadyProcessed: true, receiptEmailed: false }
+  }
+
   // Guard against two concurrent confirmations: only update a booking that is
   // still pending. If no row comes back another request already confirmed it.
   const { data: updated, error: updateError } = await admin
@@ -230,7 +370,8 @@ export async function confirmHouseBookingPayment(
       paid_at: booking.paid_at || now,
     })
     .eq('id', booking.id)
-    .in('status', ['pending', 'contacted', 'cancelled'])
+    .in('status', ['pending', 'contacted', 'confirmed'])
+    .eq('release_status', 'pending')
     .select('*')
     .maybeSingle()
 
@@ -1106,6 +1247,146 @@ export async function submitManualPaymentReview(
  * Admin payout to a lister. The pasted M-Pesa SMS is the source of truth:
  * the transaction code is stored and the amount must equal the lister share.
  */
+/**
+ * Approve and queue the lister payout after a satisfied viewing.
+ *
+ * Used by the payer's "I'm pleased" action and by the 24-hour close cron.
+ * The escrow stays `held` and NO fake payout transaction is created: only an
+ * admin sending the real M-Pesa B2C can mark the booking `paid` with SMS proof
+ * via `recordListerPayout`. This keeps the ledger honest and leaves Treasury
+ * able to attach the actual receipt.
+ */
+export async function approveHouseBookingPayout(
+  admin: Admin,
+  params: { bookingId: string; reason: string; feedback?: BookingFeedback | null }
+): Promise<{ booking: HouseBookingRow; payoutAmount: number; receipt: string }> {
+  const { data: bookingData } = await admin
+    .from('house_bookings')
+    .select('*')
+    .eq('id', params.bookingId)
+    .maybeSingle()
+  if (!bookingData) throw new PaymentError('NOT_FOUND', 'Booking not found', 404)
+  const booking = bookingData as HouseBookingRow
+
+  if (booking.release_status === 'paid') {
+    throw new PaymentError('ALREADY_PAID', 'This lister has already been paid', 409)
+  }
+  if (booking.release_status !== 'held') {
+    throw new PaymentError('NOT_HELD', 'This booking is not in escrow', 409)
+  }
+  const workflow = deriveBookingState(booking)
+  if (!canAutoApprovePayout(workflow)) {
+    throw new PaymentError('REVIEW_OPEN', 'Resolve the open report before approving this payout', 409)
+  }
+
+  const now = new Date().toISOString()
+  const payoutAmount = Math.round(Number(booking.listing_price) * OWNER_SHARE)
+  const receipt = `QUEUED-${booking.id.slice(0, 8).toUpperCase()}`
+
+  let feedback: BookingFeedback =
+    params.feedback ??
+    parseAutoFeedback(booking) ?? {
+      version: 1,
+      outcome: 'pleased',
+      category: 'pleased',
+      details: params.reason,
+      review: '',
+      rating: 0,
+      contacted_hunter_at: null,
+      contacted_lister_at: null,
+      admin_note: `Auto-approved: ${params.reason}`,
+      decision: null,
+      decided_at: null,
+    }
+  if (feedback.outcome !== 'pleased') {
+    throw new PaymentError('REVIEW_OPEN', 'Resolve the open report before approving this payout', 409)
+  }
+  feedback = {
+    ...feedback,
+    admin_note: `${feedback.admin_note || ''} ${params.reason}`.trim().slice(0, 500),
+  }
+
+  const { data: updated, error } = await admin
+    .from('house_bookings')
+    .update({
+      // Keep `status` confirmed and `release_status` held. A payout approval is
+      // not a payout. `paid`/`completed` are reserved for recorded B2C receipts.
+      confirmed_at: booking.confirmed_at || now,
+      displeased_reason: serializeBookingFeedback(feedback),
+    })
+    .eq('id', booking.id)
+    .eq('release_status', 'held')
+    .select('*')
+    .maybeSingle()
+  if (error) throw new PaymentError('DB_ERROR', error.message, 500)
+  if (!updated) throw new PaymentError('CONFLICT', 'This booking changed while the payout was being approved', 409)
+
+  try {
+    await admin
+      .from('listings')
+      .update({ status: 'taken', taken_at: now, taken_by_name: booking.name || '' })
+      .eq('id', booking.listing_id)
+    await moveMediaToTaken(booking.listing_id)
+    invalidateCached('listings|')
+  } catch (err) {
+    console.error('Failed to mark listing taken after payout approval:', err)
+  }
+
+  const ctx = await getBookingContext(admin, booking)
+  await Promise.allSettled([
+    ctx.listerId
+      ? createNotification({
+          userId: ctx.listerId,
+          category: 'transaction',
+          title: `Viewing complete — KES ${payoutAmount.toLocaleString()} payout approved`,
+          body: `The viewing for "${booking.listing_title || 'your house'}" is complete. AseHanta has approved your share and will send it by M-Pesa shortly.`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id: booking.id, payout_approved: true },
+        })
+      : Promise.resolve(),
+    booking.user_id
+      ? createNotification({
+          userId: booking.user_id,
+          category: 'transaction',
+          title: 'Viewing complete ✅',
+          body: `${params.reason} The deal is done and the lister's payout has been approved. Thank you for using AseHanta.`,
+          link: '/my-bookings?tab=payments',
+          data: { house_booking_id: booking.id, payout_approved: true },
+        })
+      : Promise.resolve(),
+    notifyAdmins('Lister Payout Approved — Send M-Pesa', 'Payout Due to Lister', {
+      House: booking.listing_title || booking.listing_id,
+      Hunter: `${ctx.hunterName} (${booking.phone || 'N/A'})`,
+      Lister: `${ctx.listerName} (${ctx.listerPhone || 'N/A'})`,
+      'Lister M-Pesa': ctx.listerPhone || 'Not on file',
+      'Release amount': `KES ${payoutAmount.toLocaleString()} (50%)`,
+      Reason: params.reason,
+      'Action Required': `Send the B2C payout now, then open Admin → Treasury and paste the M-Pesa confirmation SMS for booking ${booking.id}.`,
+      'Booking ID': booking.id,
+    }),
+  ])
+
+  await notifyPhoneWhatsApp(
+    booking.phone,
+    'Viewing Complete',
+    'Deal complete ✅',
+    {
+      House: booking.listing_title || 'your house',
+      Reason: params.reason,
+      Status: 'The viewing is closed and the lister payout has been approved. Thank you for using AseHanta.',
+      Receipt: `Payout reference ${receipt}`,
+    }
+  )
+
+  return { booking: updated as HouseBookingRow, payoutAmount, receipt }
+}
+
+function parseAutoFeedback(booking: HouseBookingRow): BookingFeedback | null {
+  if (!booking.displeased_reason) return null
+  const parsed = parseBookingFeedback(booking.displeased_reason)
+  return parsed?.outcome === 'pleased' ? parsed : null
+}
+
 export async function recordListerPayout(
   admin: Admin,
   params: { bookingId: string; mpesaMessage: string; adminId: string; percentage?: number }
@@ -1131,7 +1412,34 @@ export async function recordListerPayout(
     throw new PaymentError('NOT_HELD', 'This booking is not in escrow, so it cannot be paid out', 409)
   }
 
-  const percentage = params.percentage ?? OWNER_SHARE
+  // Never release funds while a hunter report is open or an approved refund is
+  // waiting for SMS proof. A declined report returns the booking to this queue.
+  const workflow = deriveBookingState(booking)
+  if (!canAdminPayout(workflow)) {
+    throw new PaymentError(
+      'REVIEW_OPEN',
+      workflow.phase === 'issue_open'
+        ? 'Resolve the open hunter report before paying the lister.'
+        : workflow.phase === 'refund_approved'
+          ? 'Record the approved refund before paying the lister.'
+          : 'Confirm the viewing before paying the lister.',
+      409
+    )
+  }
+
+  // The house-booking share is fixed at 50/50. Admin tools may pass a legacy
+  // percentage; reject anything else instead of silently overpaying a lister.
+  const percentage = OWNER_SHARE
+  if (
+    typeof params.percentage === 'number' &&
+    Math.round(params.percentage * 100) !== Math.round(OWNER_SHARE * 100)
+  ) {
+    throw new PaymentError(
+      'INVALID_SHARE',
+      `The lister share is fixed at ${Math.round(OWNER_SHARE * 100)}%. Nothing was changed.`,
+      409
+    )
+  }
   const payoutAmount = Math.round(Number(booking.listing_price) * percentage)
 
   const receipt = extractTransactionCode(message)
@@ -1225,6 +1533,31 @@ export async function recordListerPayout(
       'Admin': params.adminId,
       Date: new Date(now).toLocaleString(),
     }),
+    notifyPhoneWhatsApp(
+      booking.phone,
+      'Escrow Closed',
+      'Deal complete — funds released 🎉',
+      {
+        House: booking.listing_title || 'your house',
+        'Lister payout': `KES ${payoutAmount.toLocaleString()}`,
+        Receipt: receipt,
+        Status: `The viewing is complete. The lister's share was sent by M-Pesa and recorded on ${new Date(now).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' })}.`,
+        Thanks: 'Thank you for using AseHanta.',
+      }
+    ),
+    ctx.listerPhone
+      ? notifyListerWhatsApp(
+          ctx.listerPhone,
+          'Payout Received',
+          'Your AseHanta payout was sent 💰',
+          {
+            House: booking.listing_title || 'your house',
+            Amount: `KES ${payoutAmount.toLocaleString()}`,
+            Receipt: receipt,
+            Status: 'Your 50% share has been sent by M-Pesa and recorded. Thank you for listing with AseHanta.',
+          }
+        )
+      : Promise.resolve(),
   ])
 
   return { booking: updated as HouseBookingRow, payoutAmount, receipt }

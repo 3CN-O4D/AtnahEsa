@@ -12,7 +12,7 @@ import {
 import { releaseToLister, refundHunter, createEscrowHold } from '@/lib/escrow'
 import { withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { createNotification } from '@/lib/notifications'
-import { sendPaymentReceiptEmail } from '@/lib/email'
+import { confirmHouseBookingPayment } from '@/lib/payments'
 
 export async function POST(req: Request) {
   const { allowed, headers } = await withRateLimit(req, 'payments')
@@ -137,65 +137,30 @@ export async function POST(req: Request) {
 
         const status = await verifyTransaction(transaction_request_id)
         const isCompleted = status.TransactionStatus === 'Completed'
+        let requiresRefund = false
 
         if (isCompleted) {
           const webhookAmount = parseInt(status.TransactionAmount || '0')
-          if (isNaN(webhookAmount) || webhookAmount !== booking.listing_price) {
-            const response = NextResponse.json({ error: 'Amount mismatch' }, { status: 400 })
-            return addSecurityHeaders(response)
-          }
 
-          const heldUntil = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-          await admin.from('house_bookings').update({
-            status: 'confirmed',
-            mpesa_receipt: status.TransactionReceipt,
-            release_status: 'held',
-            paid_at: booking.paid_at || new Date().toISOString(),
-            held_until: heldUntil,
-          }).eq('id', booking.id)
+          // Use the same confirmation engine as the webhook, manual SMS route
+          // and admin verify. This keeps amount checks, cancellation handling,
+          // receipts, WhatsApp, in-app notices and escrow bookkeeping in sync.
+          const result = await confirmHouseBookingPayment(admin, {
+            bookingId: booking.id,
+            amount: webhookAmount,
+            receiptNumber: status.TransactionReceipt || 'N/A',
+            paymentMethod: 'paywave',
+            transactionRequestId: transaction_request_id,
+            phone: booking.phone,
+            source: 'paywave',
+            raw: { verification_status: status },
+          })
+          requiresRefund = !!result.requiresRefund
 
           await admin.from('escrow_holds').update({
-            status: 'held',
-            held_until: heldUntil,
+            status: result.requiresRefund ? 'refunded' : 'held',
+            held_until: result.booking.held_until,
           }).eq('booking_id', booking.id)
-
-          // Receipt + escrow terms in writing (also in the WhatsApp alert).
-          try {
-            if (booking.email) {
-              await sendPaymentReceiptEmail({
-                to: booking.email,
-                name: booking.name || undefined,
-                listingTitle: booking.listing_title || 'House listing',
-                listingLocation: booking.listing_location || undefined,
-                amount: webhookAmount,
-                receiptNumber: status.TransactionReceipt || 'N/A',
-                heldUntil,
-                bookingId: booking.id,
-              })
-            }
-          } catch (err) {
-            console.error('PayWave receipt/escrow email failed:', err)
-          }
-
-          await createNotification({
-            userId: booking.user_id,
-            category: 'transaction',
-            title: 'Payment Confirmed',
-            body: `Payment of KES ${status.TransactionAmount} confirmed. 24-hour view window started.`,
-            link: '/my-bookings?tab=payments',
-          })
-          const { data: paidListing } = await admin
-            .from('listings')
-            .select('uploader_id')
-            .eq('id', booking.listing_id)
-            .maybeSingle()
-          await createNotification({
-            userId: paidListing?.uploader_id || null,
-            category: 'transaction',
-            title: 'New Booking Payment',
-            body: `Hunter paid KES ${status.TransactionAmount}. 24-hour view window started.`,
-            link: '/my-bookings?tab=payments',
-          })
         }
 
         return addSecurityHeaders(NextResponse.json({
@@ -203,6 +168,7 @@ export async function POST(req: Request) {
           status: status.TransactionStatus,
           receipt: status.TransactionReceipt,
           amount: status.TransactionAmount,
+          requires_refund: requiresRefund,
         }))
       }
 

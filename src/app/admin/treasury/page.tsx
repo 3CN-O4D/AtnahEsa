@@ -6,6 +6,7 @@ import Button from '@/components/ui/Button'
 import { formatPrice } from '@/lib/utils'
 import { OWNER_SHARE, PLATFORM_COMMISSION } from '@/lib/constants'
 import { parseBookingFeedback, refundPercentForFeedback } from '@/lib/booking-feedback'
+import { canAdminPayout, deriveBookingState } from '@/lib/booking-workflow'
 import type { EscrowHold, Transaction, Booking, HouseBooking } from '@/types'
 
 type EscrowWithDetails = EscrowHold & {
@@ -416,6 +417,8 @@ export default function TreasuryPage() {
     const feedback = parseBookingFeedback(h.displeased_reason)
     return h.release_status === 'held' && !!feedback && feedback.outcome === 'issue' && feedback.decision !== 'refund_declined'
   }
+  const payoutReadyRow = (h: HouseBookingWithPayment) =>
+    h.release_status === 'held' && canAdminPayout(deriveBookingState(h))
   const filteredPayouts =
     payoutFilter === 'all'
       ? houseBookings
@@ -643,7 +646,7 @@ export default function TreasuryPage() {
                         <CheckCircle className="w-3 h-3 mr-1" /> Verify & Set Escrow
                       </Button>
                     )}
-                    {isHeld && (
+                    {isHeld && payoutReadyRow(hb) && (
                       <Button size="sm" onClick={() => handleHouseAction(hb.id, 'house_release', 'Mark paid to lister')} loading={actionLoading === hb.id}
                         className="bg-blue-700 hover:bg-blue-800 text-white text-xs px-2.5 py-1">
                         <ArrowUpRight className="w-3 h-3 mr-1" /> Mark Paid
@@ -1067,7 +1070,7 @@ export default function TreasuryPage() {
             <select value={newReleaseStatus} onChange={(e) => setNewReleaseStatus(e.target.value)}
               className="w-full rounded-lg border px-3 py-2 text-sm"
               style={{ borderColor: 'var(--color-gray-300)', backgroundColor: 'white' }}>
-              {['pending', 'held', 'refunded'].map((s) => (
+              {['pending', 'held'].map((s) => (
                 <option key={s} value={s}>{s}</option>
               ))}
             </select>

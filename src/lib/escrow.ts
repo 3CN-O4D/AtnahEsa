@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
 import { createNotification } from '@/lib/notifications'
 import { notifyUser, notifyAdmins } from '@/lib/notify'
+import { queueSheetEvent } from '@/lib/sheet-feed'
 import crypto from 'crypto'
 
 const ESCROW_HOURS = 24
@@ -192,6 +193,13 @@ export async function releaseToLister(params: {
     Date: new Date().toLocaleString(),
   })
 
+  await queueSheetEvent(String(escrow.listing_id || ''), 'payout_released', {
+    booking_id: escrow.booking_id || null,
+    payout_amount: listerAmount,
+    payout_date: releasedAt,
+    notes: `Escrow released to lister (${params.action})`,
+  })
+
   return { listerAmount: Math.round(escrow.amount * 0.5), platformAmount: Math.round(escrow.amount * 0.5) }
 }
 
@@ -317,6 +325,14 @@ export async function refundHunter(params: {
     Lister: `${listerName} (${listerEmail || 'N/A'})`,
     Status: 'Refunded to hunter',
     Date: new Date().toLocaleString(),
+  })
+
+  await queueSheetEvent(String(escrow.listing_id || ''), 'refund_recorded', {
+    booking_id: escrow.booking_id || null,
+    release_status: 'refunded',
+    refund_amount: refundAmt,
+    refund_date: now,
+    notes: `Escrow refund (${refundDisplayPercent}%): ${params.customReason || params.reason}`,
   })
 
   return Math.round(escrow.amount * (isFullRefund ? 1.0 : 0.8))

@@ -27,6 +27,7 @@ import {
   serializeLatePaymentFeedback,
 } from '@/lib/booking-workflow'
 import { parseBookingFeedback, serializeBookingFeedback, type BookingFeedback } from '@/lib/booking-feedback'
+import { queueSheetEvent } from '@/lib/sheet-feed'
 
 type Admin = ReturnType<typeof createAdminClient>
 
@@ -395,6 +396,13 @@ export async function confirmHouseBookingPayment(
     await admin.from('listings').update({ status: 'booked', taken_at: null, taken_by_name: '' }).eq('id', booking.listing_id)
     await moveMediaToTaken(booking.listing_id)
     invalidateCached('listings|')
+    await queueSheetEvent(booking.listing_id, 'booking_paid', {
+      booking_id: booking.id,
+      amount_paid: expected,
+      payment_receipt: receiptNumber,
+      paid_at: now,
+      notes: `Payment confirmed via ${source}`,
+    })
   } catch (err) {
     console.error('Failed to mark listing as booked:', err)
   }
@@ -1328,6 +1336,11 @@ export async function approveHouseBookingPayout(
       .eq('id', booking.listing_id)
     await moveMediaToTaken(booking.listing_id)
     invalidateCached('listings|')
+    await queueSheetEvent(booking.listing_id, 'payout_approved', {
+      booking_id: booking.id,
+      payout_amount: payoutAmount,
+      notes: params.reason,
+    })
   } catch (err) {
     console.error('Failed to mark listing taken after payout approval:', err)
   }
@@ -1501,6 +1514,14 @@ export async function recordListerPayout(
       admin_id: params.adminId,
       recorded_at: now,
     },
+  })
+
+  await queueSheetEvent(booking.listing_id, 'payout_released', {
+    booking_id: booking.id,
+    payout_amount: payoutAmount,
+    payout_receipt: receipt,
+    payout_date: now,
+    notes: 'Lister B2C M-Pesa payout recorded in Treasury',
   })
 
   const ctx = await getBookingContext(admin, booking)

@@ -97,34 +97,37 @@ export default function AdminUploadPage() {
       // Normalize TikTok URL
       const normalizedTikTokUrl = tiktokUrl ? normalizeTikTokUrl(tiktokUrl) : null
 
-      const supabase = createClient()
-
-      const { error: err } = await supabase.from('listings').insert({
-        title,
-        description,
-        price: fee,
-        rent: parseInt(rent) || 0,
-        deposit: parseInt(deposit) || 0,
-        electricity,
-        water,
-        why_vacant: whyVacant,
-        descriptive_location: descriptiveLocation,
-        location,
-        images,
-        youtube_url: youtubeUrl || null,
-        tiktok_url: normalizedTikTokUrl,
-        video_urls: videoUrls,
-        issues,
-        issues_count: issues.length,
-        payment_method: paymentMethod,
-        status: 'published',
-        uploader_id: user.id,
-        uploader_name: listerName || 'AseHanta Admin',
-        lister_phone: normalizedListerPhone || '',
+      // Create through the server route so the Google Sheet feed is never
+      // driven from the browser and the sheet credentials stay server-side.
+      const res = await fetch('/api/admin/listings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          description,
+          price: fee,
+          rent: parseInt(rent) || 0,
+          deposit: parseInt(deposit) || 0,
+          electric_bill: electricity,
+          water,
+          why_vacant: whyVacant,
+          descriptive_location: descriptiveLocation,
+          location,
+          images,
+          youtube_url: youtubeUrl || null,
+          tiktok_url: normalizedTikTokUrl,
+          video_urls: videoUrls,
+          issues,
+          issues_count: issues.length,
+          payment_method: paymentMethod,
+          lister_name: listerName,
+          lister_phone: normalizedListerPhone || '',
+        }),
       })
 
-      if (err) {
-        setError(err.message)
+      const result = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setError(result.error || 'Failed to create listing')
       } else {
         router.push('/admin')
       }

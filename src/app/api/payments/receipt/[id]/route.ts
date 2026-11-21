@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { generateReceiptPdf } from '@/lib/receipt'
+import { resolveListerIdentity } from '@/lib/lister-identity'
 
 export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -18,7 +19,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     const { data: booking } = await admin.from('house_bookings').select('*').eq('id', id).maybeSingle()
     if (!booking) return NextResponse.json({ error: 'Receipt not found' }, { status: 404 })
 
-    if (!isAdmin && booking.user_id !== user.id) {
+    const { data: listing } = await admin
+      .from('listings')
+      .select('uploader_id, uploader_name, description, lister_phone, title')
+      .eq('id', booking.listing_id)
+      .maybeSingle()
+
+    // The payer, the listing owner and admins may all keep proof of the
+    // escrow payment. The listing owner sees the hunter as payer, not themselves.
+    const isListingOwner = !!listing?.uploader_id && listing.uploader_id === user.id
+    const forLister = !isAdmin && !!(booking.user_id && booking.user_id !== user.id) && isListingOwner
+    if (!isAdmin && booking.user_id !== user.id && !isListingOwner) {
       return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
     }
 
@@ -31,39 +42,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'This payment has not been confirmed yet' }, { status: 409 })
     }
 
-    const { data: listing } = await admin
-      .from('listings')
-      .select('uploader_id, description, lister_phone')
-      .eq('id', booking.listing_id)
-      .maybeSingle()
-
-    let listerName = 'AseHanta verified lister'
-    let listerPhone = listing?.lister_phone || ''
-    if (listing?.uploader_id) {
-      const { data: lister } = await admin
-        .from('profiles')
-        .select('full_name, phone')
-        .eq('id', listing.uploader_id)
-        .maybeSingle()
-      if (lister?.full_name) listerName = lister.full_name
-      if (!listerPhone && lister?.phone) listerPhone = lister.phone
-    }
+    const lister = await resolveListerIdentity(admin, listing)
 
     const pdf = await generateReceiptPdf({
       bookingId: booking.id,
       receiptNumber: booking.mpesa_receipt || '',
-      listingTitle: booking.listing_title || 'House listing',
+      listingTitle: booking.listing_title || listing?.title || 'House listing',
       listingLocation: booking.listing_location || booking.area || '',
       listingDescription: listing?.description || '',
       amount: Number(booking.listing_price) || 0,
-      payerName: profile?.full_name || booking.name || '',
-      payerEmail: booking.email || profile?.email || '',
-      payerPhone: booking.phone || '',
+      payerName: forLister || isAdmin ? String(booking.name || '') : profile?.full_name || String(booking.name || ''),
+      payerEmail: forLister || isAdmin ? String(booking.email || '') : profile?.email || String(booking.email || ''),
+      payerPhone: String(booking.phone || ''),
       paidAt: booking.confirmed_at || booking.created_at,
       heldUntil: booking.held_until,
       paymentMethod: booking.payment_method || 'paywave',
-      listerName,
-      listerPhone,
+      listerName: lister.name,
+      listerPhone: lister.phone || '',
     })
 
     return new NextResponse(new Uint8Array(pdf), {

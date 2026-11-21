@@ -7,6 +7,7 @@ import { addSecurityHeaders } from '@/lib/security'
 import { createClient } from '@/lib/supabase/server'
 import { invalidateCached } from '@/lib/server-cache'
 import { notifyListerWhatsApp, phoneForUserId } from '@/lib/whatsapp/outbox'
+import { queueSheetEvent } from '@/lib/sheet-feed'
 
 const ALLOWED_UPDATE_FIELDS = new Set([
   'taken_at',
@@ -83,6 +84,13 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 500 }))
 
   invalidateCached('listings|')
+
+  if (status && status !== existing.status) {
+    await queueSheetEvent(id, 'listing_status_changed', {
+      status,
+      notes: `Status changed from ${existing.status} to ${status}`,
+    })
+  }
 
   const { data: updated } = await admin.from('listings').select('*').eq('id', id).single()
 

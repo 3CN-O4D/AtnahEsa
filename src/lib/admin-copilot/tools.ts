@@ -11,6 +11,7 @@ import { notifyUser } from '@/lib/notify'
 import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { normalizePhone } from '@/lib/whatsapp'
 import { invalidateCached } from '@/lib/server-cache'
+import { queueSheetNewListing } from '@/lib/sheet-feed'
 import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
 import { OWNER_SHARE, VIEW_WINDOW_HOURS } from '@/lib/constants'
 import {
@@ -1189,6 +1190,24 @@ const writeTools: AdminTool[] = [
       const { data, error } = await ctx.db.from('listings').insert(row).select('id, title, status').single()
       if (error) return fail(error.message)
       invalidateCached('listings|')
+      queueSheetNewListing({
+        id: data.id,
+        title: data.title,
+        description: row.description as string,
+        price: row.price as number,
+        rent: row.rent as number,
+        deposit: row.deposit as number,
+        location: row.location as string,
+        descriptive_location: row.descriptive_location as string,
+        house_type: row.house_type as string,
+        lister_name: optStr(args, 'lister_name'),
+        uploader_name: row.uploader_name as string,
+        lister_phone: row.lister_phone as string,
+        email: null,
+        vacancy: row.vacancy as string,
+        event: 'listing_created',
+        status: data.status,
+      })
       return ok(`Listing “${data.title}” created as ${data.status} (id ${data.id}).`, data)
     },
   },

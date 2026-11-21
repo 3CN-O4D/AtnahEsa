@@ -4,7 +4,7 @@ import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, Home, Star, ThumbsUp, ThumbsDown, Loader2, Phone, MessageCircle, Receipt } from 'lucide-react'
+import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, Home, Star, ThumbsUp, ThumbsDown, Loader2, Phone, MessageCircle, Receipt, Download, ChevronDown, ChevronRight } from 'lucide-react'
 import { SkeletonBooking } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
@@ -16,10 +16,12 @@ import {
   PLEASED_TERMS,
   getIssueCategory,
   parseBookingFeedback,
+  parseListerFeedback,
   refundPercentForFeedback,
   serializeBookingFeedback,
   type BookingFeedback,
   type IssueCategory,
+  type ListerFeedbackOutcome,
 } from '@/lib/booking-feedback'
 import {
   canPayerCancel,
@@ -254,6 +256,11 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
   const [fbDetails, setFbDetails] = useState('')
   const [paymentsError, setPaymentsError] = useState('')
   const [paymentsNotice, setPaymentsNotice] = useState('')
+  const [expandedListerBooking, setExpandedListerBooking] = useState<string | null>(null)
+  const [listerFormFor, setListerFormFor] = useState<string | null>(null)
+  const [listerOutcome, setListerOutcome] = useState<ListerFeedbackOutcome>('viewing_confirmed')
+  const [listerDetails, setListerDetails] = useState('')
+  const [listerSubmitting, setListerSubmitting] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
   // Bring the newly opened feedback form into view instead of leaving it
@@ -406,6 +413,51 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
     setFbDetails('')
   }
 
+  function openListerFeedback(hb: HouseBooking, outcome: ListerFeedbackOutcome) {
+    setExpandedListerBooking(null)
+    setListerFormFor(hb.id)
+    setListerOutcome(outcome)
+    setListerDetails('')
+    setPaymentsError('')
+    setPaymentsNotice('')
+  }
+
+  function closeListerFeedback() {
+    setListerFormFor(null)
+    setListerDetails('')
+  }
+
+  async function submitListerFeedback(hb: HouseBooking) {
+    if (listerOutcome === 'issue' && listerDetails.trim().length < 5) {
+      setPaymentsError('Please describe the problem (at least 5 characters).')
+      return
+    }
+    setListerSubmitting(hb.id)
+    setPaymentsError('')
+    setPaymentsNotice('')
+    try {
+      const res = await fetch(`/api/house-bookings/${hb.id}/lister-feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ outcome: listerOutcome, details: listerDetails.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        setPaymentsError(data.error || 'Could not save your feedback.')
+        return
+      }
+      if (data.displeased_reason) {
+        setListerHouseBookings(prev => prev.map(b => b.id === hb.id ? { ...b, displeased_reason: data.displeased_reason } : b))
+      }
+      closeListerFeedback()
+      setPaymentsNotice(data.message || 'Feedback saved. An admin has been notified.')
+    } catch {
+      setPaymentsError('Could not save your feedback. Please try again.')
+    } finally {
+      setListerSubmitting(null)
+    }
+  }
+
   async function submitFeedback(hb: HouseBooking) {
     const outcome = feedbackFor?.outcome
     if (!outcome) return
@@ -452,7 +504,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
         ...b,
         confirmed_at: now,
         rating: fbRating,
-        displeased_reason: serializeBookingFeedback(feedback),
+        displeased_reason: serializeBookingFeedback(feedback, hb.displeased_reason),
       } : b))
       closeFeedback()
       setPaymentsNotice(data.message || (outcome === 'pleased'
@@ -1012,7 +1064,16 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
           {!isEscrowMode && tab === 'lister' && listerHouseBookings.length > 0 && (
             <div className="space-y-3">
               <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-300">House payments on your listings</h2>
-              {listerHouseBookings.map((hb) => (
+              {listerHouseBookings.map((hb) => {
+                const listerState = deriveBookingState(hb as never, null)
+                const listerFeedback = parseListerFeedback(hb.displeased_reason)
+                const paidForLister = [
+                  'escrow_held', 'awaiting_payout', 'issue_open', 'refund_approved',
+                  'refund_declined', 'refunded', 'paid',
+                ].includes(listerState.phase) || !!hb.paid_at
+                const detailsOpen = expandedListerBooking === hb.id
+                const submitting = listerSubmitting === hb.id
+                return (
                 <div key={hb.id} className="bg-white dark:bg-slate-800 border dark:border-gray-700 rounded-xl overflow-hidden">
                   <div className="p-4">
                     <div className="flex items-start justify-between gap-2">
@@ -1054,9 +1115,119 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                         </a>
                       </div>
                     )}
+
+                    {paidForLister && (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 border-t dark:border-gray-700 pt-3">
+                        <a
+                          href={`/api/payments/receipt/${hb.id}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+                        >
+                          <Download className="w-3.5 h-3.5" /> {hb.release_status === 'refunded' ? 'Download refund receipt' : 'Download receipt'}
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => setExpandedListerBooking(detailsOpen ? null : hb.id)}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+                        >
+                          {detailsOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronRight className="w-3.5 h-3.5" />}
+                          {detailsOpen ? 'Hide details' : 'View details'}
+                        </button>
+                        <a
+                          href={`tel:${CONTACT_PHONE_DISPLAY}`}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-slate-700"
+                        >
+                          <Phone className="w-3.5 h-3.5" /> Contact support
+                        </a>
+                        {!listerFeedback && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openListerFeedback(hb, 'viewing_confirmed')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-700 text-white text-xs font-medium hover:bg-blue-800"
+                            >
+                              <ThumbsUp className="w-3.5 h-3.5" /> Confirm viewing
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => openListerFeedback(hb, 'issue')}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-xs font-medium hover:bg-red-50 dark:hover:bg-red-900/20"
+                            >
+                              <ThumbsDown className="w-3.5 h-3.5" /> Report a problem
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+
+                    {listerFeedback && (
+                      <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/70 px-3 py-2 dark:border-blue-950/60 dark:bg-blue-950/20">
+                        <p className="flex items-center gap-1.5 text-xs font-semibold text-blue-900 dark:text-blue-200">
+                          <CheckCircle className="w-3.5 h-3.5" />
+                          {listerFeedback.outcome === 'viewing_confirmed' ? 'You confirmed this viewing' : 'Your report is with our team'}
+                          <span className="font-normal text-blue-700 dark:text-blue-300/80">
+                            · {new Date(listerFeedback.submitted_at).toLocaleDateString()}
+                          </span>
+                        </p>
+                        {listerFeedback.details && (
+                          <p className="mt-1 text-[11px] leading-relaxed text-blue-800 dark:text-blue-300">{listerFeedback.details}</p>
+                        )}
+                      </div>
+                    )}
+
+                    {detailsOpen && (
+                      <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1.5 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 text-xs dark:border-gray-700 dark:bg-slate-900/40">
+                        <p><span className="text-gray-500">Status: </span><span className="font-medium text-gray-800 dark:text-gray-100">{listerState.label}</span></p>
+                        <p><span className="text-gray-500">Amount: </span><span className="font-medium text-gray-800 dark:text-gray-100">{formatPrice(hb.listing_price || 0)}</span></p>
+                        <p><span className="text-gray-500">Hunter: </span><span className="font-medium text-gray-800 dark:text-gray-100">{hb.name || '—'}</span></p>
+                        <p><span className="text-gray-500">Phone: </span><span className="font-medium text-gray-800 dark:text-gray-100">{hb.phone || '—'}</span></p>
+                        <p><span className="text-gray-500">Email: </span><span className="font-medium text-gray-800 dark:text-gray-100">{hb.email || '—'}</span></p>
+                        <p><span className="text-gray-500">Receipt: </span><span className="font-medium text-gray-800 dark:text-gray-100">{hb.mpesa_receipt || '—'}</span></p>
+                        <p><span className="text-gray-500">Paid: </span><span className="font-medium text-gray-800 dark:text-gray-100">{hb.paid_at ? new Date(hb.paid_at).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' }) : '—'}</span></p>
+                        <p><span className="text-gray-500">Hold ends: </span><span className="font-medium text-gray-800 dark:text-gray-100">{hb.held_until ? new Date(hb.held_until).toLocaleString('en-KE', { timeZone: 'Africa/Nairobi' }) : '—'}</span></p>
+                      </div>
+                    )}
+
+                    {listerFormFor === hb.id && (
+                      <div id={`lister-feedback-${hb.id}`} className="mt-3 border-t dark:border-gray-700 pt-3 space-y-2">
+                        <p className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
+                          {listerOutcome === 'viewing_confirmed'
+                            ? 'Confirm that the viewing took place. An admin still verifies and records the M-Pesa payout before you are paid.'
+                            : 'Tell us what went wrong. An admin will contact both sides. Your report does not move money by itself.'}
+                        </p>
+                        {listerOutcome === 'issue' && (
+                          <textarea
+                            value={listerDetails}
+                            onChange={(e) => setListerDetails(e.target.value)}
+                            rows={3}
+                            placeholder="What happened? Include dates and anything an admin should check."
+                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
+                          />
+                        )}
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            onClick={() => submitListerFeedback(hb)}
+                            disabled={submitting}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg bg-blue-700 text-white hover:bg-blue-800 disabled:opacity-50"
+                          >
+                            {submitting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : listerOutcome === 'issue' ? <ThumbsDown className="w-3.5 h-3.5" /> : <ThumbsUp className="w-3.5 h-3.5" />}
+                            {submitting ? 'Saving…' : listerOutcome === 'issue' ? 'Submit report' : 'Confirm viewing'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={closeListerFeedback}
+                            disabled={submitting}
+                            className="px-3 py-1.5 text-xs font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 disabled:opacity-50"
+                          >
+                            Close
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
-              ))}
+                )
+              })}
             </div>
           )}
           {currentBookings.map((b) => (

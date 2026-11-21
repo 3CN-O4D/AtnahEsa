@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { invalidateCached } from '@/lib/server-cache'
+import { queueSheetEvent } from '@/lib/sheet-feed'
 
 const LISTER_STATUSES = ['published', 'booked', 'taken'] as const
 type ListerStatus = (typeof LISTER_STATUSES)[number]
@@ -95,6 +96,13 @@ export async function PATCH(
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     invalidateCached('listings|')
+
+    if (updated && updated.status !== listing.status) {
+      await queueSheetEvent(id, 'listing_status_changed', {
+        status: updated.status,
+        notes: `Status changed from ${listing.status} to ${updated.status}`,
+      })
+    }
 
     return NextResponse.json({ success: true, listing: updated })
   } catch {

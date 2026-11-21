@@ -175,7 +175,7 @@ export async function POST(req: Request) {
         .update({
           confirmed_at: now,
           rating: ratingValue,
-          displeased_reason: serializeBookingFeedback(feedback),
+          displeased_reason: serializeBookingFeedback(feedback, booking.displeased_reason),
         })
         .eq('id', booking_id)
       if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -264,7 +264,7 @@ export async function POST(req: Request) {
       .from('house_bookings')
       .update({
         confirmed_at: now,
-        displeased_reason: serializeBookingFeedback(feedback),
+        displeased_reason: serializeBookingFeedback(feedback, booking.displeased_reason),
         rating: ratingValue,
       })
       .eq('id', booking_id)

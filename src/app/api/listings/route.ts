@@ -13,6 +13,7 @@ import {
   PUBLIC_LISTING_COLUMNS as PUBLIC_COLUMNS,
   fetchGroupedListingsPage,
 } from '@/lib/listings-feed'
+import { queueSheetNewListing } from '@/lib/sheet-feed'
 
 /** Public, non-personalised payloads can be reused by the CDN briefly while
  *  still picking up new listings within half a minute. */
@@ -197,18 +198,48 @@ export async function POST(req: Request) {
       status: isAdmin || validation.data.request_id ? 'published' : 'pending',
     }
 
-    let { error: insertError } = await supabase.from('listings').insert(allowedFields)
+    let { data: insertedListing, error: insertError } = await supabase
+      .from('listings')
+      .insert(allowedFields)
+      .select('id')
+      .single()
 
     // Tolerate databases where the request-link migration has not run yet.
     if (insertError && /request_id/i.test(`${insertError.code || ''} ${insertError.message || ''}`)) {
       const { request_id: _requestId, ...withoutRequest } = allowedFields
-      const retry = await supabase.from('listings').insert(withoutRequest)
+      const retry = await supabase.from('listings').insert(withoutRequest).select('id').single()
+      insertedListing = retry.data
       insertError = retry.error
     }
 
     if (insertError) return addSecurityHeaders(NextResponse.json({ error: insertError.message }, { status: 400 }))
+    if (!insertedListing?.id) {
+      return addSecurityHeaders(NextResponse.json({ error: 'Listing was created but no ID was returned' }, { status: 500 }))
+    }
 
     invalidateCached('listings|')
+
+    // Mirror the new listing to the sheet after the response has been sent.
+    // A missing webhook, a slow Google script, or a rejection never delays
+    // or fails the lister's upload.
+    queueSheetNewListing({
+      id: insertedListing.id,
+      title: allowedFields.title,
+      description: allowedFields.description,
+      price: allowedFields.price,
+      rent: allowedFields.rent,
+      deposit: allowedFields.deposit,
+      location: allowedFields.location,
+      descriptive_location: allowedFields.descriptive_location,
+      house_type: allowedFields.house_type,
+      lister_name: validation.data.lister_name,
+      uploader_name: allowedFields.uploader_name,
+      lister_phone: allowedFields.lister_phone,
+      email: user.email ?? '',
+      vacancy: allowedFields.vacancy,
+      event: 'listing_created',
+      status: allowedFields.status,
+    })
 
     const linkedRequestId = validation.data.request_id
     if (linkedRequestId) {

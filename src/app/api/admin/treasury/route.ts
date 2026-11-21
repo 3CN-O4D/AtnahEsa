@@ -23,6 +23,7 @@ import { parseBookingFeedback, serializeBookingFeedback } from '@/lib/booking-fe
 import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { moveMediaBackToListings, moveMediaToTaken } from '@/lib/move-media'
 import { invalidateCached } from '@/lib/server-cache'
+import { queueSheetEvent } from '@/lib/sheet-feed'
 
 const HOUSE_STATUSES = ['pending', 'contacted', 'confirmed', 'completed', 'cancelled'] as const
 // The live database only allows pending/held/paid/refunded. `paid` and
@@ -432,6 +433,15 @@ export async function POST(request: Request) {
           })
           .eq('id', hb.id)
         if (refundError) return NextResponse.json({ error: refundError.message }, { status: 500 })
+
+        await queueSheetEvent(hb.listing_id, 'refund_recorded', {
+          booking_id: hb.id,
+          release_status: 'refunded',
+          refund_amount: refundAmount,
+          refund_receipt: receipt,
+          refund_date: now,
+          notes: `Hunter refund ${percentage}% recorded in Treasury`,
+        })
 
         // Recording the refund is also the final decision on an open report.
         if (plan.fromIssue) {

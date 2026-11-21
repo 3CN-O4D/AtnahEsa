@@ -8,6 +8,19 @@
 
 export type BookingOutcome = 'pleased' | 'issue'
 
+/**
+ * The listing owner can also confirm a viewing or flag a problem. This is
+ * informational only: it never moves money. It is stored inside the same
+ * serialized record as the hunter's feedback so no new DB column is needed.
+ */
+export type ListerFeedbackOutcome = 'viewing_confirmed' | 'issue'
+
+export type ListerFeedback = {
+  outcome: ListerFeedbackOutcome
+  details: string
+  submitted_at: string
+}
+
 export const ISSUE_CATEGORIES = [
   {
     id: 'not_as_advertised',
@@ -81,6 +94,30 @@ export type BookingFeedback = {
   admin_note?: string
   decision?: 'refund_approved' | 'refund_declined' | null
   decided_at?: string | null
+  lister_feedback?: ListerFeedback | null
+}
+
+type FeedbackRecord = Partial<BookingFeedback> & { version?: number }
+
+function isListerFeedback(value: unknown): value is ListerFeedback {
+  if (!value || typeof value !== 'object') return false
+  const item = value as Partial<ListerFeedback>
+  return (
+    (item.outcome === 'viewing_confirmed' || item.outcome === 'issue') &&
+    typeof item.details === 'string' &&
+    typeof item.submitted_at === 'string'
+  )
+}
+
+function readFeedbackRecord(raw: string | null | undefined): FeedbackRecord | null {
+  const text = String(raw ?? '').trim()
+  if (!text.startsWith('{')) return null
+  try {
+    const parsed = JSON.parse(text) as FeedbackRecord
+    return parsed && typeof parsed === 'object' ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 export const PLEASED_TERMS =
@@ -103,25 +140,26 @@ export function parseBookingFeedback(raw: string | null | undefined): BookingFee
   if (!text) return null
 
   if (text.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(text) as Partial<BookingFeedback>
-      if (parsed && typeof parsed === 'object' && (parsed.outcome === 'pleased' || parsed.outcome === 'issue')) {
-        return {
-          version: 1,
-          outcome: parsed.outcome,
-          category: (parsed.category as BookingFeedback['category']) || (parsed.outcome === 'pleased' ? 'pleased' : 'other'),
-          details: typeof parsed.details === 'string' ? parsed.details : '',
-          review: typeof parsed.review === 'string' ? parsed.review : '',
-          rating: typeof parsed.rating === 'number' ? parsed.rating : 0,
-          contacted_hunter_at: parsed.contacted_hunter_at || null,
-          contacted_lister_at: parsed.contacted_lister_at || null,
-          admin_note: typeof parsed.admin_note === 'string' ? parsed.admin_note : '',
-          decision: parsed.decision || null,
-          decided_at: parsed.decided_at || null,
-        }
-      }
-    } catch {
-      // Fall through to the legacy plain-text format.
+    const parsed = readFeedbackRecord(text)
+    if (!parsed) return null
+    if (parsed.outcome !== 'pleased' && parsed.outcome !== 'issue') {
+      // A lister-only record is not hunter feedback and must not change the
+      // escrow phase.
+      return null
+    }
+    return {
+      version: 1,
+      outcome: parsed.outcome,
+      category: (parsed.category as BookingFeedback['category']) || (parsed.outcome === 'pleased' ? 'pleased' : 'other'),
+      details: typeof parsed.details === 'string' ? parsed.details : '',
+      review: typeof parsed.review === 'string' ? parsed.review : '',
+      rating: typeof parsed.rating === 'number' ? parsed.rating : 0,
+      contacted_hunter_at: parsed.contacted_hunter_at || null,
+      contacted_lister_at: parsed.contacted_lister_at || null,
+      admin_note: typeof parsed.admin_note === 'string' ? parsed.admin_note : '',
+      decision: parsed.decision || null,
+      decided_at: parsed.decided_at || null,
+      lister_feedback: isListerFeedback(parsed.lister_feedback) ? parsed.lister_feedback : null,
     }
   }
 
@@ -146,8 +184,43 @@ export function parseBookingFeedback(raw: string | null | undefined): BookingFee
   }
 }
 
-export function serializeBookingFeedback(feedback: BookingFeedback): string {
-  return JSON.stringify(feedback)
+export function serializeBookingFeedback(feedback: BookingFeedback, existingRaw?: string | null): string {
+  const existing = existingRaw ? readFeedbackRecord(existingRaw) : null
+  const listerFeedback = feedback.lister_feedback ?? existing?.lister_feedback ?? null
+  return JSON.stringify({
+    ...(existing || {}),
+    ...feedback,
+    version: 1,
+    lister_feedback: listerFeedback,
+  })
+}
+
+/** Read only the listing owner's feedback, never the hunter's. */
+export function parseListerFeedback(raw: string | null | undefined): ListerFeedback | null {
+  const record = readFeedbackRecord(raw)
+  return record && isListerFeedback(record.lister_feedback) ? record.lister_feedback : null
+}
+
+/** Store the listing owner's feedback without overwriting the hunter's record. */
+export function withListerFeedback(raw: string | null | undefined, listerFeedback: ListerFeedback): string {
+  const text = String(raw ?? '').trim()
+  let record: FeedbackRecord = readFeedbackRecord(text) || {}
+  if (text && !text.startsWith('{')) {
+    // Preserve a legacy plain-text complaint as the hunter's issue details.
+    record = {
+      version: 1,
+      outcome: 'issue',
+      category: 'other',
+      details: text,
+      review: '',
+      rating: 0,
+    }
+  }
+  return JSON.stringify({
+    ...record,
+    version: 1,
+    lister_feedback: listerFeedback,
+  })
 }
 
 /** Percentage of the booking fee refundable for an issue category. */

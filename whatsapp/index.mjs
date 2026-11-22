@@ -846,7 +846,12 @@ const pair = {
   error: null,
 }
 
-const pairedNumber = String(WHATSAPP_PAIR_NUMBER || '').replace(/\D/g, '')
+/*
+ * Runtime-switchable so an admin can move the bot to the official AseHanta
+ * number without a Render dashboard edit. The persisted auth state is cleared
+ * when it changes, otherwise the old companion session would reconnect.
+ */
+let pairedNumber = String(WHATSAPP_PAIR_NUMBER || '').replace(/\D/g, '')
 
 if (WHATSAPP_PAIR_NUMBER && !/^\d{8,15}$/.test(pairedNumber)) {
   console.error(
@@ -890,6 +895,52 @@ function resetPairForSocket() {
   pair.codeAt = 0
   pair.requested = false
   pair.error = null
+}
+
+/**
+ * Move the companion to a different WhatsApp number at runtime.
+ *
+ * The old socket is invalidated before its auth state is deleted: otherwise a
+ * late `creds.update` from the old session could write the wrong credentials
+ * back while the new socket is starting. A fresh socket then requests a pairing
+ * code for the new number.
+ */
+async function switchPairingNumber(rawNumber) {
+  const next = String(rawNumber ?? '').replace(/\D/g, '')
+  if (!/^\d{8,15}$/.test(next)) {
+    throw new Error('number must be digits only, with country code and no "+" (e.g. 254748275079)')
+  }
+
+  const changed = next !== pairedNumber
+  pairedNumber = next
+  ownPhone = next
+
+  // Ignore every event from the old socket, including its close handler.
+  socketGen += 1
+  connected = false
+  starting = false
+  reconnectAttempts = 0
+  stopOutbox()
+  marketing.stop()
+
+  if (sock) {
+    try {
+      sock.end(undefined)
+    } catch {
+      /* already closed */
+    }
+  }
+  sock = null
+
+  if (changed) {
+    await clearAuthState(supabase, WHATSAPP_SESSION_PREFIX)
+  }
+  resetPairForSocket()
+
+  // Give the old socket a moment to close before reading fresh auth state.
+  setTimeout(() => void start(), 800)
+
+  return { number: formatPhone(pairedNumber), changed, cleared: changed, restarted: true }
 }
 
 /**
@@ -1668,6 +1719,14 @@ function sendJson(res, status, body) {
   res.end(JSON.stringify(body))
 }
 
+async function readJsonBody(req) {
+  const chunks = []
+  for await (const chunk of req) chunks.push(chunk)
+  const raw = Buffer.concat(chunks).toString('utf8').trim()
+  if (!raw) return {}
+  return JSON.parse(raw)
+}
+
 const health = createServer(async (req, res) => {
   const url = new URL(req.url || '/', `http://${req.headers.host || 'localhost'}`)
   const registered = !!sock?.authState?.creds?.registered
@@ -1795,6 +1854,17 @@ setInterval(tick, 4000);
       /* already closed */
     }
     return sendJson(res, 202, { number: formatPhone(pairedNumber), restarted: true })
+  }
+
+  if (url.pathname === '/pair/switch' && req.method === 'POST') {
+    if (!pairingAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+    try {
+      const body = await readJsonBody(req)
+      const result = await switchPairingNumber(body.number)
+      return sendJson(res, 202, result)
+    } catch (error) {
+      return sendJson(res, 400, { error: String(error?.message ?? error) })
+    }
   }
 
   if (url.pathname === '/groups/sync') {

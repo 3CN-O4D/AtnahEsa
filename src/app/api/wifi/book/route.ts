@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { notifyAdmins } from '@/lib/notify'
 import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
-import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
+import { CONTACT_PHONE_DISPLAY, WIFI_INSTALLATION_FEE } from '@/lib/constants'
 import { normalizePhone } from '@/lib/whatsapp'
 
 const PACKAGE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
@@ -13,7 +13,7 @@ export async function POST(req: Request) {
     const { allowed, retryAfter } = await checkRateLimit(`wifi-book:${getClientIp(req)}`, 10, 300)
     if (!allowed) {
       return NextResponse.json(
-        { error: 'Too many requests. Try again shortly or WhatsApp us on 0748275079.' },
+        { error: `Too many requests. Try again shortly or WhatsApp us on ${CONTACT_PHONE_DISPLAY}.` },
         { status: 429, headers: { 'Retry-After': String(retryAfter) } }
       )
     }
@@ -110,7 +110,7 @@ export async function POST(req: Request) {
     if (error) {
       console.error('WiFi booking insert failed:', error)
       return NextResponse.json(
-        { error: 'We could not save your WiFi request. Please try again or WhatsApp us on 0748275079.' },
+        { error: `We could not save your WiFi request. Please try again or WhatsApp us on ${CONTACT_PHONE_DISPLAY}.` },
         { status: 500 }
       )
     }

@@ -582,6 +582,42 @@ export function createMarketing({
     return count ?? 0
   }
 
+  /*
+   * WhatsApp deletes statuses from the phone after 24 hours. Keep the queue in
+   * step with that so the admin panel and the no-repeat history do not fill up
+   * with posts nobody can see any more.
+   */
+  async function cleanupExpiredStatuses() {
+    const cutoff = Date.now() - DAY_MS
+    const { data, error } = await supabase
+      .from('whatsapp_marketing')
+      .select('id, expires_at, sent_at')
+      .eq('channel', 'status')
+      .limit(200)
+
+    if (error) {
+      log.warn?.('[marketing] status expiry cleanup failed:', error.message)
+      return
+    }
+
+    const ids = (data ?? [])
+      .filter((row) => {
+        const explicit = row.expires_at ? Date.parse(row.expires_at) : null
+        if (explicit !== null && !Number.isNaN(explicit)) return explicit <= Date.now()
+        const sent = row.sent_at ? Date.parse(row.sent_at) : null
+        return sent !== null && !Number.isNaN(sent) && sent <= cutoff
+      })
+      .map((row) => row.id)
+
+    if (!ids.length) return
+
+    await supabase.from('whatsapp_marketing').delete().in('id', ids)
+    for (const id of ids) {
+      await supabase.from('whatsapp_status_history').delete().eq('meta->>marketing_id', id)
+    }
+    log.log?.(`[marketing] removed ${ids.length} expired status(es)`)
+  }
+
   async function notifyDraft(draft) {
     if (!sendText) return
     const where = draft.channel === 'group' ? `group ${draft.target_jid}` : 'WhatsApp status'
@@ -809,6 +845,7 @@ export function createMarketing({
 
     busy = true
     try {
+      await cleanupExpiredStatuses()
       const snap = await control.read()
       if (!snap.marketing_enabled) return
 

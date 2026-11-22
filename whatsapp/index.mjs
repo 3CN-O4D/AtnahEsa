@@ -9,7 +9,7 @@ import pino from 'pino'
 import qrcode from 'qrcode-terminal'
 import QRCode from 'qrcode'
 
-import { createSupabase, useSupabaseAuthState, clearAuthState } from './lib/auth-state.mjs'
+import { createSupabase, createSupabaseAuthState, clearAuthState } from './lib/auth-state.mjs'
 import { loadSession, saveSession, resetSession } from './lib/session.mjs'
 import { emptyState } from './lib/chat-state.mjs'
 import { createBrain } from './lib/brain.mjs'
@@ -1019,6 +1019,9 @@ let connected = false
 let starting = false
 let socketGen = 0
 let reconnectAttempts = 0
+let wakeHits = 0
+let lastWakeAt = null
+let marketingRunning = false
 
 async function start() {
   if (starting) return
@@ -1026,7 +1029,7 @@ async function start() {
   const gen = ++socketGen
 
   try {
-    const { state, saveCreds } = await useSupabaseAuthState(
+    const { state, saveCreds } = await createSupabaseAuthState(
       supabase,
       WHATSAPP_SESSION_PREFIX,
       pairedNumber
@@ -1103,6 +1106,7 @@ async function start() {
         console.log(`[whatsapp] connected and ready ✅${lid ? ` (lid ${lid})` : ''}`)
         startOutbox()
         void syncGroups(socket, supabase)
+        marketingRunning = true
         marketing.start(socket)
       }
 
@@ -1110,6 +1114,7 @@ async function start() {
         connected = false
         starting = false
         stopOutbox()
+        marketingRunning = false
         marketing.stop()
         pair.qr = null
 
@@ -2070,7 +2075,38 @@ setInterval(tick, 4000);
     return
   }
 
-  if (url.pathname === '/health' || url.pathname === '/live' || url.pathname === '/wake') {
+  if (url.pathname === '/wake') {
+    /*
+     * Dedicated cron target. Keep it tiny: a cron hit only needs to prove the
+     * Render service is awake, so counting it here lets us confirm the external
+     * job is still running without touching WhatsApp or Supabase.
+     */
+    wakeHits += 1
+    lastWakeAt = new Date().toISOString()
+    return sendJson(res, 200, {
+      ok: true,
+      service: 'asehanta-whatsapp-wake',
+      wake_hits: wakeHits,
+      last_wake_at: lastWakeAt,
+      uptime: Math.round(process.uptime()),
+    })
+  }
+
+  if (url.pathname === '/metrics') {
+    return sendJson(res, 200, {
+      ok: true,
+      connected,
+      registered,
+      uptime: Math.round(process.uptime()),
+      wake_hits: wakeHits,
+      last_wake_at: lastWakeAt,
+      reconnect_attempts: reconnectAttempts,
+      outbox_active: Boolean(outboxTimer),
+      marketing_active: Boolean(marketingRunning),
+    })
+  }
+
+  if (url.pathname === '/health' || url.pathname === '/live') {
     /*
      * Liveness for hosts like Render: must return 200 even before the number
      * is paired. Their health check fs the service right after boot, so a

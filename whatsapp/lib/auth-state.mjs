@@ -20,7 +20,7 @@ export function createSupabase() {
   })
 }
 
-export async function useSupabaseAuthState(supabase, prefix = 'asehanta', expectedPhone = '') {
+export async function createSupabaseAuthState(supabase, prefix = 'asehanta', expectedPhone = '') {
   const table = supabase.from('whatsapp_auth')
   const fullKey = (id) => `${prefix}:${id}`
 

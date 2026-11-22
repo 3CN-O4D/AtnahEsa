@@ -20,7 +20,7 @@ export function createSupabase() {
   })
 }
 
-export async function useSupabaseAuthState(supabase, prefix = 'asehanta') {
+export async function useSupabaseAuthState(supabase, prefix = 'asehanta', expectedPhone = '') {
   const table = supabase.from('whatsapp_auth')
   const fullKey = (id) => `${prefix}:${id}`
 
@@ -44,7 +44,23 @@ export async function useSupabaseAuthState(supabase, prefix = 'asehanta') {
     if (error) throw error
   }
 
-  const creds = (await readData('creds')) || initAuthCreds()
+  let creds = (await readData('creds')) || initAuthCreds()
+
+  /*
+   * A worker restart must never reuse credentials from the previous WhatsApp
+   * number. When the configured number changes, every Signal session in the
+   * store belongs to that old identity, which shows up as endless "Bad MAC"
+   * / "No matching sessions found" decryption failures after deployment.
+   * Clear the whole auth namespace so the socket starts a clean pairing for
+   * the number in WHATSAPP_PAIR_NUMBER.
+   */
+  const storedPhone = String(creds.me?.id || '').split(':')[0].replace(/\D/g, '')
+  const wantedPhone = String(expectedPhone || '').replace(/\D/g, '')
+  if (wantedPhone && storedPhone && storedPhone !== wantedPhone) {
+    console.warn('[whatsapp] stored credentials belong to a different number — clearing session')
+    await clearAuthState(supabase, prefix)
+    creds = initAuthCreds()
+  }
 
   /*
    * Heal credentials written by older builds that dropped required fields.

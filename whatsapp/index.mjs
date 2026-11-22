@@ -1026,7 +1026,11 @@ async function start() {
   const gen = ++socketGen
 
   try {
-    const { state, saveCreds } = await useSupabaseAuthState(supabase, WHATSAPP_SESSION_PREFIX)
+    const { state, saveCreds } = await useSupabaseAuthState(
+      supabase,
+      WHATSAPP_SESSION_PREFIX,
+      pairedNumber
+    )
     const version = await resolveVersion()
 
     // A newer start() won the race while we were awaiting Supabase/version.

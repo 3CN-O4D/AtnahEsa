@@ -31,6 +31,14 @@ export default function UserProfile({ profile, listings, bookings, transactions,
     admin: 'bg-purple-100 text-purple-700',
     lister: 'bg-blue-100 text-blue-700',
     hunter: 'bg-blue-100 text-blue-800',
+    both: 'bg-indigo-100 text-indigo-700',
+  }
+
+  const roleLabels: Record<string, string> = {
+    admin: 'Admin',
+    lister: 'Lister',
+    hunter: 'Hunter',
+    both: 'Hunter & Lister',
   }
 
   const bookingStatusBadge = (status: string) => {
@@ -83,7 +91,7 @@ export default function UserProfile({ profile, listings, bookings, transactions,
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-xl font-bold">{profile.full_name || 'Unnamed'}</h1>
               <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${roleColors[profile.role] || roleColors.hunter}`}>
-                <Shield className="w-3 h-3" /> {profile.role}
+                <Shield className="w-3 h-3" /> {roleLabels[profile.role] || profile.role}
               </span>
             </div>
             <div className="flex items-center gap-4 mt-2 text-sm text-gray-500 flex-wrap">

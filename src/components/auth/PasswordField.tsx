@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Check, Eye, EyeOff, X } from 'lucide-react'
 import { useShake } from './useShake'
+import { PASSWORD_MIN_LENGTH, passwordError } from '@/lib/password'
 
 type PasswordFieldProps = {
   id: string
@@ -12,6 +13,7 @@ type PasswordFieldProps = {
   placeholder?: string
   minLength?: number
   showStrength?: boolean
+  enforceRules?: boolean
   error?: string
   invalid?: boolean
   shakeSignal?: number
@@ -30,8 +32,9 @@ export default function PasswordField({
   value,
   onChange,
   placeholder = 'Enter your password',
-  minLength = 6,
+  minLength = PASSWORD_MIN_LENGTH,
   showStrength = false,
+  enforceRules = false,
   error,
   invalid = false,
   shakeSignal = 0,
@@ -45,9 +48,18 @@ export default function PasswordField({
   const shaking = useShake(shakeSignal)
 
   const typed = value.length > 0
-  const valid = value.length >= minLength
-  const isInvalid = invalid || Boolean(error) || (typed && !valid)
-  const progress = Math.min(100, Math.round((value.length / minLength) * 100))
+  const ruleProblem = enforceRules ? passwordError(value) : null
+  const valid = enforceRules ? ruleProblem === null : value.length >= minLength
+  const isInvalid = invalid || Boolean(error) || (enforceRules && typed && !valid)
+  const checks = [
+    { label: `${PASSWORD_MIN_LENGTH}+ characters`, ok: value.length >= PASSWORD_MIN_LENGTH },
+    { label: 'Uppercase letter', ok: /[A-Z]/.test(value) },
+    { label: 'Lowercase letter', ok: /[a-z]/.test(value) },
+    { label: 'Number', ok: /[0-9]/.test(value) },
+  ]
+  const progress = enforceRules
+    ? Math.round((checks.filter((check) => check.ok).length / checks.length) * 100)
+    : Math.min(100, Math.round((value.length / minLength) * 100))
 
   const borderClass = isInvalid
     ? 'border-red-400 bg-red-50/50 focus:border-red-500 focus:ring-red-500/25 dark:border-red-700 dark:bg-red-950/20'
@@ -110,10 +122,24 @@ export default function PasswordField({
               }`}
             >
               {valid ? <Check className="h-3 w-3" /> : typed ? <X className="h-3 w-3" /> : null}
-              {valid ? 'Password looks good' : typed ? `${minLength - value.length} more character${minLength - value.length === 1 ? '' : 's'}` : `At least ${minLength} characters`}
+              {valid
+                ? 'Password looks good'
+                : typed
+                  ? ruleProblem || `${minLength - value.length} more character${minLength - value.length === 1 ? '' : 's'}`
+                  : `At least ${minLength} characters`}
             </span>
             <span className="tabular-nums text-gray-400">{Math.min(value.length, minLength)}/{minLength}</span>
           </div>
+          {enforceRules && (
+            <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px]">
+              {checks.map((check) => (
+                <li key={check.label} className={`inline-flex items-center gap-1 ${check.ok ? 'text-blue-700 dark:text-blue-400' : 'text-gray-400'}`}>
+                  {check.ok ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                  {check.label}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

@@ -4,12 +4,14 @@ import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
-import { User, Lock, Mail, Phone, ArrowLeft, Eye, EyeOff, List, Camera, X, Check } from 'lucide-react'
+import { User, Lock, Mail, Phone, ArrowLeft, Home, Eye, EyeOff, List, Camera, X, Check } from 'lucide-react'
 import { SkeletonProfile } from '@/components/ui/Skeleton'
 import Input from '@/components/ui/Input'
 import Button from '@/components/ui/Button'
 import { createClient } from '@/lib/supabase/client'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import { passwordError as validatePassword } from '@/lib/password'
+import { normalizeRole, roleLabel, selectionFromMetadata, selectionFromRole, type RoleSelection } from '@/lib/roles'
 import type { Profile } from '@/types'
 
 export default function ProfilePage() {
@@ -22,6 +24,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(false)
   const [editMode, setEditMode] = useState(false)
   const [editing, setEditing] = useState({ full_name: '', username: '', phone: '' })
+  const [editingRoles, setEditingRoles] = useState<RoleSelection>({ hunter: true, lister: false })
   const [avatarUploading, setAvatarUploading] = useState(false)
 
   // OTP for profile changes
@@ -75,18 +78,20 @@ export default function ProfilePage() {
       setUserEmail(user.email ?? '')
       const isGoogle = user.app_metadata?.provider === 'google'
       setIsGoogleUser(isGoogle)
+      const metadataRoles = selectionFromMetadata((user.user_metadata as Record<string, unknown> | undefined)?.roles)
       const { data: existing } = await supabase.from('profiles').select('*').eq('id', user.id).maybeSingle()
       if (existing) {
         const p = existing as Profile & { has_password?: boolean }
         setProfile(p)
         setHasPassword(!!p.has_password)
         setEditing({ full_name: p.full_name, username: p.username, phone: p.phone || '' })
+        setEditingRoles(metadataRoles || selectionFromRole(p.role))
       } else {
         const meta = user.user_metadata || {}
         const defaultUsername = meta.preferred_username || meta.username || user.email?.split('@')[0] || 'user'
         const { data: created, error: createError } = await supabase
           .from('profiles')
-          .insert({ id: user.id, full_name: meta.full_name || meta.name || user.email?.split('@')[0] || 'User', username: defaultUsername, phone: meta.phone || '', role: meta.role || 'hunter', terms_accepted: true, has_password: !isGoogle })
+          .insert({ id: user.id, full_name: meta.full_name || meta.name || user.email?.split('@')[0] || 'User', username: defaultUsername, phone: meta.phone || '', role: normalizeRole(meta.role || meta.roles || 'hunter'), terms_accepted: true, has_password: !isGoogle })
           .select()
           .single()
         if (createError || !created) {
@@ -99,6 +104,7 @@ export default function ProfilePage() {
         setProfile(p)
         setHasPassword(!!p.has_password)
         setEditing({ full_name: p.full_name, username: p.username, phone: p.phone || '' })
+        setEditingRoles(metadataRoles || selectionFromRole(p.role))
       }
       setProfileLoaded(true)
     }).catch((err) => {
@@ -111,6 +117,7 @@ export default function ProfilePage() {
   const startEdit = () => {
     if (!profile) return
     setEditing({ full_name: profile.full_name, username: profile.username, phone: profile.phone || '' })
+    setEditingRoles(selectionFromRole(profile.role))
     setProfileOtpSent(false)
     setProfileOtp(['', '', '', '', '', ''])
     setProfileError('')
@@ -121,6 +128,7 @@ export default function ProfilePage() {
   const cancelEdit = () => {
     if (!profile) return
     setEditing({ full_name: profile.full_name, username: profile.username, phone: profile.phone || '' })
+    setEditingRoles(selectionFromRole(profile.role))
     setProfileOtpSent(false)
     setProfileOtp(['', '', '', '', '', ''])
     setProfileError('')
@@ -132,6 +140,10 @@ export default function ProfilePage() {
     setSuccess('')
     if (!editing.full_name.trim() || !editing.username.trim()) {
       setProfileError('Name and username are required')
+      return
+    }
+    if (!editingRoles.hunter && !editingRoles.lister) {
+      setProfileError('Choose hunter, lister, or both')
       return
     }
 
@@ -164,16 +176,25 @@ export default function ProfilePage() {
       const res = await fetch('/api/profile/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ...editing, otp: code }),
+        body: JSON.stringify({
+          ...editing,
+          roles: editingRoles.hunter && editingRoles.lister
+            ? ['hunter', 'lister']
+            : editingRoles.lister ? ['lister'] : ['hunter'],
+          otp: code,
+        }),
       })
       const data = await res.json()
       if (!res.ok) { setProfileError(data.error || 'Failed to update profile'); setProfileOtpLoading(false); return }
 
       const supabase = createClient()
+      await supabase.auth.refreshSession()
       const { data: fresh } = await supabase.from('profiles').select('*').eq('id', profile!.id).maybeSingle()
       if (fresh) {
-        setProfile(fresh as Profile)
-        setEditing({ full_name: fresh.full_name, username: fresh.username, phone: fresh.phone || '' })
+        const updated = { ...(fresh as Profile), role: data.role || (fresh as Profile).role }
+        setProfile(updated)
+        setEditing({ full_name: updated.full_name, username: updated.username, phone: updated.phone || '' })
+        setEditingRoles(selectionFromRole(updated.role))
       }
       setEditMode(false)
       setProfileOtpSent(false)
@@ -428,7 +449,8 @@ export default function ProfilePage() {
   const handleCreatePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     setCreatePasswordError(''); setSuccess('')
-    if (newPassword.length < 8) { setCreatePasswordError('Password must be at least 8 characters'); return }
+    const createProblem = validatePassword(newPassword)
+    if (createProblem) { setCreatePasswordError(createProblem); return }
     if (newPassword !== confirmPassword) { setCreatePasswordError('Passwords do not match'); return }
     setLoading(true)
     try {
@@ -502,7 +524,8 @@ export default function ProfilePage() {
     e.preventDefault()
     setPasswordError(''); setSuccess('')
     if (!oldPassword) { setPasswordError('Enter your current password'); return }
-    if (newPassword.length < 8) { setPasswordError('New password must be at least 8 characters'); return }
+    const changeProblem = validatePassword(newPassword)
+    if (changeProblem) { setPasswordError(`New password: ${changeProblem.toLowerCase()}`); return }
     if (newPassword === oldPassword) { setPasswordError('New password must be different from your current password'); return }
     if (newPassword !== confirmPassword) { setPasswordError('New passwords do not match'); return }
     setLoading(true)
@@ -639,6 +662,43 @@ export default function ProfilePage() {
             <Input label="Username" id="edit-username" value={editing.username} onChange={(e) => setEditing({ ...editing, username: e.target.value })} />
             <Input label="Phone Number" id="edit-phone" value={editing.phone} onChange={(e) => setEditing({ ...editing, phone: e.target.value })} />
 
+            <fieldset>
+              <legend className="mb-2 text-sm font-medium text-gray-700 dark:text-gray-200">
+                I&apos;m here to <span className="font-normal text-gray-500">(choose one or both)</span>
+              </legend>
+              <div className="grid grid-cols-2 gap-2">
+                {([
+                  { key: 'hunter' as const, label: 'Hunt houses', copy: 'Book and pay', Icon: Home },
+                  { key: 'lister' as const, label: 'List houses', copy: 'Earn from listings', Icon: List },
+                ]).map(({ key, label, copy, Icon }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    aria-pressed={editingRoles[key]}
+                    onClick={() => setEditingRoles((current) => {
+                      const next = { ...current, [key]: !current[key] }
+                      if (!next.hunter && !next.lister) return current
+                      return next
+                    })}
+                    className={`flex items-start gap-2 rounded-xl border p-2.5 text-left text-xs transition-colors ${
+                      editingRoles[key]
+                        ? 'border-blue-600 bg-blue-50 text-blue-900 dark:border-blue-500 dark:bg-blue-950/30 dark:text-blue-200'
+                        : 'border-gray-200 bg-white text-gray-700 dark:border-gray-600 dark:bg-slate-900 dark:text-gray-300'
+                    }`}
+                  >
+                    <span className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${editingRoles[key] ? 'border-blue-600 bg-blue-600 text-white' : 'border-gray-300 dark:border-gray-500'}`}>
+                      {editingRoles[key] && <Check className="h-3 w-3" />}
+                    </span>
+                    <span>
+                      <Icon className="mb-1 h-4 w-4" />
+                      <span className="block font-semibold">{label}</span>
+                      <span className="block text-[10px] opacity-70">{copy}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </fieldset>
+
             {error && <p className="text-sm text-red-600 dark:text-red-400">{error}</p>}
 
             {!profileOtpSent ? (
@@ -696,7 +756,7 @@ export default function ProfilePage() {
               <span>{profile.phone || 'No phone'}</span>
             </div>
             <div className="text-gray-500">
-              Role: <span className="font-medium capitalize">{profile.role}</span>
+              Role: <span className="font-medium">{roleLabel(profile.role)}</span>
             </div>
             <div className="text-gray-500">
               Joined: {new Date(profile.created_at).toLocaleDateString()}
@@ -722,7 +782,7 @@ export default function ProfilePage() {
             <div className="space-y-1">
               <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
               <div className="relative">
-                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required minLength={8} />
+                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="6+ chars, upper, lower & number" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required minLength={6} />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
                   {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
@@ -799,7 +859,7 @@ export default function ProfilePage() {
             <div className="space-y-1">
               <label htmlFor="new-password" className="block text-sm font-medium text-gray-700">New Password</label>
               <div className="relative">
-                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="Min 8 characters" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required minLength={8} />
+                <input id="new-password" type={showNew ? 'text' : 'password'} placeholder="6+ chars, upper, lower & number" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} className="block w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100 px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500" required minLength={6} />
                 <button type="button" onClick={() => setShowNew(!showNew)} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">
                   {showNew ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>

@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   username TEXT UNIQUE NOT NULL,
   full_name TEXT NOT NULL,
   phone TEXT,
-  role TEXT NOT NULL DEFAULT 'hunter' CHECK (role IN ('hunter', 'lister', 'admin')),
+  role TEXT NOT NULL DEFAULT 'hunter' CHECK (role IN ('hunter', 'lister', 'both', 'admin')),
   terms_accepted BOOLEAN DEFAULT false,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()

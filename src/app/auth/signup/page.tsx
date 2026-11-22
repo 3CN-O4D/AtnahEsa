@@ -23,6 +23,8 @@ import PasswordField from '@/components/auth/PasswordField'
 import OtpInput, { emptyOtp } from '@/components/auth/OtpInput'
 import { useShake } from '@/components/auth/useShake'
 import { callbackDestination, withCallbackUrl } from '@/lib/auth-redirect'
+import { passwordError } from '@/lib/password'
+import { roleFromSelection, type RoleSelection } from '@/lib/roles'
 
 const RESEND_SECONDS = 45
 
@@ -30,7 +32,13 @@ function SignUpForm() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const callbackUrl = callbackDestination(searchParams.get('callbackUrl'))
-  const [role, setRole] = useState(() => searchParams.get('role') || 'hunter')
+  const [roles, setRoles] = useState<RoleSelection>(() => {
+    const requested = searchParams.get('role') || 'hunter'
+    return {
+      hunter: requested !== 'lister',
+      lister: requested === 'lister' || requested === 'both',
+    }
+  })
   const [step, setStep] = useState<'form' | 'otp'>('form')
   const [name, setName] = useState('')
   const [username, setUsername] = useState('')
@@ -44,6 +52,7 @@ function SignUpForm() {
   const [agreeTerms, setAgreeTerms] = useState(false)
   const [shakeSignal, setShakeSignal] = useState(0)
   const [resendIn, setResendIn] = useState(0)
+  const [existingAccount, setExistingAccount] = useState(false)
   const shaking = useShake(shakeSignal)
 
   useEffect(() => {
@@ -77,8 +86,13 @@ function SignUpForm() {
       fail('Please agree to the Terms & Conditions to continue')
       return
     }
-    if (password.length < 6) {
-      fail('Your password must be at least 6 characters')
+    if (!roles.hunter && !roles.lister) {
+      fail('Choose hunter, lister, or both')
+      return
+    }
+    const passwordProblem = passwordError(password)
+    if (passwordProblem) {
+      fail(passwordProblem)
       return
     }
 
@@ -89,7 +103,16 @@ function SignUpForm() {
       const res = await fetch('/api/auth/create-user', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, username, full_name: name, phone, role, terms_accepted: true }),
+        body: JSON.stringify({
+          email,
+          password,
+          username,
+          full_name: name,
+          phone,
+          role: roleFromSelection(roles),
+          roles: roles.hunter && roles.lister ? ['hunter', 'lister'] : roles.lister ? ['lister'] : ['hunter'],
+          terms_accepted: true,
+        }),
       })
       const data = await res.json()
       if (!res.ok) {
@@ -103,6 +126,7 @@ function SignUpForm() {
         body: JSON.stringify({ email, phone, type: 'signup' }),
       })
 
+      setExistingAccount(Boolean(data.existing))
       setStep('otp')
       setResendIn(RESEND_SECONDS)
       setOtp(emptyOtp())
@@ -194,7 +218,10 @@ function SignUpForm() {
             </div>
             <h1 className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Check your email</h1>
             <p className="mx-auto mt-1.5 max-w-xs text-sm text-gray-500 dark:text-gray-400">
-              We sent a 6-digit code to <strong className="text-gray-700 dark:text-gray-200">{email}</strong>. It expires in 10 minutes.
+              {existingAccount
+                ? 'This email already has an account. We sent a code to confirm it and add your selected roles.'
+                : 'We sent a 6-digit code to'}{' '}
+              {!existingAccount && <strong className="text-gray-700 dark:text-gray-200">{email}</strong>}. It expires in 10 minutes.
             </p>
           </div>
 
@@ -222,7 +249,7 @@ function SignUpForm() {
               loading={loading}
               className="w-full bg-gradient-to-r from-blue-700 to-blue-600 shadow-lg shadow-blue-600/20 hover:brightness-110"
             >
-              Verify &amp; create account <ArrowRight className="ml-1.5 h-4 w-4" />
+              {existingAccount ? 'Verify & save roles' : 'Verify & create account'} <ArrowRight className="ml-1.5 h-4 w-4" />
             </Button>
           </form>
 
@@ -287,19 +314,24 @@ function SignUpForm() {
       <form onSubmit={handleSignUp} noValidate className="space-y-4">
         <fieldset>
           <legend className="mb-2 flex items-center gap-1.5 text-sm font-medium text-gray-700 dark:text-gray-200">
-            <Sparkles className="h-3.5 w-3.5 text-blue-600" /> I&apos;m here to…
+            <Sparkles className="h-3.5 w-3.5 text-blue-600" /> I&apos;m here to… <span className="font-normal normal-case tracking-normal text-gray-500">(choose one or both)</span>
           </legend>
           <div className="grid grid-cols-2 gap-2.5">
             {[
-              { value: 'hunter', title: 'Browse & book', copy: 'Find a home', Icon: Home },
-              { value: 'lister', title: 'List my house', copy: 'Earn from listings', Icon: Building2 },
+              { value: 'hunter' as const, title: 'Browse & book', copy: 'Find a home', Icon: Home },
+              { value: 'lister' as const, title: 'List my house', copy: 'Earn from listings', Icon: Building2 },
             ].map(({ value, title, copy, Icon }) => {
-              const selected = role === value
+              const selected = roles[value]
               return (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => setRole(value)}
+                  onClick={() => setRoles((current) => {
+                    const next = { ...current, [value]: !current[value] }
+                    // Never leave someone with no role at all.
+                    if (!next.hunter && !next.lister) return current
+                    return next
+                  })}
                   aria-pressed={selected}
                   className={`group relative overflow-hidden rounded-xl border p-3 text-left transition-all duration-200 active:scale-[0.98] ${
                     selected
@@ -367,9 +399,10 @@ function SignUpForm() {
           label="Password"
           value={password}
           onChange={(value) => { setPassword(value); if (error) setError('') }}
-          placeholder="At least 6 characters"
+          placeholder="6+ chars, upper, lower & number"
           minLength={6}
           showStrength
+          enforceRules
           invalid={Boolean(error) && /password/i.test(error)}
           shakeSignal={/password/i.test(error) ? shakeSignal : 0}
           autoComplete="new-password"
@@ -385,7 +418,7 @@ function SignUpForm() {
           <span className="text-xs leading-relaxed text-gray-600 dark:text-gray-300">
             I agree to the{' '}
             <Link href="/terms" target="_blank" className="font-semibold text-blue-700 hover:underline dark:text-blue-400">
-              Terms for {role === 'lister' ? 'Listers' : 'House Hunters'}
+              Terms for {roles.hunter && roles.lister ? 'Hunters & Listers' : roles.lister ? 'Listers' : 'House Hunters'}
             </Link>{' '}
             and consent to cookies being saved on my device for authentication.
           </span>

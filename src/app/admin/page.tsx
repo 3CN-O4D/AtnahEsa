@@ -1012,6 +1012,7 @@ function AdminDashboardInner() {
                     <select value={u.role} onChange={(e) => handleUpdateUserRole(u.id, e.target.value)} className="text-xs border rounded px-1 py-0.5">
                       <option value="hunter">Hunter</option>
                       <option value="lister">Lister</option>
+                      <option value="both">Hunter &amp; Lister</option>
                       <option value="admin">Admin</option>
                     </select>
                   </td>

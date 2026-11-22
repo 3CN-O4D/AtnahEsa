@@ -6,6 +6,7 @@ import { notifyAdmins } from '@/lib/notify'
 import { sendOtpEmail } from '@/lib/email'
 import { findValidOtp, recordOtpFailure } from '@/lib/otp'
 import { checkRateLimit } from '@/lib/rate-limit'
+import { passwordError } from '@/lib/password'
 import { WIFI_INSTALLATION_FEE, WHATSAPP_NUMBER } from '@/lib/constants'
 import {
   canonicalWhatsAppContact,
@@ -975,10 +976,11 @@ export async function completePasswordReset(
       state: { mode: 'chat', step: null, form: 'password_reset', draft: { email, stage: 'otp' } },
     }
   }
-  if (password.length < 8) {
+  const passwordProblem = passwordError(password)
+  if (passwordProblem) {
     return {
       ok: false,
-      text: 'The new password must be at least 8 characters. Ask for a longer password.',
+      text: `The new password must be ${passwordProblem.toLowerCase()}. Ask for a valid password with uppercase, lowercase and a number.`,
       state: { mode: 'chat', step: null, form: 'password_reset', draft: { email, stage: 'password' } },
     }
   }

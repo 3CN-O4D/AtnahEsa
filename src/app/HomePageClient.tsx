@@ -28,6 +28,7 @@ import Reveal from '@/components/ui/Reveal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { useCountUp } from '@/hooks/useCountUp'
+import { hasListerRole } from '@/lib/roles'
 import type { Listing } from '@/types'
 
 const HOW_IT_WORKS = [
@@ -124,7 +125,7 @@ export default function HomePageClient({ initialListings, initialStats }: HomePa
       if (data.user) {
         try {
           const { data: profile } = await supabase.from('profiles').select('role').eq('id', data.user.id).maybeSingle()
-          setIsLister(profile?.role === 'lister' || profile?.role === 'admin')
+          setIsLister(hasListerRole(profile?.role))
         } catch {}
       }
     })

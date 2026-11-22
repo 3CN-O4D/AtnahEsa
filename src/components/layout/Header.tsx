@@ -10,6 +10,7 @@ import { createClient } from '@/lib/supabase/client'
 import { useFavorites } from '@/lib/favorites'
 import { APP_NAME } from '@/lib/constants'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import { hasListerRole } from '@/lib/roles'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
@@ -55,7 +56,7 @@ export default function Header() {
       if (data.user) {
         const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', data.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
-        setIsLister(profile?.role === 'lister' || profile?.role === 'admin')
+        setIsLister(hasListerRole(profile?.role))
         setAvatarUrl(profile?.avatar_url || null)
         setDisplayName(profile?.full_name || data.user?.email || null)
       }
@@ -66,7 +67,7 @@ export default function Header() {
       if (session?.user) {
         const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', session.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
-        setIsLister(profile?.role === 'lister' || profile?.role === 'admin')
+        setIsLister(hasListerRole(profile?.role))
         setAvatarUrl(profile?.avatar_url || null)
         setDisplayName(profile?.full_name || session.user?.email || null)
       } else {

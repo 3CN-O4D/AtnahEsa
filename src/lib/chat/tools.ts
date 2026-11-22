@@ -40,8 +40,8 @@ export async function toolStats(): Promise<ToolResult> {
     supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'taken'),
     supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
     supabase.from('listings').select('*', { count: 'exact', head: true }).eq('status', 'rejected'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'hunter'),
-    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'lister'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['hunter', 'both']),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).in('role', ['lister', 'both']),
   ])
   const total = listings.count ?? 0
   const available = published.count ?? 0

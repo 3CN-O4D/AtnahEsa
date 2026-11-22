@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
+import { rolesForMetadata } from '@/lib/roles'
 
 export async function PATCH(req: NextRequest) {
   try {
@@ -18,10 +19,13 @@ export async function PATCH(req: NextRequest) {
     const updates: Record<string, unknown> = {}
 
     if (role) {
-      if (!['hunter', 'lister', 'admin'].includes(role)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
+      if (!['hunter', 'lister', 'both', 'admin'].includes(role)) return NextResponse.json({ error: 'Invalid role' }, { status: 400 })
       updates.role = role
       const { error: authError } = await adminSupabase.auth.admin.updateUserById(userId, {
-        user_metadata: { role },
+        user_metadata: {
+          role,
+          roles: role === 'both' ? ['hunter', 'lister'] : rolesForMetadata(role),
+        },
       })
       if (authError) console.error('Failed to sync auth metadata:', authError)
     }

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { createClient } from '@/lib/supabase/server'
 import { callbackDestination } from '@/lib/auth-redirect'
+import { normalizeRole } from '@/lib/roles'
 
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url)
@@ -48,7 +49,7 @@ export async function GET(request: Request) {
           full_name: fullName,
           username: username,
           avatar_url: avatarUrl,
-          role: existing?.role || 'hunter',
+          role: existing?.role || normalizeRole(meta.role || meta.roles || 'hunter'),
           verified: existing?.verified || false,
           terms_accepted: true,
           has_password: !isGoogle,

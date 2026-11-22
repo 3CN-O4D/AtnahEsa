@@ -22,11 +22,11 @@ export async function GET(req: Request) {
       supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'hunter'),
+        .in('role', ['hunter', 'both']),
       supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
-        .eq('role', 'lister'),
+        .in('role', ['lister', 'both']),
     ])
 
     const response = NextResponse.json({

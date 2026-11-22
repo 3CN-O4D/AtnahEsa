@@ -1,3 +1,5 @@
+import { roleAudiences } from './roles'
+
 export type NotificationAudience = 'everyone' | 'hunter' | 'lister' | 'admin'
 
 export type NotificationRow = {
@@ -29,6 +31,12 @@ export function normalizeAudiences(input: unknown): NotificationAudience[] {
   const set = new Set<NotificationAudience>()
   for (const value of raw) {
     const key = String(value).trim().toLowerCase().replace(/s$/, '')
+    if (key === 'both') {
+      // A user who selected both roles belongs to both broadcast groups.
+      set.add('hunter')
+      set.add('lister')
+      continue
+    }
     if ((VALID as string[]).includes(key)) set.add(key as NotificationAudience)
   }
   if (set.size === 0) set.add('everyone')
@@ -62,7 +70,8 @@ export function isNotificationVisibleTo(
   }
 
   const audiences = getNotificationAudiences(row)
-  return audiences.includes('everyone') || audiences.includes((role || '') as NotificationAudience)
+  if (audiences.includes('everyone')) return true
+  return roleAudiences(role).some((userRole) => audiences.includes(userRole as NotificationAudience))
 }
 
 export function isNotificationExpired(row: NotificationRow, now = Date.now()): boolean {

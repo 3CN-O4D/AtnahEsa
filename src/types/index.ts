@@ -182,7 +182,7 @@ export interface Profile {
   full_name: string
   phone: string
   email: string
-  role: 'hunter' | 'lister' | 'admin'
+  role: 'hunter' | 'lister' | 'both' | 'admin'
   avatar_url: string | null
   average_rating: number
   total_reviews: number

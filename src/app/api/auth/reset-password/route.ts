@@ -3,14 +3,13 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { findAuthUserByEmail } from '@/lib/supabase/admin-users'
 import { findValidOtp, recordOtpFailure } from '@/lib/otp'
 import { checkRateLimit } from '@/lib/rate-limit'
-
-const PASSWORD_MIN = 8
+import { isValidPassword } from '@/lib/password'
 
 export async function POST(req: Request) {
   try {
     const { email, otp, password } = await req.json()
 
-    if (!email || !otp || !password || password.length < PASSWORD_MIN) {
+    if (!email || !otp || !isValidPassword(password)) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
     }
 

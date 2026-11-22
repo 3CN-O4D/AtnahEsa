@@ -7,6 +7,7 @@ import {
   type NotificationRow,
 } from '@/lib/notification-audience'
 import { auditAction } from './audit'
+import { rolesForMetadata, roleLabel } from '@/lib/roles'
 import { notifyUser } from '@/lib/notify'
 import { notifyPhoneWhatsApp } from '@/lib/whatsapp/outbox'
 import { normalizePhone } from '@/lib/whatsapp'
@@ -197,7 +198,7 @@ async function getStats(ctx: AdminContext): Promise<ToolResult> {
     '*Platform snapshot*',
     `🏠 Listings: ${listingRows.length} total — ${countBy(listingRows, 'status', 'published')} published, ${countBy(listingRows, 'status', 'pending')} pending, ${countBy(listingRows, 'status', 'booked')} booked, ${countBy(listingRows, 'status', 'taken')} taken, ${countBy(listingRows, 'status', 'rejected')} rejected`,
     `⚠️ Listings with issues: ${listingRows.filter((l) => Number(l.issues_count) > 0).length}`,
-    `👥 Users: ${profileRows.length} — ${countBy(profileRows, 'role', 'hunter')} hunters, ${countBy(profileRows, 'role', 'lister')} listers, ${countBy(profileRows, 'role', 'admin')} admins`,
+    `👥 Users: ${profileRows.length} — ${profileRows.filter((p) => ['hunter', 'both'].includes(String(p.role))).length} hunters, ${profileRows.filter((p) => ['lister', 'both'].includes(String(p.role))).length} listers, ${countBy(profileRows, 'role', 'admin')} admins (both counted twice)`,
     `📋 House requests: ${requestRows.length} — ${countBy(requestRows, 'status', 'pending')} pending`,
     `📡 WiFi: ${(wifiPackages.data ?? []).length} packages, ${wifiRows.length} bookings`,
     `🚚 Movers: ${(movers.data ?? []).length}`,
@@ -366,7 +367,7 @@ const readTools: AdminTool[] = [
       'List users with optional role filter and text search over name, username, email and phone. Returns ids, roles and verification.',
     kind: 'read',
     schema: z.object({
-      role: z.enum(['hunter', 'lister', 'admin']).optional(),
+      role: z.enum(['hunter', 'lister', 'both', 'admin']).optional(),
       search: z.string().max(120).optional(),
       limit: limitSchema,
     }),
@@ -424,7 +425,10 @@ const readTools: AdminTool[] = [
         const bucket = byMonth.get(key) || { total: 0, hunter: 0, lister: 0, admin: 0 }
         bucket.total += 1
         const role = String(row.role || '').toLowerCase()
-        if (role === 'hunter') bucket.hunter += 1
+        if (role === 'both') {
+          bucket.hunter += 1
+          bucket.lister += 1
+        } else if (role === 'hunter') bucket.hunter += 1
         else if (role === 'lister') bucket.lister += 1
         else if (role === 'admin') bucket.admin += 1
         byMonth.set(key, bucket)
@@ -1213,9 +1217,9 @@ const writeTools: AdminTool[] = [
   },
   {
     name: 'admin_update_user_role',
-    description: 'Change a user role between hunter, lister and admin. Notifies the user.',
+    description: 'Change a user role between hunter, lister, both and admin. Notifies the user.',
     kind: 'write',
-    schema: z.object({ user_id: z.string().min(1), role: z.enum(['hunter', 'lister', 'admin']) }),
+    schema: z.object({ user_id: z.string().min(1), role: z.enum(['hunter', 'lister', 'both', 'admin']) }),
     summarize: (a) => `Change user ${String(a.user_id)} role to ${String(a.role)}`,
     run: async (args, ctx) => {
       const userId = str(args, 'user_id')
@@ -1227,14 +1231,17 @@ const writeTools: AdminTool[] = [
       if (!profile) return fail('User not found.')
 
       const { error: authError } = await ctx.db.auth.admin.updateUserById(userId, {
-        user_metadata: { role },
+        user_metadata: {
+          role,
+          roles: role === 'both' ? ['hunter', 'lister'] : rolesForMetadata(role),
+        },
       })
       if (authError) return fail(`Auth metadata update failed: ${authError.message}`)
 
       const { error } = await ctx.db.from('profiles').update({ role }).eq('id', userId)
       if (error) return fail(error.message)
 
-      await userInApp(userId, 'Role updated', `Your account role is now ${role}.`, '/profile')
+      await userInApp(userId, 'Role updated', `Your account role is now ${roleLabel(role)}.`, '/profile')
       await emailUser(ctx, userId, 'Account role updated', 'Your role was updated', {
         Name: String(profile.full_name || 'User'),
         'Previous role': String(profile.role || 'unknown'),
@@ -2557,11 +2564,11 @@ const writeTools: AdminTool[] = [
   {
     name: 'admin_batch_update_users',
     description:
-      'Batch update user role or verification for multiple users at once. Provide comma-separated user IDs and the new role (hunter, lister, admin) or verification flag.',
+      'Batch update user role or verification for multiple users at once. Provide comma-separated user IDs and the new role (hunter, lister, both, admin) or verification flag.',
     kind: 'write',
     schema: z.object({
       user_ids: z.string().min(1),
-      role: z.enum(['hunter', 'lister', 'admin']).optional(),
+      role: z.enum(['hunter', 'lister', 'both', 'admin']).optional(),
       verified: z.boolean().optional(),
       reason: z.string().max(300).optional(),
     }),
@@ -2588,6 +2595,15 @@ const writeTools: AdminTool[] = [
 
       const { error } = await ctx.db.from('profiles').update(patch).in('id', rawIds)
       if (error) return fail(error.message)
+
+      if (args.role !== undefined) {
+        await Promise.all(rawIds.map((id) => ctx.db.auth.admin.updateUserById(id, {
+          user_metadata: {
+            role: args.role,
+            roles: args.role === 'both' ? ['hunter', 'lister'] : rolesForMetadata(args.role),
+          },
+        })))
+      }
 
       const changes: string[] = []
       if (args.role) changes.push(`role to ${args.role}`)

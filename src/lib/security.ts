@@ -119,7 +119,7 @@ export const VALIDATION_SCHEMAS = {
 
   passwordReset: z.object({
     email: z.string().email(),
-    password: z.string().min(8).max(128).regex(/[A-Z]/).regex(/[a-z]/).regex(/[0-9]/),
+    password: z.string().min(6).max(128).regex(/[A-Z]/).regex(/[a-z]/).regex(/[0-9]/),
     otp: z.string().length(6).regex(/^\d+$/),
   }),
 

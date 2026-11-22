@@ -9,6 +9,7 @@ import { SkeletonBooking } from '@/components/ui/Skeleton'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import { hasListerRole } from '@/lib/roles'
 import { CONTACT_EMAIL, CONTACT_PHONE_DISPLAY, WHATSAPP_NUMBER } from '@/lib/constants'
 import {
   ISSUE_CATEGORIES,
@@ -289,7 +290,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
 
       if (myBookings) setBookings(myBookings as unknown as BookingWithDetails[])
 
-      if (profile?.role === 'lister' || profile?.role === 'admin') {
+      if (hasListerRole(profile?.role)) {
         const { data: listings } = await supabase
           .from('listings')
           .select('id')
@@ -571,7 +572,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
   if (loading) return <SkeletonBooking />
 
   const currentBookings = isEscrowMode ? [] : tab === 'hunter' ? bookings : listerBookings
-  const showListerTab = !isEscrowMode && (profileRole === 'lister' || profileRole === 'admin')
+  const showListerTab = !isEscrowMode && hasListerRole(profileRole)
   const escrowStates = visibleHouseBookings.map(stateFor)
   const activeHolds = escrowStates.filter((s) => s.phase === 'escrow_held').length
   const awaitingPayout = escrowStates.filter((s) => s.phase === 'awaiting_payout' || s.phase === 'issue_open').length

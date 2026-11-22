@@ -3,10 +3,12 @@ import { createClient } from '@/lib/supabase/server'
 import { createAdminClient } from '@/lib/supabase/admin'
 import { findValidOtp, recordOtpFailure } from '@/lib/otp'
 import { checkRateLimit, getClientIp } from '@/lib/rate-limit'
+import { saveUserRoles } from '@/lib/profile-roles'
+import { rolesForMetadata } from '@/lib/roles'
 
 export async function POST(req: Request) {
   try {
-    const { full_name, username, phone, otp } = await req.json()
+    const { full_name, username, phone, roles, role: rawRole, otp } = await req.json()
 
     if (!full_name || !username || !otp) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 })
@@ -33,9 +35,47 @@ export async function POST(req: Request) {
 
     await admin.from('otps').update({ used: true }).eq('id', otpData.id)
 
-    const { error: profileErr } = await supabase
+    const { data: current } = await admin
       .from('profiles')
-      .update({ full_name, username, phone, updated_at: new Date().toISOString() })
+      .select('role')
+      .eq('id', user.id)
+      .maybeSingle()
+
+    const changedRoles = roles !== undefined || rawRole !== undefined
+    let savedRole = (current as { role?: string } | null)?.role || 'hunter'
+
+    if (changedRoles) {
+      const result = await saveUserRoles(
+        admin,
+        user.id,
+        { roles, role: rawRole },
+        {
+          currentRole: savedRole,
+          currentMetadata: user.user_metadata as Record<string, unknown> | undefined,
+        }
+      )
+      if (result.error) return NextResponse.json({ error: result.error.message }, { status: 500 })
+      savedRole = result.role || savedRole
+    } else {
+      // Keep the JWT metadata in sync even when the user only edits name/phone.
+      const rolesList = rolesForMetadata(savedRole)
+      await admin.auth.admin.updateUserById(user.id, {
+        user_metadata: {
+          ...(user.user_metadata as Record<string, unknown> | undefined),
+          role: savedRole,
+          roles: rolesList,
+        },
+      })
+    }
+
+    const { error: profileErr } = await admin
+      .from('profiles')
+      .update({
+        full_name,
+        username,
+        phone: phone || null,
+        updated_at: new Date().toISOString(),
+      })
       .eq('id', user.id)
 
     if (profileErr) {
@@ -45,7 +85,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: profileErr.message }, { status: 500 })
     }
 
-    return NextResponse.json({ success: true })
+    return NextResponse.json({
+      success: true,
+      role: savedRole,
+      roles: rolesForMetadata(savedRole),
+    })
   } catch {
     return NextResponse.json({ error: 'Something went wrong' }, { status: 500 })
   }

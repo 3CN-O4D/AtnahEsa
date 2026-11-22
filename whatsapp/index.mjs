@@ -1757,9 +1757,12 @@ function stopOutbox() {
 const PAIR_TOKEN = process.env.WHATSAPP_PAIR_TOKEN || WHATSAPP_BRIDGE_SECRET
 
 function pairingAuthorized(req, url) {
-  if (!PAIR_TOKEN) return false
+  if (!PAIR_TOKEN && !WHATSAPP_BRIDGE_SECRET) return false
   const token = url.searchParams.get('token') || req.headers['x-pair-token']
-  return token === PAIR_TOKEN
+  // WHATSAPP_PAIR_TOKEN is optional and normally falls back to the bridge
+  // secret. Accept the bridge secret explicitly as well so a stale/different
+  // PAIR_TOKEN value on one deployment cannot break the admin QR preview.
+  return Boolean(token && (token === PAIR_TOKEN || token === WHATSAPP_BRIDGE_SECRET))
 }
 
 /** The app calls operational endpoints with the shared bridge secret. */

@@ -314,6 +314,7 @@ export default function AdminWhatsAppPage() {
   const [statusQueue, setStatusQueue] = useState<StatusQueueItem[]>([])
   const [statusOverrides, setStatusOverrides] = useState<Override[]>([])
   const [authState, setAuthState] = useState<AuthState | null>(null)
+  const [waitingForCode, setWaitingForCode] = useState(false)
   const [newNumber, setNewNumber] = useState('')
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({})
   const [poolInput, setPoolInput] = useState('')
@@ -411,6 +412,37 @@ export default function AdminWhatsAppPage() {
       window.clearInterval(timer)
     }
   }, [load])
+
+  /*
+   * A pairing code is issued by WhatsApp a few seconds after the worker
+   * restarts its socket. Poll only the small auth endpoint while waiting so
+   * the panel refreshes the code without a hard reload.
+   */
+  useEffect(() => {
+    if (!waitingForCode) return
+    let cancelled = false
+    let attempts = 0
+    const timer = window.setInterval(async () => {
+      attempts += 1
+      try {
+        const res = await fetch('/api/admin/whatsapp/auth', { cache: 'no-store' })
+        const data = await res.json().catch(() => ({}))
+        if (cancelled) return
+        if (res.ok) {
+          setAuthState(data)
+          if (data?.code || attempts >= 30) setWaitingForCode(false)
+        } else if (attempts >= 30) {
+          setWaitingForCode(false)
+        }
+      } catch {
+        if (!cancelled && attempts >= 30) setWaitingForCode(false)
+      }
+    }, 2500)
+    return () => {
+      cancelled = true
+      window.clearInterval(timer)
+    }
+  }, [waitingForCode])
 
   const patchControl = useCallback(
     async (body: Record<string, unknown>, key = 'control') => {
@@ -743,6 +775,10 @@ export default function AdminWhatsAppPage() {
           return
         }
         showToast('ok', `${labels[action]} requested.`)
+        if (action === 'code' || action === 'restart' || action === 'refresh_session' || action === 'switch') {
+          setAuthState((prev) => (prev ? { ...prev, code: null, codeAgeSeconds: null } : prev))
+          setWaitingForCode(true)
+        }
         void load()
       } catch {
         showToast('error', 'Network error.')
@@ -2169,6 +2205,24 @@ export default function AdminWhatsAppPage() {
               <p className="mt-4 text-center font-mono text-3xl font-bold tracking-widest text-gray-900 dark:text-white">
                 {authState?.code || '—'}
               </p>
+              {waitingForCode && !authState?.code && (
+                <p className="mt-2 text-center text-xs text-amber-600 dark:text-amber-400">
+                  Waiting for WhatsApp to issue the code… this updates automatically.
+                </p>
+              )}
+              {authState?.code && (
+                <div className="mt-3 flex justify-center gap-2">
+                  <Button size="sm" variant="outline"
+                    onClick={() => void navigator.clipboard?.writeText(authState.code || '')}>
+                    Copy code
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={busy === 'auth-code'}
+                    onClick={() => void authAction('code')}>
+                    {busy === 'auth-code' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                    New code
+                  </Button>
+                </div>
+              )}
               {authState?.codeAgeSeconds !== null && authState?.codeAgeSeconds !== undefined && (
                 <p className="mt-2 text-center text-xs text-gray-500">Requested {authState.codeAgeSeconds}s ago</p>
               )}

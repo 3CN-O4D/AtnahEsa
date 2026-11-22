@@ -18,7 +18,10 @@ export async function GET(req: Request) {
 
   try {
     const res = await fetch(`${WORKER_URL}/qr.png`, {
-      headers: { 'x-pair-token': SECRET },
+      headers: {
+        'x-pair-token': SECRET,
+        'x-bridge-secret': SECRET,
+      },
       cache: 'no-store',
       signal: AbortSignal.timeout(20_000),
     })

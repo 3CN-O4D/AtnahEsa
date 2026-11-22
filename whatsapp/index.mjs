@@ -14,6 +14,8 @@ import { loadSession, saveSession, resetSession } from './lib/session.mjs'
 import { emptyState } from './lib/chat-state.mjs'
 import { createBrain } from './lib/brain.mjs'
 import { createControl, digits } from './lib/control.mjs'
+import { createRules } from './lib/rules.mjs'
+import { createStatus } from './lib/status.mjs'
 import { logMessage, buildTranscript } from './lib/transcript.mjs'
 import { toWhatsAppVoiceNote, DEFAULT_TTS_VOICE } from './lib/voice.mjs'
 import { createMarketing, syncGroups } from './lib/marketing.mjs'
@@ -93,6 +95,8 @@ const adminNumbers = ADMIN_WHATSAPP_NUMBERS.split(',')
  * they can always issue commands even when the allowlist is narrowed.
  */
 const control = createControl(supabase)
+const rules = createRules(supabase)
+const status = createStatus(supabase)
 
 /** The official number, filled from the linked credentials once connected. */
 let ownPhone = digits(WHATSAPP_PAIR_NUMBER || '')

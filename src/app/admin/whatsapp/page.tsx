@@ -763,6 +763,45 @@ export default function AdminWhatsAppPage() {
     [showToast]
   )
 
+  const saveTemplates = useCallback(async () => {
+    if (!statusSettings) return
+    await patchStatus({
+      templates: { ...(statusSettings.templates || {}), ...templateDrafts },
+    }, 'templates-save')
+    setTemplateDrafts({})
+  }, [patchStatus, statusSettings, templateDrafts])
+
+  const queueTemplate = useCallback(
+    async (key: 'stats' | 'new_listing' | 'released') => {
+      const body = (templateDrafts[key] ?? statusSettings?.templates?.[key] ?? '').trim()
+      if (!body) {
+        showToast('error', 'Write the template before queueing it.')
+        return
+      }
+      setBusy(`queue-template-${key}`)
+      try {
+        const res = await fetch('/api/admin/whatsapp/marketing', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ channel: 'status', action: 'create', body, topic: key }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not queue that template.')
+          return
+        }
+        setMarketing((prev) => [data.item, ...prev])
+        setTab('marketing')
+        showToast('ok', 'Template queued as a draft. Review and approve it below.')
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [showToast, statusSettings, templateDrafts]
+  )
+
   const authAction = useCallback(
     async (action: 'code' | 'restart' | 'refresh_session' | 'switch', number?: string) => {
       const labels: Record<string, string> = {
@@ -1462,10 +1501,21 @@ export default function AdminWhatsAppPage() {
                       {item.status === 'failed' ? 'Retry' : 'Approve'}
                     </Button>
                   )}
+                  {['draft', 'approved', 'scheduled', 'sending', 'failed'].includes(item.status) && (
+                    <Button
+                      size="sm"
+                      onClick={() => void patchMarketing(item.id, 'send')}
+                      disabled={busy === `marketing-${item.id}`}
+                      title="Approve and queue for the next worker tick"
+                    >
+                      <Send className="h-4 w-4" />
+                      Post now
+                    </Button>
+                  )}
                   {item.status === 'approved' && (
                     <span className="text-xs text-gray-500">Queued for the next worker tick</span>
                   )}
-                  {['draft', 'approved', 'scheduled', 'failed'].includes(item.status) && (
+                  {['draft', 'approved', 'scheduled', 'sending', 'failed'].includes(item.status) && (
                     <Button
                       size="sm"
                       variant="danger"
@@ -1583,7 +1633,7 @@ export default function AdminWhatsAppPage() {
                 </div>
                 <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
                   {([
-                    ['last_speaker_guard', 'Last speaker guard', 'Never answer if Ase spoke last in the chat.'],
+                    ['last_speaker_guard', 'Last speaker guard', 'Skip only our own last message; a new human message always reopens the chat.'],
                     ['greet_once', 'Greet once', 'Only greet a new chat once; real questions still get answers.'],
                     ['require_intent', 'Require intent', 'Answer only when a message matches the intent words below.'],
                     ['ignore_forwarded', 'Ignore forwarded', 'Skip forwarded messages.'],
@@ -1889,24 +1939,33 @@ export default function AdminWhatsAppPage() {
 
               <div className="grid gap-4 lg:grid-cols-2">
                 <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Templates</h3>
+                  <div className="flex items-center justify-between gap-2">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Templates</h3>
+                    <Button size="sm" variant="outline" disabled={busy === 'templates-save'}
+                      onClick={() => void saveTemplates()}>
+                      {busy === 'templates-save' ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+                      Save templates
+                    </Button>
+                  </div>
                   <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                    Placeholders: {'{title}'}, {'{location}'}, {'{rent}'}, {'{new_houses}'}, {'{released}'}, {'{chats}'}
+                    Placeholders: {'{title}'}, {'{location}'}, {'{rent}'}, {'{new_houses}'}, {'{released}'}, {'{chats}'}.
+                    Save, then queue a template as a status draft and approve it in Marketing.
                   </p>
                   <div className="mt-3 space-y-3">
                     {(['stats', 'new_listing', 'released'] as const).map((key) => (
-                      <label key={key} className="block text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">{key}</span>
+                      <div key={key} className="rounded-lg border border-gray-200 p-3 dark:border-slate-800">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">{key}</span>
+                          <Button size="sm" variant="ghost" disabled={busy === `queue-template-${key}`}
+                            onClick={() => void queueTemplate(key)}>
+                            <Send className="h-4 w-4" />
+                            Queue status
+                          </Button>
+                        </div>
                         <textarea rows={3} value={templateDrafts[key] ?? statusSettings.templates?.[key] ?? ''}
                           onChange={(e) => setTemplateDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
-                          onBlur={() => {
-                            const value = templateDrafts[key]
-                            if (value !== undefined && value !== (statusSettings.templates?.[key] ?? '')) {
-                              void patchStatus({ templates: { ...statusSettings.templates, [key]: value } })
-                            }
-                          }}
-                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
-                      </label>
+                          className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                      </div>
                     ))}
                   </div>
                 </div>

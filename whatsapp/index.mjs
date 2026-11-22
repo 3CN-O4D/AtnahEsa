@@ -1319,6 +1319,13 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
   const phone = String(message.key.senderPn || jid).split('@')[0]
   const profileName = message.pushName || session.profileName || null
 
+  /*
+   * Record the human turn before any gate runs. `last_speaker_guard` reads this
+   * transcript, so without it Ase sees its own greeting as the latest message
+   * and silently refuses every real question that follows it.
+   */
+  await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
+
   // Web → WhatsApp hand-off: the website opened wa.me with an `AS-<token>`
   // reference. Redeem it and restore the exact state + history so the chat
   // carries on instead of starting over.
@@ -1359,12 +1366,8 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
    * ping, then Ase stays out of the way.
    */
   const gate = await control.gate({ phone, aiEnabled: session.aiEnabled })
-  if (gate.reason === 'blocked') {
-    await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
-    return
-  }
+  if (gate.reason === 'blocked') return
   if (!gate.ai) {
-    await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
     await sendHoldingMessage({ jid, phone, session, reason: gate.reason, profileName, id })
     return
   }
@@ -1394,8 +1397,6 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
   try {
     if (decision.delayMs) await sleep(decision.delayMs)
     await safePresence(jid, 'composing')
-
-    await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
 
     const result = await askBrain({
       message: text,
@@ -1432,9 +1433,9 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
       await logMessage(supabase, { jid, phone, role: 'assistant', body: rendered })
     }
 
-    // House results as image cards with a caption, like the web cards. When a
-    // listing has several photos (e.g. a `get_house` detail reply) send up to
-    // three of them, cover photo first with the caption.
+    // House results as image cards, like the web cards. Photos for one house
+    // go out as a single album/batch with one caption instead of a slow stream
+    // of separate messages.
     for (const card of cardsFromActions(result.actions).slice(0, 5)) {
       const caption = cardCaption(card)
       const photos =
@@ -1443,37 +1444,7 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
           : card.image
             ? [card.image]
             : []
-      const gallery = photos.slice(0, 3)
-
-      if (gallery.length === 0) {
-        try {
-          await sock.sendMessage(jid, { text: caption })
-          await logMessage(supabase, { jid, phone, role: 'assistant', body: caption })
-        } catch {
-          /* card is best-effort; the text reply already listed it */
-        }
-        continue
-      }
-
-      for (let i = 0; i < gallery.length; i += 1) {
-        try {
-          await sock.sendMessage(jid, {
-            image: { url: gallery[i] },
-            caption: i === 0 ? caption : undefined,
-          })
-          if (i === 0) {
-            await logMessage(supabase, { jid, phone, role: 'assistant', body: caption })
-          }
-        } catch {
-          if (i === 0) {
-            try {
-              await sock.sendMessage(jid, { text: caption })
-            } catch {
-              /* card is best-effort; the text reply already listed it */
-            }
-          }
-        }
-      }
+      await sendHouseAlbum(jid, photos, caption)
     }
 
     // Requests, bookings and escalations also go to the admin team on WhatsApp.
@@ -1516,6 +1487,60 @@ async function sendText(jid, text) {
   } catch (error) {
     rules.recordError()
     throw error
+  }
+}
+
+/**
+ * Send all photos for one listing together. Baileys 7 can group child media
+ * under an album parent; older clients still receive a tight burst of images
+ * with a single caption, never a slow one-by-one gallery.
+ */
+async function sendHouseAlbum(jid, images, caption) {
+  if (!sock) return
+  const photos = [...new Set((Array.isArray(images) ? images : []).filter((url) => typeof url === 'string' && url))]
+    .slice(0, 5)
+  const body = String(caption || '').slice(0, 4000)
+
+  if (!photos.length) {
+    try {
+      await sendText(jid, body)
+      await logMessage(supabase, { jid, role: 'assistant', body })
+    } catch {
+      /* best-effort: the text reply already listed the house */
+    }
+    return
+  }
+
+  if (rules.isDryRun()) {
+    console.log(`[dry-run] would send ${photos.length} photo(s) to ${jid}: ${body.slice(0, 120)}`)
+    return
+  }
+
+  try {
+    let parent = null
+    if (photos.length > 1) {
+      try {
+        parent = await sock.sendMessage(jid, {
+          album: { expectedImageCount: photos.length, expectedVideoCount: 0 },
+        })
+      } catch (error) {
+        console.warn('[whatsapp] album parent failed, sending a photo burst:', error?.message ?? error)
+      }
+    }
+
+    for (let i = 0; i < photos.length; i += 1) {
+      const content = { image: { url: photos[i] } }
+      if (i === 0) content.caption = body
+      if (parent?.key) content.albumParentKey = parent.key
+      await sock.sendMessage(jid, content)
+    }
+
+    rules.markDelivered({ jid, text: body, isGroup: String(jid).endsWith('@g.us') })
+    rules.recordSuccess()
+    await logMessage(supabase, { jid, role: 'assistant', body })
+  } catch (error) {
+    rules.recordError()
+    console.warn('[whatsapp] house photo batch failed:', error?.message ?? error)
   }
 }
 

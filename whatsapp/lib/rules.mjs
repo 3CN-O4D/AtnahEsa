@@ -13,7 +13,8 @@ const CACHE_MS = 5000
 const NAIROBI = 'Africa/Nairobi'
 
 export const RULE_DEFAULTS = {
-  // The rule the owner asked for: never answer when Ase spoke last.
+  // Never answer our own last message. A new human turn reopens the chat, so
+  // the guard cannot freeze a conversation after Ase's greeting.
   last_speaker_guard: true,
   greet_once: true,
   require_intent: false,
@@ -130,7 +131,6 @@ export function createRules(supabase, { log = console } = {}) {
 
   // In-memory signals are intentionally small: they only need to cover the
   // current process lifetime, and the DB transcript is the durable fallback.
-  const outgoing = new Map()
   const chatCounts = new Map()
   let greeted = new Set()
   let globalCount = 0
@@ -219,15 +219,9 @@ export function createRules(supabase, { log = console } = {}) {
 
   function recordOutgoing(jid) {
     if (!jid) return
-    outgoing.set(jid, { at: Date.now(), actor: 'assistant' })
     chatCounts.set(jid, (chatCounts.get(jid) || 0) + 1)
     globalCount += 1
     errorStreak = 0
-  }
-
-  function recordIncoming(jid) {
-    if (!jid) return
-    outgoing.set(jid, { at: Date.now(), actor: 'user' })
   }
 
   function recordError() {
@@ -345,10 +339,15 @@ export function createRules(supabase, { log = console } = {}) {
       if (count >= limit) return deny('chat_rate_limit')
     }
 
+    /*
+     * The inbound user message is written to whatsapp_messages before this gate
+     * runs, so the transcript's last sender is the human who just typed. That
+     * makes `last_speaker` mean "don't answer our own last message" instead of
+     * "never answer anyone after Ase spoke", which used to freeze every chat
+     * at the initial greeting.
+     */
     const guard = isGroup ? rules.group_last_speaker_guard : rules.last_speaker_guard
     if (guard && jid) {
-      const last = outgoing.get(jid)
-      if (last?.actor === 'assistant') return deny('last_speaker')
       const role = await lastTranscriptSender(jid, phone)
       if (role === 'assistant' || role === 'admin') return deny('last_speaker')
     }
@@ -402,13 +401,11 @@ export function createRules(supabase, { log = console } = {}) {
     settings,
     gate,
     markDelivered,
-    recordIncoming,
     recordError,
     recordSuccess,
     primeGreeted,
     isDryRun: () => Boolean(settings().dry_run),
     resetCounters: () => {
-      outgoing.clear()
       chatCounts.clear()
       globalCount = 0
       errorStreak = 0

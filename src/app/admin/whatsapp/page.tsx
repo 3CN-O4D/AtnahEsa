@@ -9,6 +9,7 @@ import {
   History,
   ListChecks,
   Loader2,
+  Maximize2,
   Megaphone,
   MessageCircle,
   Pause,
@@ -315,6 +316,7 @@ export default function AdminWhatsAppPage() {
   const [statusOverrides, setStatusOverrides] = useState<Override[]>([])
   const [authState, setAuthState] = useState<AuthState | null>(null)
   const [waitingForCode, setWaitingForCode] = useState(false)
+  const [qrZoomed, setQrZoomed] = useState(false)
   const [newNumber, setNewNumber] = useState('')
   const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({})
   const [poolInput, setPoolInput] = useState('')
@@ -443,6 +445,15 @@ export default function AdminWhatsAppPage() {
       window.clearInterval(timer)
     }
   }, [waitingForCode])
+
+  useEffect(() => {
+    if (!qrZoomed) return
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setQrZoomed(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [qrZoomed])
 
   const patchControl = useCallback(
     async (body: Record<string, unknown>, key = 'control') => {
@@ -2228,17 +2239,55 @@ export default function AdminWhatsAppPage() {
               )}
             </div>
             <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">QR code</h3>
-              <div className="mt-3 flex justify-center">
+              <div className="flex items-center justify-between gap-2">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">QR code</h3>
+                <Button size="sm" variant="outline" onClick={() => setQrZoomed(true)}>
+                  <Maximize2 className="h-4 w-4" />
+                  Enlarge
+                </Button>
+              </div>
+              <button type="button" onClick={() => setQrZoomed(true)}
+                className="mt-3 block w-full" aria-label="Enlarge WhatsApp pairing QR">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`/api/admin/whatsapp/auth/qr?t=${Date.now()}`}
                   alt="WhatsApp pairing QR"
-                  className="h-48 w-48 rounded-lg border border-gray-200 bg-white p-2 dark:border-slate-700"
+                  className="mx-auto h-48 w-48 rounded-lg border border-gray-200 bg-white p-2 dark:border-slate-700"
                 />
-              </div>
+              </button>
+              <p className="mt-2 text-center text-xs text-gray-500 dark:text-gray-400">
+                Tap the QR to enlarge it.
+              </p>
             </div>
           </div>
+
+          {qrZoomed && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4"
+              role="dialog" aria-modal="true" aria-label="Enlarged WhatsApp pairing QR"
+              onClick={() => setQrZoomed(false)}>
+              <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-2xl dark:bg-slate-900"
+                onClick={(event) => event.stopPropagation()}>
+                <div className="flex items-center justify-between gap-2">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">WhatsApp pairing QR</h3>
+                  <Button size="sm" variant="ghost" aria-label="Close enlarged QR"
+                    onClick={() => setQrZoomed(false)}>
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+                <div className="mt-4 flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/admin/whatsapp/auth/qr?t=${Date.now()}`}
+                    alt="WhatsApp pairing QR enlarged"
+                    className="h-80 w-80 max-w-full rounded-lg border border-gray-200 bg-white p-3 dark:border-slate-700 sm:h-96 sm:w-96"
+                  />
+                </div>
+                <p className="mt-4 text-center text-xs text-gray-500 dark:text-gray-400">
+                  Scan with 0748275079 → WhatsApp → Settings → Linked devices. Press Escape to close.
+                </p>
+              </div>
+            </div>
+          )}
 
           <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
             <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Change linked number</h3>

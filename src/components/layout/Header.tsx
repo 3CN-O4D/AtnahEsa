@@ -5,12 +5,11 @@ import type { MouseEvent } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu, X, Home, Truck, Wifi, Upload, User as UserIcon, LogOut, Settings, Shield, List, Calendar, BadgeCheck, Bell, Heart, Bug, Wallet } from 'lucide-react'
+import { Menu, X, Home, Truck, Wifi, Building2, User as UserIcon, LogOut, Settings, Shield, List, Calendar, Bell, Heart, Bug, Wallet, MessageCircle, Sparkles, HousePlus, Mail } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { useFavorites } from '@/lib/favorites'
 import { APP_NAME } from '@/lib/constants'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
-import { hasListerRole } from '@/lib/roles'
 import Button from '@/components/ui/Button'
 import ThemeToggle from '@/components/layout/ThemeToggle'
 import type { User as SupabaseUser } from '@supabase/supabase-js'
@@ -22,7 +21,6 @@ export default function Header() {
   const [menuOpen, setMenuOpen] = useState(false)
   const [user, setUser] = useState<SupabaseUser | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
-  const [isLister, setIsLister] = useState(false)
   const [displayName, setDisplayName] = useState<string | null>(null)
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null)
   const [showUserMenu, setShowUserMenu] = useState(false)
@@ -56,7 +54,6 @@ export default function Header() {
       if (data.user) {
         const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', data.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
-        setIsLister(hasListerRole(profile?.role))
         setAvatarUrl(profile?.avatar_url || null)
         setDisplayName(profile?.full_name || data.user?.email || null)
       }
@@ -67,12 +64,10 @@ export default function Header() {
       if (session?.user) {
         const { data: profile } = await supabase.from('profiles').select('role, avatar_url, full_name').eq('id', session.user.id).maybeSingle()
         setIsAdmin(profile?.role === 'admin')
-        setIsLister(hasListerRole(profile?.role))
         setAvatarUrl(profile?.avatar_url || null)
         setDisplayName(profile?.full_name || session.user?.email || null)
       } else {
         setIsAdmin(false)
-        setIsLister(false)
         setAvatarUrl(null)
         setDisplayName(null)
       }
@@ -98,14 +93,18 @@ export default function Header() {
 
   const navLinks = [
     { href: '/', label: 'Home', icon: Home },
-    { href: '/chat', label: 'Chat', icon: undefined },
+    { href: '/chat', label: 'Chat', icon: MessageCircle },
     { href: '/movers', label: 'Movers', icon: Truck },
     { href: '/wifi', label: 'WiFi', icon: Wifi },
-    { href: '/brand', label: 'Brand', icon: undefined },
-    { href: '/request-house', label: 'Request House', icon: undefined },
+    { href: '/brand', label: 'Brand', icon: Sparkles },
+    { href: '/request-house', label: 'Request House', icon: HousePlus },
     { href: '/complaints', label: 'Report a bug', icon: Bug },
-    { href: '/contact', label: 'Contact', icon: undefined },
+    { href: '/contact', label: 'Contact', icon: Mail },
   ]
+
+  // One listing entry point per viewport. Guests are sent to signup as a
+  // lister; signed-in users go straight to the upload form.
+  const listHouseHref = user ? '/upload' : '/auth/signup?role=lister'
 
   return (
     <header className="sticky top-0 z-40 border-b border-gray-200/80 bg-white/80 backdrop-blur-xl dark:border-gray-700/80 dark:bg-slate-900/80">
@@ -117,26 +116,20 @@ export default function Header() {
         </Link>
 
         {/* Center: Desktop nav */}
-        <nav className="hidden md:flex items-center justify-center flex-1 gap-5 px-4">
-          {navLinks.map(({ href, label }) => (
-              <Link key={href} href={href} className={`text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap ${href === '/brand' ? 'hidden xl:inline-flex' : ''}`}>
+        <nav className="hidden md:flex items-center justify-center flex-1 gap-3 px-4">
+          {navLinks.map(({ href, label, icon: Icon }) => (
+            <Link key={href} href={href} className={`inline-flex items-center gap-1.5 text-sm text-gray-600 hover:text-gray-900 dark:hover:text-white transition-colors whitespace-nowrap ${href === '/brand' ? 'hidden xl:inline-flex' : ''}`}>
+              <Icon className="h-4 w-4 shrink-0 opacity-70" aria-hidden />
               {label}
             </Link>
           ))}
-          {isLister && (
-            <Link href="/upload" className="text-sm font-medium text-blue-700 hover:text-blue-800 dark:hover:text-blue-400 transition-colors whitespace-nowrap">
-              List your House
-            </Link>
-          )}
           <ThemeToggle />
-          {user && (
-            <Link href="/upload">
-              <Button size="sm" className="whitespace-nowrap">
-                <Upload className="w-4 h-4 mr-1.5" />
-                List House
-              </Button>
-            </Link>
-          )}
+          <Link href={listHouseHref}>
+            <Button size="sm" className="whitespace-nowrap">
+              <Building2 className="w-4 h-4 mr-1.5" />
+              List your House
+            </Button>
+          </Link>
         </nav>
 
         {/* Right: Profile — flush to right edge */}
@@ -194,11 +187,6 @@ export default function Header() {
                       <span className="ml-auto rounded-full bg-red-500 px-1.5 text-[10px] font-semibold text-white">{favoritesCount}</span>
                     )}
                   </Link>
-                  {isLister && (
-                    <Link href="/upload" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                      <BadgeCheck className="w-4 h-4" /> List your House
-                    </Link>
-                  )}
                   {isAdmin && (
                     <Link href="/admin" onClick={() => setShowUserMenu(false)} className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                       <Shield className="w-4 h-4" /> Admin Panel
@@ -258,20 +246,18 @@ export default function Header() {
               onClick={() => setMenuOpen(false)}
               className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
             >
-              {Icon && <Icon className="w-4 h-4" />}
+              <Icon className="w-4 h-4 shrink-0 opacity-70" aria-hidden />
               {label}
             </Link>
           ))}
-          {isLister && (
-            <Link
-              href="/upload"
-              onClick={() => setMenuOpen(false)}
-              className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
-            >
-              <BadgeCheck className="w-4 h-4" />
-              List your House
-            </Link>
-          )}
+          <Link
+            href={listHouseHref}
+            onClick={() => setMenuOpen(false)}
+            className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium text-blue-700 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/30"
+          >
+            <Building2 className="w-4 h-4 shrink-0" aria-hidden />
+            List your House
+          </Link>
           <hr className="my-2 dark:border-gray-700" />
           {user ? (
             <>
@@ -298,15 +284,6 @@ export default function Header() {
                 {favoritesCount > 0 && (
                   <span className="ml-auto min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-semibold flex items-center justify-center">{favoritesCount > 99 ? '99+' : favoritesCount}</span>
                 )}
-              </Link>
-              {isLister && (
-                <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800">
-                  <BadgeCheck className="w-4 h-4" /> List your House
-                </Link>
-              )}
-              <Link href="/upload" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30">
-                <Upload className="w-4 h-4" />
-                List House
               </Link>
               {isAdmin && (
                 <Link href="/admin" onClick={() => setMenuOpen(false)} className="flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30">

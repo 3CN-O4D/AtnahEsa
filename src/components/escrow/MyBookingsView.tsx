@@ -40,25 +40,25 @@ type Tab = 'hunter' | 'lister'
 
 function StatusBadge({ release_status }: { release_status: string }) {
   const config: Record<string, { label: string; className: string }> = {
-    pending: { label: 'In Escrow', className: 'bg-blue-100 text-blue-700' },
-    released: { label: 'Released', className: 'bg-blue-100 text-blue-800' },
-    refunded: { label: 'Refunded', className: 'bg-amber-100 text-amber-700' },
-    refund_requested: { label: 'Refund Requested', className: 'bg-red-100 text-red-700' },
-    rejected: { label: 'Rejected', className: 'bg-gray-100 text-gray-600' },
+    pending: { label: 'In Escrow', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' },
+    released: { label: 'Released', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
+    refunded: { label: 'Refunded', className: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' },
+    refund_requested: { label: 'Refund Requested', className: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' },
+    rejected: { label: 'Rejected', className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
   }
-  const c = config[release_status] || { label: release_status, className: 'bg-gray-100 text-gray-600' }
+  const c = config[release_status] || { label: release_status, className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.className}`}>{c.label}</span>
 }
 
 function ReleaseBadge({ release_status }: { release_status: string }) {
   const config: Record<string, { label: string; className: string }> = {
-    pending: { label: 'Pending', className: 'bg-gray-100 text-gray-600' },
-    held: { label: 'In Escrow', className: 'bg-blue-100 text-blue-700' },
-    paid: { label: 'Paid to Lister', className: 'bg-blue-100 text-blue-800' },
-    refunded: { label: 'Refunded', className: 'bg-amber-100 text-amber-700' },
-    refund_requested: { label: 'Refund Requested', className: 'bg-red-100 text-red-700' },
+    pending: { label: 'Pending', className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' },
+    held: { label: 'In Escrow', className: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300' },
+    paid: { label: 'Paid to Lister', className: 'bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-200' },
+    refunded: { label: 'Refunded', className: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300' },
+    refund_requested: { label: 'Refund Requested', className: 'bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300' },
   }
-  const c = config[release_status] || { label: release_status, className: 'bg-gray-100 text-gray-600' }
+  const c = config[release_status] || { label: release_status, className: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300' }
   return <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium ${c.className}`}>{c.label}</span>
 }
 
@@ -691,7 +691,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                     {(paymentUnderReview || paymentPending || paymentFailed || paymentConfirmed) && (
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {paymentUnderReview && (
-                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 text-xs font-medium">
+                          <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300 text-xs font-medium">
                             <Clock className="w-3 h-3" /> Payment under review
                           </span>
                         )}
@@ -770,7 +770,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                         <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
                           This viewing request is closed. The house is available again and you can request another viewing at any time.
                         </p>
-                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">
                           <Home className="w-3 h-3" /> Book this house again
                         </Link>
                       </div>
@@ -827,7 +827,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                         <p className="mt-1 text-[11px] text-gray-600 dark:text-gray-400">
                           An admin reviewed both sides and could not approve the refund. The booking has returned to the payout queue. Contact support if you have new information.
                         </p>
-                        <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                        <a href={`tel:${CONTACT_PHONE_DISPLAY}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">
                           <Phone className="w-3 h-3" /> Contact support
                         </a>
                       </div>
@@ -841,7 +841,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                         <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
                           Your refund was sent by M-Pesa and recorded. Download the refund receipt above, or request another viewing.
                         </p>
-                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">
                           <Home className="w-3 h-3" /> Book again
                         </Link>
                       </div>
@@ -855,7 +855,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                         <p className="mt-1 text-[11px] text-green-800 dark:text-green-300">
                           The viewing is complete and the lister&apos;s payout has been recorded with an M-Pesa receipt.
                         </p>
-                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline">
+                        <Link href={`/listings/${hb.listing_id}`} className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-blue-600 hover:underline dark:text-blue-400">
                           <Home className="w-3 h-3" /> Book another house
                         </Link>
                       </div>
@@ -1053,10 +1053,10 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
               : tab === 'hunter' ? 'Browse listings and book a viewing to get started.' : 'No one has booked or paid on your listings yet.'}
           </p>
           {tab === 'hunter' && (
-            <Link href="/" className="text-sm text-blue-600 hover:underline">Browse Listings</Link>
+            <Link href="/" className="text-sm text-blue-600 hover:underline dark:text-blue-400">Browse Listings</Link>
           )}
           {isEscrowMode && (
-            <Link href="/my-bookings" className="text-sm text-blue-600 hover:underline">View all bookings</Link>
+            <Link href="/my-bookings" className="text-sm text-blue-600 hover:underline dark:text-blue-400">View all bookings</Link>
           )}
         </div>
       ) : (
@@ -1096,7 +1096,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                     {hb.phone && (
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <span className="text-xs text-gray-500">Hunter:</span>
-                        <a href={`tel:${hb.phone}`} className="text-xs font-medium text-blue-600 hover:underline">
+                        <a href={`tel:${hb.phone}`} className="text-xs font-medium text-blue-600 hover:underline dark:text-blue-400">
                           {hb.phone}
                         </a>
                         <a
@@ -1261,7 +1261,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                   {b.escrow_hold?.status === 'released' && <><CheckCircle className="w-3 h-3 text-blue-600" /> Funds released</>}
                   {b.escrow_hold?.status === 'refunded' && <><XCircle className="w-3 h-3 text-amber-500" /> Refunded {b.refund_amount ? `(${formatPrice(b.refund_amount)})` : ''}</>}
                 </div>
-                <Link href={`/booking/${b.id}`} className="text-xs text-blue-600 hover:underline font-medium">
+                <Link href={`/booking/${b.id}`} className="text-xs text-blue-600 hover:underline font-medium dark:text-blue-400">
                   View Details →
                 </Link>
               </div>

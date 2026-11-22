@@ -70,6 +70,58 @@ create index if not exists whatsapp_status_history_body_idx
 
 alter table public.whatsapp_status_history enable row level security;
 
+-- Allow a queued status to have its own lifetime. WhatsApp statuses disappear
+-- from a phone after 24 hours; the admin panel hides rows once this passes.
+alter table public.whatsapp_marketing
+  add column if not exists expires_at timestamptz;
+
+create index if not exists whatsapp_marketing_expires_idx
+  on public.whatsapp_marketing (expires_at)
+  where expires_at is not null;
+
+-- ----------------------------------------------------------- rule overrides
+-- A partial JSON patch applied on top of whatsapp_bot_rules for one chat or
+-- group. Matching order: global → group → chat (chat wins). `enabled = false`
+-- keeps an override saved but inactive.
+create table if not exists public.whatsapp_rule_overrides (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null check (scope in ('chat', 'group')),
+  target text not null,
+  settings jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  note text,
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  unique (scope, target)
+);
+
+create index if not exists whatsapp_rule_overrides_scope_idx
+  on public.whatsapp_rule_overrides (scope, enabled);
+
+alter table public.whatsapp_rule_overrides enable row level security;
+
+-- --------------------------------------------------------- status overrides
+-- Same idea for the status scheduler: a group can have its own cadence/mode,
+-- and the main status channel can have its own template or quiet hours.
+create table if not exists public.whatsapp_status_overrides (
+  id uuid primary key default gen_random_uuid(),
+  scope text not null check (scope in ('status', 'group', 'topic')),
+  target text not null,
+  settings jsonb not null default '{}'::jsonb,
+  enabled boolean not null default true,
+  note text,
+  updated_by text,
+  updated_at timestamptz not null default now(),
+  unique (scope, target)
+);
+
+create index if not exists whatsapp_status_overrides_scope_idx
+  on public.whatsapp_status_overrides (scope, enabled);
+
+alter table public.whatsapp_status_overrides enable row level security;
+
 comment on table public.whatsapp_bot_rules is 'Singleton JSON rule set for Ase replies (last-speaker guard, quiet hours, limits).';
 comment on table public.whatsapp_status_settings is 'Singleton config for WhatsApp status modes: stats, event, random, round robin, hybrid.';
 comment on table public.whatsapp_status_history is 'Status posts used for no-repeat and round-robin ordering.';
+comment on table public.whatsapp_rule_overrides is 'Per-chat/per-group patches that override the global reply rules.';
+comment on table public.whatsapp_status_overrides is 'Per-status/per-group/per-topic patches that override the global status settings.';

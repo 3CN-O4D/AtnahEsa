@@ -98,6 +98,20 @@ const control = createControl(supabase)
 const rules = createRules(supabase)
 const status = createStatus(supabase)
 
+// Cached set of groups an admin explicitly allowed. Only consulted for group
+// messages, and refreshed at most once every 30s.
+const enabledGroupsCache = { at: 0, ids: new Set() }
+async function enabledGroupJids() {
+  if (Date.now() - enabledGroupsCache.at < 30_000) return enabledGroupsCache.ids
+  const { data, error } = await supabase
+    .from('whatsapp_marketing_groups')
+    .select('jid')
+    .eq('enabled', true)
+  if (!error) enabledGroupsCache.ids = new Set((data || []).map((row) => row.jid))
+  enabledGroupsCache.at = Date.now()
+  return enabledGroupsCache.ids
+}
+
 /** The official number, filled from the linked credentials once connected. */
 let ownPhone = digits(WHATSAPP_PAIR_NUMBER || '')
 
@@ -151,6 +165,7 @@ function takeCallText(number) {
 const marketing = createMarketing({
   supabase,
   control,
+  status,
   apiUrl: CHAT_API_URL,
   secret: WHATSAPP_BRIDGE_SECRET,
   ownPhone: () => ownPhone,
@@ -1183,7 +1198,7 @@ async function onMessage(message) {
   const rawJid = message?.key?.remoteJid
   if (!rawJid) return
   if (rawJid === 'status@broadcast') return
-  if (rawJid.endsWith('@g.us')) return // group chats stay quiet
+  const isGroup = rawJid.endsWith('@g.us')
 
   const id = message.key.id
   if (!id || seenMessages.has(id)) return
@@ -1217,7 +1232,7 @@ async function onMessage(message) {
     return enqueue(jid, () => handleAdminCommand({ jid, text, actor: phone }))
   }
 
-  return enqueue(jid, () => handleMessage({ message, jid, id }))
+  return enqueue(jid, () => handleMessage({ message, jid, id, isGroup, rawJid }))
 }
 
 const HOLDING = {
@@ -1276,7 +1291,7 @@ async function sendHoldingMessage({ jid, phone, session, reason, profileName, id
 }
 
 
-async function handleMessage({ message, jid, id }) {
+async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' }) {
   let text = extractText(message)
 
   if (!text) {
@@ -1345,7 +1360,30 @@ async function handleMessage({ message, jid, id }) {
     return
   }
 
+  /*
+   * Behaviour rules. These are silent by design: a suppressed message is not
+   * answered and not shown to the customer, only recorded for the admin.
+   */
+  const decision = await rules.gate({
+    jid,
+    phone,
+    text,
+    isGroup,
+    message,
+    ownPhone,
+    enabledGroupIds: isGroup ? await enabledGroupJids() : null,
+  })
+  if (!decision.allow) {
+    await recordActivity(supabase, {
+      kind: 'rule_suppressed',
+      subject: phone || rawJid || null,
+      detail: { reason: decision.reason, isGroup, group: rawJid || null },
+    })
+    return
+  }
+
   try {
+    if (decision.delayMs) await sleep(decision.delayMs)
     await safePresence(jid, 'composing')
 
     await logMessage(supabase, { jid, phone, role: 'user', body: text, messageId: id })
@@ -1457,7 +1495,19 @@ async function handleMessage({ message, jid, id }) {
 
 async function sendText(jid, text) {
   if (!sock) throw new Error('socket not ready')
-  await sock.sendMessage(jid, { text: String(text).slice(0, 4000) })
+  const body = String(text).slice(0, 4000)
+  if (rules.isDryRun()) {
+    console.log(`[dry-run] would send to ${jid}: ${body.slice(0, 140)}`)
+    return
+  }
+  try {
+    await sock.sendMessage(jid, { text: body })
+    rules.markDelivered({ jid, text: body, isGroup: String(jid).endsWith('@g.us') })
+    rules.recordSuccess()
+  } catch (error) {
+    rules.recordError()
+    throw error
+  }
 }
 
 async function safePresence(jid, state) {
@@ -1871,6 +1921,63 @@ setInterval(tick, 4000);
     }
   }
 
+  /*
+   * Admin console endpoint. GET reports live socket state; POST performs the
+   * four operational actions the auth panel exposes: new code, restart,
+   * refresh session and switch number (the latter also lives at /pair/switch).
+   */
+  if (url.pathname === '/bot/auth') {
+    if (!bridgeAuthorized(req, url)) return sendJson(res, 401, { error: 'unauthorized' })
+
+    if (req.method === 'GET') {
+      return sendJson(res, 200, {
+        number: pairedNumber ? formatPhone(pairedNumber) : null,
+        me: sock?.authState?.creds?.me?.id || null,
+        name: sock?.authState?.creds?.me?.name || null,
+        connected,
+        registered,
+        uptime: Math.round(process.uptime()),
+        code: pair.code,
+        codeAgeSeconds: pair.codeAt ? Math.round((Date.now() - pair.codeAt) / 1000) : null,
+        hasQr: Boolean(pair.qr),
+        sessionPrefix: WHATSAPP_SESSION_PREFIX,
+      })
+    }
+
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req)
+        const action = String(body.action || '')
+        if (action === 'switch') {
+          const result = await switchPairingNumber(body.number)
+          return sendJson(res, 202, result)
+        }
+        if (action === 'code') {
+          if (!pairedNumber) return sendJson(res, 409, { error: 'pairing is not configured' })
+          if (connected && registered) return sendJson(res, 409, { error: 'already paired' })
+          pair.requested = false
+          pair.code = null
+          pair.codeAt = 0
+          try { sock?.end(undefined) } catch { /* already closed */ }
+          return sendJson(res, 202, { restarted: true })
+        }
+        if (action === 'restart') {
+          const result = await switchPairingNumber(pairedNumber)
+          return sendJson(res, 202, { ...result, cleared: false })
+        }
+        if (action === 'refresh_session') {
+          await clearAuthState(supabase, WHATSAPP_SESSION_PREFIX)
+          const result = await switchPairingNumber(pairedNumber)
+          return sendJson(res, 202, { ...result, cleared: true })
+        }
+        return sendJson(res, 400, { error: 'unknown action' })
+      } catch (error) {
+        return sendJson(res, 500, { error: String(error?.message ?? error) })
+      }
+    }
+    return sendJson(res, 405, { error: 'method not allowed' })
+  }
+
   if (url.pathname === '/groups/sync') {
     /*
      * On-demand group discovery for the dashboard. The worker is the only
@@ -1884,7 +1991,7 @@ setInterval(tick, 4000);
     }
 
     try {
-      const count = await syncGroups(sock, supabase)
+      const count = await syncGroups(sock, supabase, console, true)
       await recordActivity(
         supabase,
         { kind: 'groups_synced', subject: null, detail: { count, trigger: 'dashboard' } },
@@ -1956,7 +2063,7 @@ setInterval(tick, 4000);
     return
   }
 
-  if (url.pathname === '/health' || url.pathname === '/live') {
+  if (url.pathname === '/health' || url.pathname === '/live' || url.pathname === '/wake') {
     /*
      * Liveness for hosts like Render: must return 200 even before the number
      * is paired. Their health check fs the service right after boot, so a

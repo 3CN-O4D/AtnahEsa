@@ -7,15 +7,18 @@ import {
   CheckCircle2,
   FileText,
   History,
+  ListChecks,
   Loader2,
   Megaphone,
   MessageCircle,
   Pause,
   Play,
+  Radio,
   RefreshCw,
   Search,
   Send,
   ShieldAlert,
+  Smartphone,
   Sparkles,
   Trash2,
   UserRound,
@@ -114,7 +117,96 @@ type Activity = {
   created_at: string
 }
 
-type Tab = 'overview' | 'chats' | 'urgent' | 'marketing' | 'groups' | 'activity'
+type RulesSettings = {
+  last_speaker_guard: boolean
+  greet_once: boolean
+  require_intent: boolean
+  intent_keywords: string[]
+  quiet_hours: { enabled: boolean; start: string; end: string; urgent_exempt: boolean }
+  typing_delay_seconds: number
+  per_chat_rate_limit: { enabled: boolean; max_replies: number; window_minutes: number }
+  global_rate_limit: { enabled: boolean; max_per_hour: number }
+  ignore_forwarded: boolean
+  ignore_status_replies: boolean
+  keyword_allowlist: string[]
+  keyword_blocklist: string[]
+  handoff_after_misses: number
+  groups_enabled: boolean
+  groups_require_mention: boolean
+  group_last_speaker_guard: boolean
+  group_silent: boolean
+  enabled_groups_only: boolean
+  reply_probability: number
+  circuit_breaker: { enabled: boolean; max_errors: number }
+  dry_run: boolean
+}
+
+type StatusMode = 'off' | 'auto' | 'stats' | 'event' | 'random' | 'round_robin' | 'hybrid'
+
+type StatusSettings = {
+  mode: StatusMode
+  interval_minutes: number
+  daily_limit: number
+  quiet_hours: { enabled: boolean; start: string; end: string }
+  templates: Record<string, string>
+  topics: { name?: string; body?: string; topic?: string }[]
+  random_pool: { body: string; topic?: string }[]
+  no_repeat_window: number
+  event_hooks: Record<string, boolean>
+  require_approval: boolean
+}
+
+type StatusHistory = {
+  id: string | number
+  mode: string
+  topic: string | null
+  body: string
+  kind: string
+  created_at: string
+}
+
+type Override = {
+  id: string
+  scope: string
+  target: string
+  settings: Record<string, unknown>
+  enabled: boolean
+  note: string | null
+  updated_by: string | null
+  updated_at: string
+}
+
+type StatusQueueItem = {
+  id: string
+  body: string
+  channel: 'status' | 'group'
+  status: string
+  state: string
+  scheduled_for: string
+  sent_at: string | null
+  expires_at: string | null
+  expired: boolean
+  target_jid: string | null
+  template: string | null
+  error: string | null
+  created_at: string
+}
+
+type AuthState = {
+  number: string | null
+  me: string | null
+  name: string | null
+  connected: boolean
+  registered: boolean
+  uptime: number
+  code: string | null
+  codeAgeSeconds: number | null
+  hasQr: boolean
+  sessionPrefix: string
+  error?: string
+}
+
+type Tab = 'overview' | 'chats' | 'urgent' | 'marketing' | 'groups' | 'rules' | 'statuses' | 'auth' | 'activity'
 
 const TABS: { id: Tab; label: string; icon: typeof Bot }[] = [
   { id: 'overview', label: 'Control', icon: Bot },
@@ -122,7 +214,20 @@ const TABS: { id: Tab; label: string; icon: typeof Bot }[] = [
   { id: 'urgent', label: 'Urgent', icon: AlertTriangle },
   { id: 'marketing', label: 'Marketing', icon: Megaphone },
   { id: 'groups', label: 'Groups', icon: Users },
+  { id: 'rules', label: 'Rules', icon: ListChecks },
+  { id: 'statuses', label: 'Statuses', icon: Radio },
+  { id: 'auth', label: 'Auth', icon: Smartphone },
   { id: 'activity', label: 'Activity', icon: History },
+]
+
+const STATUS_MODES: { id: StatusMode; label: string; blurb: string }[] = [
+  { id: 'off', label: 'Off', blurb: 'No automatic statuses. Approved drafts still send.' },
+  { id: 'auto', label: 'AI auto', blurb: 'Keep the existing AI house draft generator.' },
+  { id: 'stats', label: 'Stats', blurb: 'Post live house, chat and urgent counts.' },
+  { id: 'event', label: 'Events', blurb: 'Post when a house is listed or released.' },
+  { id: 'random', label: 'Random', blurb: 'Cycle a pool without repeating recent posts.' },
+  { id: 'round_robin', label: 'Round robin', blurb: 'Post topics in a fixed order.' },
+  { id: 'hybrid', label: 'Hybrid', blurb: 'Mix stats, random and round robin.' },
 ]
 
 const MODE_META: Record<BotMode, { label: string; short: string; dot: string; blurb: string }> = {
@@ -202,6 +307,26 @@ export default function AdminWhatsAppPage() {
   const [draftEdits, setDraftEdits] = useState<Record<string, string>>({})
   const [draftGroup, setDraftGroup] = useState('')
 
+  const [rules, setRules] = useState<RulesSettings | null>(null)
+  const [ruleOverrides, setRuleOverrides] = useState<Override[]>([])
+  const [statusSettings, setStatusSettings] = useState<StatusSettings | null>(null)
+  const [statusHistory, setStatusHistory] = useState<StatusHistory[]>([])
+  const [statusQueue, setStatusQueue] = useState<StatusQueueItem[]>([])
+  const [statusOverrides, setStatusOverrides] = useState<Override[]>([])
+  const [authState, setAuthState] = useState<AuthState | null>(null)
+  const [newNumber, setNewNumber] = useState('')
+  const [templateDrafts, setTemplateDrafts] = useState<Record<string, string>>({})
+  const [poolInput, setPoolInput] = useState('')
+  const [topicsInput, setTopicsInput] = useState('')
+  const [ruleOverrideScope, setRuleOverrideScope] = useState<'chat' | 'group'>('chat')
+  const [ruleOverrideTarget, setRuleOverrideTarget] = useState('')
+  const [statusOverrideScope, setStatusOverrideScope] = useState<'status' | 'group' | 'topic'>('status')
+  const [statusOverrideTarget, setStatusOverrideTarget] = useState('status')
+  const [overrideEditor, setOverrideEditor] = useState<Record<string, string>>({})
+  const [statusDrafts, setStatusDrafts] = useState<Record<string, string>>({})
+  const [newStatusBody, setNewStatusBody] = useState('')
+  const [consoleMigrationRequired, setConsoleMigrationRequired] = useState(false)
+
   const showToast = useCallback((type: 'ok' | 'error', message: string) => {
     setToast({ type, message })
     window.setTimeout(() => setToast(null), 3200)
@@ -211,22 +336,28 @@ export default function AdminWhatsAppPage() {
     setLoading(true)
     try {
       const activityQuery = activityKind ? `?kind=${encodeURIComponent(activityKind)}` : ''
-      const [controlRes, chatsRes, urgentRes, marketingRes, groupsRes, activityRes] = await Promise.all([
+      const [controlRes, chatsRes, urgentRes, marketingRes, groupsRes, activityRes, rulesRes, statusRes, authRes] = await Promise.all([
         fetch('/api/admin/whatsapp/control'),
         fetch('/api/admin/whatsapp/chats'),
         fetch('/api/admin/whatsapp/urgent'),
         fetch('/api/admin/whatsapp/marketing'),
         fetch('/api/admin/whatsapp/groups'),
         fetch(`/api/admin/whatsapp/activity${activityQuery}`),
+        fetch('/api/admin/whatsapp/rules'),
+        fetch('/api/admin/whatsapp/status'),
+        fetch('/api/admin/whatsapp/auth'),
       ])
 
-      const [controlData, chatsData, urgentData, marketingData, groupsData, activityData] = await Promise.all([
+      const [controlData, chatsData, urgentData, marketingData, groupsData, activityData, rulesData, statusData, authData] = await Promise.all([
         controlRes.json().catch(() => ({})),
         chatsRes.json().catch(() => ({})),
         urgentRes.json().catch(() => ({})),
         marketingRes.json().catch(() => ({})),
         groupsRes.json().catch(() => ({})),
         activityRes.json().catch(() => ({})),
+        rulesRes.json().catch(() => ({})),
+        statusRes.json().catch(() => ({})),
+        authRes.json().catch(() => ({})),
       ])
 
       if (controlRes.ok) {
@@ -242,6 +373,22 @@ export default function AdminWhatsAppPage() {
         setActivityKinds(activityData.kinds ?? [])
         setActivityMigrationRequired(Boolean(activityData.migration_required))
       }
+      if (rulesRes.ok && !rulesData.migration_required) {
+        setRules(rulesData.settings ?? null)
+        setRuleOverrides(rulesData.overrides ?? [])
+      }
+      if (statusRes.ok && !statusData.migration_required) {
+        setStatusSettings(statusData.settings ?? null)
+        setStatusHistory(statusData.history ?? [])
+        setStatusQueue(statusData.queue ?? [])
+        setStatusOverrides(statusData.overrides ?? [])
+      }
+      if (rulesData.migration_required || statusData.migration_required) {
+        setConsoleMigrationRequired(true)
+      } else {
+        setConsoleMigrationRequired(false)
+      }
+      if (authRes.ok) setAuthState(authData)
     } catch {
       showToast('error', 'Could not load WhatsApp controls.')
     } finally {
@@ -522,6 +669,249 @@ export default function AdminWhatsAppPage() {
     },
     [showToast]
   )
+
+  const patchRules = useCallback(
+    async (patch: Partial<RulesSettings>, key = 'rules') => {
+      setBusy(key)
+      try {
+        const res = await fetch('/api/admin/whatsapp/rules', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not save rules.')
+          return
+        }
+        setRules(data.settings ?? null)
+        showToast('ok', 'Rules saved. Ase picks them up in a few seconds.')
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [showToast]
+  )
+
+  const patchStatus = useCallback(
+    async (patch: Partial<StatusSettings>, key = 'status') => {
+      setBusy(key)
+      try {
+        const res = await fetch('/api/admin/whatsapp/status', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(patch),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not save status settings.')
+          return
+        }
+        setStatusSettings(data.settings ?? null)
+        showToast('ok', 'Status settings saved.')
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [showToast]
+  )
+
+  const authAction = useCallback(
+    async (action: 'code' | 'restart' | 'refresh_session' | 'switch', number?: string) => {
+      const labels: Record<string, string> = {
+        code: 'Request a new pairing code',
+        restart: 'Restart the WhatsApp bot',
+        refresh_session: 'Refresh the session',
+        switch: 'Change the linked number',
+      }
+      if (action === 'refresh_session' && !window.confirm('This clears the saved pairing. You will need to link the phone again. Continue?')) return
+      if (action === 'switch' && !window.confirm('Changing the number clears the current session. Continue?')) return
+      setBusy(`auth-${action}`)
+      try {
+        const res = await fetch('/api/admin/whatsapp/auth', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, number }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || `${labels[action]} failed.`)
+          return
+        }
+        showToast('ok', `${labels[action]} requested.`)
+        void load()
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load, showToast]
+  )
+
+  const saveOverride = useCallback(
+    async (kind: 'rules' | 'status', body: Record<string, unknown>, key = 'override') => {
+      setBusy(key)
+      try {
+        const res = await fetch(`/api/admin/whatsapp/${kind}/overrides`, {
+          method: body.id ? 'PATCH' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not save override.')
+          return
+        }
+        showToast('ok', 'Override saved. Ase applies it within a few seconds.')
+        setOverrideEditor((prev) => {
+          const next = { ...prev }
+          delete next[key]
+          return next
+        })
+        void load()
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load, showToast]
+  )
+
+  const deleteOverride = useCallback(
+    async (kind: 'rules' | 'status', id: string) => {
+      if (!window.confirm('Delete this override? The global setting will apply again.')) return
+      setBusy(`delete-override-${id}`)
+      try {
+        const res = await fetch(`/api/admin/whatsapp/${kind}/overrides`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not delete override.')
+          return
+        }
+        showToast('ok', 'Override deleted.')
+        void load()
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load, showToast]
+  )
+
+  const patchQueueItem = useCallback(
+    async (id: string, action: 'update' | 'approve' | 'expire' | 'skip' | 'retry', extra: Record<string, unknown> = {}) => {
+      setBusy(`queue-${action}-${id}`)
+      try {
+        const res = await fetch('/api/admin/whatsapp/marketing', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id, action, ...extra }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not update that status.')
+          return
+        }
+        showToast('ok', 'Status updated.')
+        setStatusDrafts((prev) => {
+          const next = { ...prev }
+          delete next[id]
+          return next
+        })
+        void load()
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load, showToast]
+  )
+
+  const deleteQueueItem = useCallback(
+    async (id: string) => {
+      if (!window.confirm('Delete this status from the panel? This cannot be undone.')) return
+      setBusy(`queue-delete-${id}`)
+      try {
+        const res = await fetch('/api/admin/whatsapp/marketing', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id }),
+        })
+        const data = await res.json().catch(() => ({}))
+        if (!res.ok) {
+          showToast('error', data?.error || 'Could not delete that status.')
+          return
+        }
+        showToast('ok', 'Status removed.')
+        void load()
+      } catch {
+        showToast('error', 'Network error.')
+      } finally {
+        setBusy(null)
+      }
+    },
+    [load, showToast]
+  )
+
+  const createStatus = useCallback(async () => {
+    if (!newStatusBody.trim()) return
+    setBusy('new-status')
+    try {
+      const res = await fetch('/api/admin/whatsapp/marketing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ channel: 'status', action: 'create', body: newStatusBody.trim() }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast('error', data?.error || 'Could not save the status.')
+        return
+      }
+      setNewStatusBody('')
+      showToast('ok', 'Status draft saved.')
+      void load()
+    } catch {
+      showToast('error', 'Network error.')
+    } finally {
+      setBusy(null)
+    }
+  }, [load, newStatusBody, showToast])
+
+  const resetWorkspace = useCallback(async () => {
+    if (!window.confirm('Clear all WhatsApp chats, transcripts and groups collected by the old number?')) return
+    if (!window.confirm('This cannot be undone. Continue only after the bot is paired to 254748275079.')) return
+    setBusy('reset-workspace')
+    try {
+      const res = await fetch('/api/admin/whatsapp/reset', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: 'RESET' }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        showToast('error', data?.error || 'Could not clear old data.')
+        return
+      }
+      showToast('ok', 'Old chats and groups cleared.')
+      void load()
+    } catch {
+      showToast('error', 'Network error.')
+    } finally {
+      setBusy(null)
+    }
+  }, [load, showToast])
 
   const filteredChats = useMemo(() => {
     const q = chatSearch.trim().toLowerCase()
@@ -1113,6 +1503,707 @@ export default function AdminWhatsAppPage() {
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {consoleMigrationRequired && (tab === 'rules' || tab === 'statuses') && (
+        <div className="mt-5 flex flex-col gap-2 rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+          <span className="font-semibold">Run the console migration first.</span>
+          <code className="text-xs">supabase/migration-whatsapp-console.sql</code>
+        </div>
+      )}
+
+      {tab === 'rules' && (
+        <div className="mt-5 space-y-5">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+            <span className="font-semibold">How time is measured:</span> clock times are Nairobi time (EAT). Typing delay is in
+            <span className="font-semibold"> seconds</span>; rate-limit windows and quiet hours are labelled. Durations like “50”
+            below mean <span className="font-semibold">50 minutes</span>, never hours.
+          </div>
+          {!rules ? (
+            <div className="rounded-xl border border-gray-200 bg-white p-8 text-center text-sm text-gray-500 dark:border-slate-800 dark:bg-slate-900">
+              {loading ? 'Loading rules…' : 'Rules are unavailable.'}
+            </div>
+          ) : (
+            <>
+              <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Reply rules</h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Ase stays quiet when a rule says so. Nothing here sends a message to the customer.
+                  </p>
+                </div>
+                <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {([
+                    ['last_speaker_guard', 'Last speaker guard', 'Never answer if Ase spoke last in the chat.'],
+                    ['greet_once', 'Greet once', 'Only greet a new chat once; real questions still get answers.'],
+                    ['require_intent', 'Require intent', 'Answer only when a message matches the intent words below.'],
+                    ['ignore_forwarded', 'Ignore forwarded', 'Skip forwarded messages.'],
+                    ['ignore_status_replies', 'Ignore status replies', 'Do not answer replies to WhatsApp status.'],
+                    ['groups_enabled', 'Enable group replies', 'Let Ase answer in groups at all (off by default).'],
+                    ['groups_require_mention', 'Groups require mention', 'In groups, answer only when Ase is mentioned.'],
+                    ['group_last_speaker_guard', 'Group last speaker guard', 'Do not double-message a group Ase just spoke in.'],
+                    ['group_silent', 'Group silent', 'Never post in groups, even when enabled.'],
+                    ['enabled_groups_only', 'Enabled groups only', 'Only answer in groups ticked on the Groups tab.'],
+                    ['dry_run', 'Dry run', 'Log what Ase would send without actually sending it.'],
+                  ] as const).map(([key, label, help]) => (
+                    <label key={key} className="flex items-start gap-3 rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
+                      <input
+                        type="checkbox"
+                        checked={Boolean(rules[key])}
+                        disabled={busy === `rule-${key}`}
+                        onChange={(event) => void patchRules({ [key]: event.target.checked } as Partial<RulesSettings>, `rule-${key}`)}
+                        className="mt-0.5 h-4 w-4 rounded border-gray-300 dark:border-slate-600"
+                      />
+                      <span>
+                        <span className="block text-sm font-medium text-gray-900 dark:text-white">{label}</span>
+                        <span className="mt-0.5 block text-xs text-gray-500 dark:text-gray-400">{help}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Timing &amp; limits</h2>
+                </div>
+                <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <label className="text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Typing delay (seconds)</span>
+                    <input type="number" min={0} max={60} defaultValue={rules.typing_delay_seconds}
+                      onBlur={(e) => void patchRules({ typing_delay_seconds: Math.max(0, Number(e.target.value)) })}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  </label>
+                  <label className="text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Group reply chance (%)</span>
+                    <input type="number" min={0} max={100} defaultValue={rules.reply_probability}
+                      onBlur={(e) => void patchRules({ reply_probability: Math.min(100, Math.max(0, Number(e.target.value))) })}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  </label>
+                  {([
+                    ['per_chat_rate_limit', 'max_replies', 'Max replies per chat (per rate window)'],
+                    ['global_rate_limit', 'max_per_hour', 'Max replies per hour (all chats)'],
+                    ['circuit_breaker', 'max_errors', 'Errors before pause'],
+                  ] as const).map(([group, field, label]) => (
+                    <label key={group} className="text-sm">
+                      <span className="text-gray-600 dark:text-gray-400">{label}</span>
+                      <input type="number" min={1} defaultValue={Number((rules[group] as Record<string, unknown> | undefined)?.[field] ?? 1)}
+                        onBlur={(e) => void patchRules({ [group]: { ...(rules[group] as Record<string, unknown>), enabled: true, [field]: Math.max(1, Number(e.target.value)) } } as Partial<RulesSettings>)}
+                        className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                    </label>
+                  ))}
+                  <label className="text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Rate window (minutes)</span>
+                    <input type="number" min={1} max={1440}
+                      defaultValue={rules.per_chat_rate_limit?.window_minutes ?? 60}
+                      onBlur={(e) => void patchRules({
+                        per_chat_rate_limit: {
+                          ...rules.per_chat_rate_limit,
+                          enabled: true,
+                          window_minutes: Math.min(1440, Math.max(1, Number(e.target.value))),
+                        },
+                      })}
+                      className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                    <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">60 means one hour. This pairs with “Max replies per chat”.</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <div className="mb-3 flex flex-wrap items-center gap-3">
+                  <label className="inline-flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                    <input type="checkbox" checked={Boolean(rules.quiet_hours?.enabled)}
+                      onChange={(e) => void patchRules({ quiet_hours: { ...rules.quiet_hours, enabled: e.target.checked } })}
+                      className="h-4 w-4" />
+                    Quiet hours (Nairobi time)
+                  </label>
+                  <input type="time" value={rules.quiet_hours?.start || '22:00'}
+                    onChange={(e) => void patchRules({ quiet_hours: { ...rules.quiet_hours, start: e.target.value } })}
+                    className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  <span className="text-gray-400">to</span>
+                  <input type="time" value={rules.quiet_hours?.end || '06:00'}
+                    onChange={(e) => void patchRules({ quiet_hours: { ...rules.quiet_hours, end: e.target.value } })}
+                    className="rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                </div>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  {([
+                    ['intent_keywords', 'Intent words', 'Only reply when one of these appears.'],
+                    ['keyword_allowlist', 'Keyword allowlist', 'Only reply to messages containing these.'],
+                    ['keyword_blocklist', 'Keyword blocklist', 'Never reply to messages containing these.'],
+                  ] as const).map(([key, label, help]) => (
+                    <label key={key} className="text-sm">
+                      <span className="block font-medium text-gray-900 dark:text-white">{label}</span>
+                      <span className="mb-1 block text-xs text-gray-500 dark:text-gray-400">{help}</span>
+                      <textarea rows={3} defaultValue={(rules[key] || []).join(', ')}
+                        onBlur={(e) => void patchRules({ [key]: e.target.value.split(',').map((v) => v.trim()).filter(Boolean) } as Partial<RulesSettings>)}
+                        placeholder="house, wifi, mover, escrow"
+                        className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+                  <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Chat &amp; group overrides</h2>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Specific targets override the general rules above. Order: general → group → chat. Only the keys you set here are overridden.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 border-b border-gray-100 p-4 dark:border-slate-800">
+                  <select value={ruleOverrideScope}
+                    onChange={(e) => setRuleOverrideScope(e.target.value as 'chat' | 'group')}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                    <option value="chat">Chat / phone</option>
+                    <option value="group">Group</option>
+                  </select>
+                  <input value={ruleOverrideTarget}
+                    onChange={(e) => setRuleOverrideTarget(e.target.value)}
+                    placeholder={ruleOverrideScope === 'group' ? '120363...@g.us' : '254748275079'}
+                    className="min-w-56 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  <Button size="sm" disabled={!ruleOverrideTarget.trim() || busy === 'override'}
+                    onClick={() => {
+                      void saveOverride('rules', {
+                        scope: ruleOverrideScope,
+                        target: ruleOverrideTarget.trim(),
+                        settings: ruleOverrideScope === 'group'
+                          ? { groups_enabled: true, groups_require_mention: true }
+                          : { last_speaker_guard: true },
+                      })
+                      setRuleOverrideTarget('')
+                    }}>
+                    Add override
+                  </Button>
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {ruleOverrides.map((row) => {
+                    const settings = row.settings || {}
+                    const quickKeys: { key: keyof RulesSettings; label: string }[] = [
+                      { key: 'last_speaker_guard', label: 'Last speaker guard' },
+                      { key: 'greet_once', label: 'Greet once' },
+                      { key: 'groups_require_mention', label: 'Group mention' },
+                      { key: 'group_silent', label: 'Group silent' },
+                      { key: 'dry_run', label: 'Dry run' },
+                    ]
+                    return (
+                      <div key={row.id} className="p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{row.scope}: {row.target}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              {row.enabled ? 'Active' : 'Paused'} · {row.note || 'No note'}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" disabled={busy === `override-enabled-${row.id}`}
+                              onClick={() => void saveOverride('rules', { id: row.id, enabled: !row.enabled }, `override-enabled-${row.id}`)}>
+                              {row.enabled ? 'Pause' : 'Enable'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setOverrideEditor((prev) => ({
+                              ...prev,
+                              [row.id]: prev[row.id] ?? JSON.stringify(settings, null, 2),
+                            }))}>
+                              Edit JSON
+                            </Button>
+                            <Button size="sm" variant="danger" disabled={busy === `delete-override-${row.id}`}
+                              onClick={() => void deleteOverride('rules', row.id)}>
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-3">
+                          {quickKeys.map(({ key, label }) => (
+                            <label key={key} className="inline-flex items-center gap-1.5 text-xs text-gray-700 dark:text-gray-300">
+                              <input type="checkbox" checked={Boolean(settings[key])}
+                                onChange={(e) => void saveOverride('rules', { id: row.id, settings: { [key]: e.target.checked } }, `rule-ov-${row.id}-${key}`)}
+                                className="h-3.5 w-3.5" />
+                              {label}
+                            </label>
+                          ))}
+                        </div>
+                        {overrideEditor[row.id] !== undefined && (
+                          <div className="mt-3">
+                            <textarea rows={4} value={overrideEditor[row.id]}
+                              onChange={(e) => setOverrideEditor((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                            <div className="mt-2 flex gap-2">
+                              <Button size="sm" disabled={busy === `override-json-${row.id}`}
+                                onClick={() => {
+                                  try {
+                                    const parsed = JSON.parse(overrideEditor[row.id])
+                                    void saveOverride('rules', { id: row.id, settings: parsed }, `override-json-${row.id}`)
+                                  } catch {
+                                    showToast('error', 'That is not valid JSON.')
+                                  }
+                                }}>
+                                Save JSON
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setOverrideEditor((prev) => {
+                                const next = { ...prev }
+                                delete next[row.id]
+                                return next
+                              })}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {ruleOverrides.length === 0 && (
+                    <p className="p-4 text-sm text-gray-500">No overrides yet. General rules apply everywhere.</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'statuses' && (
+        <div className="mt-5 space-y-5">
+          <div className="rounded-xl border border-blue-200 bg-blue-50 p-4 text-xs text-blue-900 dark:border-blue-900/50 dark:bg-blue-950/30 dark:text-blue-200">
+            <span className="font-semibold">Units:</span> “Interval” and “no-repeat window” are shown in minutes/counts as labelled;
+            quiet hours use Nairobi clock time. WhatsApp statuses expire 24 hours after posting and then leave this panel.
+          </div>
+          <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+            <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Status mode</h2>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Posts still go through the approval queue unless approval is switched off.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2 p-4">
+              {STATUS_MODES.map((mode) => (
+                <button key={mode.id} type="button"
+                  onClick={() => void patchStatus({ mode: mode.id }, `mode-${mode.id}`)}
+                  title={mode.blurb}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium ${statusSettings?.mode === mode.id
+                    ? 'border-blue-700 bg-blue-700 text-white'
+                    : 'border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-slate-700 dark:bg-slate-800 dark:text-gray-200'}`}>
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+            {statusSettings && (
+              <p className="px-4 pb-4 text-xs text-gray-500 dark:text-gray-400">
+                {STATUS_MODES.find((m) => m.id === statusSettings.mode)?.blurb}
+              </p>
+            )}
+          </div>
+
+          {statusSettings && (
+            <>
+              <div className="grid gap-4 rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900 sm:grid-cols-2 lg:grid-cols-4">
+                <label className="text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Interval (minutes)</span>
+                  <input type="number" min={5} max={1440} defaultValue={statusSettings.interval_minutes}
+                    onBlur={(e) => void patchStatus({ interval_minutes: Math.min(1440, Math.max(5, Number(e.target.value))) })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  <span className="mt-1 block text-xs text-gray-500 dark:text-gray-400">50 = 50 minutes, not hours.</span>
+                </label>
+                <label className="text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Daily limit</span>
+                  <input type="number" min={1} max={24} defaultValue={statusSettings.daily_limit}
+                    onBlur={(e) => void patchStatus({ daily_limit: Math.min(24, Math.max(1, Number(e.target.value))) })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                </label>
+                <label className="text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">No-repeat window</span>
+                  <input type="number" min={0} max={100} defaultValue={statusSettings.no_repeat_window}
+                    onBlur={(e) => void patchStatus({ no_repeat_window: Math.min(100, Math.max(0, Number(e.target.value))) })}
+                    className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                </label>
+                <label className="flex items-center gap-2 self-end pb-2 text-sm text-gray-700 dark:text-gray-300">
+                  <input type="checkbox" checked={Boolean(statusSettings.require_approval)}
+                    onChange={(e) => void patchStatus({ require_approval: e.target.checked })}
+                    className="h-4 w-4" />
+                  Require approval
+                </label>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Event posts</h3>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Queue a status when something happens on the site.</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                  {(['new_listing', 'released', 'paid', 'booking_confirmed'] as const).map((hook) => (
+                    <label key={hook} className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">
+                      <input type="checkbox" checked={Boolean(statusSettings.event_hooks?.[hook])}
+                        onChange={(e) => void patchStatus({ event_hooks: { ...statusSettings.event_hooks, [hook]: e.target.checked } })}
+                        className="h-4 w-4" />
+                      {hook.replace(/_/g, ' ')}
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Templates</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Placeholders: {'{title}'}, {'{location}'}, {'{rent}'}, {'{new_houses}'}, {'{released}'}, {'{chats}'}
+                  </p>
+                  <div className="mt-3 space-y-3">
+                    {(['stats', 'new_listing', 'released'] as const).map((key) => (
+                      <label key={key} className="block text-sm">
+                        <span className="text-gray-600 dark:text-gray-400">{key}</span>
+                        <textarea rows={3} value={templateDrafts[key] ?? statusSettings.templates?.[key] ?? ''}
+                          onChange={(e) => setTemplateDrafts((prev) => ({ ...prev, [key]: e.target.value }))}
+                          onBlur={() => {
+                            const value = templateDrafts[key]
+                            if (value !== undefined && value !== (statusSettings.templates?.[key] ?? '')) {
+                              void patchStatus({ templates: { ...statusSettings.templates, [key]: value } })
+                            }
+                          }}
+                          className="mt-1 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                      </label>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Random pool</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">One status per line. Recent ones are skipped.</p>
+                    <textarea rows={5} value={poolInput}
+                      onChange={(e) => setPoolInput(e.target.value)}
+                      placeholder={'AseHanta connects hunters with houses.\nList your house and earn with AseHanta.'}
+                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setPoolInput((statusSettings.random_pool || []).map((i) => i.body).join('\n'))}>
+                        Load current
+                      </Button>
+                      <Button size="sm" onClick={() => void patchStatus({ random_pool: poolInput.split('\n').map((line) => line.trim()).filter(Boolean).map((body) => ({ body })) })}>
+                        Save pool
+                      </Button>
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                    <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Round-robin topics</h3>
+                    <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">One topic per line, posted in order.</p>
+                    <textarea rows={4} value={topicsInput}
+                      onChange={(e) => setTopicsInput(e.target.value)}
+                      className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setTopicsInput((statusSettings.topics || []).map((t) => t.name || t.topic || '').filter(Boolean).join('\n'))}>
+                        Load current
+                      </Button>
+                      <Button size="sm" onClick={() => void patchStatus({ topics: topicsInput.split('\n').map((line) => line.trim()).filter(Boolean).map((name) => ({ name })) })}>
+                        Save topics
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Status queue &amp; monitor</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Drafts, upcoming posts and posted statuses in one place. Expired statuses disappear automatically; deleting one also removes it from history.
+                  </p>
+                </div>
+
+                <div className="grid gap-3 border-b border-gray-100 p-4 dark:border-slate-800 sm:grid-cols-3">
+                  {([
+                    ['upcoming', 'Upcoming', 'bg-blue-50 text-blue-700 dark:bg-blue-500/15 dark:text-blue-300'],
+                    ['posted', 'Posted', 'bg-green-50 text-green-700 dark:bg-green-500/15 dark:text-green-300'],
+                    ['draft', 'Drafts', 'bg-amber-50 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300'],
+                  ] as const).map(([state, label, color]) => (
+                    <div key={state} className="rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
+                      <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+                      <p className={`mt-1 text-2xl font-bold ${color}`}>
+                        {statusQueue.filter((item) => (state === 'posted' ? item.state === 'posted' : state === 'draft' ? item.state === 'draft' : item.state === 'upcoming' || item.state === 'due')).length}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="border-b border-gray-100 p-4 dark:border-slate-800">
+                  <h4 className="text-sm font-semibold text-gray-900 dark:text-white">New status</h4>
+                  <textarea rows={3} value={newStatusBody}
+                    onChange={(e) => setNewStatusBody(e.target.value)}
+                    placeholder="Write a WhatsApp status…"
+                    className="mt-2 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  <div className="mt-2 flex items-center justify-between gap-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Saved as a draft. WhatsApp statuses expire 24 hours after posting.</p>
+                    <Button size="sm" disabled={!newStatusBody.trim() || busy === 'new-status'} onClick={() => void createStatus()}>
+                      {busy === 'new-status' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                      Save draft
+                    </Button>
+                  </div>
+                </div>
+
+                <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {statusQueue.map((item) => (
+                    <div key={item.id} className="p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div className="min-w-0 flex-1">
+                          <textarea rows={2} value={statusDrafts[item.id] ?? item.body}
+                            onChange={(e) => setStatusDrafts((prev) => ({ ...prev, [item.id]: e.target.value }))}
+                            className="w-full rounded-lg border border-transparent bg-transparent px-2 py-1 text-sm text-gray-900 hover:border-gray-300 focus:border-blue-500 dark:text-white dark:hover:border-slate-600" />
+                          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                            <span className="rounded-full bg-gray-100 px-2 py-0.5 font-semibold text-gray-700 dark:bg-slate-800 dark:text-gray-300">{item.state}</span>
+                            <span>Scheduled {when(item.scheduled_for)}</span>
+                            {item.sent_at && <span>Posted {when(item.sent_at)}</span>}
+                            {item.expires_at && <span>Expires {when(item.expires_at)}</span>}
+                            {item.error && <span className="text-red-600 dark:text-red-400">{item.error}</span>}
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {(statusDrafts[item.id] ?? item.body) !== item.body && (
+                            <Button size="sm" variant="outline" disabled={busy === `queue-update-${item.id}`}
+                              onClick={() => void patchQueueItem(item.id, 'update', { body: statusDrafts[item.id] })}>
+                              Save edit
+                            </Button>
+                          )}
+                          {item.state !== 'posted' && (
+                            <Button size="sm" disabled={busy === `queue-approve-${item.id}`}
+                              onClick={() => void patchQueueItem(item.id, 'approve', {
+                                body: statusDrafts[item.id] ?? item.body,
+                                expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+                              })}>
+                              Approve / schedule
+                            </Button>
+                          )}
+                          {item.state === 'posted' && (
+                            <Button size="sm" variant="outline" disabled={busy === `queue-expire-${item.id}`}
+                              onClick={() => void patchQueueItem(item.id, 'expire')}>
+                              Mark expired
+                            </Button>
+                          )}
+                          <Button size="sm" variant="danger" disabled={busy === `queue-delete-${item.id}`}
+                            onClick={() => void deleteQueueItem(item.id)}>
+                            Delete
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {statusQueue.length === 0 && (
+                    <p className="p-4 text-sm text-gray-500">No active statuses. Draft one above or let a status mode queue one.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Status overrides</h3>
+                  <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                    Override the general status mode for the main status channel, one group, or one topic. Order: general → topic → group → status.
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 border-b border-gray-100 p-4 dark:border-slate-800">
+                  <select value={statusOverrideScope}
+                    onChange={(e) => setStatusOverrideScope(e.target.value as 'status' | 'group' | 'topic')}
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white">
+                    <option value="status">Status channel</option>
+                    <option value="group">Group</option>
+                    <option value="topic">Topic</option>
+                  </select>
+                  <input value={statusOverrideTarget}
+                    onChange={(e) => setStatusOverrideTarget(e.target.value)}
+                    disabled={statusOverrideScope === 'status'}
+                    className="min-w-56 flex-1 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm disabled:bg-gray-100 dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                  <Button size="sm" disabled={busy === 'override' || (statusOverrideScope !== 'status' && !statusOverrideTarget.trim())}
+                    onClick={() => void saveOverride('status', {
+                      scope: statusOverrideScope,
+                      target: statusOverrideScope === 'status' ? 'status' : statusOverrideTarget.trim(),
+                      settings: statusOverrideScope === 'group' ? { mode: 'auto', interval_minutes: 60 } : { mode: 'off' },
+                    })}>
+                    Add override
+                  </Button>
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {statusOverrides.map((row) => {
+                    const settings = row.settings || {}
+                    return (
+                      <div key={row.id} className="p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <p className="text-sm font-semibold text-gray-900 dark:text-white">{row.scope}: {row.target}</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              Mode {String(settings.mode ?? 'inherited')} · interval {String(settings.interval_minutes ?? 'inherited')} min · {row.enabled ? 'active' : 'paused'}
+                            </p>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            <Button size="sm" variant="outline" disabled={busy === `override-enabled-${row.id}`}
+                              onClick={() => void saveOverride('status', { id: row.id, enabled: !row.enabled }, `override-enabled-${row.id}`)}>
+                              {row.enabled ? 'Pause' : 'Enable'}
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setOverrideEditor((prev) => ({
+                              ...prev,
+                              [row.id]: prev[row.id] ?? JSON.stringify(settings, null, 2),
+                            }))}>
+                              Edit JSON
+                            </Button>
+                            <Button size="sm" variant="danger" disabled={busy === `delete-override-${row.id}`}
+                              onClick={() => void deleteOverride('status', row.id)}>
+                              Delete
+                            </Button>
+                          </div>
+                        </div>
+                        {overrideEditor[row.id] !== undefined && (
+                          <div className="mt-3">
+                            <textarea rows={4} value={overrideEditor[row.id]}
+                              onChange={(e) => setOverrideEditor((prev) => ({ ...prev, [row.id]: e.target.value }))}
+                              className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 font-mono text-xs dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+                            <div className="mt-2 flex gap-2">
+                              <Button size="sm" disabled={busy === `override-json-${row.id}`}
+                                onClick={() => {
+                                  try {
+                                    void saveOverride('status', { id: row.id, settings: JSON.parse(overrideEditor[row.id]) }, `override-json-${row.id}`)
+                                  } catch {
+                                    showToast('error', 'That is not valid JSON.')
+                                  }
+                                }}>
+                                Save JSON
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => setOverrideEditor((prev) => {
+                                const next = { ...prev }
+                                delete next[row.id]
+                                return next
+                              })}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                  {statusOverrides.length === 0 && (
+                    <p className="p-4 text-sm text-gray-500">No overrides yet. General status settings apply everywhere.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-gray-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+                <div className="border-b border-gray-200 p-4 dark:border-slate-800">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Status history</h3>
+                </div>
+                <div className="divide-y divide-gray-100 dark:divide-slate-800">
+                  {statusHistory.slice(0, 20).map((row) => (
+                    <div key={row.id} className="flex flex-col gap-1 p-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="whitespace-pre-line text-sm text-gray-800 dark:text-gray-200">{row.body}</p>
+                      <div className="flex shrink-0 items-center gap-2 text-xs text-gray-500">
+                        <span className="rounded-full bg-blue-50 px-2 py-0.5 font-semibold text-blue-700 dark:bg-blue-500/15 dark:text-blue-300">{row.mode}</span>
+                        {row.topic && <span>{row.topic}</span>}
+                        <span>{when(row.created_at)}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {statusHistory.length === 0 && (
+                    <p className="p-4 text-sm text-gray-500">No statuses posted yet.</p>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
+
+      {tab === 'auth' && (
+        <div className="mt-5 space-y-5">
+          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900 dark:text-white">Linked WhatsApp account</h2>
+                <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                  Session lives in Supabase. Restarting the worker does not require re-pairing.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" disabled={busy === 'auth-code'}
+                  onClick={() => void authAction('code')}>
+                  {busy === 'auth-code' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  New pairing code
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy === 'auth-restart'}
+                  onClick={() => void authAction('restart')}>
+                  {busy === 'auth-restart' ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                  Restart bot
+                </Button>
+                <Button size="sm" variant="outline" disabled={busy === 'auth-refresh_session'}
+                  onClick={() => void authAction('refresh_session')}>
+                  Refresh session
+                </Button>
+                <Button size="sm" variant="danger" disabled={busy === 'reset-workspace'}
+                  onClick={() => void resetWorkspace()}>
+                  Clear old chats &amp; groups
+                </Button>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {([
+                ['Configured number', authState?.number || '—'],
+                ['Linked identity', authState?.me || '—'],
+                ['Connection', authState?.connected ? 'Connected' : 'Disconnected'],
+                ['Registered', authState?.registered ? 'Yes' : 'No'],
+              ] as const).map(([label, value]) => (
+                <div key={label} className="rounded-lg bg-gray-50 p-3 dark:bg-slate-800/60">
+                  <p className="text-xs text-gray-500 dark:text-gray-400">{label}</p>
+                  <p className="mt-1 break-all text-sm font-semibold text-gray-900 dark:text-white">{value}</p>
+                </div>
+              ))}
+            </div>
+            {authState?.error && (
+              <p className="mt-3 text-sm text-red-600 dark:text-red-400">{authState.error}</p>
+            )}
+            {authState?.me && !authState.me.includes('254748275079') && (
+              <p className="mt-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200">
+                This worker is still linked to <span className="font-semibold">{authState.me}</span>, not the official AseHanta number.
+                Set the Render environment variable <code className="font-mono">WHATSAPP_PAIR_NUMBER=254748275079</code>, then request a new pairing code here.
+              </p>
+            )}
+          </div>
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Pairing code</h3>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                WhatsApp → Settings → Linked devices → Link with phone number.
+              </p>
+              <p className="mt-4 text-center font-mono text-3xl font-bold tracking-widest text-gray-900 dark:text-white">
+                {authState?.code || '—'}
+              </p>
+              {authState?.codeAgeSeconds !== null && authState?.codeAgeSeconds !== undefined && (
+                <p className="mt-2 text-center text-xs text-gray-500">Requested {authState.codeAgeSeconds}s ago</p>
+              )}
+            </div>
+            <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+              <h3 className="text-sm font-semibold text-gray-900 dark:text-white">QR code</h3>
+              <div className="mt-3 flex justify-center">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={`/api/admin/whatsapp/auth/qr?t=${Date.now()}`}
+                  alt="WhatsApp pairing QR"
+                  className="h-48 w-48 rounded-lg border border-gray-200 bg-white p-2 dark:border-slate-700"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-gray-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">Change linked number</h3>
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+              Digits only, country code included, e.g. 254748275079. This clears the current session.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <input value={newNumber} onChange={(e) => setNewNumber(e.target.value.replace(/\D/g, ''))}
+                placeholder="254748275079"
+                className="min-w-56 rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800 dark:text-white" />
+              <Button size="sm" disabled={!newNumber || busy === 'auth-switch'}
+                onClick={() => {
+                  void authAction('switch', newNumber)
+                  setNewNumber('')
+                }}>
+                {busy === 'auth-switch' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                Switch number
+              </Button>
+            </div>
           </div>
         </div>
       )}

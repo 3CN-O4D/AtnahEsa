@@ -110,9 +110,23 @@ function botMentioned(message, ownPhone, botName = 'ase') {
   return names.some((name) => new RegExp(`(^|[^a-z])${name}([^a-z]|$)`, 'i').test(text))
 }
 
+function mergePatch(base, patch) {
+  if (!patch || typeof patch !== 'object') return base
+  const next = { ...base }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && next[key] && typeof next[key] === 'object' && !Array.isArray(next[key])) {
+      next[key] = { ...next[key], ...value }
+    } else {
+      next[key] = value
+    }
+  }
+  return next
+}
+
 export function createRules(supabase, { log = console } = {}) {
   let cache = mergeDefaults(null)
   let cacheAt = 0
+  let overrideCache = { at: 0, rows: [] }
 
   // In-memory signals are intentionally small: they only need to cover the
   // current process lifetime, and the DB transcript is the durable fallback.
@@ -147,6 +161,56 @@ export function createRules(supabase, { log = console } = {}) {
     cache = next
     cacheAt = Date.now()
     return next
+  }
+
+  async function readOverrides(force = false) {
+    if (!force && Date.now() - overrideCache.at < CACHE_MS) return overrideCache.rows
+    const { data, error } = await supabase
+      .from('whatsapp_rule_overrides')
+      .select('scope, target, settings, enabled')
+      .eq('enabled', true)
+    if (error) {
+      // The override table arrives with the console migration; until then the
+      // global rules still work exactly as before.
+      log?.warn?.('[rules] overrides unavailable:', error.message)
+      overrideCache = { at: Date.now(), rows: [] }
+      return []
+    }
+    overrideCache = { at: Date.now(), rows: data || [] }
+    return overrideCache.rows
+  }
+
+  /**
+   * Global rules first, then the group patch, then the chat patch. Chat wins
+   * because it is the most specific. Phone numbers are compared digits-only so
+   * LID/PN JIDs and `+254…` targets all match the same person.
+   */
+  async function settingsFor({ jid = '', phone = '', isGroup = false } = {}) {
+    const base = await read()
+    const rows = await readOverrides()
+    const cleanJid = String(jid || '')
+    const cleanPhone = digits(phone || String(jid || '').split('@')[0])
+    let next = base
+    const scopes = []
+
+    for (const row of rows) {
+      const target = String(row.target || '')
+      const targetDigits = digits(target)
+      if (row.scope === 'group' && isGroup && (target === cleanJid || targetDigits === cleanPhone)) {
+        next = mergePatch(next, row.settings)
+        scopes.push('group')
+      }
+    }
+    for (const row of rows) {
+      const target = String(row.target || '')
+      const targetDigits = digits(target)
+      const matches = target === cleanJid || (cleanPhone && targetDigits === cleanPhone)
+      if (row.scope === 'chat' && matches && !isGroup) {
+        next = mergePatch(next, row.settings)
+        scopes.push('chat')
+      }
+    }
+    return { ...next, _scopes: scopes }
   }
 
   function settings() {
@@ -227,8 +291,8 @@ export function createRules(supabase, { log = console } = {}) {
     ownPhone = '',
     enabledGroupIds = null,
   } = {}) {
-    const rules = await read()
-    const deny = (reason) => ({ allow: false, reason })
+    const rules = await settingsFor({ jid, phone, isGroup })
+    const deny = (reason) => ({ allow: false, reason, scopes: rules._scopes || [] })
 
     if (rules.ignore_status_replies && String(message?.key?.remoteJid || '').includes('status')) {
       return deny('status_reply')
@@ -333,6 +397,8 @@ export function createRules(supabase, { log = console } = {}) {
   return {
     read,
     write,
+    readOverrides,
+    settingsFor,
     settings,
     gate,
     markDelivered,

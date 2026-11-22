@@ -24,6 +24,9 @@ const LISTING_DAILY_CAP = 2
 
 const digits = (value) => String(value ?? '').replace(/\D/g, '')
 const nowIso = () => new Date().toISOString()
+// WhatsApp statuses vanish from a phone after 24 hours. Queue rows get the same
+// lifetime so an old approved draft is never posted days later.
+const statusExpiresAt = () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
 const hoursAgo = (hours) => new Date(Date.now() - hours * 60 * 60 * 1000).toISOString()
 
 function xml(value) {
@@ -213,9 +216,37 @@ export async function composeMarketingCard({ listing = null, tall = false, headl
     .toBuffer()
 }
 
-export async function syncGroups(sock, supabase, log = console) {
+let lastGroupSyncAt = 0
+let groupSyncInFlight = null
+const GROUP_SYNC_COOLDOWN_MS = 30 * 60 * 1000
+
+export async function syncGroups(sock, supabase, log = console, force = false) {
   if (!sock?.groupFetchAllParticipating) return 0
 
+  // A reconnect or a burst of membership events must not trigger a fresh
+  // `groupFetchAllParticipating()` each time — WhatsApp rate-limits that call
+  // and can ban the number. Admin-requested syncs bypass the cooldown.
+  const age = Date.now() - lastGroupSyncAt
+  if (!force && age < GROUP_SYNC_COOLDOWN_MS) {
+    log.log?.(`[marketing] group discovery skipped (last sync ${Math.round(age / 1000)}s ago)`)
+    return 0
+  }
+  if (groupSyncInFlight) return groupSyncInFlight
+
+  groupSyncInFlight = (async () => {
+    lastGroupSyncAt = Date.now()
+    const count = await syncGroupsNow(sock, supabase, log)
+    return count
+  })()
+
+  try {
+    return await groupSyncInFlight
+  } finally {
+    groupSyncInFlight = null
+  }
+}
+
+async function syncGroupsNow(sock, supabase, log) {
   try {
     const groups = await sock.groupFetchAllParticipating()
     const rows = Object.values(groups ?? {}).map((group) => ({
@@ -311,6 +342,16 @@ async function mark(supabase, id, patch) {
 export async function sendMarketingRow({ sock, supabase, row, control, ownPhone, adminNumbers, log = console }) {
   const claimed = await claim(supabase, row)
   if (!claimed) return false
+
+  // A queued status that outlived its TTL must never reach WhatsApp.
+  if (claimed.expires_at && Date.parse(claimed.expires_at) <= Date.now()) {
+    await mark(supabase, claimed.id, {
+      status: 'skipped',
+      error: 'status expired before it was sent',
+    })
+    log.warn?.(`[marketing] skipped expired ${claimed.channel} post ${claimed.id}`)
+    return false
+  }
 
   try {
     const listing = await listingFor(supabase, claimed.listing_id)
@@ -493,6 +534,7 @@ async function requestDraft({ apiUrl, secret, payload, log }) {
 export function createMarketing({
   supabase,
   control,
+  status = null,
   apiUrl,
   secret,
   ownPhone,
@@ -561,9 +603,101 @@ export function createMarketing({
     }
   }
 
+  /** Queue event-driven statuses (new/released houses) for admin approval. */
+  async function generateEvents(settings) {
+    if (!status) return
+    const drafts = await status.pendingEvents(settings)
+    for (const draft of drafts) {
+      if ((await sentToday('status')) >= settings.daily_limit) break
+      if (status.isQuiet(settings)) break
+      const { data, error } = await supabase
+        .from('whatsapp_marketing')
+        .insert({
+          channel: 'status',
+          body: draft.body,
+          template: draft.topic,
+          status: settings.require_approval ? 'draft' : 'approved',
+          scheduled_for: nowIso(),
+          expires_at: statusExpiresAt(),
+          meta: { source: 'status_event', scopes: settings._scopes || [], ...(draft.meta || {}) },
+        })
+        .select('*')
+        .maybeSingle()
+      if (error) {
+        log.error?.('[marketing] event status queue failed:', error.message)
+        continue
+      }
+      await status.record(draft.body, {
+        mode: 'event',
+        topic: draft.topic,
+        kind: 'event',
+        meta: { ...(draft.meta || {}), marketing_id: data?.id },
+      })
+      if (data?.status === 'draft') await notifyDraft(data)
+    }
+  }
+
+  /** Queue a body from the new status mode (stats/random/round robin/hybrid). */
+  async function generateConfiguredStatus(snap, settings) {
+    if (status.isQuiet(settings)) return
+    if (tooSoon(snap.last_status_at, settings.interval_minutes)) return
+    if ((await sentToday('status')) >= settings.daily_limit) return
+    if ((await pending('status')) > 0) return
+
+    const next = await status.nextScheduled({ scope: 'status', target: 'status' })
+    if (!next?.body) {
+      log.log?.('[marketing] status mode produced no body')
+      await control.touchStatus('marketing')
+      return
+    }
+    const { data, error } = await supabase
+      .from('whatsapp_marketing')
+      .insert({
+        channel: 'status',
+        body: next.body,
+        template: next.topic,
+        status: settings.require_approval ? 'draft' : 'approved',
+        scheduled_for: nowIso(),
+        expires_at: statusExpiresAt(),
+        meta: { source: 'status_mode', mode: settings.mode, scopes: settings._scopes || [] },
+      })
+      .select('*')
+      .maybeSingle()
+    if (error) {
+      log.error?.('[marketing] status queue failed:', error.message)
+      return
+    }
+    await status.record(next.body, {
+      mode: settings.mode,
+      topic: next.topic,
+      meta: { marketing_id: data?.id, scopes: settings._scopes || [] },
+    })
+    await control.touchStatus('status')
+    if (data?.status === 'draft') await notifyDraft(data)
+    else if (data?.status === 'approved') {
+      await sendMarketingRow({ sock: currentSock, supabase, row: data, control, ownPhone, adminNumbers, log })
+    }
+  }
+
   async function generateStatus(snap) {
-    if (tooSoon(snap.last_status_at, snap.status_interval_minutes)) return
-    if ((await sentToday('status')) >= snap.status_daily_limit) return
+    if (status) {
+      const settings = await status.settingsFor({ scope: 'status', target: 'status' })
+      if (settings.mode === 'off') return
+      if (settings.mode === 'event') {
+        await generateEvents(settings)
+        return
+      }
+      if (settings.mode !== 'auto') {
+        await generateConfiguredStatus(snap, settings)
+        await generateEvents(settings)
+        return
+      }
+    }
+
+    const hasOverride = Boolean(status && settings._scopes?.length)
+    if (status?.isQuiet(settings)) return
+    if (tooSoon(snap.last_status_at, hasOverride ? settings.interval_minutes : snap.status_interval_minutes)) return
+    if ((await sentToday('status')) >= (hasOverride ? settings.daily_limit : snap.status_daily_limit)) return
     if ((await pending('status')) > 0) return
 
     try {
@@ -577,6 +711,18 @@ export function createMarketing({
       if (!data.draft) {
         log.log?.(`[marketing] status skipped: ${data.skipped || 'no available house'}`)
         return
+      }
+      if (hasOverride) {
+        const want = settings.require_approval ? 'draft' : 'approved'
+        if (data.draft.status !== want) {
+          await mark(supabase, data.draft.id, {
+            status: want,
+            approved_by: settings.require_approval ? null : 'worker:override',
+          })
+          data.draft.status = want
+        }
+        await mark(supabase, data.draft.id, { expires_at: statusExpiresAt() })
+        data.draft.expires_at = statusExpiresAt()
       }
       if (data.draft.status === 'draft') await notifyDraft(data.draft)
       else if (data.draft.status === 'approved') {
@@ -599,11 +745,28 @@ export function createMarketing({
       .order('last_posted_at', { ascending: true, nullsFirst: true })
       .limit(10)
 
+    let effective = null
     const due = (groups ?? []).find((group) => {
       const cadence = Number(group.cadence_minutes) || Number(snap.group_interval_minutes) || 50
       return !tooSoon(group.last_posted_at, Math.max(cadence, 1))
     })
     if (!due) return
+
+    // A group-level status override can pause that group entirely or replace
+    // its cadence / quiet hours / approval rule.
+    if (status?.settingsFor) {
+      effective = await status.settingsFor({ scope: 'group', target: due.jid })
+      if (effective.mode === 'off' || status.isQuiet(effective)) return
+      const overrideMinutes = Number(effective.interval_minutes)
+      if (Number.isFinite(overrideMinutes) && overrideMinutes > 0) {
+        const { error } = await supabase
+          .from('whatsapp_marketing_groups')
+          .update({ cadence_minutes: overrideMinutes, updated_at: nowIso() })
+          .eq('jid', due.jid)
+        if (error) log.warn?.('[marketing] group override save failed:', error.message)
+        if (tooSoon(due.last_posted_at, overrideMinutes)) return
+      }
+    }
     if ((await pending('group', due.jid)) > 0) return
 
     try {
@@ -617,6 +780,16 @@ export function createMarketing({
       if (!data.draft) {
         log.log?.(`[marketing] group post skipped: ${data.skipped || 'no available house'}`)
         return
+      }
+      if (effective && typeof effective.require_approval === 'boolean') {
+        const want = effective.require_approval ? 'draft' : 'approved'
+        if (data.draft.status !== want) {
+          await mark(supabase, data.draft.id, {
+            status: want,
+            approved_by: effective.require_approval ? null : 'worker:override',
+          })
+          data.draft.status = want
+        }
       }
       if (data.draft.status === 'draft') await notifyDraft(data.draft)
       else if (data.draft.status === 'approved') {

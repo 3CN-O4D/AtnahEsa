@@ -86,6 +86,7 @@ export async function POST(req: Request) {
         template: 'manual',
         status: autoSend ? 'approved' : 'draft',
         scheduled_for: new Date().toISOString(),
+        expires_at: channel === 'status' ? new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() : null,
         created_by: email,
         meta: { source: 'manual', topic: body.topic ?? 'manual' },
       })
@@ -133,23 +134,43 @@ export async function PATCH(req: Request) {
   const now = new Date().toISOString()
   const patch: Record<string, unknown> = { updated_at: now }
 
+  const { data: existing } = await db
+    .from('whatsapp_marketing')
+    .select('channel, expires_at')
+    .eq('id', id)
+    .maybeSingle()
+
+  const validDate = (value: unknown) =>
+    typeof value === 'string' && !Number.isNaN(Date.parse(value)) ? new Date(value).toISOString() : null
+  const defaultExpiry = () => new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
+  const expiry = validDate(body.expires_at) || (existing?.channel === 'status' ? defaultExpiry() : null)
+
   if (action === 'approve' || action === 'send') {
     patch.status = 'approved'
-    patch.scheduled_for = typeof body.scheduled_for === 'string' ? body.scheduled_for : now
+    patch.scheduled_for = validDate(body.scheduled_for) || now
+    if (expiry) patch.expires_at = expiry
     patch.approved_by = email
     patch.error = null
   } else if (action === 'skip') {
     patch.status = 'skipped'
     patch.approved_by = email
+  } else if (action === 'expire') {
+    patch.status = 'skipped'
+    patch.expires_at = now
+    patch.error = 'expired by admin'
+    patch.approved_by = email
   } else if (action === 'retry') {
     patch.status = 'approved'
-    patch.scheduled_for = now
+    patch.scheduled_for = validDate(body.scheduled_for) || now
+    if (expiry) patch.expires_at = expiry
     patch.error = null
     patch.approved_by = email
   } else if (action === 'update') {
     if (typeof body.body === 'string' && body.body.trim()) patch.body = body.body.trim().slice(0, 3000)
     if (typeof body.image_url === 'string') patch.image_url = body.image_url
     if (typeof body.target_jid === 'string') patch.target_jid = body.target_jid
+    if (validDate(body.scheduled_for)) patch.scheduled_for = validDate(body.scheduled_for)
+    if (validDate(body.expires_at)) patch.expires_at = validDate(body.expires_at)
     if (body.meta && typeof body.meta === 'object') patch.meta = body.meta
   } else {
     return NextResponse.json({ error: 'Unknown action' }, { status: 400 })
@@ -213,6 +234,11 @@ export async function DELETE(req: Request) {
   if (error) {
     console.error('[admin/whatsapp] marketing delete failed:', error.message)
     return NextResponse.json({ error: 'Could not delete that post.' }, { status: 500 })
+  }
+
+  // Keep the no-repeat/history mirror in step with the visible queue.
+  for (const id of ids) {
+    await db.from('whatsapp_status_history').delete().eq('meta->>marketing_id', id)
   }
 
   await db.from('whatsapp_control_audit').insert(

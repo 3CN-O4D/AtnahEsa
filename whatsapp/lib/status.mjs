@@ -50,6 +50,20 @@ function mergeDefaults(settings) {
   return merged
 }
 
+function mergePatch(base, patch) {
+  if (!patch || typeof patch !== 'object') return base
+  const next = { ...base }
+  for (const [key, value] of Object.entries(patch)) {
+    if (value && typeof value === 'object' && !Array.isArray(value) && next[key] && typeof next[key] === 'object' && !Array.isArray(next[key])) {
+      next[key] = { ...next[key], ...value }
+    } else {
+      next[key] = value
+    }
+  }
+  if (!STATUS_MODES.includes(next.mode)) next.mode = 'off'
+  return next
+}
+
 function minutesFromHHMM(value, fallback) {
   const match = /^(\d{1,2}):(\d{2})$/.exec(String(value || ''))
   if (!match) return fallback
@@ -96,6 +110,7 @@ function render(template, vars) {
 export function createStatus(supabase, { log = console } = {}) {
   let cache = mergeDefaults(null)
   let cacheAt = 0
+  let overrideCache = { at: 0, rows: [] }
 
   async function read(force = false) {
     if (!force && Date.now() - cacheAt < CACHE_MS) return cache
@@ -135,6 +150,47 @@ export function createStatus(supabase, { log = console } = {}) {
     cache = next
     cacheAt = Date.now()
     return next
+  }
+
+  async function readOverrides(force = false) {
+    if (!force && Date.now() - overrideCache.at < CACHE_MS) return overrideCache.rows
+    const { data, error } = await supabase
+      .from('whatsapp_status_overrides')
+      .select('scope, target, settings, enabled')
+      .eq('enabled', true)
+    if (error) {
+      log?.warn?.('[status] overrides unavailable:', error.message)
+      overrideCache = { at: Date.now(), rows: [] }
+      return []
+    }
+    overrideCache = { at: Date.now(), rows: data || [] }
+    return overrideCache.rows
+  }
+
+  /**
+   * Effective settings for one status channel / group / topic.
+   * Order: global → topic → group → status channel (most specific wins).
+   */
+  async function settingsFor({ scope = 'status', target = 'status', topic = '' } = {}) {
+    const base = await read()
+    const rows = await readOverrides()
+    let next = base
+    const scopes = []
+    const candidates = [
+      ...(topic ? [{ scope: 'topic', target: topic }] : []),
+      ...(scope === 'group' ? [{ scope: 'group', target }] : []),
+      { scope: 'status', target: 'status' },
+    ]
+
+    for (const candidate of candidates) {
+      for (const row of rows) {
+        if (row.scope === candidate.scope && String(row.target || '') === String(candidate.target)) {
+          next = mergePatch(next, row.settings)
+          scopes.push(`${row.scope}:${row.target}`)
+        }
+      }
+    }
+    return { ...next, _scopes: scopes }
   }
 
   async function record(body, { mode, topic, kind = 'scheduled', meta = {} } = {}) {
@@ -235,8 +291,8 @@ export function createStatus(supabase, { log = console } = {}) {
   }
 
   /** Build the next scheduled status, or null when auto/off/event-only. */
-  async function nextScheduled() {
-    const settings = await read()
+  async function nextScheduled({ scope = 'status', target = 'status' } = {}) {
+    const settings = await settingsFor({ scope, target })
     if (settings.mode === 'off' || settings.mode === 'auto' || settings.mode === 'event') return null
     if (inQuietHours(settings.quiet_hours)) return null
 
@@ -251,8 +307,8 @@ export function createStatus(supabase, { log = console } = {}) {
    * Poll for houses that appeared or were released since the last event tick.
    * Returns ready-to-queue drafts; it never sends directly.
    */
-  async function pendingEvents() {
-    const settings = await read()
+  async function pendingEvents(provided = null) {
+    const settings = provided || await settingsFor({ scope: 'status', target: 'status' })
     const hooks = settings.event_hooks || {}
     if (!hooks.new_listing && !hooks.released && !hooks.paid && !hooks.booking_confirmed) return []
 
@@ -310,10 +366,13 @@ export function createStatus(supabase, { log = console } = {}) {
   return {
     read,
     write,
+    readOverrides,
+    settingsFor,
     record,
     nextScheduled,
     pendingEvents,
     recentBodies,
+    isQuiet: (settings = cache) => inQuietHours(settings.quiet_hours),
     settings: () => cache,
   }
 }

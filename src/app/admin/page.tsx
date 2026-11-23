@@ -427,6 +427,33 @@ function AdminDashboardInner() {
     )
   })
 
+  // Deterministic visual summary: no image generation or remote service is
+  // needed for numbers that change on every load.
+  const statusParts = [
+    { label: 'Available', value: stats.published, color: '#2563EB' },
+    { label: 'Being viewed', value: stats.booked, color: '#F59E0B' },
+    { label: 'Awaiting approval', value: stats.pending, color: '#8B5CF6' },
+    { label: 'Rejected', value: stats.rejected, color: '#EF4444' },
+    { label: 'Taken', value: stats.taken, color: '#64748B' },
+  ]
+  const statusTotal = statusParts.reduce((sum, part) => sum + part.value, 0)
+  let donutCursor = 0
+  const donutGradient = statusTotal > 0
+    ? `conic-gradient(${statusParts.map((part) => {
+        const start = (donutCursor / statusTotal) * 100
+        donutCursor += part.value
+        const end = (donutCursor / statusTotal) * 100
+        return `${part.color} ${start}% ${end}%`
+      }).join(', ')})`
+    : '#E2E8F0'
+  const moneyParts = [
+    { label: 'Net collected', value: stats.netRevenue, color: 'bg-blue-600' },
+    { label: 'Held in escrow', value: stats.escrowHeldAmount, color: 'bg-amber-500' },
+    { label: 'Pending payouts', value: stats.pendingPayoutsAmount, color: 'bg-violet-500' },
+    { label: 'Refunded', value: stats.totalRefunded, color: 'bg-red-500' },
+  ]
+  const moneyMax = Math.max(1, ...moneyParts.map((part) => part.value))
+
   return (
     <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
       {toast && (
@@ -499,6 +526,56 @@ function AdminDashboardInner() {
                 <RefreshCw className={`h-3.5 w-3.5 ${refreshingStats ? 'animate-spin' : ''}`} />
                 {refreshingStats ? 'Refreshing…' : 'Refresh stats'}
               </button>
+            </div>
+            <div className="mb-6 grid gap-4 rounded-2xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-700 dark:bg-slate-800 lg:grid-cols-[220px_1fr]">
+              <div className="flex items-center gap-4 lg:block">
+                <div
+                  className="relative h-32 w-32 flex-shrink-0 rounded-full"
+                  style={{ background: donutGradient }}
+                  role="img"
+                  aria-label="Listing status distribution"
+                >
+                  <div className="absolute inset-4 flex flex-col items-center justify-center rounded-full bg-white dark:bg-slate-800">
+                    <span className="text-2xl font-bold text-gray-900 dark:text-white">{statusTotal}</span>
+                    <span className="text-[10px] uppercase tracking-wide text-gray-400">listings</span>
+                  </div>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-x-3 gap-y-1 lg:block">
+                  {statusParts.map((part) => (
+                    <p key={part.label} className="flex items-center gap-1.5 text-[11px] text-gray-600 dark:text-gray-300">
+                      <span className="h-2 w-2 rounded-full" style={{ backgroundColor: part.color }} />
+                      {part.label} <span className="font-semibold text-gray-900 dark:text-white">{part.value}</span>
+                    </p>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-gray-800 dark:text-white">Money moving today</p>
+                <p className="mt-0.5 text-[11px] text-gray-400">Generated from live database totals — no manual figures.</p>
+                <div className="mt-4 space-y-3">
+                  {moneyParts.map((part) => (
+                    <div key={part.label}>
+                      <div className="mb-1 flex items-center justify-between text-[11px]">
+                        <span className="font-medium text-gray-600 dark:text-gray-300">{part.label}</span>
+                        <span className="font-semibold text-gray-900 dark:text-white">{formatPrice(part.value)}</span>
+                      </div>
+                      <div className="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-slate-700">
+                        <div
+                          className={`h-full rounded-full ${part.color} transition-[width] duration-500`}
+                          style={{ width: `${Math.max(2, (part.value / moneyMax) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 flex items-center gap-3 rounded-lg bg-blue-50 px-3 py-2 text-[11px] text-blue-900 dark:bg-blue-950/20 dark:text-blue-200">
+                  <span className="font-semibold">{stats.totalListers} listers</span>
+                  <span className="text-blue-300 dark:text-blue-700">·</span>
+                  <span className="font-semibold">{stats.totalHunters} hunters</span>
+                  <span className="text-blue-300 dark:text-blue-700">·</span>
+                  <span className="font-semibold">{stats.escrowHeld} active escrows</span>
+                </div>
+              </div>
             </div>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {sectionTitle('Approval Stats', '📋')}

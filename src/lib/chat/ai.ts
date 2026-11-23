@@ -103,6 +103,8 @@ RULES:
 - Never invent house listings, prices, or links — use search_houses.
 - Never dump the whole database. If the user says "2 houses" or "one in Juniorate", send exactly that many. Otherwise show at most 5 and offer "say show more". The tool result reports how many were sent and how many remain.
 - For follow-ups like "which of those is cheapest?", use the LAST HOUSE SEARCH block instead of searching again. It already has the sorted result set.
+- "The first/second/third", "#2", "this one" and "that house" refer to a card already shown. Use the quoted/selection context supplied by the bridge or the last displayed card order — never start a new search or list every house again.
+- When asked for full details or all photos of a house, use get_house and include rent, viewing fee, deposit, water, electricity, vacancy, issues and the full description. Say the photos are below.
 - Never reveal lister private contact details.
 - If a user greets you or chats socially, reply warmly and briefly.
 - After a house search, mention the card preview that appears below.
@@ -200,20 +202,54 @@ export async function aiChat(
       ? [
           {
             role: 'system' as const,
-            content: `LAST HOUSE SEARCH (structured, sorted; use for follow-ups, do not search again):\n${JSON.stringify(
-              {
-                query: state.search.query,
-                filters: state.search.filters,
-                total: state.search.total,
-                shown: state.search.shown,
-                results: state.search.results.map((r) => ({
-                  id: r.card.id,
-                  title: r.card.title,
-                  location: r.card.location,
-                  rent: r.rent,
-                  score: r.score,
-                })),
-              }
+            content:
+              `LAST HOUSE SEARCH (structured, sorted; use for follow-ups, do NOT search again).\n` +
+              `These are the ONLY houses in this conversation. The index is the number the customer saw. ` +
+              `Resolve "the first", "#2", "the one after the Kapsoya one", "the 1BR with water included" etc. ` +
+              `from this ordered list, then call get_house with that exact id. Never invent a listing. ` +
+              `If two houses match equally, ask one short clarifying question instead of listing everything again.\n` +
+              `${JSON.stringify(
+                {
+                  query: state.search.query,
+                  filters: state.search.filters,
+                  total: state.search.total,
+                  shown: state.search.shown,
+                  pageSize: state.search.pageSize,
+                  results: state.search.results.map((r, index) => ({
+                    index: index + 1,
+                    visible: index < (state.search?.shown ?? 0),
+                    id: r.card.id,
+                    title: r.card.title,
+                    location: r.card.location,
+                    descriptive_location: r.card.descriptive_location,
+                    rent: r.rent,
+                    house_type: r.card.house_type,
+                    water: r.card.water,
+                    deposit: r.card.deposit,
+                    deposit_refundable: r.card.deposit_refundable,
+                    vacancy: r.card.vacancy,
+                    status: r.card.status,
+                    photos: r.card.images?.length ?? (r.card.image ? 1 : 0),
+                    score: r.score,
+                  })),
+                }
+              )}`,
+          },
+        ]
+      : []),
+    ...(Array.isArray(state?.messageRefs) && state.messageRefs.length
+      ? [
+          {
+            role: 'system' as const,
+            content: `LAST CARDS DISPLAYED IN THIS CHAT (exact order the customer saw):\n${JSON.stringify(
+              state.messageRefs
+                .filter((ref) => ref.kind === 'card')
+                .map((ref) => ({
+                  id: ref.id,
+                  index: ref.index ?? null,
+                  listing_id: ref.listingId ?? null,
+                  title: ref.title ?? null,
+                }))
             )}`,
           },
         ]

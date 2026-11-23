@@ -177,42 +177,65 @@ export async function toolGetHouse(input: string): Promise<ToolResult> {
   const l = data as unknown as LookupListing
   const rent = l.rent ?? l.price ?? 0
   const photos = (l.images ?? []).filter(Boolean)
+  const link = `https://www.asehanta.com/listings/${l.id}`
   const statusLine =
     l.status === 'taken'
-      ? '🚫 This one is already taken.'
+      ? '🚫 Already taken.'
       : l.status === 'booked'
-        ? '⏳ Someone is currently viewing this one.'
+        ? '⏳ Currently being viewed.'
         : l.status === 'published'
           ? '✅ Available for viewing.'
           : `Status: ${l.status ?? 'unknown'}.`
-  const facts = [
-    l.house_type ? `🏠 ${l.house_type}` : '',
-    l.building_type ? `🏢 ${l.building_type}${l.floor_number ? ` · floor ${l.floor_number}` : ''}` : '',
-    l.water ? `💧 Water: ${l.water}` : '',
-    l.electricity ? `💡 Electricity: ${l.electricity}${l.electric_bill ? ` (${l.electric_bill})` : ''}` : '',
-    l.vacancy ? `📅 ${l.vacancy}` : '',
-    l.issues_count !== null && l.issues_count !== undefined ? `🔧 ${l.issues_count} known issue${l.issues_count === 1 ? '' : 's'}` : '',
-  ].filter(Boolean)
-  const money = [
-    rent ? `💰 *KSh ${rent.toLocaleString()}/month*` : '',
-    l.price ? `🔑 Viewing fee: KSh ${l.price.toLocaleString()}` : '',
-    l.deposit ? `🛡️ Deposit: KSh ${l.deposit.toLocaleString()}${l.deposit_refundable ? ' (refundable)' : ''}` : '',
-  ].filter(Boolean)
-  const description = (l.description ?? '').trim()
-  const shortDescription = description.length > 600 ? `${description.slice(0, 600).trimEnd()}…` : description
-  const link = `https://www.asehanta.com/listings/${l.id}`
 
-  const text = [
+  const money = [
+    rent ? `Rent: KSh ${Number(rent).toLocaleString()}/month` : '',
+    l.price ? `Viewing fee: KSh ${Number(l.price).toLocaleString()}` : '',
+    l.deposit
+      ? `Deposit: KSh ${Number(l.deposit).toLocaleString()}${l.deposit_refundable ? ' (refundable)' : l.deposit_refundable === false ? ' (non-refundable)' : ''}`
+      : '',
+  ].filter(Boolean)
+
+  const facts = [
+    l.house_type ? `Type: ${l.house_type}` : '',
+    l.building_type ? `Building: ${l.building_type}${l.floor_number ? ` · floor ${l.floor_number}` : ''}` : '',
+    l.water ? `Water: ${l.water}` : '',
+    l.electricity ? `Electricity: ${l.electricity}${l.electric_bill ? ` · ${l.electric_bill}` : ''}` : '',
+    l.vacancy ? `Vacancy: ${l.vacancy}${l.vacancy_type ? ` (${l.vacancy_type})` : ''}` : l.vacancy_type ? `Vacancy type: ${l.vacancy_type}` : '',
+    l.why_vacant ? `Why vacant: ${l.why_vacant}` : '',
+    l.issues_count !== null && l.issues_count !== undefined
+      ? l.issues_count > 0
+        ? `Known issues (${l.issues_count}): ${(l.issues ?? []).join(', ') || 'see listing'}`
+        : 'Known issues: none reported'
+      : (l.issues ?? []).length
+        ? `Known issues: ${(l.issues ?? []).join(', ')}`
+        : '',
+    l.youtube_url ? `YouTube: ${l.youtube_url}` : '',
+    l.tiktok_url ? `TikTok: ${l.tiktok_url}` : '',
+    l.video_url ? `Video: ${l.video_url}` : '',
+    (l.video_urls ?? []).length ? `More videos:\n${(l.video_urls ?? []).filter(Boolean).join('\n')}` : '',
+    l.created_at && !Number.isNaN(Date.parse(l.created_at))
+      ? `Listed: ${new Date(l.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}`
+      : '',
+  ].filter(Boolean)
+
+  const description = (l.description ?? '').trim()
+  const rawText = [
     `*${l.title ?? 'House'}*`,
     `📍 ${l.descriptive_location || l.location || 'Location not given'}`,
-    money.join('\n'),
-    facts.join(' · '),
-    statusLine,
-    shortDescription,
     link,
+    `*Full details*`,
+    ...money,
+    ...facts,
+    statusLine,
+    photos.length ? `📷 ${photos.length} photo${photos.length === 1 ? '' : 's'} available — sending them below.` : '',
+    description ? `*Description*\n${description}` : '',
   ]
     .filter(Boolean)
     .join('\n\n')
+
+  // WhatsApp caps a bubble at 4096 characters. Keep the link and facts, and
+  // only clip an unusually long description at the very end.
+  const text = rawText.length > 4000 ? `${rawText.slice(0, 3990).trimEnd()}…` : rawText
 
   const card: HouseCardData = {
     id: l.id,

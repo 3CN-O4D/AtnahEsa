@@ -63,6 +63,7 @@ export async function POST(req: Request) {
   }
 
   const phone = typeof body.phone === 'string' ? body.phone.replace(/[^\d+]/g, '').slice(0, 20) : 'unknown'
+  const senderName = typeof body.name === 'string' ? body.name.replace(/[\u0000-\u001F\u007F]/g, '').trim().slice(0, 100) : ''
 
   // Per-sender limiter, independent of the website's per-IP limiter.
   const { allowed, retryAfter } = await checkRateLimit(`whatsapp:${phone}`, 20, 60)
@@ -96,6 +97,8 @@ export async function POST(req: Request) {
       state: body.state ?? null,
       history: Array.isArray(body.history) ? body.history.slice(-12) : [],
       quoted,
+      phone,
+      name: senderName || null,
       channel: 'whatsapp',
     })
     return json(result)

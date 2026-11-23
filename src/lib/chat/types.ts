@@ -108,6 +108,9 @@ export interface ChatRequest {
   state?: Partial<ChatState> | null
   history?: ChatMessage[]
   quoted?: QuotedContext | null
+  /** Sender identity from the WhatsApp worker, used for admin hand-offs. */
+  phone?: string | null
+  name?: string | null
   /**
    * Where the message came from. Web sessions can use the cookie-bound account
    * flows (change email, delete account, change DP); WhatsApp sessions cannot,

@@ -1,8 +1,15 @@
-import type { ChatRequest, ChatResponse, ChatState, ChatAction } from './types'
+import type { ChatRequest, ChatResponse, ChatState, ChatAction, QuotedContext } from './types'
 import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
-import { toolStats, toolWifiPackages, toolMovers, toolContact, toolGetHouse, toolShowMore } from './tools'
+import {
+  toolStats,
+  toolWifiPackages,
+  toolMovers,
+  toolContact,
+  toolGetHouse,
+  toolShowMore,
+} from './tools'
 import { aiChat, aiEnabled } from './ai'
 import { createHandoff } from './handoff'
 
@@ -16,6 +23,193 @@ const BEDROOM_RE = /\b(?:bedsitter|studio|bungalow|townhouse|apartment|1\s?br|2\
 
 const CANCEL_RE = /^(cancel|stop|never ?mind|nevermind|forget it|abort|exit|quit|hapana|acha)\b/i
 const SHOW_MORE_RE = /\b(?:show|see|send|give|get)\s+(?:me\s+)?(?:more|another|next|other)\b|\bmore\s+(?:houses|homes|rooms|options|results)\b|\bnext\s+(?:houses|homes|ones|batch)\b/i
+
+const HUMAN_HANDOFF_RE =
+  /\b(?:real|actual|live)\s+(?:human|person|admin|agent)\b|\b(?:connect|put|transfer)\s+me\s+(?:to|through to|with)\s+(?:(?:a|the|one of the)\s+)?(?:real\s+)?(?:human|person|admin|agent|team)\b|\b(?:talk|speak|chat)\s+(?:to|with)\s+(?:a\s+)?(?:real\s+)?(?:human|person|admin|agent|someone)\b|\bone of (?:the|our) admins?\b|\b(?:an admin|the admin team|support agent)\b/i
+
+const ORDINAL_WORDS: Record<string, number> = {
+  first: 1, '1st': 1, second: 2, '2nd': 2, third: 3, '3rd': 3,
+  fourth: 4, '4th': 4, fifth: 5, '5th': 5, sixth: 6, '6th': 6,
+  seventh: 7, '7th': 7, eighth: 8, '8th': 8, ninth: 9, '9th': 9,
+  tenth: 10, '10th': 10,
+}
+
+interface ListingChoice {
+  listingId: string
+  title?: string | null
+  index: number
+  location?: string | null
+  houseType?: string | null
+  water?: string | null
+  rent?: number
+}
+
+function clampOrdinal(value: number): number | null {
+  return Number.isFinite(value) && value >= 1 && value <= 20 ? Math.round(value) : null
+}
+
+/** "the first", "#2", "3rd", "last" — never "1 bedroom". */
+export function parseOrdinal(text: string): number | null {
+  const t = text.toLowerCase().replace(/[’']/g, "'").trim()
+  if (/\blast\b/.test(t)) return -1
+  const hash = t.match(/(?:^|\s)#(\d{1,2})\b/)
+  if (hash) return clampOrdinal(Number(hash[1]))
+  const word = t.match(/\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|sixth|6th|seventh|7th|eighth|8th|ninth|9th|tenth|10th)\b/)
+  if (word) return clampOrdinal(ORDINAL_WORDS[word[1]] ?? Number.parseInt(word[1], 10))
+  const bare = t.match(/^(?:it(?:'s| is)\s+|that(?:'s| is)\s+)?(?:the\s+)?(\d{1,2})(?:st|nd|rd|th)?\b/)
+  const afterLeadIn = t.replace(/^(?:it(?:'s| is)\s+|that(?:'s| is)\s+|the\s+)+/, '')
+  if (bare && !/^\d+\s*(?:bed|br|room|house|home|listing)/.test(afterLeadIn)) {
+    return clampOrdinal(Number(bare[1]))
+  }
+  return null
+}
+
+function isNewHouseSearch(text: string): boolean {
+  return (
+    /\b(find|search|looking for|need a house|need a home|do you have|available houses|available homes|any houses?|any homes?|list houses)\b/.test(text) ||
+    /\b(send|show)\s+(?:me\s+)?(?:just\s+|only\s+)?(?:\d+|one|two|three|four|five|six|seven|eight|nine|ten)\s+(?:houses?|homes?|listings?|options?)\b/.test(text)
+  )
+}
+
+function wantsSelectedHouse(text: string, ordinal: number | null): boolean {
+  if (isNewHouseSearch(text)) return false
+  if (ordinal !== null) return true
+  const pointsAtHouse = /\b(this|that|it|here|one|ones|house|home|listing|card|them|those)\b/.test(text)
+  const asksAboutIt =
+    /\b(book|booking|details?|full|photos?|pictures?|images?|about|tell|show|send|give|link|price|rent|deposit|water|fetch|open|what|where|how much|contact|call|view|describe)\b/.test(text)
+  return pointsAtHouse && asksAboutIt
+}
+
+/**
+ * Prefer the cards actually shown in the last bot turn. Older sessions have no
+ * messageRefs, so fall back to the ordered results from the stored search.
+ */
+function recentCardChoices(state: ChatState): ListingChoice[] {
+  const results = state.search?.results ?? []
+  const metaFor = (id: string) => results.find((result) => result.card.id === id)?.card ?? null
+  const withMeta = (choice: ListingChoice): ListingChoice => {
+    const card = metaFor(choice.listingId)
+    return {
+      ...choice,
+      title: choice.title || card?.title || null,
+      location: card?.location ?? null,
+      houseType: card?.house_type ?? null,
+      water: card?.water ?? null,
+      rent: card?.rent,
+    }
+  }
+
+  const refs = Array.isArray(state.messageRefs) ? state.messageRefs : []
+  const tail: ListingChoice[] = []
+  for (let i = refs.length - 1; i >= 0; i -= 1) {
+    const ref = refs[i]
+    if (!ref || ref.kind !== 'card' || !ref.listingId) break
+    tail.unshift(
+      withMeta({
+        listingId: ref.listingId,
+        title: ref.title ?? null,
+        index: ref.index ?? tail.length + 1,
+      })
+    )
+  }
+  if (tail.length) return tail.map((choice, i) => ({ ...choice, index: choice.index || i + 1 }))
+
+  const shown = Math.max(1, Math.min(state.search?.shown ?? results.length, results.length))
+  return results.slice(0, shown).map((result, i) =>
+    withMeta({
+      listingId: result.card.id,
+      title: result.card.title,
+      index: i + 1,
+    })
+  )
+}
+
+function normaliseTitle(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ').trim()
+}
+
+function choiceByTitle(choices: ListingChoice[], text: string): ListingChoice | null {
+  const needle = normaliseTitle(text)
+  for (const choice of choices) {
+    const title = normaliseTitle(choice.title ?? '')
+    if (!title) continue
+    if (needle.includes(title)) return choice
+    const tokens = title.split(' ').filter((word) => word.length > 2)
+    if (tokens.length > 0 && tokens.every((word) => needle.includes(word))) return choice
+  }
+  return null
+}
+
+function bedroomToken(text: string): string | null {
+  const match = text.match(/\b(1|2|3|4|5|one|two|three|four|five)\s*(?:br|bedroom|bed)\b/i)
+  if (!match) return null
+  const words: Record<string, string> = { one: '1', two: '2', three: '3', four: '4', five: '5' }
+  return /^\d$/.test(match[1]) ? match[1] : (words[match[1].toLowerCase()] ?? null)
+}
+
+/** "the one after the Kapsoya one" → the next card in the displayed order. */
+function selectRelativeChoice(choices: ListingChoice[], message: string): ListingChoice | null {
+  const match = message.match(/\b(?:the\s+)?(?:one|house|listing|card)\s+after\s+(?:the\s+)?([^?!.]+)/i)
+  if (!match) return null
+  const anchor = normaliseTitle(match[1]).replace(/\b(?:one|house|listing|card|please)\b/g, '').trim()
+  if (!anchor) return null
+  const index = choices.findIndex((choice) => {
+    const hay = normaliseTitle(`${choice.title ?? ''} ${choice.location ?? ''}`)
+    return hay.includes(anchor) || anchor.includes(hay)
+  })
+  return index >= 0 ? choices[index + 1] ?? null : null
+}
+
+/** "the 1BR with water included", "the Kapsoya one" — filter the shown cards. */
+function selectByAttributes(choices: ListingChoice[], message: string): ListingChoice | null {
+  const low = message.toLowerCase()
+  const bedroom = bedroomToken(low)
+  const waterIncluded = /\b(?:water|rent)\s*(?:included|inclusive|incl)\b|\bincluded in rent\b|\brent inclusive\b/i.test(low)
+  const area = AREA_WORDS.find((word) => low.includes(word)) ?? null
+  if (!bedroom && !waterIncluded && !area) return null
+
+  const matches = choices.filter((choice) => {
+    const hay = normaliseTitle(`${choice.title ?? ''} ${choice.houseType ?? ''} ${choice.location ?? ''}`)
+    if (bedroom && !hay.includes(`${bedroom}br`) && !hay.includes(`${bedroom} bedroom`)) return false
+    if (waterIncluded && !/includ/i.test(choice.water ?? '')) return false
+    if (area && !hay.includes(area)) return false
+    return true
+  })
+  return matches[0] ?? null
+}
+
+export function selectListingChoice(message: string, state: ChatState, quoted?: QuotedContext | null): ListingChoice | null {
+  const choices = recentCardChoices(state)
+  if (choices.length === 0) return null
+
+  if (quoted?.listingId) {
+    return (
+      choices.find((choice) => choice.listingId === quoted.listingId) ?? {
+        listingId: quoted.listingId,
+        title: quoted.title ?? null,
+        index: quoted.index ?? 1,
+      }
+    )
+  }
+
+  const ordinal = parseOrdinal(message)
+  if (ordinal !== null) {
+    if (ordinal === -1) return choices[choices.length - 1]
+    return choices.find((choice) => choice.index === ordinal) ?? choices[ordinal - 1] ?? null
+  }
+
+  const low = message.toLowerCase()
+  if (isNewHouseSearch(low)) return null
+
+  const relative = selectRelativeChoice(choices, message)
+  if (relative) return relative
+  const byAttributes = selectByAttributes(choices, message)
+  if (byAttributes) return byAttributes
+  const byTitle = choiceByTitle(choices, message)
+  if (byTitle) return byTitle
+  if (!wantsSelectedHouse(low, null)) return null
+  return choices[choices.length - 1]
+}
 
 /** Keep useful chat context (draft or the last house result set) between turns. */
 function keepContext(state: ChatState): ChatState {
@@ -55,6 +249,34 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
         `Open https://www.asehanta.com/profile while signed in and change it there.\n\n` +
         `Anything else I can help with?`,
       state: emptyState(),
+    }
+  }
+
+  // 2b. An explicit request for a person must talk to the team immediately —
+  // never fall through to the "I'd rather not guess" brush-off. Handover is
+  // WhatsApp-only: the bridge mirrors this alert to the admins' WhatsApp.
+  if (input.channel === 'whatsapp' && HUMAN_HANDOFF_RE.test(msg)) {
+    const subject = `Human handover — ${input.name || input.phone || 'WhatsApp user'}`
+    const searchLine = prevState.search?.query ? ` Last house search: ${prevState.search.query}.` : ''
+    const targetLine = quoted?.listingId ? ` House they were viewing: ${quoted.title || quoted.listingId}.` : ''
+    return {
+      reply:
+        `I've handed you over to the AseHanta team on WhatsApp — one of the admins will join this chat shortly 🙏\n\n` +
+        `If you'd rather call now: ${CONTACT_INFO.whatsapp}\n\n` +
+        `Anything else I can help with while you wait?`,
+      actions: [linkAction('💬 WhatsApp support', CONTACT_INFO.whatsapp)],
+      state: keepContext(prevState),
+      adminAlert: {
+        topic: 'human handover',
+        subject,
+        priority: 'high',
+        message:
+          `HANDOVER: Customer asked to speak to a real human/admin. Please pick up this WhatsApp chat. ` +
+          `Last message: "${msg}".${targetLine}${searchLine}`,
+        name: input.name ?? undefined,
+        phone: input.phone && input.phone !== 'unknown' ? input.phone : undefined,
+        listingId: quoted?.listingId ?? undefined,
+      },
     }
   }
 
@@ -140,6 +362,29 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
         actions: house.cards?.length
           ? [{ type: 'card', card: house.cards[0] }]
           : [{ type: 'link', label: '🏠 Open listing', href: `https://www.asehanta.com/listings/${quoted.listingId}` }],
+        state: keepContext(prevState),
+      }
+    }
+  }
+
+  // 4e. "The first", "#2", "show all photos for the second house", "tell me
+  // about this one" — resolve against the cards we actually displayed. This is
+  // deterministic so the bot never has to guess which house the user meant.
+  const selected = selectListingChoice(msg, prevState, quoted)
+  if (selected && !listingId) {
+    const house = await toolGetHouse(selected.listingId)
+    if (house.ok !== false && house.cards?.length) {
+      const asksPhotos = /\b(?:photo|photos|picture|pictures|image|images|all)\b/.test(low)
+      const asksBooking = /\b(?:book|booking|view|viewing)\b/.test(low)
+      const target = selected.title ? `*${selected.title}*` : 'that house'
+      const intro = `You mean ${target} — got it ✅`
+      const photoLine = asksPhotos ? `\n\nHere are all the photos I have for it.` : ''
+      const bookingLine = asksBooking
+        ? `\n\nI can book a viewing for this one. Please confirm your full name, phone number and the area you're coming from.`
+        : ''
+      return {
+        reply: `${intro}${photoLine}\n\n${house.text}${bookingLine}`,
+        actions: [{ type: 'card', card: house.cards[0] }],
         state: keepContext(prevState),
       }
     }

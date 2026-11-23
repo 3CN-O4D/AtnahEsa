@@ -1674,7 +1674,7 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', q
           : card.image
             ? [card.image]
             : []
-      const sent = await sendHouseAlbum(jid, photos, caption, replyTarget)
+      const sent = await sendHouseAlbum(jid, photos, caption, replyTarget, signal)
       rememberSent(sent)
       if (sent?.key?.id) {
         sentRefs.push({
@@ -1742,10 +1742,11 @@ async function sendText(jid, text, quoted = null) {
  * under an album parent; older clients still receive a tight burst of images
  * with a single caption, never a slow one-by-one gallery.
  */
-async function sendHouseAlbum(jid, images, caption, quoted = null) {
+async function sendHouseAlbum(jid, images, caption, quoted = null, signal = null) {
   if (!sock) return null
+  // Send every available photo, in album batches of five so a long gallery
+  // still arrives as tight groups rather than a slow one-by-one stream.
   const photos = [...new Set((Array.isArray(images) ? images : []).filter((url) => typeof url === 'string' && url))]
-    .slice(0, 5)
   const body = String(caption || '').slice(0, 4000)
 
   if (!photos.length) {
@@ -1765,35 +1766,43 @@ async function sendHouseAlbum(jid, images, caption, quoted = null) {
   }
 
   try {
-    let parent = null
-    if (photos.length > 1) {
-      try {
-        parent = await sock.sendMessage(jid, {
-          album: { expectedImageCount: photos.length, expectedVideoCount: 0 },
-        })
-      } catch (error) {
-        console.warn('[whatsapp] album parent failed, sending a photo burst:', error?.message ?? error)
+    let firstSent = null
+    for (let start = 0; start < photos.length; start += 5) {
+      assertActive(signal)
+      const batch = photos.slice(start, start + 5)
+      let parent = null
+      if (batch.length > 1) {
+        try {
+          parent = await sock.sendMessage(jid, {
+            album: { expectedImageCount: batch.length, expectedVideoCount: 0 },
+          })
+        } catch (error) {
+          console.warn('[whatsapp] album parent failed, sending a photo burst:', error?.message ?? error)
+        }
       }
-    }
 
-    let captioned = null
-    for (let i = 0; i < photos.length; i += 1) {
-      const content = { image: { url: photos[i] } }
-      if (i === 0) content.caption = body
-      if (parent?.key) content.albumParentKey = parent.key
-      const sent = await sock.sendMessage(
-        jid,
-        content,
-        i === 0 && quoted ? { quoted } : undefined
-      )
-      if (i === 0) captioned = sent
+      for (let i = 0; i < batch.length; i += 1) {
+        assertActive(signal)
+        const content = { image: { url: batch[i] } }
+        // Caption and reply target belong to the first photo of the first
+        // batch only; later batches continue the same gallery.
+        if (start === 0 && i === 0) content.caption = body
+        if (parent?.key) content.albumParentKey = parent.key
+        const sent = await sock.sendMessage(
+          jid,
+          content,
+          start === 0 && i === 0 && quoted ? { quoted } : undefined
+        )
+        if (start === 0 && i === 0) firstSent = sent
+      }
     }
 
     rules.markDelivered({ jid, text: body, isGroup: String(jid).endsWith('@g.us') })
     rules.recordSuccess()
-    await logMessage(supabase, { jid, role: 'assistant', body, messageId: captioned?.key?.id })
-    return captioned
+    await logMessage(supabase, { jid, role: 'assistant', body, messageId: firstSent?.key?.id })
+    return firstSent
   } catch (error) {
+    if (isAbort(error)) throw error
     rules.recordError()
     console.warn('[whatsapp] house photo batch failed:', error?.message ?? error)
     return null

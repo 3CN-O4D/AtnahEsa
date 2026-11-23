@@ -30,8 +30,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       return NextResponse.json({ error: 'Choose confirm viewing or report a problem' }, { status: 400 })
     }
     const details = typeof body.details === 'string' ? body.details.trim().slice(0, 1000) : ''
-    if (outcome === 'issue' && details.length < 5) {
-      return NextResponse.json({ error: 'Please describe the problem (at least 5 characters)' }, { status: 400 })
+    const reasons: string[] = Array.isArray(body.reasons)
+      ? [...new Set(
+          (body.reasons as unknown[])
+            .filter((r): r is string => typeof r === 'string')
+            .map((r) => r.slice(0, 80))
+        )]
+      : []
+    if (outcome === 'issue' && details.length < 5 && reasons.length === 0) {
+      return NextResponse.json({ error: 'Choose a reason or describe the problem briefly' }, { status: 400 })
     }
 
     const supabase = await createClient()
@@ -89,6 +96,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     const feedback: ListerFeedback = {
       outcome,
       details: outcome === 'issue' ? details : '',
+      reasons: outcome === 'issue' && reasons.length ? reasons : undefined,
       submitted_at: new Date().toISOString(),
     }
     const updatedFeedback = withListerFeedback(String(booking.displeased_reason || ''), feedback)
@@ -110,7 +118,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
             'Hunter Phone': String(booking.phone || 'N/A'),
             Lister: profile?.full_name || 'Listing owner',
             'Lister Phone': profile?.phone || String(listing?.lister_phone || 'N/A'),
-            ...(outcome === 'issue' ? { 'What happened': details } : {}),
+            ...(outcome === 'issue'
+              ? {
+                  Reasons: reasons.join(', ') || 'not provided',
+                  'What happened': details || 'not provided',
+                }
+              : {}),
             'Money moved': 'No. Escrow is unchanged; only an admin may release or refund funds in Treasury.',
             'Action required':
               outcome === 'issue'

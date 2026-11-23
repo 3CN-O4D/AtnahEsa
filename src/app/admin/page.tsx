@@ -3,7 +3,7 @@
 import { Suspense, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Search, Mail, MessageCircle, Phone } from 'lucide-react'
+import { Search, Mail, MessageCircle, Phone, RefreshCw } from 'lucide-react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 import { createAdminClient } from '@/lib/supabase/admin'
@@ -52,6 +52,7 @@ function AdminDashboardInner() {
     paymentsByMethod: [] as { method: string; count: number; amount: number }[],
   })
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [refreshingStats, setRefreshingStats] = useState(false)
 
   const showToast = useCallback((type: 'success' | 'error', message: string) => {
     setToast({ type, message })
@@ -89,6 +90,16 @@ function AdminDashboardInner() {
       console.error('Failed to load stats:', err)
     }
     setLoaded(true)
+  }
+
+  async function refreshStats() {
+    setRefreshingStats(true)
+    try {
+      clearCache('admin:')
+      await loadAll()
+    } finally {
+      setRefreshingStats(false)
+    }
   }
 
   async function loadListings() {
@@ -475,7 +486,21 @@ function AdminDashboardInner() {
             <div className="animate-spin w-8 h-8 border-2 border-blue-600 border-t-transparent rounded-full" />
           </div>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <>
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                Live totals from the database — refreshed on this page load.
+              </p>
+              <button
+                onClick={refreshStats}
+                disabled={refreshingStats}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-600 hover:bg-gray-50 disabled:opacity-50 dark:border-gray-600 dark:text-gray-300 dark:hover:bg-slate-800"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${refreshingStats ? 'animate-spin' : ''}`} />
+                {refreshingStats ? 'Refreshing…' : 'Refresh stats'}
+              </button>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {sectionTitle('Approval Stats', '📋')}
             {statCard('Awaiting Approval', stats.pending, 'text-amber-600', '/admin?tab=houses')}
             {statCard('Published', stats.published, 'text-blue-700', '/admin?tab=houses')}
@@ -559,6 +584,7 @@ function AdminDashboardInner() {
               </div>
             </div>
           </div>
+          </>
         )
       )}
 

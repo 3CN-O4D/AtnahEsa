@@ -84,9 +84,44 @@ const RESET_RE = /^(reset|restart|start over|clear chat|new chat|fresh start)$/i
 const HANDOFF_RE = /\bAS-([A-Za-z0-9_-]{16,64})\b/
 
 /** Admin phone numbers that get a WhatsApp copy of requests and escalations. */
-const adminNumbers = ADMIN_WHATSAPP_NUMBERS.split(',')
+let adminNumbers = ADMIN_WHATSAPP_NUMBERS.split(',')
   .map((n) => n.replace(/\D/g, ''))
   .filter(Boolean)
+let adminCallCursor = 0
+
+/*
+ * Deployments without ADMIN_WHATSAPP_NUMBERS still need a reachable admin. Fall
+ * back to phone numbers on admin profiles so a fresh Render/Vercel install can
+ * alert the team without extra configuration.
+ */
+async function loadAdminNumbers() {
+  const configured = [...new Set(ADMIN_WHATSAPP_NUMBERS.split(',').map(international).filter(Boolean))]
+  if (configured.length) {
+    adminNumbers = configured
+    return adminNumbers
+  }
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('phone')
+      .eq('role', 'admin')
+      .limit(50)
+    if (!error && data?.length) {
+      adminNumbers = [...new Set(data.map((row) => international(row?.phone)).filter(Boolean))]
+    }
+  } catch (error) {
+    console.warn('[whatsapp] could not load admin numbers from profiles:', error?.message ?? error)
+  }
+  return adminNumbers
+}
+
+/** One admin per urgent escalation, cycling through the configured team. */
+function nextAdminCallNumber() {
+  if (!adminNumbers.length) return null
+  const number = adminNumbers[adminCallCursor % adminNumbers.length]
+  adminCallCursor = (adminCallCursor + 1) % adminNumbers.length
+  return number
+}
 
 /*
  * Admin control is a singleton row in Supabase, shared with the admin panel.
@@ -136,10 +171,14 @@ function isSelfChat(jid, phone) {
  */
 const pendingCallText = new Map()
 
-function rememberCallText(number, text) {
+function rememberCallText(number, text, alertText = text) {
   const key = digits(number)
   if (!key) return
-  pendingCallText.set(key, { text: String(text || '').slice(0, 1200), at: Date.now() })
+  pendingCallText.set(key, {
+    text: String(text || '').slice(0, 1200),
+    alertText: String(alertText || text || '').slice(0, 4000),
+    at: Date.now(),
+  })
   if (pendingCallText.size > 50) {
     const oldest = [...pendingCallText.entries()].sort((a, b) => a[1].at - b[1].at)[0]
     if (oldest) pendingCallText.delete(oldest[0])
@@ -154,7 +193,7 @@ function takeCallText(number) {
   pendingCallText.delete(key)
   // A stale context is worse than none: do not read yesterday's alert.
   if (Date.now() - entry.at > 10 * 60 * 1000) return null
-  return entry.text
+  return { voiceText: entry.text, alertText: entry.alertText || entry.text }
 }
 
 /*
@@ -344,7 +383,11 @@ function international(number) {
   return clean
 }
 
-async function placeUrgentCall(alert, meta, numbers = adminNumbers) {
+async function placeUrgentCall(alert, meta, numbers) {
+  // Round-robin one admin per alert. Explicit targets (e.g. `.callme`) win.
+  const targets = numbers?.length ? numbers : [nextAdminCallNumber()].filter(Boolean)
+  if (!targets.length) return
+
   const message = `Urgent AseHanta alert: ${alert.topic || 'customer needs help'}. ${
     alert.message || ''
   }`.slice(0, 400)
@@ -363,15 +406,23 @@ async function placeUrgentCall(alert, meta, numbers = adminNumbers) {
     .join(' ')
     .slice(0, 900)
 
+  // Store the answer payload for both Twilio and provider-agnostic webhooks.
+  for (const number of targets.map(international).filter(Boolean)) {
+    rememberCallText(number, spoken, adminAlertText(alert, meta))
+  }
+
   if (URGENT_CALL_WEBHOOK) {
     try {
       await fetch(URGENT_CALL_WEBHOOK, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          to: numbers,
+          to: targets,
           message,
           voice_text: spoken,
+          answer_webhook: WORKER_PUBLIC_URL
+            ? `${WORKER_PUBLIC_URL}/twilio/answered?to=${digits(targets[0])}&token=${encodeURIComponent(PAIR_TOKEN || '')}`
+            : null,
           phone: alert.phone || meta.phone || null,
           name: alert.name || meta.profileName || null,
           priority: 'urgent',
@@ -383,7 +434,7 @@ async function placeUrgentCall(alert, meta, numbers = adminNumbers) {
         {
           kind: 'call_webhook',
           subject: digits(alert.phone || meta.phone) || null,
-          detail: { to: numbers, topic: alert.topic ?? null },
+          detail: { to: targets, topic: alert.topic ?? null },
         },
         console
       )
@@ -399,8 +450,7 @@ async function placeUrgentCall(alert, meta, numbers = adminNumbers) {
   const escaped = message.replace(/[<>&"]/g, (char) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;', '"': '&quot;' })[char])
   const fallbackTwiml = `<Response><Say voice="Polly.Joanna">${escaped}</Say></Response>`
 
-  for (const number of numbers.map(international).filter(Boolean)) {
-    rememberCallText(number, spoken)
+  for (const number of targets.map(international).filter(Boolean)) {
     const params = new URLSearchParams({
       To: `+${number}`,
       From: TWILIO_FROM_NUMBER,
@@ -1029,6 +1079,7 @@ async function start() {
   const gen = ++socketGen
 
   try {
+    await loadAdminNumbers()
     const { state, saveCreds } = await createSupabaseAuthState(
       supabase,
       WHATSAPP_SESSION_PREFIX,
@@ -1436,7 +1487,8 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
     // House results as image cards, like the web cards. Photos for one house
     // go out as a single album/batch with one caption instead of a slow stream
     // of separate messages.
-    for (const card of cardsFromActions(result.actions).slice(0, 5)) {
+    const cardLimit = Math.max(1, Math.min(10, result.state?.search?.pageSize ?? 5))
+    for (const card of cardsFromActions(result.actions).slice(0, cardLimit)) {
       const caption = cardCaption(card)
       const photos =
         Array.isArray(card.images) && card.images.length
@@ -2055,16 +2107,27 @@ setInterval(tick, 4000);
     res.writeHead(200, { 'Content-Type': 'text/xml; charset=utf-8', 'Cache-Control': 'no-store' })
     res.end('<?xml version="1.0" encoding="UTF-8"?><Response><Hangup/></Response>')
 
-    const text =
-      takeCallText(to) ||
+    const stored = takeCallText(to)
+    const voiceText =
+      stored?.voiceText ||
       'I tried to call you about an urgent AseHanta alert. Please check the WhatsApp message I just sent.'
+    const alertText =
+      stored?.alertText ||
+      '🚨 Urgent AseHanta alert. Please check the admin panel for the full details.'
 
-    void sendVoiceNoteTo(to, text, { reason: 'urgent_call_answered' })
-    void recordActivity(
-      supabase,
-      { kind: 'call_answered', subject: to || null, detail: { hung_up: true } },
-      console
-    ).then(() => {})
+    void (async () => {
+      await sendVoiceNoteTo(to, voiceText, { reason: 'urgent_call_answered' })
+      try {
+        await sock?.sendMessage(`${to}@s.whatsapp.net`, { text: alertText })
+      } catch (error) {
+        console.warn('[whatsapp] urgent follow-up text failed:', error?.message ?? error)
+      }
+      await recordActivity(
+        supabase,
+        { kind: 'call_answered', subject: to || null, detail: { hung_up: true, voice: true, text: true } },
+        console
+      )
+    })()
     return
   }
 

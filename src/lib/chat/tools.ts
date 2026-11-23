@@ -3,7 +3,7 @@ import { createNotification } from '@/lib/notifications'
 import { notifyAdmins } from '@/lib/notify'
 import { searchHouses } from './houseSearch'
 import { submitForm, requestPasswordReset, completePasswordReset } from './forms'
-import type { AdminAlert, ChatAction, ChatState, HouseCardData } from './types'
+import type { AdminAlert, ChatAction, ChatState, HouseCardData, HouseSearchSnapshot } from './types'
 import { PAGE_LINKS, CONTACT_INFO } from './knowledge'
 
 export interface ToolResult {
@@ -51,14 +51,16 @@ export async function toolStats(): Promise<ToolResult> {
   }
 }
 
-export async function toolSearchHouses(query: string): Promise<ToolResult> {
+export async function toolSearchHouses(query: string, count?: number | null): Promise<ToolResult> {
   if (!query || query.trim().length < 2) {
     return { ok: false, text: 'Please describe the house you are looking for (area, bedrooms, budget).', error: 'missing query' }
   }
-  const { cards, total, takenNote } = await searchHouses(query, 5)
+  const { cards, takenNote, snapshot } = await searchHouses(query, count ?? 5)
   if (cards.length === 0) {
     return {
       ok: true,
+      data: { kind: 'house_search', ...snapshot },
+      state: { search: snapshot },
       text: `No available houses matched "${query.trim()}". Try a different area, budget or house type.`,
     }
   }
@@ -67,10 +69,45 @@ export async function toolSearchHouses(query: string): Promise<ToolResult> {
     const loc = c.descriptive_location || c.location
     return `- ${c.title} (${loc}) — ${rent}`
   })
+  const more = snapshot.total > snapshot.shown ? `\n\nSay "show more" and I'll send the next ${Math.min(snapshot.pageSize, snapshot.total - snapshot.shown)}.` : ''
   return {
     ok: true,
-    text: `I found ${cards.length} matching house${cards.length === 1 ? '' : 's'}:\n${lines.join('\n')}\n${takenNote ? `\n${takenNote}` : ''}\n\nTap a card below to view the full listing.`,
+    text: `I found ${snapshot.total} matching house${snapshot.total === 1 ? '' : 's'} — showing ${cards.length} best match${cards.length === 1 ? '' : 'es'}:\n${lines.join('\n')}${takenNote ? `\n${takenNote}` : ''}${more}\n\nTap a card below to view the full listing.`,
+    data: { kind: 'house_search', ...snapshot },
+    state: { search: snapshot },
     cards,
+  }
+}
+
+/** Continue a stored house search without hammering the database again. */
+export function toolShowMore(search: HouseSearchSnapshot | null | undefined): ToolResult {
+  if (!search?.results?.length) {
+    return { ok: false, text: 'Ask me to find houses first, then I can show you more from the same search.' }
+  }
+  const pageSize = Math.max(1, Math.min(10, search.pageSize || 5))
+  const start = Math.max(0, Math.min(search.shown || 0, search.results.length))
+  const next = search.results.slice(start, start + pageSize)
+  if (!next.length) {
+    return {
+      ok: true,
+      data: { kind: 'house_search_more', shown: search.shown, total: search.total },
+      text: `That's all ${search.total} houses from this search. Tell me another area or budget and I'll look again.`,
+    }
+  }
+  const updated: HouseSearchSnapshot = { ...search, shown: start + next.length }
+  const lines = next.map(({ card }) => {
+    const rent = card.rent ? `KSh ${card.rent.toLocaleString()}/mo` : 'rent n/a'
+    const loc = card.descriptive_location || card.location
+    return `- ${card.title} (${loc}) — ${rent}`
+  })
+  const remaining = updated.total - updated.shown
+  const more = remaining > 0 ? `\n\nSay "show more" for ${Math.min(pageSize, remaining)} more.` : '\n\nThat is all of them.'
+  return {
+    ok: true,
+    text: `Here are ${next.length} more from your search:\n${lines.join('\n')}${more}`,
+    data: { kind: 'house_search_more', ...updated },
+    state: { search: updated },
+    cards: next.map((r) => r.card),
   }
 }
 
@@ -339,7 +376,20 @@ export async function toolNotifyAdmin(args: Record<string, unknown>): Promise<To
 
 /** Unified tool map used by the AI tool-calling loop. */
 export const TOOLS = {
-  search_houses: { desc: 'Search available houses by area, bedrooms, budget, water/token preferences.', run: (a: Record<string, unknown>) => toolSearchHouses(typeof a?.query === 'string' ? a.query : ''), params: { query: 'string' } },
+  search_houses: {
+    desc: 'Search available houses by area, bedrooms, budget, water/token preferences. Results are parsed, sorted and capped server-side; "cheapest" sorts by price, and the full result set is stored for follow-ups.',
+    run: (a: Record<string, unknown>) =>
+      toolSearchHouses(
+        typeof a?.query === 'string' ? a.query : '',
+        typeof a?.count === 'number' ? a.count : null
+      ),
+    params: { query: 'string', count: 'number' },
+  },
+  show_more_houses: {
+    desc: 'Show the next batch from the last house search. Use this whenever the user says "show more", "next", "more houses" or asks to see other results from the search you just did. Never call search_houses again for that.',
+    run: (_a: Record<string, unknown>) => toolShowMore(null),
+    params: {},
+  },
   get_house: {
     desc: 'Look up one specific house by its listing id or a pasted listing link, then return the full details and photos. Use this whenever the user shares a listing link/id or asks about the house they were just shown. Never invent details for a specific listing.',
     run: (a: Record<string, unknown>) => toolGetHouse(typeof a?.id === 'string' ? a.id : String(a?.url ?? '')),
@@ -378,7 +428,12 @@ export const TOOLS = {
 
 export type ToolName = keyof typeof TOOLS
 
-export async function runTool(name: ToolName, args: Record<string, unknown>): Promise<ToolResult> {
+export async function runTool(
+  name: ToolName,
+  args: Record<string, unknown>,
+  state?: Partial<ChatState> | null
+): Promise<ToolResult> {
+  if (name === 'show_more_houses') return toolShowMore(state?.search)
   const tool = TOOLS[name]
   try {
     return await tool.run(typeof args === 'object' && args ? args : {})
@@ -401,7 +456,9 @@ export function toolSchemas() {
             k,
             type === 'object'
               ? { type: 'object', additionalProperties: true }
-              : { type: 'string' },
+              : type === 'number'
+                ? { type: 'number' }
+                : { type: 'string' },
           ])
         ),
         additionalProperties: false,

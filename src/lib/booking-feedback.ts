@@ -18,6 +18,8 @@ export type ListerFeedbackOutcome = 'viewing_confirmed' | 'issue'
 export type ListerFeedback = {
   outcome: ListerFeedbackOutcome
   details: string
+  /** Optional common reasons chosen from a list; free text is not required. */
+  reasons?: string[]
   submitted_at: string
 }
 
@@ -86,7 +88,11 @@ export type BookingFeedback = {
   version: 1
   outcome: BookingOutcome
   category: IssueCategory | 'pleased'
+  /** Multiple reasons can be selected; `category` stays as the primary one. */
+  categories?: IssueCategory[]
   details: string
+  /** Optional free text after the reason checkboxes. */
+  reason_details?: string
   review: string
   rating: number
   contacted_hunter_at?: string | null
@@ -104,8 +110,8 @@ function isListerFeedback(value: unknown): value is ListerFeedback {
   const item = value as Partial<ListerFeedback>
   return (
     (item.outcome === 'viewing_confirmed' || item.outcome === 'issue') &&
-    typeof item.details === 'string' &&
-    typeof item.submitted_at === 'string'
+    typeof item.submitted_at === 'string' &&
+    (item.details === undefined || typeof item.details === 'string')
   )
 }
 
@@ -125,6 +131,10 @@ export const PLEASED_TERMS =
 
 export const ISSUE_TERMS =
   'AseHanta reviews every report before money moves. An admin will contact you and the lister, then decide. A fake listing or a no-show can qualify for a 100% refund; other issues can qualify for 80%, and shared blame for 50%, once reviewed. The lister is not paid while a report is open.'
+
+function isIssueCategory(value: unknown): value is IssueCategory {
+  return ISSUE_CATEGORIES.some((category) => category.id === value)
+}
 
 export function getIssueCategory(id: string | null | undefined) {
   return (
@@ -147,11 +157,21 @@ export function parseBookingFeedback(raw: string | null | undefined): BookingFee
       // escrow phase.
       return null
     }
+    const category =
+      (isIssueCategory(parsed.category) ? parsed.category : null) ||
+      (parsed.outcome === 'pleased' ? 'pleased' : 'other')
+    const categories = Array.isArray(parsed.categories)
+      ? parsed.categories.filter(isIssueCategory)
+      : isIssueCategory(parsed.category)
+        ? [parsed.category]
+        : []
     return {
       version: 1,
       outcome: parsed.outcome,
-      category: (parsed.category as BookingFeedback['category']) || (parsed.outcome === 'pleased' ? 'pleased' : 'other'),
+      category,
+      categories: categories.length ? [...new Set(categories)] : undefined,
       details: typeof parsed.details === 'string' ? parsed.details : '',
+      reason_details: typeof parsed.reason_details === 'string' ? parsed.reason_details : undefined,
       review: typeof parsed.review === 'string' ? parsed.review : '',
       rating: typeof parsed.rating === 'number' ? parsed.rating : 0,
       contacted_hunter_at: parsed.contacted_hunter_at || null,
@@ -226,5 +246,7 @@ export function withListerFeedback(raw: string | null | undefined, listerFeedbac
 /** Percentage of the booking fee refundable for an issue category. */
 export function refundPercentForFeedback(feedback: BookingFeedback | null): number {
   if (!feedback || feedback.outcome !== 'issue') return 0
-  return getIssueCategory(feedback.category).refundPercent
+  const selected = feedback.categories?.length ? feedback.categories : [feedback.category]
+  const percents = selected.filter(isIssueCategory).map((id) => getIssueCategory(id).refundPercent)
+  return percents.length ? Math.max(...percents) : getIssueCategory('other').refundPercent
 }

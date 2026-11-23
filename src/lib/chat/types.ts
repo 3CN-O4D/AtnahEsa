@@ -24,6 +24,26 @@ export interface HouseCardData {
  * admin inbox. The bridge reads this and forwards it to `ADMIN_WHATSAPP_NUMBERS`;
  * the web client ignores it. Always written in English.
  */
+/** A compact, structured result set kept between chat turns. */
+export interface HouseSearchSnapshot {
+  query: string
+  filters: {
+    locations: string[]
+    bedrooms: string[]
+    rent: { min: number | null; max: number | null }
+    sort: 'relevance' | 'price_asc' | 'price_desc'
+    count: number | null
+  }
+  total: number
+  results: Array<{ card: HouseCardData; score: number; rent: number }>
+  /** How many results have already been shown, so "show more" can continue. */
+  shown: number
+  /** Results per batch, taken from "send me 2 houses" when present. */
+  pageSize: number
+  capturedAt: string
+  takenNote?: string
+}
+
 export interface AdminAlert {
   topic: string
   subject: string
@@ -51,6 +71,8 @@ export interface ChatState {
   form?: string | null
   /** Used by the rules engine to avoid re-triggering the same intent. */
   lastIntent?: string
+  /** Last structured house search, kept so follow-ups can sort/filter it. */
+  search?: HouseSearchSnapshot | null
 }
 
 export interface ChatMessage {

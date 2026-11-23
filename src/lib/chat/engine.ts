@@ -2,7 +2,7 @@ import type { ChatRequest, ChatResponse, ChatState, ChatAction } from './types'
 import { emptyState } from './types'
 import { FAQ, PAGE_LINKS, CONTACT_INFO, WIFI_REQUIREMENTS } from './knowledge'
 import { searchHouses, parseHouseQuery } from './houseSearch'
-import { toolStats, toolWifiPackages, toolMovers, toolContact, toolGetHouse } from './tools'
+import { toolStats, toolWifiPackages, toolMovers, toolContact, toolGetHouse, toolShowMore } from './tools'
 import { aiChat, aiEnabled } from './ai'
 import { createHandoff } from './handoff'
 
@@ -15,6 +15,14 @@ const AREA_WORDS = [
 const BEDROOM_RE = /\b(?:bedsitter|studio|bungalow|townhouse|apartment|1\s?br|2\s?br|3\s?br|4\s?br|one\s*bedroom|two\s*bedroom|three\s*bedroom)\b/i
 
 const CANCEL_RE = /^(cancel|stop|never ?mind|nevermind|forget it|abort|exit|quit|hapana|acha)\b/i
+const SHOW_MORE_RE = /\b(?:show|see|send|give|get)\s+(?:me\s+)?(?:more|another|next|other)\b|\bmore\s+(?:houses|homes|rooms|options|results)\b|\bnext\s+(?:houses|homes|ones|batch)\b/i
+
+/** Keep useful chat context (draft or the last house result set) between turns. */
+function keepContext(state: ChatState): ChatState {
+  const keep =
+    Boolean(state.form) || Object.keys(state.draft ?? {}).length > 0 || Boolean(state.search)
+  return keep ? { ...state } : emptyState()
+}
 
 /**
  * Account changes need a signed-in browser session, which the WhatsApp bridge
@@ -84,16 +92,51 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
+  // 4b. "Show more" uses the stored, already-sorted result set. It never
+  // re-runs a search, so the user is not spammed with the same twenty houses.
+  if (SHOW_MORE_RE.test(low) && prevState.search) {
+    const more = toolShowMore(prevState.search)
+    return {
+      reply: more.text,
+      actions: (more.cards ?? []).map((card) => ({ type: 'card' as const, card })),
+      state: { ...prevState, ...(more.state ?? {}) },
+    }
+  }
+
+  // 4c. Deterministic follow-up: answer "which is cheapest?" straight from the
+  // stored result set instead of searching again or trusting a model guess.
+  if (
+    prevState.search &&
+    /^(?:which|what|how much|cheapest|lowest|most expensive|best|any of (?:those|them)|from (?:those|them)|among (?:those|them)|of (?:those|them))\b/i.test(
+      low
+    ) &&
+    !/(find|search|looking for|need a house|do you have)\b/.test(low)
+  ) {
+    const ranked = [...prevState.search.results]
+      .sort((a, b) => (/expensive|highest/i.test(low) ? b.rent - a.rent : a.rent - b.rent))
+      .slice(0, 5)
+    if (ranked.length) {
+      const lines = ranked.map((r) => `${r.card.title} — KSh ${r.rent.toLocaleString()}/mo (${r.card.location})`)
+      return {
+        reply: `From those ${prevState.search.total} results, here are the ${/expensive|highest/i.test(low) ? 'priciest' : 'cheapest'} ${ranked.length}:\n${lines.join('\n')}\n\nTap a card for full details.`,
+        actions: ranked.map((r) => ({ type: 'card' as const, card: r.card })),
+        state: prevState,
+      }
+    }
+  }
+
   // 5. AI-first. The model chats naturally, calls tools in the background and
   // collects submissions from a declared field spec. It is the only driver of
   // multi-turn conversations; there are no step machines.
   if (aiEnabled()) {
     const ai = await aiChat(history, msg, prevState)
     if (ai && ai.reply) {
-      const cardActions: ChatAction[] = (ai.cards ?? []).slice(0, 5).map((c) => ({ type: 'card', card: c }))
+      const state = ai.state ? { ...prevState, ...ai.state } : keepContext(prevState)
+      // Respect an explicit count ("send me 2 houses") instead of always
+      // truncating to five at this boundary.
+      const cardLimit = Math.max(1, Math.min(10, state.search?.pageSize ?? 5))
+      const cardActions: ChatAction[] = (ai.cards ?? []).slice(0, cardLimit).map((c) => ({ type: 'card', card: c }))
       const actions = [...(ai.actions ?? []), ...cardActions]
-      const keepDraft = Boolean(prevState.form) || Object.keys(prevState.draft ?? {}).length > 0
-      const state = ai.state ? { ...prevState, ...ai.state } : keepDraft ? prevState : emptyState()
       return {
         reply: ai.reply,
         actions: actions.length ? actions : undefined,
@@ -204,22 +247,23 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   const isBedroom = BEDROOM_RE.test(low)
   const isRent = /(rent|budget)/.test(low)
   if (isSearchAsk || isArea || isBedroom || (isRent && /(house|home|room|apartment|bed|br|studio|bedsitter)/.test(low))) {
-    const { cards, total, takenNote } = await searchHouses(msg, 5)
+    const { cards, total, takenNote, snapshot } = await searchHouses(msg, 5)
     if (cards.length > 0) {
       const cardsActions: ChatAction[] = cards.map((c) => ({ type: 'card', card: c }))
+      const more = total > cards.length ? `\n\nSay *show more* and I'll send the next ${Math.min(snapshot.pageSize, total - cards.length)}.` : ''
       const rentLine = total > cards.length ? `I found ${total} matching house${total === 1 ? '' : 's'} — here are the top ${cards.length}:` : `I found ${cards.length} matching house${cards.length === 1 ? '' : 's'}:`
       return {
-        reply: `${rentLine}\n${takenNote ? `\n${takenNote}` : ''}\n\n---\n\nTap a card to open the full listing.`,
+        reply: `${rentLine}\n${takenNote ? `\n${takenNote}` : ''}${more}\n\n---\n\nTap a card to open the full listing.`,
         actions: cardsActions,
-        state: emptyState(),
+        state: { ...prevState, search: snapshot },
       }
     }
     // No results — offer a house request in natural bubbles.
     const q = parseHouseQuery(msg)
-    const described = [q.locations.join(', '), q.bedrooms.join(', '), q.rent.max ? `under KSh ${q.rent.max.toLocaleString()}` : ''].filter(Boolean).join(' · ')
+    const described = [q.locations.join(', '), q.bedrooms.join(', '), q.rent.max ? `under KSh ${q.rent.max.toLocaleString()}` : q.sort === 'price_asc' ? 'lowest price first' : ''].filter(Boolean).join(' · ')
     return {
       reply: `Sorry — I couldn't find any *available* houses matching "${msg}".\n\n---\n\n${described ? `You searched for: ${described}.\n\nThe closest I could find were outside your budget or in a different area.` : `I searched the area but nothing came up.`}\n\n---\n\nWant me to submit a *house request* instead? Our team will hunt for it and reach you on WhatsApp.`,
-      state: emptyState(),
+      state: { ...prevState, search: snapshot },
     }
   }
 

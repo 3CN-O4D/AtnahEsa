@@ -6,6 +6,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Calendar, Clock, CheckCircle, AlertTriangle, XCircle, Eye, Home, Star, ThumbsUp, ThumbsDown, Loader2, Phone, MessageCircle, Receipt, Download, ChevronDown, ChevronRight } from 'lucide-react'
 import { SkeletonBooking } from '@/components/ui/Skeleton'
+import ReasonModal, { type ReasonOption } from './ReasonModal'
 import { createClient } from '@/lib/supabase/client'
 import { formatPrice } from '@/lib/utils'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
@@ -38,6 +39,25 @@ type BookingWithDetails = Booking & {
 }
 
 type Tab = 'hunter' | 'lister'
+
+const HUNTER_REASON_OPTIONS: ReasonOption[] = ISSUE_CATEGORIES.map((c) => ({
+  id: c.id,
+  label: c.label,
+  description: c.description,
+  badge: `${c.refundPercent}% refund`,
+}))
+
+const LISTER_REASON_OPTIONS: ReasonOption[] = [
+  { id: 'hunter_no_show', label: 'Hunter did not show up', description: 'They never arrived for the viewing.' },
+  { id: 'late_or_rude', label: 'Late or hard to reach', description: 'The hunter arrived late or stopped responding.' },
+  { id: 'changed_mind', label: 'Hunter changed their mind', description: 'They decided not to view the house.' },
+  { id: 'payment_issue', label: 'Payment problem', description: 'The booking fee was not paid or did not arrive.' },
+  { id: 'other', label: 'Something else', description: 'Add a short note if you want to.' },
+]
+
+const LIST_REASON_LABELS: Record<string, string> = Object.fromEntries(
+  LISTER_REASON_OPTIONS.map((option) => [option.id, option.label])
+)
 
 function StatusBadge({ release_status }: { release_status: string }) {
   const config: Record<string, { label: string; className: string }> = {
@@ -254,13 +274,16 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
   const [fbRating, setFbRating] = useState(0)
   const [fbComment, setFbComment] = useState('')
   const [fbCategory, setFbCategory] = useState<IssueCategory>('not_as_advertised')
+  const [fbReasons, setFbReasons] = useState<IssueCategory[]>([])
   const [fbDetails, setFbDetails] = useState('')
+  const [reasonPicker, setReasonPicker] = useState<null | 'hunter' | 'lister'>(null)
   const [paymentsError, setPaymentsError] = useState('')
   const [paymentsNotice, setPaymentsNotice] = useState('')
   const [expandedListerBooking, setExpandedListerBooking] = useState<string | null>(null)
   const [listerFormFor, setListerFormFor] = useState<string | null>(null)
   const [listerOutcome, setListerOutcome] = useState<ListerFeedbackOutcome>('viewing_confirmed')
   const [listerDetails, setListerDetails] = useState('')
+  const [listerReasons, setListerReasons] = useState<string[]>([])
   const [listerSubmitting, setListerSubmitting] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
@@ -402,7 +425,9 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
     setFbRating(0)
     setFbComment('')
     setFbCategory('not_as_advertised')
+    setFbReasons([])
     setFbDetails('')
+    setReasonPicker(null)
     setPaymentsError('')
     setPaymentsNotice('')
   }
@@ -411,7 +436,10 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
     setFeedbackFor(null)
     setFbRating(0)
     setFbComment('')
+    setFbCategory('not_as_advertised')
+    setFbReasons([])
     setFbDetails('')
+    setReasonPicker(null)
   }
 
   function openListerFeedback(hb: HouseBooking, outcome: ListerFeedbackOutcome) {
@@ -419,6 +447,8 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
     setListerFormFor(hb.id)
     setListerOutcome(outcome)
     setListerDetails('')
+    setListerReasons([])
+    setReasonPicker(null)
     setPaymentsError('')
     setPaymentsNotice('')
   }
@@ -426,11 +456,13 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
   function closeListerFeedback() {
     setListerFormFor(null)
     setListerDetails('')
+    setListerReasons([])
+    setReasonPicker(null)
   }
 
   async function submitListerFeedback(hb: HouseBooking) {
-    if (listerOutcome === 'issue' && listerDetails.trim().length < 5) {
-      setPaymentsError('Please describe the problem (at least 5 characters).')
+    if (listerOutcome === 'issue' && listerReasons.length === 0 && listerDetails.trim().length < 5) {
+      setPaymentsError('Choose at least one reason, or describe the problem briefly.')
       return
     }
     setListerSubmitting(hb.id)
@@ -440,7 +472,11 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
       const res = await fetch(`/api/house-bookings/${hb.id}/lister-feedback`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ outcome: listerOutcome, details: listerDetails.trim() }),
+        body: JSON.stringify({
+          outcome: listerOutcome,
+          details: listerDetails.trim(),
+          reasons: listerReasons,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
@@ -462,17 +498,23 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
   async function submitFeedback(hb: HouseBooking) {
     const outcome = feedbackFor?.outcome
     if (!outcome) return
-    if (fbRating < 1) { setPaymentsError('Please rate the lister from 1 to 5 stars'); return }
-    if (fbComment.trim().length < 3) { setPaymentsError('Please write a short review for the lister'); return }
-    if (outcome === 'issue' && !fbDetails.trim()) { setPaymentsError('Please tell us what happened'); return }
+    if (outcome === 'issue' && fbReasons.length === 0 && !fbDetails.trim()) {
+      setPaymentsError('Choose at least one reason, or add a short note.')
+      return
+    }
 
-    const action = outcome === 'pleased' ? 'confirm' : getIssueCategory(fbCategory).action
+    const primaryReason = fbReasons.length
+      ? [...fbReasons].sort((a, b) => getIssueCategory(b).refundPercent - getIssueCategory(a).refundPercent)[0]
+      : fbCategory
+    const action = outcome === 'pleased' ? 'confirm' : getIssueCategory(primaryReason).action
     const now = new Date().toISOString()
     const feedback: BookingFeedback = {
       version: 1,
       outcome,
-      category: outcome === 'pleased' ? 'pleased' : fbCategory,
-      details: outcome === 'issue' ? fbDetails.trim() : '',
+      category: outcome === 'pleased' ? 'pleased' : primaryReason,
+      categories: outcome === 'issue' ? fbReasons : undefined,
+      details: outcome === 'issue' ? fbDetails.trim() || fbReasons.map((id) => getIssueCategory(id).label).join(', ') : '',
+      reason_details: outcome === 'issue' ? fbDetails.trim() : undefined,
       review: fbComment.trim(),
       rating: fbRating,
       contacted_hunter_at: null,
@@ -492,10 +534,12 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
         body: JSON.stringify({
           action,
           booking_id: hb.id,
-          rating: fbRating,
+          rating: fbRating || null,
           comment: fbComment.trim(),
-          category: fbCategory,
+          category: primaryReason,
+          categories: fbReasons,
           details: fbDetails.trim(),
+          reason_details: fbDetails.trim(),
           reason: fbDetails.trim(),
         }),
       })
@@ -504,7 +548,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
       setHouseBookings(prev => prev.map(b => b.id === hb.id ? {
         ...b,
         confirmed_at: now,
-        rating: fbRating,
+        rating: fbRating || null,
         displeased_reason: serializeBookingFeedback(feedback, hb.displeased_reason),
       } : b))
       closeFeedback()
@@ -899,40 +943,36 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
 
                         {feedbackFor.outcome === 'issue' && (
                           <div>
-                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">What happened?</p>
-                            <div className="grid gap-1.5">
-                              {ISSUE_CATEGORIES.map((option) => (
-                                <label
-                                  key={option.id}
-                                  className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2.5 text-xs transition-colors ${
-                                    fbCategory === option.id
-                                      ? 'border-red-500 bg-red-50 dark:border-red-500 dark:bg-red-900/20'
-                                      : 'border-gray-200 hover:border-gray-300 dark:border-gray-700 dark:hover:border-gray-600'
-                                  }`}>
-                                  <input
-                                    type="radio"
-                                    name={`issue-${hb.id}`}
-                                    checked={fbCategory === option.id}
-                                    onChange={() => setFbCategory(option.id)}
-                                    disabled={!!acting}
-                                    className="mt-0.5 accent-red-600"
-                                  />
-                                  <span className="min-w-0">
-                                    <span className="block font-semibold text-gray-800 dark:text-gray-100">
-                                      {option.label}
-                                      <span className="ml-1.5 font-normal text-gray-500 dark:text-gray-400">· {option.refundPercent}% refund</span>
-                                    </span>
-                                    <span className="mt-0.5 block text-gray-500 dark:text-gray-400">{option.description}</span>
+                            <p className="text-xs font-semibold text-gray-700 dark:text-gray-200 mb-1.5">
+                              What happened? <span className="font-normal text-gray-400">(optional — tap to choose reasons)</span>
+                            </p>
+                            <button
+                              type="button"
+                              onClick={() => setReasonPicker('hunter')}
+                              disabled={!!acting}
+                              className="w-full rounded-lg border border-red-200 bg-red-50/60 px-3 py-2.5 text-left text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/20 dark:text-red-300"
+                            >
+                              {fbReasons.length
+                                ? `${fbReasons.length} reason${fbReasons.length === 1 ? '' : 's'} selected — tap to change`
+                                : 'Choose common reasons'}
+                            </button>
+                            {fbReasons.length ? (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {fbReasons.map((id) => (
+                                  <span key={id} className="rounded-full bg-red-100 px-2 py-0.5 text-[11px] font-medium text-red-700 dark:bg-red-900/30 dark:text-red-300">
+                                    {getIssueCategory(id).label}
                                   </span>
-                                </label>
-                              ))}
-                            </div>
+                                ))}
+                              </div>
+                            ) : null}
                           </div>
                         )}
 
                         <div>
                           <div className="flex items-center gap-3">
-                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">Rate the lister</span>
+                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
+                              Rate the lister <span className="font-normal text-gray-400">(optional)</span>
+                            </span>
                             <div className="flex gap-1">
                               {[1, 2, 3, 4, 5].map(n => (
                                 <button
@@ -958,7 +998,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
 
                         <label className="block">
                           <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                            Your review of the lister
+                            Your review of the lister <span className="font-normal text-gray-400">(optional)</span>
                           </span>
                           <textarea
                             value={fbComment}
@@ -970,27 +1010,21 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                           />
                         </label>
 
-                        {feedbackFor.outcome === 'issue' && (
-                          <label className="block">
-                            <span className="text-xs font-semibold text-gray-700 dark:text-gray-200">
-                              Tell us exactly what happened
-                            </span>
-                            <textarea
-                              value={fbDetails}
-                              onChange={(e) => setFbDetails(e.target.value)}
-                              disabled={!!acting}
-                              placeholder="Share dates, what the lister said, and anything an admin should check."
-                              className="mt-1 w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              rows={3}
-                            />
-                          </label>
-                        )}
+                        {feedbackFor.outcome === 'issue' && fbDetails.trim() ? (
+                          <div className="rounded-lg border border-gray-200 bg-gray-50 p-2.5 text-xs text-gray-600 dark:border-gray-700 dark:bg-slate-900/40 dark:text-gray-300">
+                            <span className="font-semibold">Your note:</span> {fbDetails.trim()}
+                          </div>
+                        ) : null}
 
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 flex items-start gap-1">
                           <AlertTriangle className="mt-0.5 w-3.5 h-3.5 flex-shrink-0" />
                           {feedbackFor.outcome === 'pleased'
                             ? 'Confirming closes the viewing and approves the lister’s 50% payout. An admin sends it by M-Pesa and records the SMS — the booking is not marked paid until then.'
-                            : `Estimated refund: ${getIssueCategory(fbCategory).refundPercent}% after review. An admin contacts both you and the lister before any money moves.`}
+                            : `Estimated refund: ${getIssueCategory(
+                                fbReasons.length
+                                  ? [...fbReasons].sort((a, b) => getIssueCategory(b).refundPercent - getIssueCategory(a).refundPercent)[0]
+                                  : fbCategory
+                              ).refundPercent}% after review. An admin contacts both you and the lister before any money moves.`}
                         </p>
 
                         <div className="flex gap-2">
@@ -1196,13 +1230,26 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                             : 'Tell us what went wrong. An admin will contact both sides. Your report does not move money by itself.'}
                         </p>
                         {listerOutcome === 'issue' && (
-                          <textarea
-                            value={listerDetails}
-                            onChange={(e) => setListerDetails(e.target.value)}
-                            rows={3}
-                            placeholder="What happened? Include dates and anything an admin should check."
-                            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-slate-800 p-2 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          />
+                          <div>
+                            <button
+                              type="button"
+                              onClick={() => setReasonPicker('lister')}
+                              className="w-full rounded-lg border border-blue-200 bg-blue-50/60 px-3 py-2 text-left text-xs font-medium text-blue-700 hover:bg-blue-50 dark:border-blue-900 dark:bg-blue-950/20 dark:text-blue-300"
+                            >
+                              {listerReasons.length || listerDetails.trim()
+                                ? 'Edit reasons and note'
+                                : 'Choose common reasons'}
+                            </button>
+                            {listerReasons.length ? (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {listerReasons.map((reason) => (
+                                  <span key={reason} className="rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-medium text-blue-700 dark:bg-blue-900/30 dark:text-blue-300">
+                                    {LIST_REASON_LABELS[reason] || reason}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
                         )}
                         <div className="flex gap-2">
                           <button
@@ -1271,6 +1318,44 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
         </div>
       )}
       </div>
+
+      <ReasonModal
+        open={reasonPicker === 'hunter'}
+        title="What went wrong?"
+        subtitle="Choose anything that applies. A short note is optional, and an admin reviews every report before any refund."
+        options={HUNTER_REASON_OPTIONS}
+        selected={fbReasons}
+        freeText={fbDetails}
+        freeTextPlaceholder="Anything else an admin should know? Optional."
+        onToggle={(id) =>
+          setFbReasons((prev) =>
+            prev.includes(id as IssueCategory)
+              ? prev.filter((item) => item !== id)
+              : [...prev, id as IssueCategory]
+          )
+        }
+        onFreeTextChange={setFbDetails}
+        onClose={() => setReasonPicker(null)}
+        onSubmit={() => setReasonPicker(null)}
+        submitLabel="Done"
+      />
+
+      <ReasonModal
+        open={reasonPicker === 'lister'}
+        title="Report a viewing problem"
+        subtitle="Pick the common reasons that match. Free text is optional — your report never moves money by itself."
+        options={LISTER_REASON_OPTIONS}
+        selected={listerReasons}
+        freeText={listerDetails}
+        freeTextPlaceholder="Dates or anything an admin should check. Optional."
+        onToggle={(id) =>
+          setListerReasons((prev) => (prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]))
+        }
+        onFreeTextChange={setListerDetails}
+        onClose={() => setReasonPicker(null)}
+        onSubmit={() => setReasonPicker(null)}
+        submitLabel="Done"
+      />
     </div>
   )
 }

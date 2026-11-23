@@ -3,6 +3,7 @@ import type { AdminAlert, ChatAction, ChatMessage, ChatState, HouseCardData } fr
 import { CONTACT_INFO, PLATFORM_KNOWLEDGE } from './knowledge'
 import { formsPrompt } from './forms'
 import { WIFI_INSTALLATION_FEE } from '@/lib/constants'
+import { extractRequestedCount } from './houseSearch'
 
 const MAX_ROUNDS = 4
 
@@ -78,7 +79,8 @@ LANGUAGE RULES (read twice):
 - If a user complains or asks for help in another language, chat back to them in their language, but file the complaint/notify_admin in English.
 
 TOOLS — ALWAYS call a tool when the user asks about its topic, even mid-conversation. Don't guess data yourself.
-- search_houses: Find real houses by area, bedrooms, budget, water/token. Call it for ANY house search — never invent listings.
+- search_houses: Find real houses by area, bedrooms, budget, water/token. Call it ONCE with the user's full request for ANY house search — never invent listings. Pass count when the user asks for an exact number ("2 houses", "one in Kapsoya"). The tool parses "cheapest"/"lowest" as price-ascending, applies the area and bedroom filters, sorts the results and stores them for follow-ups.
+- show_more_houses: Use this for "show more", "next", "more houses" or any follow-up asking for other results from the search you just did. It returns the next stored batch; do NOT call search_houses again for that.
 - get_house: Look up ONE specific house by its listing id or a pasted listing link (e.g. https://www.asehanta.com/listings/<id>). Call it whenever the user asks about "that house", sends a listing link/id, or asks for more details or photos of a specific listing. Then summarise the details and mention that the photos/card are below.
 - get_stats: Current house/hunter/lister counts
 - wifi_packages: Real WiFi packages and prices
@@ -99,6 +101,8 @@ If someone just says "morning", "hello", "how many houses", or asks a random que
 
 RULES:
 - Never invent house listings, prices, or links — use search_houses.
+- Never dump the whole database. If the user says "2 houses" or "one in Juniorate", send exactly that many. Otherwise show at most 5 and offer "say show more". The tool result reports how many were sent and how many remain.
+- For follow-ups like "which of those is cheapest?", use the LAST HOUSE SEARCH block instead of searching again. It already has the sorted result set.
 - Never reveal lister private contact details.
 - If a user greets you or chats socially, reply warmly and briefly.
 - After a house search, mention the card preview that appears below.
@@ -191,6 +195,28 @@ export async function aiChat(
           },
         ]
       : []),
+    ...(state?.search
+      ? [
+          {
+            role: 'system' as const,
+            content: `LAST HOUSE SEARCH (structured, sorted; use for follow-ups, do not search again):\n${JSON.stringify(
+              {
+                query: state.search.query,
+                filters: state.search.filters,
+                total: state.search.total,
+                shown: state.search.shown,
+                results: state.search.results.map((r) => ({
+                  id: r.card.id,
+                  title: r.card.title,
+                  location: r.card.location,
+                  rent: r.rent,
+                  score: r.score,
+                })),
+              }
+            )}`,
+          },
+        ]
+      : []),
     ...history.slice(-10).map((m) => ({ role: m.role === 'user' ? ('user' as const) : ('assistant' as const), content: m.content.slice(0, 2000) })),
     { role: 'user', content: userMessage.slice(0, 1000) },
   ]
@@ -263,15 +289,22 @@ export async function aiChat(
           }
           if (name === 'search_houses') {
             const query = typeof args.query === 'string' ? args.query : ''
+            const requestedCount = extractRequestedCount(userMessage)
+            if (requestedCount) args.count = requestedCount
             if (/\d/.test(userMessage)) {
               args.query = userMessage
             } else if (!query.trim()) {
               args.query = userMessage
             }
           }
-          const result = await runTool(name, args)
+          const result = await runTool(name, args, state)
           if (result.adminAlert) adminAlert = result.adminAlert
           if (result.state) statePatch = { ...(statePatch ?? {}), ...result.state }
+          if ((result.data as { kind?: string } | undefined)?.kind === 'house_search_more') {
+            // "Show more" should display the next batch, not re-show the first five.
+            cards.length = 0
+            seen.clear()
+          }
           for (const action of result.actions ?? []) actions.push(action)
           for (const c of result.cards ?? []) {
             if (!seen.has(c.id)) {

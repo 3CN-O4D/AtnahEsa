@@ -4,7 +4,6 @@ import { createClient } from '@/lib/supabase/server'
 import { notifyAdmins } from '@/lib/notify'
 import { sendAdminPayoutPanelEmail } from '@/lib/email'
 import { createNotification } from '@/lib/notifications'
-import { invalidateCached } from '@/lib/server-cache'
 import { approveHouseBookingPayout } from '@/lib/payments'
 import { canReportLateAfterAutoApproval } from '@/lib/booking-workflow'
 import { resolveListerIdentity } from '@/lib/lister-identity'
@@ -12,6 +11,7 @@ import {
   getIssueCategory,
   parseBookingFeedback,
   serializeBookingFeedback,
+  ISSUE_CATEGORIES,
   type BookingFeedback,
   type IssueCategory,
 } from '@/lib/booking-feedback'
@@ -36,7 +36,7 @@ async function saveListerReview(
   rating: number,
   comment: string
 ) {
-  if (!listerId || !comment) return
+  if (!listerId || !comment || rating < 1) return
   const { data: existing } = await admin
     .from('lister_reviews')
     .select('id')
@@ -79,7 +79,7 @@ async function saveListerReview(
 export async function POST(req: Request) {
   try {
     const body = await req.json().catch(() => ({}))
-    const { booking_id, action, rating, reason, category, details, comment } = body
+    const { booking_id, action, rating, reason, category, categories, details, reason_details, comment } = body
 
     if (!booking_id || !action) {
       return NextResponse.json({ error: 'booking_id and action are required' }, { status: 400 })
@@ -88,14 +88,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Action must be confirm, displeased, or fake_no_show' }, { status: 400 })
     }
 
-    const ratingValue = Number(rating)
-    if (!Number.isInteger(ratingValue) || ratingValue < 1 || ratingValue > 5) {
-      return NextResponse.json({ error: 'Please rate the lister from 1 to 5 stars' }, { status: 400 })
+    // Rating and written review are optional: quick confirmations should not
+    // force people to type. Only a valid star value is stored when provided.
+    const ratingValue = rating === '' || rating == null ? 0 : Number(rating)
+    if (!Number.isInteger(ratingValue) || ratingValue < 0 || ratingValue > 5) {
+      return NextResponse.json({ error: 'Rating must be between 0 and 5 stars' }, { status: 400 })
     }
     const reviewText = typeof comment === 'string' ? comment.trim() : ''
-    if (reviewText.length < 3) {
-      return NextResponse.json({ error: 'Please write a short review for the lister' }, { status: 400 })
-    }
 
     const supabase = await createClient()
     const {
@@ -174,7 +173,7 @@ export async function POST(req: Request) {
         .from('house_bookings')
         .update({
           confirmed_at: now,
-          rating: ratingValue,
+          rating: ratingValue || null,
           displeased_reason: serializeBookingFeedback(feedback, booking.displeased_reason),
         })
         .eq('id', booking_id)
@@ -227,13 +226,22 @@ export async function POST(req: Request) {
 
     // ---- Hunter reports a problem. Admin reviews before any refund. ----
     const isFakeOrNoShow = action === 'fake_no_show'
-    const categoryId: IssueCategory = isFakeOrNoShow
-      ? 'fake_listing'
+    const selectedCategories: IssueCategory[] = isFakeOrNoShow
+      ? ['fake_listing']
+      : [...new Set(
+          (Array.isArray(categories) ? categories : category ? [category] : [])
+            .filter((id): id is IssueCategory => ISSUE_CATEGORIES.some((c) => c.id === id))
+        )]
+    const categoryId: IssueCategory = selectedCategories.length
+      ? [...selectedCategories].sort(
+          (a, b) => getIssueCategory(b).refundPercent - getIssueCategory(a).refundPercent
+        )[0]
       : getIssueCategory(category).id
     const categoryMeta = getIssueCategory(categoryId)
-    const detailsText = String(details ?? reason ?? '').trim()
-    if (!detailsText) {
-      return NextResponse.json({ error: 'Please tell us what happened' }, { status: 400 })
+    const detailsText = String(reason_details ?? details ?? reason ?? '').trim()
+    const reasonLabels = selectedCategories.map((id) => getIssueCategory(id).label)
+    if (!detailsText && reasonLabels.length === 0) {
+      return NextResponse.json({ error: 'Choose at least one reason or tell us what happened' }, { status: 400 })
     }
 
     const refundPercent = categoryMeta.refundPercent
@@ -248,7 +256,9 @@ export async function POST(req: Request) {
       version: 1,
       outcome: 'issue',
       category: categoryId,
-      details: detailsText,
+      categories: selectedCategories.length ? selectedCategories : [categoryId],
+      details: detailsText || reasonLabels.join(', '),
+      reason_details: detailsText,
       review: reviewText,
       rating: ratingValue,
       contacted_hunter_at: now,
@@ -265,7 +275,7 @@ export async function POST(req: Request) {
       .update({
         confirmed_at: now,
         displeased_reason: serializeBookingFeedback(feedback, booking.displeased_reason),
-        rating: ratingValue,
+        rating: ratingValue || null,
       })
       .eq('id', booking_id)
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
@@ -284,10 +294,10 @@ export async function POST(req: Request) {
             House: booking.listing_title || 'N/A',
             'Hunter Phone': booking.phone || 'N/A',
             'Hunting Fee': booking.listing_price ? `KES ${booking.listing_price}` : 'N/A',
-            Issue: categoryMeta.label,
-            'What happened': detailsText,
-            Rating: `${ratingValue}/5`,
-            Review: reviewText,
+            Issue: reasonLabels.join(', ') || categoryMeta.label,
+            'What happened': detailsText || reasonLabels.join(', '),
+            Rating: ratingValue ? `${ratingValue}/5` : 'not provided',
+            Review: reviewText || 'not provided',
             'Refund requested': `KES ${refundAmount} (${refundPercent}%)`,
             'Lister contact': `${listerName}${listerPhone ? ` · ${listerPhone}` : ' · no number on file'}`,
             'Action Required': autoApproved

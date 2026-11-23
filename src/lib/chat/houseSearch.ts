@@ -1,7 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin'
-import type { HouseCardData } from './types'
+import type { HouseCardData, HouseSearchSnapshot } from './types'
 
-interface RawListing {
+export interface RawListing {
   id: string
   title: string
   location: string | null
@@ -21,10 +21,11 @@ interface RawListing {
 }
 
 const BEDROOM_PATTERNS: Array<{ re: RegExp; label: string }> = [
-  { re: /\b(?:one\s*bdrm?|1\s*bed|1br)\b/i, label: '1BR' },
-  { re: /\b(?:two\s*bdrm?|2\s*bed|2br)\b/i, label: '2BR' },
-  { re: /\b(?:three\s*bdrm?|3\s*bed|3br)\b/i, label: '3BR' },
-  { re: /\b(?:four\s*bdrm?|4\s*bed|4br)\b/i, label: '4BR' },
+  { re: /\b(?:one\s*(?:bed(?:room)?s?|bdrm?)|1\s*(?:bed(?:room)?s?|bdrm?)|1br)\b/i, label: '1BR' },
+  { re: /\b(?:two\s*(?:bed(?:room)?s?|bdrm?)|2\s*(?:bed(?:room)?s?|bdrm?)|2br)\b/i, label: '2BR' },
+  { re: /\b(?:three\s*(?:bed(?:room)?s?|bdrm?)|3\s*(?:bed(?:room)?s?|bdrm?)|3br)\b/i, label: '3BR' },
+  { re: /\b(?:four\s*(?:bed(?:room)?s?|bdrm?)|4\s*(?:bed(?:room)?s?|bdrm?)|4br)\b/i, label: '4BR' },
+  { re: /\b(?:five\s*(?:bed(?:room)?s?|bdrm?)|5\s*(?:bed(?:room)?s?|bdrm?)|5br)\b/i, label: '5BR' },
   { re: /\bbedsitter\b/i, label: 'Bedsitter' },
   { re: /\bstudio\b/i, label: 'Studio' },
   { re: /\bbungalow\b/i, label: 'Bungalow' },
@@ -39,7 +40,12 @@ const NO_ISSUES_RE = /(?:no|zero|without)\s+issues|issues?\s+free/i
 
 /** Pull rent amounts like "under 10k", "15k - 25k", "15000", "10,000 to 20,000". */
 export function extractRentRange(input: string): { min: number | null; max: number | null } {
-  const text = input.replace(/[,\s]/g, '')
+  // Bedroom counts are not money: "2 bedrooms under 15k" must parse as max 15k only.
+  const withoutBedrooms = input.replace(
+    /\b(?:one|two|three|four|five|six|\d+)\s*(?:bed(?:room)?s?|bdrm?|br)\b/gi,
+    ' '
+  )
+  const text = withoutBedrooms.replace(/[,\s]/g, '')
   // currency tokens: 10k / 10,000 / 10000 / 1.5k
   const amounts = [...text.matchAll(/(\d+(?:\.\d+)?)k?/gi)].map((m) => {
     const raw = m[1]
@@ -60,6 +66,28 @@ export function extractRentRange(input: string): { min: number | null; max: numb
   return { min: sorted[0], max: sorted[sorted.length - 1] }
 }
 
+/** "send me 2 houses", "one in Juniorate" → 2 / 1. Rooms and prices don't count. */
+export function extractRequestedCount(input: string): number | null {
+  const cleaned = input
+    .replace(/\b(?:one|two|three|four|five|six|\d+)\s*(?:bed(?:room)?s?|bdrm?|br)\b/gi, ' ')
+    .replace(/\b(?:ksh|kes)\s*\d+(?:\.\d+)?k?\b/gi, ' ')
+    .replace(/\d+(?:\.\d+)?k\b/gi, ' ')
+
+  const numberWord = cleaned.match(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\b/i)
+  const digitCount = cleaned.match(
+    /\b(\d{1,2})\b(?=\s+(?:houses?|homes?|rooms?|apartments?|options?|listings?|places?|in|at|near|around|from|for|please))/i
+  )
+  const found = numberWord || digitCount
+  if (!found) return null
+  const words: Record<string, number> = {
+    one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+    nine: 9, ten: 10, eleven: 11, twelve: 12,
+  }
+  const value = /^\d+$/.test(found[1]) ? Number(found[1]) : words[found[1].toLowerCase()]
+  if (!Number.isFinite(value) || value < 1) return null
+  return Math.min(10, value)
+}
+
 export interface HouseSearchQuery {
   raw: string
   locations: string[]
@@ -70,6 +98,10 @@ export interface HouseSearchQuery {
   storey: boolean
   noIssues: boolean
   rent: { min: number | null; max: number | null }
+  /** Price direction matters for "cheapest" and "most expensive" requests. */
+  sort: 'relevance' | 'price_asc' | 'price_desc'
+  /** Exact number of houses requested, e.g. "send me 2 houses". */
+  count: number | null
   includeTaken: boolean
 }
 
@@ -85,12 +117,22 @@ export function parseHouseQuery(input: string): HouseSearchQuery {
   const segments = text.split(/\bor\b|\band\b|\bin\b|around|near|within/gi).map((s) => s.trim())
   const locationWords = segments.flatMap((seg) => {
     const cleaned = seg
-      .replace(/\b(?:with|water|rent|inclusive|included|self|contained|bedroom|studio|bedsitter|floor|house|homes?|apartments?|area|town|place|near|around|under|below|up\s*to|between|to|and)\b/gi, ' ')
-      .replace(/\d+k?/gi, ' ')
+      .replace(
+        /\b(?:find|search|show|send|give|get|me|please|want|need|looking|look|some|any|the|a|an|with|without|water|rent|price|inclusive|included|self|contained|bedroom|bedrooms|bed|beds|studio|bedsitter|floor|house|houses|home|homes|apartment|apartments|room|rooms|area|town|place|near|around|within|under|below|above|over|from|between|up\s*to|not\s*more\s*than|at\s*least|max|minimum|min|cheap|cheapest|lowest|affordable|expensive|least|most|best|budget|per|month|mo|available|vacant|taken|occupied|everything|all|more|another|other|only|just|do|you|have|is|there|what|which|where)\b/gi,
+        ' '
+      )
+      .replace(/\d+(?:\.\d+)?k?\b/gi, ' ')
       .replace(/[^a-z\s-]/gi, ' ')
     return cleaned.split(/\s+/).filter((w) => w.length >= 4).map((w) => w.toLowerCase())
   })
   for (const w of locationWords) if (!locations.includes(w)) locations.push(w)
+
+  let sort: HouseSearchQuery['sort'] = 'relevance'
+  if (/\b(?:cheap(?:est)?|lowest|affordable|least\s+expensive|best\s+price|low\s+price|small\s+budget)\b/i.test(text)) {
+    sort = 'price_asc'
+  } else if (/\b(?:most\s+expensive|highest\s+price|top\s+price|luxur(?:y|ious))\b/i.test(text)) {
+    sort = 'price_desc'
+  }
 
   return {
     raw: text,
@@ -102,12 +144,23 @@ export function parseHouseQuery(input: string): HouseSearchQuery {
     storey: STOREY_RE.test(text),
     noIssues: NO_ISSUES_RE.test(text),
     rent: extractRentRange(text),
+    sort,
+    count: extractRequestedCount(text),
     includeTaken: /(taken|occupied|all houses|show everything)/i.test(text),
   }
 }
 
 function listingTokens(l: RawListing): string {
   return `${l.title ?? ''} ${l.location ?? ''} ${l.descriptive_location ?? ''}`.toLowerCase()
+}
+
+function matchesLocations(l: RawListing, q: HouseSearchQuery): boolean {
+  if (q.locations.length === 0) return true
+  const hay = listingTokens(l)
+  return q.locations.some((loc) => {
+    const boundary = new RegExp(`(^|[^a-z])${loc.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z]|$)`, 'i')
+    return boundary.test(hay) || hay.includes(loc)
+  })
 }
 
 /** Score how well a listing matches a parsed query. Higher is better. */
@@ -159,7 +212,117 @@ export function scoreListing(l: RawListing, q: HouseSearchQuery): number {
   return score
 }
 
-export async function searchHouses(queryText: string, limit = 5): Promise<{ cards: HouseCardData[]; total: number; takenNote: string }> {
+export interface HouseSearchOutput {
+  cards: HouseCardData[]
+  total: number
+  takenNote: string
+  /** Structured results kept in chat state for sorting/follow-ups. */
+  snapshot: HouseSearchSnapshot
+}
+
+const rentOf = (l: RawListing) => l.rent ?? l.price ?? 0
+
+function toCard(l: RawListing): HouseCardData {
+  return {
+    id: l.id,
+    title: l.title ?? 'Untitled house',
+    location: l.location ?? 'Unknown area',
+    descriptive_location: l.descriptive_location,
+    rent: rentOf(l),
+    price: l.price ?? l.rent ?? 0,
+    house_type: l.house_type,
+    water: l.water,
+    deposit: l.deposit,
+    deposit_refundable: l.deposit_refundable,
+    vacancy: l.vacancy,
+    status: l.status,
+    image: (l.images ?? [])[0] ?? null,
+    images: (l.images ?? []).filter(Boolean),
+    badges: buildBadges(l),
+  }
+}
+
+/** Pure ranking step so it can be tested without a database. */
+export function rankListings(raw: RawListing[], q: HouseSearchQuery) {
+  // A stated budget is a hard limit: never show a card above it (or with no
+  // known rent) just because the area matched.
+  const withinBudget = raw.filter((l) => {
+    if (q.rent.min === null && q.rent.max === null) return true
+    const rent = rentOf(l)
+    if (rent <= 0) return false
+    if (q.rent.max !== null && rent > q.rent.max) return false
+    if (q.rent.min !== null && rent < q.rent.min) return false
+    return true
+  })
+
+  // Explicit areas are a strong preference: "cheapest in Juniorate" must not
+  // become "cheapest anywhere". Fall back to all budget matches only when the
+  // named area has no live houses.
+  const areaMatches = q.locations.length ? withinBudget.filter((l) => matchesLocations(l, q)) : withinBudget
+  const pool = areaMatches.length ? areaMatches : withinBudget
+  return pool
+    .map((l) => ({ l, score: scoreListing(l, q) }))
+    .filter((s) => s.score > 0 || (areaMatches.length === 0 && q.locations.length > 0))
+    .sort((a, b) => {
+      const rentA = rentOf(a.l)
+      const rentB = rentOf(b.l)
+      if (q.sort === 'price_asc' || q.sort === 'price_desc') {
+        const aArea = matchesLocations(a.l, q)
+        const bArea = matchesLocations(b.l, q)
+        if (aArea !== bArea) return aArea ? -1 : 1
+        const price = q.sort === 'price_asc' ? rentA - rentB : rentB - rentA
+        if (price !== 0) return price
+      }
+      const byScore = b.score - a.score
+      if (byScore !== 0) return byScore
+      const aPublished = a.l.status === 'published' ? 1 : 0
+      const bPublished = b.l.status === 'published' ? 1 : 0
+      if (aPublished !== bPublished) return bPublished - aPublished
+      return rentA - rentB
+    })
+}
+
+/** Pure result builder: caps the visible batch at the requested count. */
+export function buildHouseSearchOutput(
+  raw: RawListing[],
+  queryText: string,
+  limit = 5
+): HouseSearchOutput {
+  const q = parseHouseQuery(queryText)
+  const scored = rankListings(raw, q)
+  const safeLimit = Math.max(1, Math.min(10, q.count ?? (Math.floor(limit) || 5)))
+  const results = scored.slice(0, Math.max(25, safeLimit + 10)).map(({ l, score }) => ({ card: toCard(l), score, rent: rentOf(l) }))
+  const cards = results.slice(0, safeLimit).map((r) => r.card)
+  const takenCount = scored.filter((s) => s.l.status === 'taken').length
+  const takenNote =
+    takenCount > 0 && !q.includeTaken
+      ? `${takenCount} similar house${takenCount === 1 ? ' is' : 's are'} already taken — I've left those out.`
+      : ''
+
+  return {
+    cards,
+    total: scored.length,
+    takenNote,
+    snapshot: {
+      query: queryText,
+      filters: {
+        locations: q.locations,
+        bedrooms: q.bedrooms,
+        rent: q.rent,
+        sort: q.sort,
+        count: q.count,
+      },
+      total: scored.length,
+      results,
+      shown: cards.length,
+      pageSize: safeLimit,
+      capturedAt: new Date().toISOString(),
+      takenNote,
+    },
+  }
+}
+
+export async function searchHouses(queryText: string, limit = 5): Promise<HouseSearchOutput> {
   const q = parseHouseQuery(queryText)
   const supabase = createAdminClient()
   const { data, error } = await supabase
@@ -172,55 +335,7 @@ export async function searchHouses(queryText: string, limit = 5): Promise<{ card
     throw new Error(`Search failed: ${error.message}`)
   }
 
-  const raw = (data ?? []) as RawListing[]
-  // A stated budget is a hard limit: never show a card above it (or with no
-  // known rent) just because the area matched.
-  const withinBudget = raw.filter((l) => {
-    if (q.rent.min === null && q.rent.max === null) return true
-    const rent = l.rent ?? l.price ?? 0
-    if (rent <= 0) return false
-    if (q.rent.max !== null && rent > q.rent.max) return false
-    if (q.rent.min !== null && rent < q.rent.min) return false
-    return true
-  })
-
-  const scored = withinBudget
-    .map((l) => ({ l, score: scoreListing(l, q) }))
-    .filter((s) => s.score > 0)
-    .sort((a, b) => {
-      const byScore = b.score - a.score
-      if (byScore !== 0) return byScore
-      const aPublished = a.l.status === 'published' ? 1 : 0
-      const bPublished = b.l.status === 'published' ? 1 : 0
-      if (aPublished !== bPublished) return bPublished - aPublished
-      return (a.l.rent ?? a.l.price ?? 0) - (b.l.rent ?? b.l.price ?? 0)
-    })
-
-  const top = scored.slice(0, limit)
-  const cards: HouseCardData[] = top.map(({ l }) => ({
-    id: l.id,
-    title: l.title ?? 'Untitled house',
-    location: l.location ?? 'Unknown area',
-    descriptive_location: l.descriptive_location,
-    rent: l.rent ?? l.price ?? 0,
-    price: l.price ?? l.rent ?? 0,
-    house_type: l.house_type,
-    water: l.water,
-    deposit: l.deposit,
-    deposit_refundable: l.deposit_refundable,
-    vacancy: l.vacancy,
-    status: l.status,
-    image: (l.images ?? [])[0] ?? null,
-    images: (l.images ?? []).filter(Boolean),
-    badges: buildBadges(l),
-  }))
-
-  const takenCount = scored.filter((s) => s.l.status === 'taken').length
-  return {
-    cards,
-    total: scored.length,
-    takenNote: takenCount > 0 && !q.includeTaken ? `${takenCount} similar house${takenCount === 1 ? ' is' : 's are'} already taken — I've left those out.` : '',
-  }
+  return buildHouseSearchOutput((data ?? []) as RawListing[], queryText, limit)
 }
 
 function buildBadges(l: RawListing): string[] {

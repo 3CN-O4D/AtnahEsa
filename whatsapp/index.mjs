@@ -216,7 +216,33 @@ const marketing = createMarketing({
 
 /* ------------------------------------------------------------------ helpers */
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+function abortError() {
+  return new DOMException('Aborted', 'AbortError')
+}
+
+function isAbort(error) {
+  return error?.name === 'AbortError' || error?.message === 'Aborted'
+}
+
+/** Sleep that resolves early when a newer customer message interrupts us. */
+function sleep(ms, signal) {
+  if (signal?.aborted) return Promise.reject(abortError())
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal?.removeEventListener?.('abort', onAbort)
+      resolve()
+    }, ms)
+    function onAbort() {
+      clearTimeout(timer)
+      reject(abortError())
+    }
+    signal?.addEventListener?.('abort', onAbort, { once: true })
+  })
+}
+
+function assertActive(signal) {
+  if (signal?.aborted) throw abortError()
+}
 
 /** Small LRU-ish guard so a WhatsApp redelivery can't answer twice. */
 const seenMessages = new Set()
@@ -228,7 +254,7 @@ function remember(id) {
   }
 }
 
-/** Serialise work per chat so two fast messages can't clobber session state. */
+/** Serialise admin work per chat so two fast commands can't clobber state. */
 const queues = new Map()
 function enqueue(jid, task) {
   const previous = queues.get(jid) ?? Promise.resolve()
@@ -240,6 +266,26 @@ function enqueue(jid, task) {
     })
   )
   return next
+}
+
+/**
+ * Customer turns are interruptible: a new text aborts an in-flight chunked
+ * reply so the bot answers the latest message instead of finishing the old one.
+ */
+const activeCustomerRuns = new Map()
+function enqueueCustomer(jid, task) {
+  activeCustomerRuns.get(jid)?.abort()
+  const controller = new AbortController()
+  activeCustomerRuns.set(jid, controller)
+  const run = Promise.resolve()
+    .then(() => task(controller.signal))
+    .catch((error) => {
+      if (!isAbort(error)) throw error
+    })
+    .finally(() => {
+      if (activeCustomerRuns.get(jid) === controller) activeCustomerRuns.delete(jid)
+    })
+  return run
 }
 
 /** Redeem a single-use web → WhatsApp hand-off token. */
@@ -368,8 +414,9 @@ async function sendAdminAlerts(alert, meta) {
  *     Africa's Talking, Twilio Functions, or their own switchboard.
  *   - Twilio directly when the three TWILIO_* values are set.
  *
- * With neither configured this is a no-op; the WhatsApp text + voice note still
- * go out.
+ * With neither configured we mint a WhatsApp call link with Baileys and send it
+ * to the on-call admin, so they can tap once and start a WhatsApp call. The
+ * normal text + voice note still go out either way.
  */
 /** True when the worker has any way to place a real outbound call. */
 function callConfigured() {
@@ -409,6 +456,47 @@ async function placeUrgentCall(alert, meta, numbers) {
   // Store the answer payload for both Twilio and provider-agnostic webhooks.
   for (const number of targets.map(international).filter(Boolean)) {
     rememberCallText(number, spoken, adminAlertText(alert, meta))
+  }
+
+  /*
+   * No telephony credentials: Baileys still cannot ring a JID, but it CAN mint
+   * a WhatsApp call link. Sending that link to the on-call admin gives them a
+   * one-tap WhatsApp call instead of silently dropping the escalation.
+   */
+  if (!callConfigured()) {
+    try {
+      const token = await sock?.createCallLink?.('audio', undefined, 15000)
+      if (token) {
+        const url = String(token).startsWith('http') ? String(token) : `https://call.whatsapp.com/voice/${token}`
+        const callText = [
+          '📞 *URGENT — tap to join the call*',
+          message,
+          '',
+          url,
+          '',
+          `Brief: ${spoken}`,
+        ].join('\n')
+        for (const number of targets) {
+          try {
+            await sock.sendMessage(`${number}@s.whatsapp.net`, { text: callText })
+          } catch (error) {
+            console.error(`[whatsapp] call link to ${number} failed:`, error?.message ?? error)
+          }
+        }
+        await recordActivity(
+          supabase,
+          {
+            kind: 'whatsapp_call_link',
+            subject: digits(alert.phone || meta.phone) || null,
+            detail: { to: targets, topic: alert.topic ?? null },
+          },
+          console
+        )
+      }
+    } catch (error) {
+      console.warn('[whatsapp] WhatsApp call link failed:', error?.message ?? error)
+    }
+    return
   }
 
   if (URGENT_CALL_WEBHOOK) {
@@ -742,15 +830,11 @@ async function handleAdminCommand({ jid, text, actor }) {
           console
         )
 
-        if (!callConfigured()) {
-          await reply(
-            '📞 I cannot place real calls yet: the worker has no Twilio credentials and no URGENT_CALL_WEBHOOK. ' +
-              'Add TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER in Render, then send .callme again.'
-          )
-          return true
-        }
-
-        await reply(`📞 Calling +${target} now. Answer the call: I will hang up at once and send the details as a voice note.`)
+        await reply(
+          callConfigured()
+            ? `📞 Calling +${target} now. Answer the call: I will hang up at once and send the details as a voice note.`
+            : `📞 Sending a WhatsApp call link to +${target}. Tap it to start a call with Ase immediately.\n\nAdd TWILIO_* or URGENT_CALL_WEBHOOK in Render if you want a real phone ring instead.`
+        )
         void placeUrgentCall(
           {
             phone: target,
@@ -1048,6 +1132,61 @@ function extractText(message) {
   return ''
 }
 
+/**
+ * Baileys stores a reply in `contextInfo` on whichever message type was used.
+ * `quotedText` is not a real WhatsApp field — the text lives in `quotedMessage`.
+ */
+function quotedContext(message) {
+  const m = message?.message
+  if (!m) return null
+  const ctx =
+    m.extendedTextMessage?.contextInfo ||
+    m.imageMessage?.contextInfo ||
+    m.videoMessage?.contextInfo ||
+    m.documentMessage?.contextInfo ||
+    m.conversationContextInfo
+  if (!ctx || !ctx.stanzaId) return null
+  return {
+    id: String(ctx.stanzaId),
+    participant: ctx.participant ? String(ctx.participant) : null,
+    remoteJid: ctx.remoteJid ? String(ctx.remoteJid) : null,
+    message: ctx.quotedMessage || null,
+    text: extractText({ message: ctx.quotedMessage }) || String(ctx.quotedText || '').trim(),
+  }
+}
+
+/** Sent messages kept in memory so a quoted reply can be passed straight back to Baileys. */
+const sentMessages = new Map()
+function rememberSent(message) {
+  const id = message?.key?.id
+  if (!id) return null
+  sentMessages.set(id, message)
+  if (sentMessages.size > 300) {
+    const oldest = sentMessages.keys().next().value
+    sentMessages.delete(oldest)
+  }
+  return message
+}
+
+/** Rebuild a WAMessage usable as `{ quoted }` for sendMessage. */
+function buildQuotedWAMessage(quote, jid) {
+  if (!quote) return null
+  if (quote.id && sentMessages.has(quote.id)) return sentMessages.get(quote.id)
+  const key = {
+    id: quote.id || 'unknown',
+    remoteJid: quote.remoteJid || jid,
+    fromMe: true,
+    ...(quote.participant ? { participant: quote.participant } : {}),
+  }
+  const text = quote.text || ''
+  return {
+    key,
+    // Preserve the original card/photo when WhatsApp gave it to us; otherwise a
+    // plain text bubble is enough for a reliable reply preview.
+    message: quote.message || { conversation: text },
+  }
+}
+
 function hasUnsupportedMedia(message) {
   const m = message?.message
   if (!m) return false
@@ -1292,7 +1431,10 @@ async function onMessage(message) {
     return enqueue(jid, () => handleAdminCommand({ jid, text, actor: phone }))
   }
 
-  return enqueue(jid, () => handleMessage({ message, jid, id, isGroup, rawJid }))
+  const quote = quotedContext(message)
+  return enqueueCustomer(jid, (signal) =>
+    handleMessage({ message, jid, id, isGroup, rawJid, quote, signal })
+  )
 }
 
 const HOLDING = {
@@ -1351,21 +1493,43 @@ async function sendHoldingMessage({ jid, phone, session, reason, profileName, id
 }
 
 
-async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' }) {
+async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', quote = null, signal }) {
   let text = extractText(message)
+  assertActive(signal)
 
   if (!text) {
     if (hasUnsupportedMedia(message)) {
       await sendText(
         jid,
-        "I can only read text for now 🙂 Tell me what you need — houses, WiFi, movers or escrow — and I'll sort it."
+        "I can only read text for now 🙂 Tell me what you need — houses, WiFi, movers or escrow — and I'll sort it.",
+        message
       )
     }
     return
   }
 
   const session = await loadSession(supabase, jid)
+  assertActive(signal)
   if (session.lastMessageId === id) return
+
+  /*
+   * If the customer tapped "Reply" on one of our messages, resolve that sent id
+   * back to the house it contained. The brain gets the exact listing id, and
+   * our answer quotes the same message so the target is obvious on both sides.
+   */
+  const refs = Array.isArray(session.state?.messageRefs) ? session.state.messageRefs : []
+  const sentRef = quote?.id ? refs.find((ref) => ref.id === quote.id) ?? null : null
+  const brainQuote = quote
+    ? {
+        id: quote.id,
+        text: quote.text || sentRef?.body || null,
+        listingId: sentRef?.listingId || null,
+        title: sentRef?.title || null,
+        index: sentRef?.index ?? null,
+        kind: sentRef?.kind || null,
+      }
+    : null
+  const replyTarget = buildQuotedWAMessage(quote, jid) || message
 
   const phone = String(message.key.senderPn || jid).split('@')[0]
   const profileName = message.pushName || session.profileName || null
@@ -1417,6 +1581,7 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
    * ping, then Ase stays out of the way.
    */
   const gate = await control.gate({ phone, aiEnabled: session.aiEnabled })
+  assertActive(signal)
   if (gate.reason === 'blocked') return
   if (!gate.ai) {
     await sendHoldingMessage({ jid, phone, session, reason: gate.reason, profileName, id })
@@ -1436,6 +1601,7 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
     ownPhone,
     enabledGroupIds: isGroup ? await enabledGroupJids() : null,
   })
+  assertActive(signal)
   if (!decision.allow) {
     await recordActivity(supabase, {
       kind: 'rule_suppressed',
@@ -1445,17 +1611,22 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
     return
   }
 
+  const sentRefs = []
   try {
-    if (decision.delayMs) await sleep(decision.delayMs)
+    if (decision.delayMs) await sleep(decision.delayMs, signal)
+    assertActive(signal)
     await safePresence(jid, 'composing')
+    assertActive(signal)
 
     const result = await askBrain({
       message: text,
       state: session.state ?? emptyState(),
       history: session.history,
+      quoted: brainQuote,
       phone,
       name: profileName,
     })
+    assertActive(signal)
 
     const bubbles = splitBubbles(result.reply)
     if (bubbles.length === 0) bubbles.push({ text: result.reply || '…', links: [] })
@@ -1473,32 +1644,51 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
 
     /*
      * Human pacing: up to ten bubbles, each typed on screen for roughly as long
-     * as a person would take to write it. The splitter already caps at ten.
+     * as a person would take to write it. A new customer message aborts the
+     * sleep here, so the rest of the old paragraph is never sent.
      */
     for (const bubble of bubbles) {
       const rendered = renderBubble(bubble)
       const pause = Math.min(4200, 450 + rendered.length * 11)
-      await sleep(bubbles.length > 1 ? pause * (0.6 + Math.random() * 0.6) : 0)
+      await sleep(bubbles.length > 1 ? pause * (0.6 + Math.random() * 0.6) : 0, signal)
+      assertActive(signal)
       await safePresence(jid, 'composing')
-      await sendText(jid, rendered)
-      await logMessage(supabase, { jid, phone, role: 'assistant', body: rendered })
+      const sent = await sendText(jid, rendered, replyTarget)
+      rememberSent(sent)
+      if (sent?.key?.id) sentRefs.push({ id: sent.key.id, kind: 'text', body: rendered })
+      await logMessage(supabase, { jid, phone, role: 'assistant', body: rendered, messageId: sent?.key?.id })
     }
 
     // House results as image cards, like the web cards. Photos for one house
     // go out as a single album/batch with one caption instead of a slow stream
     // of separate messages.
     const cardLimit = Math.max(1, Math.min(10, result.state?.search?.pageSize ?? 5))
-    for (const card of cardsFromActions(result.actions).slice(0, cardLimit)) {
-      const caption = cardCaption(card)
+    const cards = cardsFromActions(result.actions).slice(0, cardLimit)
+    for (let index = 0; index < cards.length; index += 1) {
+      assertActive(signal)
+      const card = cards[index]
+      const caption = cardCaption(card, index + 1)
       const photos =
         Array.isArray(card.images) && card.images.length
           ? card.images.filter(Boolean)
           : card.image
             ? [card.image]
             : []
-      await sendHouseAlbum(jid, photos, caption)
+      const sent = await sendHouseAlbum(jid, photos, caption, replyTarget)
+      rememberSent(sent)
+      if (sent?.key?.id) {
+        sentRefs.push({
+          id: sent.key.id,
+          kind: 'card',
+          listingId: card.id,
+          title: card.title,
+          index: index + 1,
+          body: caption,
+        })
+      }
     }
 
+    assertActive(signal)
     // Requests, bookings and escalations also go to the admin team on WhatsApp.
     if (result.adminAlert) {
       await sendAdminAlerts(result.adminAlert, { phone, profileName })
@@ -1513,29 +1703,34 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '' })
     await saveSession(supabase, jid, {
       phone,
       profileName,
-      state: result.state ?? emptyState(),
+      state: {
+        ...(result.state ?? emptyState()),
+        messageRefs: [...refs, ...sentRefs].slice(-40),
+      },
       history,
       lastMessageId: id,
     })
   } catch (error) {
+    if (isAbort(error)) return
     console.error('[whatsapp] reply failed:', error?.message ?? error)
-    await sendText(jid, "Sorry — I hit a hiccup on my side. Please try again in a moment. 🙏")
+    await sendText(jid, "Sorry — I hit a hiccup on my side. Please try again in a moment. 🙏", replyTarget)
   } finally {
-    await safePresence(jid, 'paused')
+    if (!signal?.aborted) await safePresence(jid, 'paused')
   }
 }
 
-async function sendText(jid, text) {
+async function sendText(jid, text, quoted = null) {
   if (!sock) throw new Error('socket not ready')
   const body = String(text).slice(0, 4000)
   if (rules.isDryRun()) {
     console.log(`[dry-run] would send to ${jid}: ${body.slice(0, 140)}`)
-    return
+    return null
   }
   try {
-    await sock.sendMessage(jid, { text: body })
+    const sent = await sock.sendMessage(jid, { text: body }, quoted ? { quoted } : undefined)
     rules.markDelivered({ jid, text: body, isGroup: String(jid).endsWith('@g.us') })
     rules.recordSuccess()
+    return sent
   } catch (error) {
     rules.recordError()
     throw error
@@ -1547,25 +1742,26 @@ async function sendText(jid, text) {
  * under an album parent; older clients still receive a tight burst of images
  * with a single caption, never a slow one-by-one gallery.
  */
-async function sendHouseAlbum(jid, images, caption) {
-  if (!sock) return
+async function sendHouseAlbum(jid, images, caption, quoted = null) {
+  if (!sock) return null
   const photos = [...new Set((Array.isArray(images) ? images : []).filter((url) => typeof url === 'string' && url))]
     .slice(0, 5)
   const body = String(caption || '').slice(0, 4000)
 
   if (!photos.length) {
     try {
-      await sendText(jid, body)
-      await logMessage(supabase, { jid, role: 'assistant', body })
+      const sent = await sendText(jid, body, quoted)
+      await logMessage(supabase, { jid, role: 'assistant', body, messageId: sent?.key?.id })
+      return sent
     } catch {
       /* best-effort: the text reply already listed the house */
+      return null
     }
-    return
   }
 
   if (rules.isDryRun()) {
     console.log(`[dry-run] would send ${photos.length} photo(s) to ${jid}: ${body.slice(0, 120)}`)
-    return
+    return null
   }
 
   try {
@@ -1580,19 +1776,27 @@ async function sendHouseAlbum(jid, images, caption) {
       }
     }
 
+    let captioned = null
     for (let i = 0; i < photos.length; i += 1) {
       const content = { image: { url: photos[i] } }
       if (i === 0) content.caption = body
       if (parent?.key) content.albumParentKey = parent.key
-      await sock.sendMessage(jid, content)
+      const sent = await sock.sendMessage(
+        jid,
+        content,
+        i === 0 && quoted ? { quoted } : undefined
+      )
+      if (i === 0) captioned = sent
     }
 
     rules.markDelivered({ jid, text: body, isGroup: String(jid).endsWith('@g.us') })
     rules.recordSuccess()
-    await logMessage(supabase, { jid, role: 'assistant', body })
+    await logMessage(supabase, { jid, role: 'assistant', body, messageId: captioned?.key?.id })
+    return captioned
   } catch (error) {
     rules.recordError()
     console.warn('[whatsapp] house photo batch failed:', error?.message ?? error)
+    return null
   }
 }
 

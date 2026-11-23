@@ -180,6 +180,7 @@ export async function aiChat(
   history: ChatMessage[],
   userMessage: string,
   state?: Partial<ChatState> | null,
+  quoted?: { id?: string | null; text?: string | null; listingId?: string | null; title?: string | null; index?: number | null; kind?: string | null } | null,
 ): Promise<AiChatResult | null> {
   if (!aiEnabled()) return null
 
@@ -214,6 +215,23 @@ export async function aiChat(
                 })),
               }
             )}`,
+          },
+        ]
+      : []),
+    ...(quoted
+      ? [
+          {
+            role: 'system' as const,
+            content: `THE CUSTOMER REPLIED TO A SPECIFIC MESSAGE (use this exact target when they say "this", "that", "it", "the first one", "book it", etc.):\n${JSON.stringify(
+              {
+                id: quoted.id ?? null,
+                kind: quoted.kind ?? null,
+                index: quoted.index ?? null,
+                listing_id: quoted.listingId ?? null,
+                title: quoted.title ?? null,
+                quoted_text: quoted.text ?? null,
+              }
+            )}\nIf listing_id is present, that is the house they mean. Do not search again or pick a different listing.`,
           },
         ]
       : []),

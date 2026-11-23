@@ -73,6 +73,15 @@ export interface ChatState {
   lastIntent?: string
   /** Last structured house search, kept so follow-ups can sort/filter it. */
   search?: HouseSearchSnapshot | null
+  /** Sent WhatsApp message ids -> the house/text they contained, for quoted replies. */
+  messageRefs?: Array<{
+    id: string
+    kind: 'card' | 'text'
+    listingId?: string
+    title?: string
+    index?: number
+    body?: string
+  }>
 }
 
 export interface ChatMessage {
@@ -80,10 +89,25 @@ export interface ChatMessage {
   content: string
 }
 
+/**
+ * A WhatsApp message the customer replied to. The worker resolves quoted card
+ * ids to listing ids before sending, so the brain never has to guess which
+ * house "this one" means.
+ */
+export interface QuotedContext {
+  id?: string | null
+  text?: string | null
+  listingId?: string | null
+  title?: string | null
+  index?: number | null
+  kind?: 'card' | 'text' | null
+}
+
 export interface ChatRequest {
   message: string
   state?: Partial<ChatState> | null
   history?: ChatMessage[]
+  quoted?: QuotedContext | null
   /**
    * Where the message came from. Web sessions can use the cookie-bound account
    * flows (change email, delete account, change DP); WhatsApp sessions cannot,

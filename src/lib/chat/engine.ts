@@ -36,6 +36,7 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   const msg = (input.message || '').trim().slice(0, 600)
   const prevState: ChatState = { ...emptyState(), ...(input.state ?? {}) }
   const history = Array.isArray(input.history) ? input.history.slice(-12) : []
+  const quoted = input.quoted ?? null
   const low = msg.toLowerCase()
 
   // 1. Cancel an in-progress submission. No loop: the draft is simply dropped.
@@ -125,11 +126,30 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
     }
   }
 
+  // 4d. A quoted house card is an explicit selection. "this one", "book it",
+  // "how much?" etc. answer from that exact listing rather than guessing from
+  // the last search or starting a new search.
+  if (quoted?.listingId && !listingId && msg.length <= 120) {
+    const searching = /\b(find|search|looking for|need a house|do you have|send me|show me \d)\b/i.test(low)
+    const referring = /\b(this|that|it|here|one|house|price|rent|deposit|book|contact|details?|about|how much|location|where)\b/i.test(low) ||
+      /^[?#\d.,!?\s]+$/.test(msg)
+    if (referring && !searching) {
+      const house = await toolGetHouse(quoted.listingId)
+      return {
+        reply: `About ${quoted.title ? `*${quoted.title}*` : 'that house'}:\n\n${house.text}`,
+        actions: house.cards?.length
+          ? [{ type: 'card', card: house.cards[0] }]
+          : [{ type: 'link', label: '🏠 Open listing', href: `https://www.asehanta.com/listings/${quoted.listingId}` }],
+        state: keepContext(prevState),
+      }
+    }
+  }
+
   // 5. AI-first. The model chats naturally, calls tools in the background and
   // collects submissions from a declared field spec. It is the only driver of
   // multi-turn conversations; there are no step machines.
   if (aiEnabled()) {
-    const ai = await aiChat(history, msg, prevState)
+    const ai = await aiChat(history, msg, prevState, quoted)
     if (ai && ai.reply) {
       const state = ai.state ? { ...prevState, ...ai.state } : keepContext(prevState)
       // Respect an explicit count ("send me 2 houses") instead of always

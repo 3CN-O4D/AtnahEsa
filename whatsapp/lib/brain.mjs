@@ -6,14 +6,14 @@
 export function createBrain({ url, secret }) {
   const endpoint = `${url.replace(/\/$/, '')}/api/whatsapp/chat`
 
-  return async function ask({ message, state, history, phone, name }) {
+  return async function ask({ message, state, history, quoted, phone, name }) {
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'x-bridge-secret': secret,
       },
-      body: JSON.stringify({ message, state, history, phone, name }),
+      body: JSON.stringify({ message, state, history, quoted, phone, name }),
       signal: AbortSignal.timeout(28_000),
     })
 

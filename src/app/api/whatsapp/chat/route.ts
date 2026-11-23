@@ -3,7 +3,7 @@ import { createHash, timingSafeEqual } from 'crypto'
 import { handleChat } from '@/lib/chat/engine'
 import { checkRateLimit } from '@/lib/rate-limit'
 import { addSecurityHeaders } from '@/lib/security'
-import type { ChatMessage, ChatState } from '@/lib/chat/types'
+import type { ChatMessage, ChatState, QuotedContext } from '@/lib/chat/types'
 
 export const runtime = 'nodejs'
 export const maxDuration = 30
@@ -49,6 +49,7 @@ export async function POST(req: Request) {
     history?: ChatMessage[]
     phone?: unknown
     name?: unknown
+    quoted?: unknown
   }
   try {
     body = await req.json()
@@ -77,11 +78,24 @@ export async function POST(req: Request) {
 
   const safeMessage = message.replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '').trim()
 
+  const q = body.quoted && typeof body.quoted === 'object' ? (body.quoted as Record<string, unknown>) : null
+  const quoted: QuotedContext | null = q
+    ? {
+        id: typeof q.id === 'string' ? q.id.slice(0, 100) : null,
+        text: typeof q.text === 'string' ? q.text.slice(0, 1000) : null,
+        listingId: typeof q.listingId === 'string' ? q.listingId.slice(0, 100) : null,
+        title: typeof q.title === 'string' ? q.title.slice(0, 300) : null,
+        index: typeof q.index === 'number' && Number.isFinite(q.index) ? q.index : null,
+        kind: q.kind === 'card' || q.kind === 'text' ? q.kind : null,
+      }
+    : null
+
   try {
     const result = await handleChat({
       message: safeMessage,
       state: body.state ?? null,
       history: Array.isArray(body.history) ? body.history.slice(-12) : [],
+      quoted,
       channel: 'whatsapp',
     })
     return json(result)

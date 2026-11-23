@@ -181,10 +181,11 @@ export function quickReplyLine(quickReplies) {
   return `Reply: ${quickReplies.map((q) => `*${q}*`).join(' • ')}`
 }
 
-export function cardCaption(card) {
+export function cardCaption(card, index = 0) {
   const rent = card?.rent ? `KSh ${Number(card.rent).toLocaleString()}/mo` : null
   const location = card?.descriptive_location || card?.location || null
   const meta = [location, rent].filter(Boolean).join(' • ')
   const url = `https://www.asehanta.com/listings/${card?.id ?? ''}`
-  return [`*${card?.title ?? 'House'}*`, meta, url].filter(Boolean).join('\n')
+  const number = Number.isFinite(index) && index > 0 ? `#${index} · ` : ''
+  return [`*${number}${card?.title ?? 'House'}*`, meta, url].filter(Boolean).join('\n')
 }

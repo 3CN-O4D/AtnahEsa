@@ -529,6 +529,12 @@ export async function confirmHouseBookingPayment(
   // to admins. Email failures never roll back a confirmed payment.
   let receiptEmailed = false
   let receiptPdf: Buffer | null = null
+  const officialMpesaName = [
+    params.raw?.payer_name,
+    params.raw?.official_payer_name,
+    params.raw?.customer_name,
+    params.raw?.mpesa_name,
+  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0)?.trim()
   try {
     receiptPdf = await generateReceiptPdf({
       bookingId: confirmed.id,
@@ -538,6 +544,7 @@ export async function confirmHouseBookingPayment(
       listingDescription: ctx.listingDescription,
       amount: expected,
       payerName: ctx.hunterName,
+      mpesaName: officialMpesaName,
       payerEmail: ctx.hunterEmail,
       payerPhone: confirmed.phone || '',
       paidAt: now,

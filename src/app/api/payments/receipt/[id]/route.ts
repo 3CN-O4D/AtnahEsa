@@ -44,6 +44,26 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
 
     const lister = await resolveListerIdentity(admin, listing)
 
+    // The official M-Pesa payer name is stored on the payment callback, not on
+    // the booking. Keep it separate from the AseHanta account name so receipts
+    // stay accurate when a friend or family member paid on the hunter's behalf.
+    const { data: tx } = await admin
+      .from('transactions')
+      .select('raw_callback')
+      .filter('raw_callback->>house_booking_id', 'eq', booking.id)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+    const raw = tx?.raw_callback && typeof tx.raw_callback === 'object'
+      ? tx.raw_callback as Record<string, unknown>
+      : null
+    const mpesaName = [
+      raw?.payer_name,
+      raw?.official_payer_name,
+      raw?.customer_name,
+      raw?.mpesa_name,
+    ].find((value): value is string => typeof value === 'string' && value.trim().length > 0)?.trim()
+
     const pdf = await generateReceiptPdf({
       bookingId: booking.id,
       receiptNumber: booking.mpesa_receipt || '',
@@ -52,6 +72,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
       listingDescription: listing?.description || '',
       amount: Number(booking.listing_price) || 0,
       payerName: forLister || isAdmin ? String(booking.name || '') : profile?.full_name || String(booking.name || ''),
+      mpesaName,
       payerEmail: forLister || isAdmin ? String(booking.email || '') : profile?.email || String(booking.email || ''),
       payerPhone: String(booking.phone || ''),
       paidAt: booking.confirmed_at || booking.created_at,

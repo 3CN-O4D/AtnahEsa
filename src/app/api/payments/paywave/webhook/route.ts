@@ -23,7 +23,7 @@ function pickNumber(source: AnyPayload, keys: string[]): number | null {
   return null
 }
 
-function unwrap(rawBody: string): { payload: AnyPayload; daraja: boolean } | null {
+function unwrap(rawBody: string): { payload: AnyPayload; daraja: boolean; raw: AnyPayload } | null {
   let parsed: unknown
   try {
     parsed = JSON.parse(rawBody)
@@ -56,12 +56,13 @@ function unwrap(rawBody: string): { payload: AnyPayload; daraja: boolean } | nul
         TransactionDate: item('TransactionDate'),
         Msisdn: item('PhoneNumber'),
       },
+      raw: obj,
     }
   }
 
   // PayWave flat payload.
   const validated = parseWebhookPayload(rawBody)
-  if (validated) return { daraja: false, payload: validated as unknown as AnyPayload }
+  if (validated) return { daraja: false, payload: validated as unknown as AnyPayload, raw: obj }
 
   // Be lenient with field naming differences from the provider.
   const responseCode = pickNumber(obj, ['ResponseCode', 'responseCode', 'resultCode', 'ResultCode'])
@@ -69,7 +70,34 @@ function unwrap(rawBody: string): { payload: AnyPayload; daraja: boolean } | nul
   const reference = pickString(obj, ['TransactionReference', 'transactionReference', 'reference', 'account_number'])
   if (responseCode === null || (!checkout && !reference)) return null
 
-  return { daraja: false, payload: obj }
+  return { daraja: false, payload: obj, raw: obj }
+}
+
+/**
+ * PayWave's official M-Pesa payer name is not always in the validated fields.
+ * Keep the AseHanta account name and this transaction name separate: they can
+ * legitimately differ when someone pays on behalf of a friend or family member.
+ */
+function pickOfficialPayerName(payload: AnyPayload, raw: AnyPayload = payload): string {
+  const sources: AnyPayload[] = [payload, raw]
+  for (const key of ['Customer', 'customer', 'Payer', 'payer', 'Sender', 'sender', 'CustomerDetails', 'customer_details']) {
+    const nested = sources.find((source) => source[key] && typeof source[key] === 'object')
+      ?.[key] as AnyPayload | undefined
+    if (nested) sources.push(nested)
+  }
+
+  for (const source of sources) {
+    const direct = pickString(source, [
+      'PayerName', 'payer_name', 'CustomerName', 'customer_name',
+      'MpesaName', 'mpesa_name', 'MpesaPayerName', 'mpesaPayerName',
+      'AccountName', 'account_name', 'FullName', 'full_name',
+    ])
+    if (direct) return direct
+    const first = pickString(source, ['FirstName', 'first_name'])
+    const last = pickString(source, ['LastName', 'last_name'])
+    if (first || last) return [first, last].filter(Boolean).join(' ').trim()
+  }
+  return ''
 }
 
 export async function POST(req: Request) {
@@ -94,6 +122,7 @@ export async function POST(req: Request) {
     const receipt = pickString(payload, ['TransactionReceipt', 'transactionReceipt', 'mpesa_receipt', 'MpesaReceiptNumber'])
     const reference = pickString(payload, ['TransactionReference', 'transactionReference', 'reference'])
     const msisdn = pickString(payload, ['Msisdn', 'msisdn', 'phone'])
+    const officialPayerName = pickOfficialPayerName(payload, parsed.raw)
 
     const success = responseCode === 0 || responseCode === 200
 
@@ -215,6 +244,10 @@ export async function POST(req: Request) {
         paywave_transaction_id: transactionId || null,
         webhook_response_code: responseCode,
         webhook_description: description,
+        // The name on the M-Pesa transaction, which may differ from the name
+        // on the AseHanta account. Stored for receipts and admin audits.
+        payer_name: officialPayerName || null,
+        official_payer_name: officialPayerName || null,
       },
     })
 

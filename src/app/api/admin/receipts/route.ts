@@ -93,6 +93,23 @@ export async function GET(request: NextRequest) {
     listingDescription = listing?.description || undefined
   }
 
+  const { data: tx } = await admin
+    .from('transactions')
+    .select('raw_callback')
+    .filter('raw_callback->>house_booking_id', 'eq', booking.id)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle()
+  const raw = tx?.raw_callback && typeof tx.raw_callback === 'object'
+    ? tx.raw_callback as Record<string, unknown>
+    : null
+  const mpesaName = [
+    raw?.payer_name,
+    raw?.official_payer_name,
+    raw?.customer_name,
+    raw?.mpesa_name,
+  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0)?.trim()
+
   const pdf = await generateReceiptPdf({
     bookingId: booking.id,
     receiptNumber: booking.mpesa_receipt || booking.id.slice(0, 12).toUpperCase(),
@@ -101,6 +118,7 @@ export async function GET(request: NextRequest) {
     listingDescription,
     amount: Number(booking.listing_price) || 0,
     payerName: booking.name || '',
+    mpesaName,
     payerEmail: booking.email || '',
     payerPhone: booking.phone || '',
     paidAt: booking.paid_at || booking.created_at,

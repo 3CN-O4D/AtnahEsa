@@ -27,6 +27,8 @@ export type ReceiptInput = {
   listingDescription?: string
   amount: number
   payerName: string
+  /** Name recorded by PayWave/M-Pesa; may differ from the AseHanta account name. */
+  mpesaName?: string
   payerEmail: string
   payerPhone: string
   paidAt: string
@@ -215,7 +217,8 @@ function drawDetailRows(doc: PDFKit.PDFDocument, input: ReceiptInput, y: number)
   const rows: Array<[string, string]> = [
     ['Property', input.listingTitle || 'House listing'],
     ['Location', input.listingLocation || '—'],
-    ['Payer', input.payerName || '—'],
+    ['AseHanta name', input.payerName || '—'],
+    ...(input.mpesaName ? [['M-Pesa name', input.mpesaName] as [string, string]] : []),
     ['Phone', input.payerPhone || '—'],
     ['Email', input.payerEmail || '—'],
     ['M-Pesa receipt', input.receiptNumber || '—'],

@@ -128,21 +128,45 @@ function feedbackForBooking(hb: HouseBooking): BookingFeedback | null {
   return null
 }
 
-function Countdown({ held_until }: { held_until: string }) {
-  const [text, setText] = useState('')
+function Countdown({ held_until, paid_at }: { held_until: string; paid_at?: string | null }) {
+  const [remaining, setRemaining] = useState<number | null>(null)
   useEffect(() => {
-    const update = () => {
-      const diff = new Date(held_until).getTime() - Date.now()
-      if (diff <= 0) { setText('Ready'); return }
-      const h = Math.floor(diff / 3600000)
-      const m = Math.floor((diff % 3600000) / 60000)
-      setText(`${h}h ${m}m`)
-    }
+    const update = () => setRemaining(new Date(held_until).getTime() - Date.now())
     update()
-    const i = setInterval(update, 30000)
+    const i = setInterval(update, 1000)
     return () => clearInterval(i)
   }, [held_until])
-  return <span className="text-xs text-gray-500">{text}</span>
+
+  if (remaining === null) return <span className="text-[11px] text-gray-400">…</span>
+  if (remaining <= 0) {
+    return (
+      <span className="inline-flex items-center gap-1 rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+        <CheckCircle className="h-3 w-3" /> Ready
+      </span>
+    )
+  }
+
+  const end = new Date(held_until).getTime()
+  const start = paid_at ? new Date(paid_at).getTime() : end - 24 * 3600 * 1000
+  const total = Number.isFinite(start) ? Math.max(1, end - start) : 24 * 3600 * 1000
+  const pct = Math.max(0, Math.min(100, (remaining / total) * 100))
+  const h = Math.floor(remaining / 3600000)
+  const m = Math.floor((remaining % 3600000) / 60000)
+  const s = Math.floor((remaining % 60000) / 1000)
+
+  return (
+    <span className="inline-flex items-center gap-2" title="Time left in the 24-hour escrow hold">
+      <span className="h-1.5 w-16 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-600">
+        <span
+          className="block h-full rounded-full bg-blue-600 transition-[width] duration-1000 ease-linear"
+          style={{ width: `${pct}%` }}
+        />
+      </span>
+      <span className="tabular-nums text-[11px] font-semibold text-blue-700 dark:text-blue-300">
+        {h}h {String(m).padStart(2, '0')}m {String(s).padStart(2, '0')}s
+      </span>
+    </span>
+  )
 }
 
 function hasRating(rating: number | null | undefined): rating is number {
@@ -585,8 +609,8 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
     }
   }
 
-  const stateFor = (hb: HouseBooking): BookingState => {
-    const payment = housePayments[hb.id]
+  const stateFor = (hb: HouseBooking, includePayment = true): BookingState => {
+    const payment = includePayment ? housePayments[hb.id] : undefined
     return deriveBookingState(hb as never, payment ? { status: payment.status } : null)
   }
 
@@ -604,25 +628,36 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
     'refunded',
     'paid',
   ]
+  const isEscrowRow = (hb: HouseBooking, includePayment = true) =>
+    escrowPhases.includes(stateFor(hb, includePayment).phase) ||
+    !!hb.paid_at ||
+    !!hb.refunded_at ||
+    !!feedbackForBooking(hb)
+
+  // Escrow counts both sides of the same viewing: money the user paid as a
+  // hunter, and money held for houses they listed.
+  const hunterEscrowRows = houseBookings.filter((hb) => isEscrowRow(hb, true))
+  const listerEscrowRows = listerHouseBookings.filter((hb) => isEscrowRow(hb, false))
+  const allEscrowRows = [
+    ...new Map([...hunterEscrowRows, ...listerEscrowRows].map((hb) => [hb.id, hb])).values(),
+  ]
+  const hunterEscrowIds = new Set(hunterEscrowRows.map((hb) => hb.id))
   const visibleHouseBookings = isEscrowMode
-    ? houseBookings.filter((hb) =>
-        escrowPhases.includes(stateFor(hb).phase) ||
-        !!hb.paid_at ||
-        !!hb.refunded_at ||
-        !!feedbackForBooking(hb)
-      )
+    ? tab === 'lister'
+      ? listerEscrowRows
+      : hunterEscrowRows
     : houseBookings
 
   if (loading) return <SkeletonBooking />
 
   const currentBookings = isEscrowMode ? [] : tab === 'hunter' ? bookings : listerBookings
-  const showListerTab = !isEscrowMode && hasListerRole(profileRole)
-  const escrowStates = visibleHouseBookings.map(stateFor)
+  const showListerTab = hasListerRole(profileRole)
+  const escrowStates = allEscrowRows.map((hb) => stateFor(hb, hunterEscrowIds.has(hb.id)))
   const activeHolds = escrowStates.filter((s) => s.phase === 'escrow_held').length
   const awaitingPayout = escrowStates.filter((s) => s.phase === 'awaiting_payout' || s.phase === 'issue_open').length
   const refundedCount = escrowStates.filter((s) => s.phase === 'refunded' || s.phase === 'refund_approved').length
-  const heldTotal = visibleHouseBookings.reduce(
-    (total, hb) => total + (stateFor(hb).phase === 'escrow_held' ? Number(hb.listing_price) || 0 : 0),
+  const heldTotal = allEscrowRows.reduce(
+    (total, hb) => total + (stateFor(hb, hunterEscrowIds.has(hb.id)).phase === 'escrow_held' ? Number(hb.listing_price) || 0 : 0),
     0
   )
 
@@ -644,37 +679,45 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
         )}
       </div>
 
-      {isEscrowMode && visibleHouseBookings.length > 0 && (
-        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {isEscrowMode && allEscrowRows.length > 0 && (
+        <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {[
-            { label: 'Active holds', value: String(activeHolds) },
-            { label: 'Awaiting payout', value: String(awaitingPayout) },
-            { label: 'Refunds', value: String(refundedCount) },
-            { label: 'Held amount', value: formatPrice(heldTotal) },
+            { label: 'As hunter', value: String(hunterEscrowRows.length), hint: 'viewings you paid for' },
+            { label: 'On your houses', value: String(listerEscrowRows.length), hint: 'payments on your listings' },
+            { label: 'Active holds', value: String(activeHolds), hint: 'inside the 24h window' },
+            { label: 'Awaiting payout', value: String(awaitingPayout), hint: 'with our team' },
+            { label: 'Refunds', value: String(refundedCount), hint: 'completed or approved' },
+            { label: 'Held amount', value: formatPrice(heldTotal), hint: 'currently in escrow' },
           ].map((item) => (
             <div key={item.label} className="rounded-xl border border-gray-200 bg-white px-3 py-3 dark:border-gray-700 dark:bg-slate-800">
               <p className="text-[11px] font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">{item.label}</p>
               <p className="mt-1 text-sm font-bold text-gray-900 dark:text-white">{item.value}</p>
+              <p className="mt-0.5 text-[10px] leading-tight text-gray-400 dark:text-gray-500">{item.hint}</p>
             </div>
           ))}
         </div>
       )}
 
-      {!isEscrowMode && (
       <div className="flex border rounded-lg mb-6 overflow-hidden">
         <button onClick={() => setTab('hunter')}
           className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'hunter' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-          <Eye className="w-4 h-4 inline mr-1.5" /> My Viewings
+          <Eye className="w-4 h-4 inline mr-1.5" />
+          {isEscrowMode ? 'Escrow I paid' : 'My Viewings'}
+          <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${tab === 'hunter' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300'}`}>
+            {hunterEscrowRows.length}
+          </span>
         </button>
         {showListerTab && (
           <button onClick={() => setTab('lister')}
             className={`flex-1 py-2.5 text-sm font-medium text-center transition-colors ${tab === 'lister' ? 'bg-blue-600 text-white' : 'bg-white dark:bg-slate-800 text-gray-600 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-            <Home className="w-4 h-4 inline mr-1.5" /> Bookings on My Houses
+            <Home className="w-4 h-4 inline mr-1.5" />
+            {isEscrowMode ? 'Escrow on my houses' : 'Bookings on My Houses'}
+            <span className={`ml-1.5 rounded-full px-1.5 py-0.5 text-[10px] ${tab === 'lister' ? 'bg-white/20 text-white' : 'bg-gray-100 text-gray-600 dark:bg-slate-700 dark:text-gray-300'}`}>
+              {listerEscrowRows.length}
+            </span>
           </button>
         )}
-
       </div>
-      )}
 
       <div className="space-y-4">
         {paymentsNotice && (
@@ -729,7 +772,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{hb.payment_method || 'payment'}</span>
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {hb.created_at ? new Date(hb.created_at).toLocaleDateString() : '—'}</span>
                       {isHeld && hb.held_until && (
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={hb.held_until} /></span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={hb.held_until} paid_at={hb.paid_at} /></span>
                       )}
                     </div>
 
@@ -1080,11 +1123,15 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
         <div className="text-center py-16">
           <Calendar className="w-12 h-12 text-gray-300 mx-auto mb-4" />
           <h2 className="text-lg font-semibold text-gray-600 dark:text-gray-300 mb-1">
-            {isEscrowMode ? 'No paid escrow yet' : 'No bookings yet'}
+            {isEscrowMode
+              ? tab === 'lister' ? 'No escrow on your houses yet' : 'No paid escrow yet'
+              : 'No bookings yet'}
           </h2>
           <p className="text-sm text-gray-400 mb-4">
             {isEscrowMode
-              ? 'Once your payment is confirmed, the viewing, refund window and lister contact will appear here.'
+              ? tab === 'lister'
+                ? 'Once a hunter pays for a viewing on one of your listings, it will appear here.'
+                : 'Once your payment is confirmed, the viewing, refund window and lister contact will appear here.'
               : tab === 'hunter' ? 'Browse listings and book a viewing to get started.' : 'No one has booked or paid on your listings yet.'}
           </p>
           {tab === 'hunter' && (
@@ -1096,10 +1143,12 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
         </div>
       ) : (
         <div className="space-y-4">
-          {!isEscrowMode && tab === 'lister' && listerHouseBookings.length > 0 && (
+          {tab === 'lister' && (isEscrowMode ? visibleHouseBookings : listerHouseBookings).length > 0 && (
             <div className="space-y-3">
-              <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-300">House payments on your listings</h2>
-              {listerHouseBookings.map((hb) => {
+              <h2 className="text-sm font-semibold text-gray-600 dark:text-gray-300">
+                {isEscrowMode ? 'Escrow on your listings' : 'House payments on your listings'}
+              </h2>
+              {(isEscrowMode ? visibleHouseBookings : listerHouseBookings).map((hb) => {
                 const listerState = deriveBookingState(hb as never, null)
                 const listerFeedback = parseListerFeedback(hb.displeased_reason)
                 const paidForLister = [
@@ -1125,7 +1174,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                       <span className="px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 capitalize">{hb.payment_method || 'payment'}</span>
                       <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {hb.created_at ? new Date(hb.created_at).toLocaleDateString() : '—'}</span>
                       {hb.release_status === 'held' && hb.held_until && (
-                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={hb.held_until} /></span>
+                        <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={hb.held_until} paid_at={hb.paid_at} /></span>
                       )}
                     </div>
                     {hb.phone && (
@@ -1298,7 +1347,7 @@ function MyBookingsInner({ mode }: { mode: BookingsViewMode }) {
                     <span className="font-medium text-gray-700">{formatPrice(b.amount)}</span>
                     <span className="flex items-center gap-1"><Calendar className="w-3 h-3" /> {new Date(b.created_at).toLocaleDateString()}</span>
                     {b.escrow_hold && b.escrow_hold.status === 'held' && (
-                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={b.escrow_hold.held_until} /></span>
+                      <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> <Countdown held_until={b.escrow_hold.held_until} paid_at={b.created_at} /></span>
                     )}
                   </div>
                 </div>

@@ -238,6 +238,37 @@ export interface HouseBooking {
   created_at: string
 }
 
+export type AdminPaymentDirection = 'in' | 'out'
+export type AdminPaymentType = 'booking' | 'escrow_hold' | 'payout' | 'refund' | 'commission' | 'other'
+export type AdminPaymentStatus = 'recorded' | 'verified' | 'failed' | 'reversed'
+
+/** Admin-managed ledger for off-website payments and escrow movements. */
+export interface AdminPayment {
+  id: string
+  listing_id: string | null
+  house_booking_id: string | null
+  transaction_id: string | null
+  payer_name: string
+  payer_phone: string | null
+  amount: number
+  direction: AdminPaymentDirection
+  payment_type: AdminPaymentType
+  payment_method: string
+  mpesa_receipt: string | null
+  mpesa_message: string | null
+  status: AdminPaymentStatus
+  paid_at: string | null
+  notes: string
+  metadata: Record<string, unknown>
+  created_by: string | null
+  updated_by: string | null
+  deleted_at: string | null
+  deleted_by: string | null
+  created_at: string
+  updated_at: string
+  listing?: { id: string; title: string; location: string | null; status: ListingStatus } | null
+}
+
 export interface HouseRequest {
   id: string
   name: string

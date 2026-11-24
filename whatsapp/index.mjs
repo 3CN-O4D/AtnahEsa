@@ -1144,7 +1144,11 @@ function quotedContext(message) {
     m.imageMessage?.contextInfo ||
     m.videoMessage?.contextInfo ||
     m.documentMessage?.contextInfo ||
-    m.conversationContextInfo
+    m.buttonsResponseMessage?.contextInfo ||
+    m.listResponseMessage?.contextInfo ||
+    m.templateButtonReplyMessage?.contextInfo ||
+    m.conversationContextInfo ||
+    m.contextInfo
   if (!ctx || !ctx.stanzaId) return null
   return {
     id: String(ctx.stanzaId),
@@ -1155,12 +1159,25 @@ function quotedContext(message) {
   }
 }
 
-/** Sent messages kept in memory so a quoted reply can be passed straight back to Baileys. */
+const LISTING_ID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+
+/** Pull a listing id out of a card caption, link bubble or bare URL. */
+function listingIdFromText(text) {
+  const value = String(text || '')
+  const fromUrl = value.match(/\/listings\/([0-9a-f-]{36})/i)?.[1]
+  return fromUrl || value.match(LISTING_ID_RE)?.[0] || null
+}
+
+/**
+ * Sent messages kept in memory so a quoted reply can be passed straight back to
+ * Baileys AND resolved to the house the customer actually tapped. The map
+ * stores `{ message, meta }`; `messageRefs` in the DB is the durable fallback.
+ */
 const sentMessages = new Map()
-function rememberSent(message) {
+function rememberSent(message, meta = null) {
   const id = message?.key?.id
   if (!id) return null
-  sentMessages.set(id, message)
+  sentMessages.set(id, { message, meta })
   if (sentMessages.size > 300) {
     const oldest = sentMessages.keys().next().value
     sentMessages.delete(oldest)
@@ -1168,10 +1185,15 @@ function rememberSent(message) {
   return message
 }
 
+function sentMeta(id) {
+  return id ? sentMessages.get(id)?.meta ?? null : null
+}
+
 /** Rebuild a WAMessage usable as `{ quoted }` for sendMessage. */
 function buildQuotedWAMessage(quote, jid) {
   if (!quote) return null
-  if (quote.id && sentMessages.has(quote.id)) return sentMessages.get(quote.id)
+  const remembered = quote.id ? sentMessages.get(quote.id) : null
+  if (remembered?.message) return remembered.message
   const key = {
     id: quote.id || 'unknown',
     remoteJid: quote.remoteJid || jid,
@@ -1512,23 +1534,6 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', q
   assertActive(signal)
   if (session.lastMessageId === id) return
 
-  /*
-   * If the customer tapped "Reply" on one of our messages, resolve that sent id
-   * back to the house it contained. The brain gets the exact listing id, and
-   * our answer quotes the same message so the target is obvious on both sides.
-   */
-  const refs = Array.isArray(session.state?.messageRefs) ? session.state.messageRefs : []
-  const sentRef = quote?.id ? refs.find((ref) => ref.id === quote.id) ?? null : null
-  const brainQuote = quote
-    ? {
-        id: quote.id,
-        text: quote.text || sentRef?.body || null,
-        listingId: sentRef?.listingId || null,
-        title: sentRef?.title || null,
-        index: sentRef?.index ?? null,
-        kind: sentRef?.kind || null,
-      }
-    : null
   const replyTarget = buildQuotedWAMessage(quote, jid) || message
 
   const phone = String(message.key.senderPn || jid).split('@')[0]
@@ -1567,6 +1572,35 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', q
       text = text.replace(handoff[0], '').replace(/\s+/g, ' ').trim() || 'Hi'
     }
   }
+
+  /*
+   * Resolve a quoted reply to an exact listing BEFORE the brain sees it. The
+   * sent id is checked first (durable messageRefs, then the in-memory map), then
+   * the quoted caption/link is parsed for a listing URL. This covers replies to
+   * any photo in an album, text cards and older turns after a worker restart.
+   */
+  const refs = Array.isArray(session.state?.messageRefs) ? session.state.messageRefs : []
+  const sentRef = quote?.id ? refs.find((ref) => ref.id === quote.id) ?? null : null
+  const remembered = sentMeta(quote?.id)
+  const captionListingId = [sentRef?.body, remembered?.body, quote?.text]
+    .map(listingIdFromText)
+    .find(Boolean)
+  const hashIndex = String(quote?.text || '').match(/(?:^|[\s*`_])#(\d{1,2})\b/)?.[1]
+  const indexedRef = hashIndex
+    ? [...refs].reverse().find((ref) => ref.kind === 'card' && ref.listingId && ref.index === Number(hashIndex)) ?? null
+    : null
+  const quotedListingId =
+    sentRef?.listingId || remembered?.listingId || captionListingId || indexedRef?.listingId || null
+  const brainQuote = quote
+    ? {
+        id: quote.id,
+        text: quote.text || sentRef?.body || remembered?.body || null,
+        listingId: quotedListingId,
+        title: sentRef?.title || remembered?.title || indexedRef?.title || null,
+        index: sentRef?.index ?? remembered?.index ?? indexedRef?.index ?? null,
+        kind: quotedListingId ? 'card' : sentRef?.kind || remembered?.kind || null,
+      }
+    : null
 
   // A quick way to abandon a half-finished guided flow.
   if (RESET_RE.test(text)) {
@@ -1654,8 +1688,16 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', q
       assertActive(signal)
       await safePresence(jid, 'composing')
       const sent = await sendText(jid, rendered, replyTarget)
-      rememberSent(sent)
-      if (sent?.key?.id) sentRefs.push({ id: sent.key.id, kind: 'text', body: rendered })
+      const renderedListingId = listingIdFromText(rendered)
+      rememberSent(sent, renderedListingId ? { listingId: renderedListingId, body: rendered } : null)
+      if (sent?.key?.id) {
+        sentRefs.push({
+          id: sent.key.id,
+          kind: renderedListingId ? 'card' : 'text',
+          ...(renderedListingId ? { listingId: renderedListingId } : {}),
+          body: rendered,
+        })
+      }
       await logMessage(supabase, { jid, phone, role: 'assistant', body: rendered, messageId: sent?.key?.id })
     }
 
@@ -1664,25 +1706,41 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', q
     // of separate messages.
     const cardLimit = Math.max(1, Math.min(10, result.state?.search?.pageSize ?? 5))
     const cards = cardsFromActions(result.actions).slice(0, cardLimit)
+    /*
+     * "show more" advances `shown`, so continue the visible numbers (6, 7, 8…)
+     * instead of restarting at #1. The brain and the stored results both use
+     * those global positions, keeping "#2" unambiguous on either side.
+     */
+    const previousShown = Math.max(0, Number(session.state?.search?.shown) || 0)
+    const nextShown = Math.max(0, Number(result.state?.search?.shown) || 0)
+    const cardOffset = nextShown > previousShown ? previousShown : 0
     for (let index = 0; index < cards.length; index += 1) {
       assertActive(signal)
       const card = cards[index]
-      const caption = cardCaption(card, index + 1)
+      const cardNumber = cardOffset + index + 1
+      const caption = cardCaption(card, cardNumber)
       const photos =
         Array.isArray(card.images) && card.images.length
           ? card.images.filter(Boolean)
           : card.image
             ? [card.image]
             : []
-      const sent = await sendHouseAlbum(jid, photos, caption, replyTarget, signal)
-      rememberSent(sent)
-      if (sent?.key?.id) {
+      const album = await sendHouseAlbum(jid, photos, caption, replyTarget, signal, {
+        listingId: card.id,
+        title: card.title,
+        index: cardNumber,
+        kind: 'card',
+        body: caption,
+      })
+      // Every photo in the album (and every batch when there are many) points
+      // back to the same house, so replying to any of them works.
+      for (const id of album?.ids ?? []) {
         sentRefs.push({
-          id: sent.key.id,
+          id,
           kind: 'card',
           listingId: card.id,
           title: card.title,
-          index: index + 1,
+          index: cardNumber,
           body: caption,
         })
       }
@@ -1711,7 +1769,25 @@ async function handleMessage({ message, jid, id, isGroup = false, rawJid = '', q
       lastMessageId: id,
     })
   } catch (error) {
-    if (isAbort(error)) return
+    if (isAbort(error)) {
+      // Keep cards that were already sent before the interruption. A newer turn
+      // owns the session once it has saved a different lastMessageId.
+      try {
+        const latest = await loadSession(supabase, jid)
+        if (latest.lastMessageId === id && sentRefs.length) {
+          await saveSession(supabase, jid, {
+            phone,
+            profileName,
+            state: { ...(session.state ?? emptyState()), messageRefs: [...refs, ...sentRefs].slice(-40) },
+            history: session.history,
+            lastMessageId: id,
+          })
+        }
+      } catch {
+        /* best effort */
+      }
+      return
+    }
     console.error('[whatsapp] reply failed:', error?.message ?? error)
     await sendText(jid, "Sorry — I hit a hiccup on my side. Please try again in a moment. 🙏", replyTarget)
   } finally {
@@ -1742,27 +1818,32 @@ async function sendText(jid, text, quoted = null) {
  * under an album parent; older clients still receive a tight burst of images
  * with a single caption, never a slow one-by-one gallery.
  */
-async function sendHouseAlbum(jid, images, caption, quoted = null, signal = null) {
-  if (!sock) return null
+async function sendHouseAlbum(jid, images, caption, quoted = null, signal = null, meta = null) {
+  if (!sock) return { sent: null, ids: [] }
   // Send every available photo, in album batches of five so a long gallery
   // still arrives as tight groups rather than a slow one-by-one stream.
   const photos = [...new Set((Array.isArray(images) ? images : []).filter((url) => typeof url === 'string' && url))]
   const body = String(caption || '').slice(0, 4000)
+  const ids = []
 
   if (!photos.length) {
     try {
       const sent = await sendText(jid, body, quoted)
+      if (sent?.key?.id) {
+        rememberSent(sent, meta)
+        ids.push(sent.key.id)
+      }
       await logMessage(supabase, { jid, role: 'assistant', body, messageId: sent?.key?.id })
-      return sent
+      return { sent, ids }
     } catch {
       /* best-effort: the text reply already listed the house */
-      return null
+      return { sent: null, ids }
     }
   }
 
   if (rules.isDryRun()) {
     console.log(`[dry-run] would send ${photos.length} photo(s) to ${jid}: ${body.slice(0, 120)}`)
-    return null
+    return { sent: null, ids }
   }
 
   try {
@@ -1776,6 +1857,10 @@ async function sendHouseAlbum(jid, images, caption, quoted = null, signal = null
           parent = await sock.sendMessage(jid, {
             album: { expectedImageCount: batch.length, expectedVideoCount: 0 },
           })
+          if (parent?.key?.id) {
+            rememberSent(parent, meta)
+            ids.push(parent.key.id)
+          }
         } catch (error) {
           console.warn('[whatsapp] album parent failed, sending a photo burst:', error?.message ?? error)
         }
@@ -1793,6 +1878,8 @@ async function sendHouseAlbum(jid, images, caption, quoted = null, signal = null
           content,
           start === 0 && i === 0 && quoted ? { quoted } : undefined
         )
+        rememberSent(sent, meta)
+        if (sent?.key?.id) ids.push(sent.key.id)
         if (start === 0 && i === 0) firstSent = sent
       }
     }
@@ -1800,12 +1887,12 @@ async function sendHouseAlbum(jid, images, caption, quoted = null, signal = null
     rules.markDelivered({ jid, text: body, isGroup: String(jid).endsWith('@g.us') })
     rules.recordSuccess()
     await logMessage(supabase, { jid, role: 'assistant', body, messageId: firstSent?.key?.id })
-    return firstSent
+    return { sent: firstSent, ids }
   } catch (error) {
     if (isAbort(error)) throw error
     rules.recordError()
     console.warn('[whatsapp] house photo batch failed:', error?.message ?? error)
-    return null
+    return { sent: null, ids }
   }
 }
 

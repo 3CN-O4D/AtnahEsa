@@ -52,7 +52,7 @@ function clampOrdinal(value: number): number | null {
 export function parseOrdinal(text: string): number | null {
   const t = text.toLowerCase().replace(/[’']/g, "'").trim()
   if (/\blast\b/.test(t)) return -1
-  const hash = t.match(/(?:^|\s)#(\d{1,2})\b/)
+  const hash = t.match(/(?:^|[\s*`_])#(\d{1,2})\b/)
   if (hash) return clampOrdinal(Number(hash[1]))
   const word = t.match(/\b(first|1st|second|2nd|third|3rd|fourth|4th|fifth|5th|sixth|6th|seventh|7th|eighth|8th|ninth|9th|tenth|10th)\b/)
   if (word) return clampOrdinal(ORDINAL_WORDS[word[1]] ?? Number.parseInt(word[1], 10))
@@ -76,7 +76,7 @@ function wantsSelectedHouse(text: string, ordinal: number | null): boolean {
   if (ordinal !== null) return true
   const pointsAtHouse = /\b(this|that|it|here|one|ones|house|home|listing|card|them|those)\b/.test(text)
   const asksAboutIt =
-    /\b(book|booking|details?|full|photos?|pictures?|images?|about|tell|show|send|give|link|price|rent|deposit|water|fetch|open|what|where|how much|contact|call|view|describe)\b/.test(text)
+    /\b(book|booking|details?|full|photos?|pictures?|images?|about|tell|show|send|give|link|price|rent|deposit|water|fetch|open|what|where|how much|contact|call|view|describe|want|take|choose|pick|keep|mine)\b/.test(text)
   return pointsAtHouse && asksAboutIt
 }
 
@@ -178,19 +178,41 @@ function selectByAttributes(choices: ListingChoice[], message: string): ListingC
   return matches[0] ?? null
 }
 
-export function selectListingChoice(message: string, state: ChatState, quoted?: QuotedContext | null): ListingChoice | null {
-  const choices = recentCardChoices(state)
-  if (choices.length === 0) return null
+/** A quoted card can carry a listing id, a caption URL, a "#2" number or a title. */
+function quotedListingId(quoted: QuotedContext | null): string | null {
+  if (!quoted) return null
+  return quoted.listingId || extractListingId(quoted.text || '') || null
+}
 
-  if (quoted?.listingId) {
+function quotedChoice(quoted: QuotedContext | null, choices: ListingChoice[]): ListingChoice | null {
+  if (!quoted) return null
+  const listingId = quotedListingId(quoted)
+  if (listingId) {
     return (
-      choices.find((choice) => choice.listingId === quoted.listingId) ?? {
-        listingId: quoted.listingId,
+      choices.find((choice) => choice.listingId === listingId) ?? {
+        listingId,
         title: quoted.title ?? null,
         index: quoted.index ?? 1,
       }
     )
   }
+  const ordinal = parseOrdinal(quoted.text || '')
+  if (ordinal !== null && ordinal > 0) {
+    return choices.find((choice) => choice.index === ordinal) ?? choices[ordinal - 1] ?? null
+  }
+  return choiceByTitle(choices, quoted.title || '')
+}
+
+export function selectListingChoice(message: string, state: ChatState, quoted?: QuotedContext | null): ListingChoice | null {
+  const choices = recentCardChoices(state)
+  if (choices.length === 0) return null
+
+  // A new search wins over an old quote. Tagging a card then asking for two
+  // houses in Kapsoya must search again, not reopen the tagged house.
+  if (isNewHouseSearch(message.toLowerCase())) return null
+
+  const fromQuote = quotedChoice(quoted ?? null, choices)
+  if (fromQuote) return fromQuote
 
   const ordinal = parseOrdinal(message)
   if (ordinal !== null) {
@@ -199,7 +221,6 @@ export function selectListingChoice(message: string, state: ChatState, quoted?: 
   }
 
   const low = message.toLowerCase()
-  if (isNewHouseSearch(low)) return null
 
   const relative = selectRelativeChoice(choices, message)
   if (relative) return relative
@@ -258,7 +279,8 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   if (input.channel === 'whatsapp' && HUMAN_HANDOFF_RE.test(msg)) {
     const subject = `Human handover — ${input.name || input.phone || 'WhatsApp user'}`
     const searchLine = prevState.search?.query ? ` Last house search: ${prevState.search.query}.` : ''
-    const targetLine = quoted?.listingId ? ` House they were viewing: ${quoted.title || quoted.listingId}.` : ''
+    const handoverListingId = quotedListingId(quoted)
+    const targetLine = handoverListingId ? ` House they were viewing: ${quoted?.title || handoverListingId}.` : ''
     return {
       reply:
         `I've handed you over to the AseHanta team on WhatsApp — one of the admins will join this chat shortly 🙏\n\n` +
@@ -275,14 +297,16 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
           `Last message: "${msg}".${targetLine}${searchLine}`,
         name: input.name ?? undefined,
         phone: input.phone && input.phone !== 'unknown' ? input.phone : undefined,
-        listingId: quoted?.listingId ?? undefined,
+        listingId: handoverListingId ?? undefined,
       },
     }
   }
 
   // 3. A pasted listing link or listing id — fetch that exact house, with its
   // photos. Works even when the AI is off, and never invents listing data.
-  const listingId = extractListingId(msg)
+  // A pasted link is always explicit. A quoted caption is only a selection when
+  // the new message is not itself asking for a fresh search.
+  const listingId = extractListingId(msg) || (isNewHouseSearch(low) ? null : quotedListingId(quoted))
   if (listingId) {
     const house = await toolGetHouse(listingId)
     return {
@@ -351,17 +375,18 @@ export async function handleChat(input: ChatRequest): Promise<ChatResponse> {
   // 4d. A quoted house card is an explicit selection. "this one", "book it",
   // "how much?" etc. answer from that exact listing rather than guessing from
   // the last search or starting a new search.
-  if (quoted?.listingId && !listingId && msg.length <= 120) {
+  if (quotedListingId(quoted) && !listingId && msg.length <= 120) {
     const searching = /\b(find|search|looking for|need a house|do you have|send me|show me \d)\b/i.test(low)
     const referring = /\b(this|that|it|here|one|house|price|rent|deposit|book|contact|details?|about|how much|location|where)\b/i.test(low) ||
       /^[?#\d.,!?\s]+$/.test(msg)
     if (referring && !searching) {
-      const house = await toolGetHouse(quoted.listingId)
+      const targetListingId = quotedListingId(quoted)!
+      const house = await toolGetHouse(targetListingId)
       return {
-        reply: `About ${quoted.title ? `*${quoted.title}*` : 'that house'}:\n\n${house.text}`,
+        reply: `About ${quoted?.title ? `*${quoted.title}*` : 'that house'}:\n\n${house.text}`,
         actions: house.cards?.length
           ? [{ type: 'card', card: house.cards[0] }]
-          : [{ type: 'link', label: '🏠 Open listing', href: `https://www.asehanta.com/listings/${quoted.listingId}` }],
+          : [{ type: 'link', label: '🏠 Open listing', href: `https://www.asehanta.com/listings/${targetListingId}` }],
         state: keepContext(prevState),
       }
     }

@@ -70,4 +70,70 @@ assert.equal(selectListingChoice('the one after the Kapsoya one', state)?.listin
 assert.equal(selectListingChoice('send me 2 houses in kapsoya', state), null)
 assert.equal(selectListingChoice('find a house in Eldoret', state), null)
 
+// A tagged house card is an explicit choice, even when the words are vague.
+assert.equal(
+  selectListingChoice('i want this one', state, {
+    id: 'card-2',
+    text: '*#2 · 1 Bedroom In juniorate*',
+    listingId: 'j2',
+    title: '1 Bedroom In juniorate',
+    index: 2,
+    kind: 'card',
+  })?.listingId,
+  'j2'
+)
+
+// Defensive fallbacks for older worker state: recover the id from the quoted
+// caption URL, or from the "#N" number printed on the card.
+const quotedId = '22222222-3333-4444-5555-666666666666'
+const quotedChoice = card(quotedId, 'Quoted card in Kapsoya', { location: 'Kapsoya' })
+const quotedState: ChatState = {
+  ...emptyState(),
+  search: {
+    query: ' Kapsoya',
+    filters: { locations: [], bedrooms: [], rent: { min: null, max: null }, sort: 'relevance', count: 1 },
+    total: 1,
+    results: [{ card: quotedChoice, score: 1, rent: quotedChoice.rent }],
+    shown: 1,
+    pageSize: 1,
+    capturedAt: new Date().toISOString(),
+  },
+  messageRefs: [{ id: 'old-card', kind: 'card', listingId: quotedId, title: quotedChoice.title, index: 1 }],
+}
+assert.equal(
+  selectListingChoice('i want this one', quotedState, {
+    id: 'old-card',
+    text: `${quotedChoice.title}\nhttps://www.asehanta.com/listings/${quotedId}`,
+    listingId: null,
+    title: quotedChoice.title,
+    index: 1,
+    kind: 'card',
+  })?.listingId,
+  quotedId
+)
+assert.equal(
+  selectListingChoice('i want this one', state, {
+    id: 'old-card',
+    text: '*#2 · 1 Bedroom In juniorate*',
+    listingId: null,
+    title: null,
+    index: null,
+    kind: 'card',
+  })?.listingId,
+  'j2'
+)
+
+// A new search must win over an old tagged card.
+assert.equal(
+  selectListingChoice('send me 2 houses in kapsoya', state, {
+    id: 'card-2',
+    text: '*#2 · 1 Bedroom In juniorate*',
+    listingId: 'j2',
+    title: '1 Bedroom In juniorate',
+    index: 2,
+    kind: 'card',
+  }),
+  null
+)
+
 console.log('LISTING_SELECTION_OK')

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { DollarSign, ArrowUpRight, ArrowDownLeft, RotateCcw, Banknote, RefreshCw, Wallet, TrendingUp, Clock, CheckCircle, XCircle, Search, AlertTriangle, Calendar, Copy, Check } from 'lucide-react'
 import Button from '@/components/ui/Button'
+import TreasuryPayments from '@/components/admin/TreasuryPayments'
 import { formatPrice } from '@/lib/utils'
 import { OWNER_SHARE, PLATFORM_COMMISSION } from '@/lib/constants'
 import { parseBookingFeedback, refundPercentForFeedback } from '@/lib/booking-feedback'
@@ -533,6 +534,8 @@ export default function TreasuryPage() {
           <p className="text-sm" style={{ color: 'var(--color-gray-500)' }}>{Math.round(PLATFORM_COMMISSION * 100)}% of releases + retained refund shares</p>
         </div>
       </div>
+
+      <TreasuryPayments onToast={showToast} />
 
       {/* Pending Payouts */}
       <div className="border rounded-xl mb-8" style={{ backgroundColor: 'var(--color-gray-50)', borderColor: 'var(--color-gray-200)' }}>

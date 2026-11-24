@@ -1,8 +1,9 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 import Header from '@/components/layout/Header'
 import Footer from '@/components/layout/Footer'
 import CookieBanner from '@/components/layout/CookieBanner'
+import InstallPrompt from '@/components/layout/InstallPrompt'
 import RouteProgress from '@/components/layout/RouteProgress'
 import ChatWidget from '@/components/chat/ChatWidget'
 import { ThemeProvider } from '@/lib/ThemeProvider'
@@ -24,6 +25,12 @@ export const metadata: Metadata = {
     icon: '/favicon.ico',
     apple: '/apple-touch-icon.png',
   },
+}
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  themeColor: '#0B1F3A',
 }
 
 export default function RootLayout({
@@ -66,6 +73,7 @@ export default function RootLayout({
             <main className="flex-1">{children}</main>
             <Footer />
             <CookieBanner />
+            <InstallPrompt />
           </FavoritesProvider>
         </ThemeProvider>
 

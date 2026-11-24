@@ -43,6 +43,7 @@ supabase/migration-whatsapp-outbox.sql
 supabase/migration-whatsapp-control.sql
 supabase/migration-whatsapp-autonomy.sql
 supabase/migration-whatsapp-marketing-fix.sql
+supabase/migration-whatsapp-console.sql
 ```
 
 They create:
@@ -261,9 +262,11 @@ still go out.
 ### Marketing
 
 The AI writes the wording from **real listing rows** (never invented facts), with
-a deterministic template as fallback. Statuses and group posts land in
-`whatsapp_marketing` as `draft` while `require_approval` is on; an admin approves,
-edits or skips them in the panel. The worker sends only approved rows that are due.
+a deterministic template as fallback. For statuses, the **Statuses** tab is the
+source of truth for mode, cadence and approval; group posts still use the legacy
+control row. Statuses and group posts land in `whatsapp_marketing` as `draft`
+while approval is on; an admin approves, edits or skips them in the panel. The
+worker sends only approved rows that are due.
 
 Safety rails:
 
@@ -284,6 +287,13 @@ Safety rails:
   never the official number itself or a blocked contact;
 - real listing photos are used for the card; a branded gradient is the fallback,
   never a fake house.
+
+Regression check for the status auto-post path:
+
+```bash
+cd whatsapp
+npm run test:status
+```
 
 Group blasting is the fastest way to lose a WhatsApp number. Keep the caps low
 and only enable groups where promotion is welcome.

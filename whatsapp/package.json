@@ -9,7 +9,8 @@
   },
   "scripts": {
     "start": "node index.mjs",
-    "dev": "node --watch index.mjs"
+    "dev": "node --watch index.mjs",
+    "test:status": "node scripts/test-status-autopost.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.110.2",

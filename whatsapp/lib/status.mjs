@@ -1,5 +1,3 @@
-import { digits } from './control.mjs'
-
 /**
  * Status modes for Ase.
  *
@@ -139,6 +137,7 @@ export function createStatus(supabase, { log = console } = {}) {
       no_repeat_window: next.no_repeat_window,
       event_hooks: next.event_hooks,
       require_approval: next.require_approval,
+      last_event_at: next.last_event_at,
       updated_by: actor,
       updated_at: new Date().toISOString(),
     }
@@ -307,7 +306,7 @@ export function createStatus(supabase, { log = console } = {}) {
    * Poll for houses that appeared or were released since the last event tick.
    * Returns ready-to-queue drafts; it never sends directly.
    */
-  async function pendingEvents(provided = null) {
+  async function pendingEvents(provided = null, limit = 20) {
     const settings = provided || await settingsFor({ scope: 'status', target: 'status' })
     const hooks = settings.event_hooks || {}
     if (!hooks.new_listing && !hooks.released && !hooks.paid && !hooks.booking_confirmed) return []
@@ -359,8 +358,13 @@ export function createStatus(supabase, { log = console } = {}) {
       }
     }
 
-    if (drafts.length) await write({ last_event_at: until }, 'worker')
-    return drafts
+    /*
+     * Only advance the event cursor for drafts the caller will actually use;
+     * otherwise a burst of new listings can silently discard unposted events.
+     */
+    const selected = drafts.slice(0, Math.max(1, Number(limit) || 20))
+    if (selected.length) await write({ last_event_at: until }, 'worker')
+    return selected
   }
 
   return {

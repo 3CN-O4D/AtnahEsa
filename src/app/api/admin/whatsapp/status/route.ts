@@ -30,6 +30,7 @@ const DEFAULTS = {
     booking_confirmed: false,
   },
   require_approval: true,
+  last_event_at: null,
 }
 
 type Settings = typeof DEFAULTS & Record<string, unknown>
@@ -195,6 +196,7 @@ export async function PATCH(req: Request) {
     no_repeat_window: next.no_repeat_window,
     event_hooks: next.event_hooks,
     require_approval: next.require_approval,
+    last_event_at: next.last_event_at,
     updated_by: email,
     updated_at: new Date().toISOString(),
   }

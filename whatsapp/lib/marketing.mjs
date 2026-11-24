@@ -23,6 +23,15 @@ const STATUS_MAX_RECIPIENTS = 3000
 const LISTING_DAILY_CAP = 2
 
 const digits = (value) => String(value ?? '').replace(/\D/g, '')
+/*
+ * Admin numbers are loaded from profiles after the worker starts. A plain array
+ * passed at construction time would stay empty forever, so callers may pass a
+ * getter and every use resolves the latest value.
+ */
+const normaliseAdminNumbers = (value) =>
+  (typeof value === 'function' ? value() : Array.isArray(value) ? value : [])
+    .map(digits)
+    .filter(Boolean)
 const nowIso = () => new Date().toISOString()
 // WhatsApp statuses vanish from a phone after 24 hours. Queue rows get the same
 // lifetime so an old approved draft is never posted days later.
@@ -294,7 +303,7 @@ export async function statusRecipients(supabase, { ownPhone, adminNumbers = [], 
     const phone = digits(row.phone)
     if (phone && !blocked.has(phone)) phones.add(phone)
   }
-  for (const phone of adminNumbers) {
+  for (const phone of normaliseAdminNumbers(adminNumbers)) {
     const clean = digits(phone)
     if (clean && !blocked.has(clean)) phones.add(clean)
   }
@@ -339,7 +348,7 @@ async function mark(supabase, id, patch) {
   if (error) console.error('[marketing] update failed:', error.message)
 }
 
-export async function sendMarketingRow({ sock, supabase, row, control, ownPhone, adminNumbers, log = console }) {
+export async function sendMarketingRow({ sock, supabase, row, control, status = null, ownPhone, adminNumbers, log = console }) {
   const claimed = await claim(supabase, row)
   if (!claimed) return false
 
@@ -445,13 +454,18 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
       const snap = await control.read()
       const recipients = await statusRecipients(supabase, {
         ownPhone,
-        adminNumbers,
+        adminNumbers: normaliseAdminNumbers(adminNumbers),
         blocklist: snap.blocklist,
       })
 
       if (!recipients.length) throw new Error('no status recipients yet')
 
-      await sock.sendMessage('status@broadcast', content, { statusJidList: recipients })
+      await sock.sendMessage('status@broadcast', content, {
+        statusJidList: recipients,
+        // Baileys' documented status form; harmless on versions that detect
+        // status posts by the broadcast JID alone.
+        broadcast: true,
+      })
     } else {
       if (!claimed.target_jid) throw new Error('group post has no target')
 
@@ -475,6 +489,28 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
     }
 
     await mark(supabase, claimed.id, { status: 'sent', sent_at: nowIso(), error: null })
+
+    // Keep the Statuses history/duplicate window in sync with what actually
+    // reached WhatsApp. Previously only drafts were recorded, so history was
+    // empty even though activity logs showed sent statuses. `kind` must stay
+    // inside the schema's scheduled|event|manual check constraint.
+    if (claimed.channel === 'status' && status?.record) {
+      await status.record(claimed.body, {
+        mode: 'sent',
+        topic: claimed.template || 'status',
+        kind: 'scheduled',
+        meta: {
+          marketing_id: claimed.id,
+          listing_id: claimed.listing_id ?? null,
+          scopes: claimed.meta?.scopes || [],
+          delivered: true,
+        },
+      })
+    }
+
+    // Base the next cadence on the actual send, not on when the draft was made.
+    if (claimed.channel === 'status') await control.touchStatus('status')
+
     await recordActivity(
       supabase,
       {
@@ -509,7 +545,7 @@ export async function sendMarketingRow({ sock, supabase, row, control, ownPhone,
   }
 }
 
-async function requestDraft({ apiUrl, secret, payload, log }) {
+async function requestDraft({ apiUrl, secret, payload }) {
   const res = await fetch(`${apiUrl.replace(/\/$/, '')}/api/whatsapp/marketing/generate`, {
     method: 'POST',
     headers: {
@@ -542,6 +578,7 @@ export function createMarketing({
   sendText,
   log = console,
 }) {
+  const getAdminNumbers = () => normaliseAdminNumbers(adminNumbers)
   let timer = null
   let busy = false
 
@@ -618,6 +655,31 @@ export function createMarketing({
     log.log?.(`[marketing] removed ${ids.length} expired status(es)`)
   }
 
+  /*
+   * If the worker dies between claim() and mark(), a row can stay `sending`
+   * forever and pending() then blocks every future status/group draft. Recover
+   * rows that have been stuck for more than 15 minutes.
+   */
+  async function recoverStuckRows() {
+    const { data, error } = await supabase
+      .from('whatsapp_marketing')
+      .select('id')
+      .eq('status', 'sending')
+      .lt('updated_at', hoursAgo(0.25))
+      .limit(50)
+    if (error) {
+      log.warn?.('[marketing] stuck-row recovery failed:', error.message)
+      return
+    }
+    for (const row of data ?? []) {
+      await mark(supabase, row.id, {
+        status: 'failed',
+        error: 'recovered from an interrupted send',
+      })
+      log.warn?.(`[marketing] recovered stuck post ${row.id}`)
+    }
+  }
+
   async function notifyDraft(draft) {
     if (!sendText) return
     const where = draft.channel === 'group' ? `group ${draft.target_jid}` : 'WhatsApp status'
@@ -630,20 +692,29 @@ export function createMarketing({
       'https://www.asehanta.com/admin/whatsapp',
     ].join('\n')
 
-    for (const number of adminNumbers) {
+    for (const number of getAdminNumbers()) {
       try {
-        await sendText(`${digits(number)}@s.whatsapp.net`, text)
+        await sendText(`${number}@s.whatsapp.net`, text)
       } catch (error) {
         log.error?.(`[marketing] draft notice to ${number} failed:`, error?.message ?? error)
       }
     }
   }
 
-  /** Queue event-driven statuses (new/released houses) for admin approval. */
-  async function generateEvents(settings) {
+  /** Queue event-driven statuses (new/released houses) without spamming. */
+  async function generateEvents(settings, snap = null) {
     if (!status) return
-    const drafts = await status.pendingEvents(settings)
+    if (status.isQuiet(settings)) return
+    if (snap && tooSoon(snap.last_status_at, settings.interval_minutes)) return
+    if ((await pending('status')) > 0) return
+
+    const remaining = Number(settings.daily_limit) - (await sentToday('status'))
+    if (remaining <= 0) return
+
+    const drafts = await status.pendingEvents(settings, Math.min(3, remaining))
+    let queued = 0
     for (const draft of drafts) {
+      if (queued >= Math.min(3, remaining)) break
       if ((await sentToday('status')) >= settings.daily_limit) break
       if (status.isQuiet(settings)) break
       const { data, error } = await supabase
@@ -663,6 +734,7 @@ export function createMarketing({
         log.error?.('[marketing] event status queue failed:', error.message)
         continue
       }
+      queued += 1
       await status.record(draft.body, {
         mode: 'event',
         topic: draft.topic,
@@ -671,20 +743,21 @@ export function createMarketing({
       })
       if (data?.status === 'draft') await notifyDraft(data)
     }
+    if (queued) await control.touchStatus('status')
   }
 
   /** Queue a body from the new status mode (stats/random/round robin/hybrid). */
   async function generateConfiguredStatus(snap, settings) {
-    if (status.isQuiet(settings)) return
-    if (tooSoon(snap.last_status_at, settings.interval_minutes)) return
-    if ((await sentToday('status')) >= settings.daily_limit) return
-    if ((await pending('status')) > 0) return
+    if (status.isQuiet(settings)) return false
+    if (tooSoon(snap.last_status_at, settings.interval_minutes)) return false
+    if ((await sentToday('status')) >= settings.daily_limit) return false
+    if ((await pending('status')) > 0) return false
 
     const next = await status.nextScheduled({ scope: 'status', target: 'status' })
     if (!next?.body) {
       log.log?.('[marketing] status mode produced no body')
       await control.touchStatus('marketing')
-      return
+      return false
     }
     const { data, error } = await supabase
       .from('whatsapp_marketing')
@@ -701,7 +774,7 @@ export function createMarketing({
       .maybeSingle()
     if (error) {
       log.error?.('[marketing] status queue failed:', error.message)
-      return
+      return false
     }
     await status.record(next.body, {
       mode: settings.mode,
@@ -711,31 +784,46 @@ export function createMarketing({
     await control.touchStatus('status')
     if (data?.status === 'draft') await notifyDraft(data)
     else if (data?.status === 'approved') {
-      await sendMarketingRow({ sock: currentSock, supabase, row: data, control, ownPhone, adminNumbers, log })
+      await sendMarketingRow({ sock: currentSock, supabase, row: data, control, status, ownPhone, adminNumbers: getAdminNumbers(), log })
     }
+    return true
   }
 
   async function generateStatus(snap) {
-    if (status) {
-      const settings = await status.settingsFor({ scope: 'status', target: 'status' })
-      if (settings.mode === 'off') return
-      if (settings.mode === 'event') {
-        await generateEvents(settings)
-        return
-      }
-      if (settings.mode !== 'auto') {
-        await generateConfiguredStatus(snap, settings)
-        await generateEvents(settings)
-        return
-      }
+    /*
+     * `settings` must live outside the `if (status)` block: auto mode falls
+     * through to the legacy generator below, and referencing a block-scoped
+     * const there threw ReferenceError, aborting both status and group ticks.
+     */
+    const settings = status ? await status.settingsFor({ scope: 'status', target: 'status' }) : null
+    if (settings?.mode === 'off') return
+
+    if (settings?.mode === 'event') {
+      await generateEvents(settings, snap)
+      return
     }
 
-    const hasOverride = Boolean(status && settings._scopes?.length)
-    if (status?.isQuiet(settings)) return
-    if (tooSoon(snap.last_status_at, hasOverride ? settings.interval_minutes : snap.status_interval_minutes)) return
-    if ((await sentToday('status')) >= (hasOverride ? settings.daily_limit : snap.status_daily_limit)) return
+    if (settings && settings.mode !== 'auto') {
+      const generated = await generateConfiguredStatus(snap, settings)
+      if (!generated) await generateEvents(settings, snap)
+      return
+    }
+
+    // The Statuses tab is the source of truth for status cadence/approval;
+    // the legacy control row is only a fallback for deployments without it.
+    const effective = settings || {
+      interval_minutes: snap.status_interval_minutes,
+      daily_limit: snap.status_daily_limit,
+      require_approval: false,
+      _scopes: [],
+    }
+
+    if (status?.isQuiet(effective)) return
+    if (tooSoon(snap.last_status_at, effective.interval_minutes)) return
+    if ((await sentToday('status')) >= effective.daily_limit) return
     if ((await pending('status')) > 0) return
 
+    let generated = false
     try {
       const data = await requestDraft({
         apiUrl,
@@ -748,12 +836,13 @@ export function createMarketing({
         log.log?.(`[marketing] status skipped: ${data.skipped || 'no available house'}`)
         return
       }
-      if (hasOverride) {
-        const want = settings.require_approval ? 'draft' : 'approved'
+      generated = true
+      if (status) {
+        const want = effective.require_approval ? 'draft' : 'approved'
         if (data.draft.status !== want) {
           await mark(supabase, data.draft.id, {
             status: want,
-            approved_by: settings.require_approval ? null : 'worker:override',
+            approved_by: effective.require_approval ? null : 'worker:status',
           })
           data.draft.status = want
         }
@@ -762,12 +851,13 @@ export function createMarketing({
       }
       if (data.draft.status === 'draft') await notifyDraft(data.draft)
       else if (data.draft.status === 'approved') {
-        await sendMarketingRow({ sock: currentSock, supabase, row: data.draft, control, ownPhone, adminNumbers, log })
+        await sendMarketingRow({ sock: currentSock, supabase, row: data.draft, control, status, ownPhone, adminNumbers: getAdminNumbers(), log })
       }
     } catch (error) {
       log.error?.('[marketing] status draft failed:', error?.message ?? error)
       await control.touchStatus('marketing')
     }
+    if (!generated && status) await generateEvents(effective, snap)
   }
 
   async function generateGroup(snap) {
@@ -829,7 +919,7 @@ export function createMarketing({
       }
       if (data.draft.status === 'draft') await notifyDraft(data.draft)
       else if (data.draft.status === 'approved') {
-        await sendMarketingRow({ sock: currentSock, supabase, row: data.draft, control, ownPhone, adminNumbers, log })
+        await sendMarketingRow({ sock: currentSock, supabase, row: data.draft, control, status, ownPhone, adminNumbers: getAdminNumbers(), log })
       }
     } catch (error) {
       log.error?.('[marketing] group draft failed:', error?.message ?? error)
@@ -846,6 +936,7 @@ export function createMarketing({
     busy = true
     try {
       await cleanupExpiredStatuses()
+      await recoverStuckRows()
       const snap = await control.read()
       if (!snap.marketing_enabled) return
 
@@ -858,7 +949,7 @@ export function createMarketing({
         .limit(3)
 
       for (const row of due ?? []) {
-        await sendMarketingRow({ sock, supabase, row, control, ownPhone, adminNumbers, log })
+        await sendMarketingRow({ sock, supabase, row, control, status, ownPhone, adminNumbers: getAdminNumbers(), log })
       }
 
       await generateStatus(snap)

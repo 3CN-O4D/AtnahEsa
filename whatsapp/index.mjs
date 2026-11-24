@@ -208,7 +208,9 @@ const marketing = createMarketing({
   apiUrl: CHAT_API_URL,
   secret: WHATSAPP_BRIDGE_SECRET,
   ownPhone: () => ownPhone,
-  adminNumbers,
+  // `loadAdminNumbers()` reassigns the module array during start(); pass a
+  // getter so status recipients always use the freshly loaded admins.
+  adminNumbers: () => adminNumbers,
   sendText,
 })
 

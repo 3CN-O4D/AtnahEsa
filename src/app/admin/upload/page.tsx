@@ -12,6 +12,7 @@ import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { normalizeTikTokUrl } from '@/lib/utils'
 import { normalizePhone } from '@/lib/whatsapp'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import LocationPicker, { type MapCoordinates } from '@/components/maps/LocationPicker'
 import type { User } from '@supabase/supabase-js'
 
 export default function AdminUploadPage() {
@@ -28,6 +29,7 @@ export default function AdminUploadPage() {
   const [whyVacant, setWhyVacant] = useState('')
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
+  const [coordinates, setCoordinates] = useState<MapCoordinates | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
@@ -113,6 +115,9 @@ export default function AdminUploadPage() {
           why_vacant: whyVacant,
           descriptive_location: descriptiveLocation,
           location,
+          latitude: coordinates?.latitude ?? null,
+          longitude: coordinates?.longitude ?? null,
+          map_source: coordinates?.source ?? null,
           images,
           youtube_url: youtubeUrl || null,
           tiktok_url: normalizedTikTokUrl,
@@ -275,6 +280,8 @@ export default function AdminUploadPage() {
           onChange={(e) => setLocation(e.target.value)}
           required
         />
+
+        <LocationPicker value={coordinates} onChange={setCoordinates} />
 
         <Input
           label="YouTube Video URL (optional)"

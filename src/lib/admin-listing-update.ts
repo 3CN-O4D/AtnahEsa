@@ -3,6 +3,8 @@ import { moveMediaToTaken, moveMediaBackToListings } from './move-media'
 import { invalidateCached } from './server-cache'
 import { queueSheetEvent } from './sheet-feed'
 import { notifyListerWhatsApp, phoneForUserId } from './whatsapp/outbox'
+import { deleteListingLocation, saveListingLocation } from './listing-location'
+import { isValidMapPoint, type MapCoordinateSource } from './map-types'
 
 type AdminClient = ReturnType<typeof createAdminClient>
 
@@ -36,6 +38,7 @@ export interface AdminListingUpdateResult {
   data?: unknown
   error?: string
   status?: number
+  warning?: string
 }
 
 /**
@@ -90,6 +93,29 @@ export async function applyAdminListingUpdate(
     .eq('id', id)
   if (error) return { ok: false, error: error.message, status: 500 }
 
+  // Coordinates live in the private location table, never on the public
+  // listings row. Blank/null means "clear the pin"; a valid pair moves it.
+  let locationWarning: string | undefined
+  if (body.latitude !== undefined || body.longitude !== undefined) {
+    const latitude = body.latitude === '' || body.latitude == null ? null : Number(body.latitude)
+    const longitude = body.longitude === '' || body.longitude == null ? null : Number(body.longitude)
+    if (latitude === null && longitude === null) {
+      const cleared = await deleteListingLocation(admin, id)
+      if (!cleared.ok) locationWarning = `Listing updated but the map pin could not be cleared: ${cleared.error}`
+    } else {
+      const point = { latitude: latitude as number, longitude: longitude as number }
+      if (!isValidMapPoint(point)) {
+        return { ok: false, error: 'Valid latitude and longitude are required.', status: 400 }
+      }
+      const candidate = String(body.map_source || 'manual')
+      const source: MapCoordinateSource = ['manual', 'current', 'map'].includes(candidate)
+        ? (candidate as MapCoordinateSource)
+        : 'manual'
+      const saved = await saveListingLocation(admin, id, { ...point, source })
+      if (!saved.ok) locationWarning = `Listing updated but the map pin failed: ${saved.error}`
+    }
+  }
+
   invalidateCached('listings|')
 
   if (status && status !== existing.status) {
@@ -128,5 +154,5 @@ export async function applyAdminListingUpdate(
     }
   }
 
-  return { ok: true, data: updated }
+  return { ok: true, data: updated, ...(locationWarning ? { warning: locationWarning } : {}) }
 }

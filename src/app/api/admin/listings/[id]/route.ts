@@ -23,7 +23,12 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (!result.ok) {
     return addSecurityHeaders(NextResponse.json({ error: result.error || 'Update failed' }, { status: result.status ?? 500 }))
   }
-  return addSecurityHeaders(NextResponse.json(result.data))
+  return addSecurityHeaders(
+    NextResponse.json({
+      ...((result.data as Record<string, unknown>) ?? {}),
+      ...(result.warning ? { warning: result.warning } : {}),
+    })
+  )
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {

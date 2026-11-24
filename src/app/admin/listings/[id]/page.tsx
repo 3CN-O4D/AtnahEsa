@@ -10,6 +10,8 @@ import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { normalizePhone } from '@/lib/whatsapp'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import LocationPicker, { type MapCoordinates } from '@/components/maps/LocationPicker'
+import type { ExactListingLocation } from '@/lib/map-types'
 import type { Listing } from '@/types'
 
 export default function AdminEditListingPage() {
@@ -33,6 +35,7 @@ export default function AdminEditListingPage() {
   const [whyVacant, setWhyVacant] = useState('')
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
+  const [coordinates, setCoordinates] = useState<MapCoordinates | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
@@ -66,6 +69,14 @@ export default function AdminEditListingPage() {
       setWhyVacant(l.why_vacant)
       setDescriptiveLocation(l.descriptive_location)
       setLocation(l.location)
+      void fetch(`/api/listings/${id}/location`, { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((pin: ExactListingLocation | null) => {
+          if (pin?.hasLocation && pin.location) {
+            setCoordinates({ ...pin.location, source: 'manual' })
+          }
+        })
+        .catch(() => {})
       setYoutubeUrl(l.youtube_url ?? '')
       setTiktokUrl(l.tiktok_url ?? '')
       setVideoUrls(l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : []))
@@ -140,7 +151,21 @@ export default function AdminEditListingPage() {
       }).eq('id', id)
 
       if (updateErr) { setError(updateErr.message); return }
-      setSuccess('Listing updated!')
+
+      let mapNote = ''
+      const locationRes = coordinates
+        ? await fetch(`/api/listings/${id}/location`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...coordinates }),
+          })
+        : await fetch(`/api/listings/${id}/location`, { method: 'DELETE' })
+      if (!locationRes.ok) {
+        const detail = await locationRes.json().catch(() => ({}))
+        mapNote = ` Listing updated, but the map pin failed: ${detail.error || 'unknown error'}`
+      }
+
+      setSuccess(`Listing updated!${mapNote}`)
       setOriginalImages(images)
     } catch {
       setError('Failed to save')
@@ -204,6 +229,7 @@ export default function AdminEditListingPage() {
         </div>
 
         <Input label="Location (Area)" id="location" placeholder="e.g. Nairobi, Westlands" value={location} onChange={(e) => setLocation(e.target.value)} required />
+        <LocationPicker value={coordinates} onChange={setCoordinates} />
         <Input label="YouTube Video URL (optional)" id="youtube" type="url" placeholder="https://youtube.com/watch?v=..." value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
         <Input label="TikTok Video URL (optional)" id="tiktok" type="url" placeholder="https://www.tiktok.com/@username/video/..." value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} />
         <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} />

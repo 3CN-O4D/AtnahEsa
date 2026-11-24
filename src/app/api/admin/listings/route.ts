@@ -4,6 +4,8 @@ import { createAdminClient } from '@/lib/supabase/admin'
 import { VALIDATION_SCHEMAS, validateRequest, withRateLimit, addSecurityHeaders } from '@/lib/security'
 import { invalidateCached } from '@/lib/server-cache'
 import { queueSheetNewListing } from '@/lib/sheet-feed'
+import { saveListingLocation } from '@/lib/listing-location'
+import { isValidMapPoint } from '@/lib/map-types'
 
 export async function GET() {
   const supabase = await createClient()
@@ -86,6 +88,18 @@ export async function POST(req: Request) {
       .single()
 
     if (error) return addSecurityHeaders(NextResponse.json({ error: error.message }, { status: 400 }))
+
+    if (isValidMapPoint(data)) {
+      const saved = await saveListingLocation(admin, listing.id, {
+        latitude: data.latitude,
+        longitude: data.longitude,
+        source: data.map_source || 'manual',
+      })
+      if (!saved.ok) {
+        await admin.from('listings').delete().eq('id', listing.id)
+        return addSecurityHeaders(NextResponse.json({ error: `Map pin could not be saved: ${saved.error}` }, { status: 500 }))
+      }
+    }
 
     invalidateCached('listings|')
     queueSheetNewListing({

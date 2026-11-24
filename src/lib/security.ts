@@ -29,6 +29,9 @@ export const VALIDATION_SCHEMAS = {
     lister_phone: z.string().max(30).optional(),
     lister_name: z.string().max(100).optional(),
     request_id: z.string().uuid().optional(),
+    latitude: z.number().min(-90).max(90).optional().nullable(),
+    longitude: z.number().min(-180).max(180).optional().nullable(),
+    map_source: z.enum(['manual', 'current', 'map']).optional().nullable(),
   }),
 
   listingUpdate: z.object({
@@ -57,7 +60,18 @@ export const VALIDATION_SCHEMAS = {
     lister_phone: z.string().max(30).optional(),
     lister_name: z.string().max(100).optional(),
     status: z.enum(['pending', 'published', 'booked', 'taken', 'rejected']).optional(),
+    latitude: z.number().min(-90).max(90).optional().nullable(),
+    longitude: z.number().min(-180).max(180).optional().nullable(),
+    map_source: z.enum(['manual', 'current', 'map']).optional().nullable(),
   }),
+
+  listingLocationUpdate: z
+    .object({
+      latitude: z.number().min(-90).max(90),
+      longitude: z.number().min(-180).max(180),
+      source: z.enum(['manual', 'current', 'map']).optional(),
+    })
+    .strict(),
 
   bookingCreate: z.object({
     listing_id: z.string().uuid(),
@@ -280,7 +294,7 @@ export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'X-XSS-Protection': '1; mode=block',
-  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(), payment=(), usb=()',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=(self), payment=(), usb=()',
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Cross-Origin-Resource-Policy': 'same-origin',
 } as const

@@ -12,6 +12,8 @@ import { formatPrice } from '@/lib/utils'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
 import { hasListerRole } from '@/lib/roles'
 import { CONTACT_EMAIL, CONTACT_PHONE_DISPLAY, WHATSAPP_NUMBER } from '@/lib/constants'
+import LocationCard from '@/components/maps/LocationCard'
+import type { ExactListingLocation } from '@/lib/map-types'
 import {
   ISSUE_CATEGORIES,
   ISSUE_TERMS,
@@ -207,14 +209,22 @@ type ListerContactInfo = {
  */
 function ListerContact({ bookingId }: { bookingId: string }) {
   const [contact, setContact] = useState<ListerContactInfo | null>(null)
+  const [location, setLocation] = useState<ExactListingLocation | null>(null)
   const [unavailable, setUnavailable] = useState(false)
 
   useEffect(() => {
     let cancelled = false
-    fetch(`/api/house-bookings/${bookingId}/contact`, { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : Promise.reject(new Error('locked'))))
-      .then((data: ListerContactInfo) => {
-        if (!cancelled) setContact(data)
+    void Promise.all([
+      fetch(`/api/house-bookings/${bookingId}/contact`, { cache: 'no-store' }),
+      fetch(`/api/house-bookings/${bookingId}/location`, { cache: 'no-store' }),
+    ])
+      .then(async ([contactRes, locationRes]) => {
+        if (!contactRes.ok) throw new Error('locked')
+        const contactData = (await contactRes.json()) as ListerContactInfo
+        const locationData = locationRes.ok ? ((await locationRes.json()) as ExactListingLocation) : null
+        if (cancelled) return
+        setContact(contactData)
+        setLocation(locationData)
       })
       .catch(() => {
         if (!cancelled) setUnavailable(true)
@@ -256,6 +266,15 @@ function ListerContact({ bookingId }: { bookingId: string }) {
           <span className="text-xs text-gray-500 dark:text-gray-400">Phone shared by AseHanta support</span>
         )}
       </div>
+      {location?.hasLocation && location.location && (
+        <LocationCard
+          center={location.location}
+          label={location.label}
+          exact
+          links={location.links}
+          height={200}
+        />
+      )}
       <p className="mt-2 text-[11px] leading-relaxed text-blue-900 dark:text-blue-300/90">
         No answer, a no-show, or the house is not as advertised? Report it before escrow closes for a refund of up to{' '}
         <strong>100%</strong>, or call AseHanta on{' '}

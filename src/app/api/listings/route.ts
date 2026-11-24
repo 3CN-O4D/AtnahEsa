@@ -14,6 +14,8 @@ import {
   fetchGroupedListingsPage,
 } from '@/lib/listings-feed'
 import { queueSheetNewListing } from '@/lib/sheet-feed'
+import { saveListingLocation } from '@/lib/listing-location'
+import { isValidMapPoint } from '@/lib/map-types'
 
 /** Public, non-personalised payloads can be reused by the CDN briefly while
  *  still picking up new listings within half a minute. */
@@ -215,6 +217,21 @@ export async function POST(req: Request) {
     if (insertError) return addSecurityHeaders(NextResponse.json({ error: insertError.message }, { status: 400 }))
     if (!insertedListing?.id) {
       return addSecurityHeaders(NextResponse.json({ error: 'Listing was created but no ID was returned' }, { status: 500 }))
+    }
+
+    // The pin lives in a private table so public listing payloads can never
+    // leak it. A failed pin write rolls the listing back rather than silently
+    // creating a house without the map the lister asked for.
+    if (isValidMapPoint(validation.data)) {
+      const saved = await saveListingLocation(createAdminClient(), insertedListing.id, {
+        latitude: validation.data.latitude,
+        longitude: validation.data.longitude,
+        source: validation.data.map_source || 'manual',
+      })
+      if (!saved.ok) {
+        await supabase.from('listings').delete().eq('id', insertedListing.id)
+        return addSecurityHeaders(NextResponse.json({ error: `Map pin could not be saved: ${saved.error}` }, { status: 500 }))
+      }
     }
 
     invalidateCached('listings|')

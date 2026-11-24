@@ -12,6 +12,7 @@ import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { normalizeTikTokUrl } from '@/lib/utils'
 import { withCallbackUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import LocationPicker, { type MapCoordinates } from '@/components/maps/LocationPicker'
 import type { User } from '@supabase/supabase-js'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
@@ -41,6 +42,7 @@ export default function UploadPage() {
   const [floorNumber, setFloorNumber] = useState('')
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
+  const [coordinates, setCoordinates] = useState<MapCoordinates | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
@@ -66,6 +68,9 @@ export default function UploadPage() {
     if (typeof window === 'undefined') return
     const id = new URLSearchParams(window.location.search).get('request') || ''
     if (!id) return
+    // The query string is only readable after hydration; this one-time prefill
+    // is intentional.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setRequestId(id)
 
     const supabase = createClient()
@@ -162,6 +167,9 @@ export default function UploadPage() {
           floor_number: floorNumber,
           descriptive_location: descriptiveLocation,
           location,
+          latitude: coordinates?.latitude ?? null,
+          longitude: coordinates?.longitude ?? null,
+          map_source: coordinates?.source ?? null,
           images,
           youtube_url: youtubeUrl || null,
           tiktok_url: normalizedTikTokUrl,
@@ -399,6 +407,8 @@ export default function UploadPage() {
           onChange={(e) => setLocation(e.target.value)}
           required
         />
+
+        <LocationPicker value={coordinates} onChange={setCoordinates} />
 
         <Input
           label="YouTube Video URL (optional)"

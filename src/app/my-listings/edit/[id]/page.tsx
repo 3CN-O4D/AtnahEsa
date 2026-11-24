@@ -9,6 +9,8 @@ import VideoUploader from '@/components/upload/VideoUploader'
 import { createClient } from '@/lib/supabase/client'
 import { MIN_BOOKING_FEE } from '@/lib/constants'
 import { signInUrl, currentPathWithSearch } from '@/lib/auth-redirect'
+import LocationPicker, { type MapCoordinates } from '@/components/maps/LocationPicker'
+import type { ExactListingLocation } from '@/lib/map-types'
 import type { Listing } from '@/types'
 
 const HOUSE_TYPES = ['Hostels', 'Mabati', '1 Bedroom (1BR)', '2 Bedroom (2BR)', '3+ Bedroom', 'BnB', 'Bedsitter/Studio', 'Apartment', 'Bungalow', 'Mansionette', 'Townhouse', 'Villa', 'Other']
@@ -44,6 +46,7 @@ export default function EditListingPage() {
   const [floorNumber, setFloorNumber] = useState('')
   const [descriptiveLocation, setDescriptiveLocation] = useState('')
   const [location, setLocation] = useState('')
+  const [coordinates, setCoordinates] = useState<MapCoordinates | null>(null)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [tiktokUrl, setTiktokUrl] = useState('')
   const [videoUrls, setVideoUrls] = useState<string[]>([])
@@ -79,6 +82,14 @@ export default function EditListingPage() {
       setFloorNumber(l.floor_number || '')
       setDescriptiveLocation(l.descriptive_location)
       setLocation(l.location)
+      void fetch(`/api/listings/${id}/location`, { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((pin: ExactListingLocation | null) => {
+          if (pin?.hasLocation && pin.location) {
+            setCoordinates({ ...pin.location, source: 'manual' })
+          }
+        })
+        .catch(() => {})
       setYoutubeUrl(l.youtube_url ?? '')
       setTiktokUrl(l.tiktok_url ?? '')
       setVideoUrls(l.video_urls?.length ? l.video_urls : (l.video_url ? [l.video_url] : []))
@@ -123,7 +134,21 @@ export default function EditListingPage() {
       const { error: updateErr } = await supabase.from('listings').update(updates).eq('id', id)
 
       if (updateErr) { setError(updateErr.message); return }
-      setSuccess('Saved!'); setOriginalImages(images)
+
+      let mapNote = ''
+      const locationRes = coordinates
+        ? await fetch(`/api/listings/${id}/location`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ...coordinates }),
+          })
+        : await fetch(`/api/listings/${id}/location`, { method: 'DELETE' })
+      if (!locationRes.ok) {
+        const detail = await locationRes.json().catch(() => ({}))
+        mapNote = ` Listing saved, but the map pin failed: ${detail.error || 'unknown error'}`
+      }
+
+      setSuccess(`Saved!${mapNote}`); setOriginalImages(images)
 
       // Delete removed media only after the listing no longer references it,
       // so a failed save can never leave the DB pointing at deleted objects.
@@ -231,6 +256,7 @@ export default function EditListingPage() {
         </div>
 
         <Input label="Location (Area)" id="location" value={location} onChange={(e) => setLocation(e.target.value)} required />
+        <LocationPicker value={coordinates} onChange={setCoordinates} />
         <Input label="YouTube Video URL" id="youtube" type="url" value={youtubeUrl} onChange={(e) => setYoutubeUrl(e.target.value)} />
         <Input label="TikTok Video URL" id="tiktok" type="url" placeholder="https://www.tiktok.com/@username/video/..." value={tiktokUrl} onChange={(e) => setTiktokUrl(e.target.value)} />
         <VideoUploader videoUrls={videoUrls} onChange={setVideoUrls} onUploadingChange={setMediaUploading} />

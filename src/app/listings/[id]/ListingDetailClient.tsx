@@ -20,6 +20,8 @@ import ListingCard from '@/components/listings/ListingCard'
 import TakenListingPanel from '@/components/listings/TakenListingPanel'
 import { SkeletonDetail } from '@/components/ui/Skeleton'
 import { SAFE_LISTING_COLUMNS, readDetailCache, writeDetailCache } from '@/lib/listing-detail-cache'
+import LocationCard from '@/components/maps/LocationCard'
+import type { ApproximateListingLocation, ExactListingLocation } from '@/lib/map-types'
 import type { Listing, Review, Profile, ListerReview } from '@/types'
 
 const ImageViewer = dynamic(() => import('@/components/ui/ImageViewer'), { ssr: false })
@@ -70,6 +72,8 @@ export default function ListingDetailClient({ initialListing }: { initialListing
   const [canReview, setCanReview] = useState(false)
   const [phoneUnlocked, setPhoneUnlocked] = useState(false)
   const [listerContact, setListerContact] = useState<{ name?: string; phone: string | null; whatsapp: string | null } | null>(null)
+  const [areaLocation, setAreaLocation] = useState<ApproximateListingLocation | null>(null)
+  const [exactLocation, setExactLocation] = useState<ExactListingLocation | null>(null)
   const [similar, setSimilar] = useState<Listing[]>([])
   const [listerReviews, setListerReviews] = useState<ListerReview[]>([])
   const [listerReviewProfiles, setListerReviewProfiles] = useState<Record<string, Profile>>({})
@@ -109,11 +113,12 @@ export default function ListingDetailClient({ initialListing }: { initialListing
     let cancelled = false
 
     const load = async () => {
-      const [userRes, listingResponse] = await Promise.all([
+      const [userRes, listingResponse, areaLocationResponse] = await Promise.all([
         supabase.auth.getUser(),
         // The public detail API uses the service role and returns published,
         // booked and taken houses only. Never exposes lister_phone.
         fetch(`/api/listings/${id}`, { cache: 'no-store' }).catch(() => null),
+        fetch(`/api/listings/${id}/location/approx`, { cache: 'no-store' }).catch(() => null),
       ])
 
       if (cancelled) return
@@ -135,6 +140,10 @@ export default function ListingDetailClient({ initialListing }: { initialListing
         return
       }
 
+      if (areaLocationResponse?.ok) {
+        setAreaLocation((await areaLocationResponse.json().catch(() => null)) as ApproximateListingLocation | null)
+      }
+
       const l = listingData
       setListing(l)
       setLoading(false)
@@ -150,7 +159,7 @@ export default function ListingDetailClient({ initialListing }: { initialListing
           l.uploader_id ? supabase.from('lister_reviews').select('*').eq('lister_id', l.uploader_id).order('created_at', { ascending: false }) : Promise.resolve({ data: null }),
           supabase.from('listings').select(SAFE_LISTING_COLUMNS).eq('status', 'published').eq('location', l.location).neq('id', id).limit(10),
           currentUser ? supabase.from('bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).eq('release_status', 'released') : Promise.resolve({ count: null }),
-          currentUser ? supabase.from('house_bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).in('release_status', ['held', 'paid', 'refunded']) : Promise.resolve({ count: null }),
+          currentUser ? supabase.from('house_bookings').select('*', { count: 'exact', head: true }).eq('listing_id', id).eq('user_id', currentUser.id).in('release_status', ['held', 'paid', 'released', 'refund_requested']) : Promise.resolve({ count: null }),
         ])
 
         if (cancelled) return
@@ -194,14 +203,22 @@ export default function ListingDetailClient({ initialListing }: { initialListing
     }
   }, [id, router])
 
-  // Unlock the lister's real number only once the server confirms a paid booking.
+  // Unlock the lister's real number and exact pin only once the server confirms
+  // a paid booking. The browser's unlock flag is only a hint; each endpoint
+  // repeats the payment gate before returning private data.
   useEffect(() => {
     if (!phoneUnlocked) return
     let cancelled = false
-    fetch(`/api/listings/${id}/contact`, { cache: 'no-store' })
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (!cancelled && data) setListerContact(data)
+    void Promise.all([
+      fetch(`/api/listings/${id}/contact`, { cache: 'no-store' }),
+      fetch(`/api/listings/${id}/location`, { cache: 'no-store' }),
+    ])
+      .then(async ([contactRes, locationRes]) => {
+        const contactData = contactRes.ok ? await contactRes.json().catch(() => null) : null
+        const locationData = locationRes.ok ? await locationRes.json().catch(() => null) : null
+        if (cancelled) return
+        if (contactData) setListerContact(contactData)
+        if (locationData) setExactLocation(locationData as ExactListingLocation)
       })
       .catch(() => {})
     return () => {
@@ -412,10 +429,20 @@ export default function ListingDetailClient({ initialListing }: { initialListing
             <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{listing.description}</p>
           </div>
 
-          {listing.descriptive_location && (
+          {(listing.descriptive_location || areaLocation?.hasLocation) && (
             <div>
               <h2 className="text-lg font-semibold mb-2">Location Details</h2>
-              <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{listing.descriptive_location}</p>
+              {listing.descriptive_location && (
+                <p className="text-gray-600 dark:text-gray-300 whitespace-pre-wrap">{listing.descriptive_location}</p>
+              )}
+              {areaLocation?.hasLocation && areaLocation.center && (
+                <LocationCard
+                  center={areaLocation.center}
+                  label={areaLocation.label}
+                  radius={areaLocation.radius}
+                  height={200}
+                />
+              )}
             </div>
           )}
 
@@ -568,6 +595,15 @@ export default function ListingDetailClient({ initialListing }: { initialListing
                   </button>
                 )}
               </div>
+              {phoneUnlocked && exactLocation?.hasLocation && exactLocation.location && (
+                <LocationCard
+                  center={exactLocation.location}
+                  label={exactLocation.label}
+                  exact
+                  links={exactLocation.links}
+                  height={200}
+                />
+              )}
             </div>
           )}
 

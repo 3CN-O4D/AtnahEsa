@@ -615,3 +615,23 @@ GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
 ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+
+-- PRIVATE LISTING MAP PINS
+-- Mirrors supabase/migration-listing-locations.sql for fresh installs.
+-- Exact coordinates must never become columns on public.listings.
+CREATE TABLE IF NOT EXISTS public.listing_locations (
+  listing_id UUID PRIMARY KEY REFERENCES public.listings(id) ON DELETE CASCADE,
+  latitude DOUBLE PRECISION NOT NULL CHECK (latitude BETWEEN -90 AND 90),
+  longitude DOUBLE PRECISION NOT NULL CHECK (longitude BETWEEN -180 AND 180),
+  source TEXT NOT NULL DEFAULT 'manual' CHECK (source IN ('manual', 'current', 'map')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE public.listing_locations ENABLE ROW LEVEL SECURITY;
+-- No RLS policies for anon/authenticated: service-role route handlers only.
+REVOKE ALL ON public.listing_locations FROM anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON public.listing_locations TO service_role;
+
+COMMENT ON TABLE public.listing_locations IS
+  'Private, payment-gated exact map pins for listings. Never expose through public listing columns.';
